@@ -18,8 +18,7 @@ export default function LoginPage() {
       setError("Email o contrasena incorrectos")
       setLoading(false)
     } else {
-      router.push("/dashboard")
-      router.refresh()
+      window.location.href = "/dashboard"
     }
   }
   return (
@@ -44,7 +43,7 @@ export default function LoginPage() {
               <input type="password" className="input" placeholder="........" value={password} onChange={e => setPassword(e.target.value)} required />
             </div>
             {error && <div style={{background:"#fef2f2",color:"#dc2626",fontSize:13,padding:"8px 12px",borderRadius:8,marginBottom:14}}>{error}</div>}
-            <button type="submit" disabled={loading} className="btn-primary" style={{width:"100%",justifyContent:"center",opacity:loading?0.6:1}}>
+            <button type="submit" disabled={loading} className="btn-primary" style={{width:"100%",opacity:loading?0.6:1}}>
               {loading ? "Ingresando..." : "Ingresar"}
             </button>
           </form>
