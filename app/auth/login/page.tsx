@@ -10,39 +10,46 @@ export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
   async function handleLogin(e: React.FormEvent) {
-    e.preventDefault(); setLoading(true); setError("")
+    e.preventDefault()
+    setLoading(true)
+    setError("")
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { setError("Email o contrasena incorrectos"); setLoading(false) }
-    else { router.push("/dashboard"); router.refresh() }
+    if (error) {
+      setError("Email o contrasena incorrectos")
+      setLoading(false)
+    } else {
+      router.push("/dashboard")
+      router.refresh()
+    }
   }
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-izango-500 rounded-2xl mb-4">
-            <span className="text-white font-bold text-xl">iz</span>
+    <div style={{minHeight:"100vh",background:"#f9fafb",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{width:"100%",maxWidth:384}}>
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:56,height:56,background:"#1D9E75",borderRadius:16,marginBottom:16}}>
+            <span style={{color:"#fff",fontWeight:700,fontSize:20}}>iz</span>
           </div>
-          <h1 className="text-xl font-semibold text-gray-900">Izango ERP</h1>
-          <p className="text-sm text-gray-500 mt-1">Sistema de gestion Izango 360</p>
+          <h1 style={{fontSize:20,fontWeight:600,margin:0}}>Izango ERP</h1>
+          <p style={{fontSize:13,color:"#6b7280",marginTop:4}}>Sistema de gestion Izango 360</p>
         </div>
         <div className="card">
-          <h2 className="text-base font-medium text-gray-900 mb-5">Iniciar sesion</h2>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
+          <h2 style={{fontSize:15,fontWeight:500,marginBottom:20,marginTop:0}}>Iniciar sesion</h2>
+          <form onSubmit={handleLogin}>
+            <div style={{marginBottom:14}}>
               <label className="label">Email</label>
               <input type="email" className="input" placeholder="tu@izango.com.pe" value={email} onChange={e => setEmail(e.target.value)} required />
             </div>
-            <div>
+            <div style={{marginBottom:14}}>
               <label className="label">Contrasena</label>
               <input type="password" className="input" placeholder="........" value={password} onChange={e => setPassword(e.target.value)} required />
             </div>
-            {error && <div className="bg-red-50 text-red-600 text-sm px-3 py-2 rounded-lg">{error}</div>}
-            <button type="submit" disabled={loading} className="btn-primary w-full justify-center flex disabled:opacity-60">
+            {error && <div style={{background:"#fef2f2",color:"#dc2626",fontSize:13,padding:"8px 12px",borderRadius:8,marginBottom:14}}>{error}</div>}
+            <button type="submit" disabled={loading} className="btn-primary" style={{width:"100%",justifyContent:"center",opacity:loading?0.6:1}}>
               {loading ? "Ingresando..." : "Ingresar"}
             </button>
           </form>
         </div>
-        <p className="text-center text-xs text-gray-400 mt-6">Izango 360 S.A.C. Sistema interno</p>
+        <p style={{textAlign:"center",fontSize:12,color:"#9ca3af",marginTop:24}}>Izango 360 S.A.C. Sistema interno</p>
       </div>
     </div>
   )
