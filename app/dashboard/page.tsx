@@ -28,9 +28,17 @@ export default function DashboardPage() {
         .eq("entidad", p?.entidad||"peru")
         .order("created_at", { ascending: false })
         .limit(10)
-      const { count: rqPendientes } = await supabase.from("requerimientos_pago").select("id",{count:"exact",head:true}).in("estado",["pendiente_aprobacion","aprobado"])
-      const inicioMes = new Date(); inicioMes.setDate(1); inicioMes.setHours(0,0,0,0)
-      const { count: cotMes } = await supabase.from("cotizaciones").select("id",{count:"exact",head:true}).gte("created_at", inicioMes.toISOString())
+      const { count: rqPendientes } = await supabase
+        .from("requerimientos_pago")
+        .select("id",{count:"exact",head:true})
+        .in("estado",["pendiente_aprobacion","aprobado"])
+      const inicioMes = new Date()
+      inicioMes.setDate(1)
+      inicioMes.setHours(0,0,0,0)
+      const { count: cotMes } = await supabase
+        .from("cotizaciones")
+        .select("id",{count:"exact",head:true})
+        .gte("created_at", inicioMes.toISOString())
       setData({ proyectos: proyectos||[], rqPendientes: rqPendientes||0, cotMes: cotMes||0 })
     }
     load()
@@ -47,7 +55,6 @@ export default function DashboardPage() {
     { label:"RQs pendientes", value:data.rqPendientes, sub:"Por aprobar o pagar", color:data.rqPendientes>0?"#ea580c":"#374151" },
     { label:"Cotizaciones del mes", value:data.cotMes, sub:"Versiones generadas", color:"#374151" },
   ]
-
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
@@ -72,21 +79,43 @@ export default function DashboardPage() {
           <a href="/proyectos" style={{fontSize:12,color:"#0F6E56"}}>Ver todos</a>
         </div>
         <table>
-          <thead><tr><th>Codigo</th><th>Proyecto</th><th>Cliente</th><th>Productor</th><th>Estado</th><th>Inicio</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Codigo</th>
+              <th>Proyecto</th>
+              <th>Cliente</th>
+              <th>Productor</th>
+              <th>Estado</th>
+              <th>Inicio</th>
+            </tr>
+          </thead>
           <tbody>
             {data.proyectos.length > 0 ? data.proyectos.map((p:any) => (
               <tr key={p.id}>
                 <td style={{color:"#9ca3af",fontFamily:"monospace",fontSize:11}}>{p.codigo}</td>
-                <td><a href={`/proyectos/${p.id}`} style={{fontWeight:500,color:"#111827"}}>{p.nombre}</a></td>
+                <td>
+                  <a href={"/proyectos/"+p.id} style={{fontWeight:500,color:"#111827"}}>
+                    {p.nombre}
+                  </a>
+                </td>
                 <td>{p.cliente?.razon_social||"—"}</td>
-                <td>{p.productor?`${p.productor.nombre} ${p.productor.apellido}`:"—"}</td>
-                <td><span className={`badge ${ESTADO_BADGE[p.estado]||"badge-gray"}`}>{ESTADO_LABEL[p.estado]}</span></td>
-                <td style={{color:"#9ca3af",fontSize:12}}>{p.fecha_inicio?new Date(p.fecha_inicio).toLocaleDateString("es-PE"):"—"}</td>
+                <td>{p.productor ? p.productor.nombre+" "+p.productor.apellido : "—"}</td>
+                <td>
+                  <span className={"badge "+(ESTADO_BADGE[p.estado]||"badge-gray")}>
+                    {ESTADO_LABEL[p.estado]}
+                  </span>
+                </td>
+                <td style={{color:"#9ca3af",fontSize:12}}>
+                  {p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE") : "—"}
+                </td>
               </tr>
             )) : (
-              <tr><td colSpan={6} style={{textAlign:"center",color:"#9ca3af",padding:40}}>
-                No hay proyectos. <a href="/proyectos/nuevo" style={{color:"#0F6E56"}}>Crea el primero</a>
-              </td></tr>
+              <tr>
+                <td colSpan={6} style={{textAlign:"center",color:"#9ca3af",padding:40}}>
+                  No hay proyectos.{" "}
+                  <a href="/proyectos/nuevo" style={{color:"#0F6E56"}}>Crea el primero</a>
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
