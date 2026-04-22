@@ -77,4 +77,20 @@ export default function DashboardPage() {
             {data.proyectos.length > 0 ? data.proyectos.map((p:any) => (
               <tr key={p.id}>
                 <td style={{color:"#9ca3af",fontFamily:"monospace",fontSize:11}}>{p.codigo}</td>
-                <td><a href={`/proyectos/${p.id}`} st
+                <td><a href={`/proyectos/${p.id}`} style={{fontWeight:500,color:"#111827"}}>{p.nombre}</a></td>
+                <td>{p.cliente?.razon_social||"—"}</td>
+                <td>{p.productor?`${p.productor.nombre} ${p.productor.apellido}`:"—"}</td>
+                <td><span className={`badge ${ESTADO_BADGE[p.estado]||"badge-gray"}`}>{ESTADO_LABEL[p.estado]}</span></td>
+                <td style={{color:"#9ca3af",fontSize:12}}>{p.fecha_inicio?new Date(p.fecha_inicio).toLocaleDateString("es-PE"):"—"}</td>
+              </tr>
+            )) : (
+              <tr><td colSpan={6} style={{textAlign:"center",color:"#9ca3af",padding:40}}>
+                No hay proyectos. <a href="/proyectos/nuevo" style={{color:"#0F6E56"}}>Crea el primero</a>
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
