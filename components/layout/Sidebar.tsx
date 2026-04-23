@@ -1,4 +1,3 @@
-"use client"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
 const navItems = [
@@ -17,6 +16,8 @@ const navItems = [
     { label: "Req. de pago", href: "/rq" },
     { label: "Facturacion", href: "/facturacion" },
     { label: "Liquidaciones", href: "/liquidaciones" },
+  ]},
+  { section: "Administracion", items: [
     { label: "Trazabilidad", href: "/trazabilidad" },
   ]},
 ]
@@ -68,7 +69,5 @@ export default function Sidebar({ perfil }: { perfil: any }) {
       </div>
     </aside>
   )
+
 }
-
-
-
