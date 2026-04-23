@@ -4,6 +4,8 @@ const navItems = [
   { section: "Principal", items: [
     { label: "Dashboard", href: "/dashboard" },
     { label: "Proyectos", href: "/proyectos" },
+    { label: "Calendario", href: "/calendario" },
+    { label: "Gestor", href: "/gestor" },
     { label: "Clientes", href: "/clientes" },
     { label: "CRM", href: "/crm" },
   ]},
