@@ -10,6 +10,7 @@ const navItems = [
   { section: "Comercial", items: [
     { label: "Proformas", href: "/proformas" },
     { label: "Proveedores", href: "/proveedores" },
+    { label: "Biblioteca", href: "/biblioteca" },
   ]},
   { section: "Finanzas", items: [
     { label: "Req. de pago", href: "/rq" },
@@ -66,3 +67,4 @@ export default function Sidebar({ perfil }: { perfil: any }) {
     </aside>
   )
 }
+
