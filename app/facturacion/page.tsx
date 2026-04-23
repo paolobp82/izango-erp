@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { enviarAlerta } from "@/lib/alertas"
 
 const ESTADOS: Record<string, any> = {
   pendiente:  { bg: "#fef9c3", color: "#92400e",  label: "Pendiente" },
