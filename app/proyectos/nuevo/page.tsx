@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
@@ -79,8 +79,8 @@ export default function NuevoProyectoPage() {
         <div className="card" style={{marginBottom:16}}>
           <h2 style={{fontSize:14,fontWeight:500,marginBottom:16,marginTop:0}}>Fechas</h2>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16}}>
-            <div><label style={labelStyle}>Limite cotizacion</label><input type="date" style={inputStyle} value={form.fecha_limite_cotizacion} onChange={e=>f("fecha_limite_cotizacion",e.target.value)} /></div>
-            <div><label style={labelStyle}>Fecha inicio</label><input type="date" style={inputStyle} value={form.fecha_inicio} onChange={e=>f("fecha_inicio",e.target.value)} /></div>
+            <div><label style={labelStyle}>Fecha limite entrega cotizacion</label><input type="date" style={inputStyle} value={form.fecha_limite_cotizacion} onChange={e=>f("fecha_limite_cotizacion",e.target.value)} /></div>
+            <div><label style={labelStyle}>Fecha de ejecucion del proyecto</label><input type="date" style={inputStyle} value={form.fecha_inicio} onChange={e=>f("fecha_inicio",e.target.value)} /></div>
             <div><label style={labelStyle}>Fecha fin estimada</label><input type="date" style={inputStyle} value={form.fecha_fin_estimada} onChange={e=>f("fecha_fin_estimada",e.target.value)} /></div>
           </div>
         </div>

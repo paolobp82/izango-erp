@@ -179,6 +179,13 @@ export default function CotizacionEditorPage() {
   }
 
   async function guardar(nuevoEstado?: string) {
+    if (nuevoEstado === "aprobada_cliente") {
+      const sinProveedor = items.filter(i => !i.proveedor_id && i.costo_total > 0)
+      if (sinProveedor.length > 0) {
+        alert("Todos los items deben tener un proveedor asignado antes de enviar al cliente.")
+        return
+      }
+    }
     if (!cotId || !id) return
     setSaving(true)
 
@@ -571,6 +578,7 @@ export default function CotizacionEditorPage() {
     </div>
   )
 }
+
 
 
 

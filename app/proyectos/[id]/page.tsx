@@ -46,6 +46,30 @@ export default function ProyectoDetallePage() {
   }
 
   async function cambiarEstado(nuevoEstado: string) {
+    if (nuevoEstado === "terminado") {
+      const cotAprobada = cotizaciones.find(c => c.estado === "aprobada_cliente")
+      const { data: liqExistente } = await supabase.from("liquidaciones").select("id").eq("proyecto_id", id).single()
+      if (!liqExistente) {
+        const { data: liq } = await supabase.from("liquidaciones").insert({
+          proyecto_id: id,
+          costo_presupuestado: cotAprobada?.subtotal_costo || 0,
+          precio_cliente_presupuestado: cotAprobada?.total_cliente || 0,
+          margen_presupuestado_pct: cotAprobada?.margen_pct || 0,
+          costo_real: 0, precio_cliente_real: cotAprobada?.total_cliente || 0,
+          margen_real_pct: 0, cerrada: false,
+        }).select().single()
+        if (liq && cotAprobada) {
+          const { data: its } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotAprobada.id)
+          if (its && its.length > 0) {
+            await supabase.from("liquidacion_items").insert(its.map((item: any) => ({
+              liquidacion_id: liq.id, cotizacion_item_id: item.id,
+              descripcion: item.descripcion, costo_presupuestado: item.costo_total || 0,
+              costo_real: 0, desvio: 0, desvio_pct: 0,
+            })))
+          }
+        }
+      }
+    }
     setCambiando(true)
     await supabase.from("proyectos").update({ estado: nuevoEstado }).eq("id", id)
     setProyecto({ ...proyecto, estado: nuevoEstado })
@@ -72,7 +96,8 @@ export default function ProyectoDetallePage() {
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const estadoInfo = FLUJO[proyecto?.estado] || { label: proyecto?.estado, bg: "#f3f4f6", color: "#6b7280" }
-  const puedeAvanzar = estadoInfo.roles?.includes(perfil?.perfil)
+  const tieneCotizacion = cotizaciones.length > 0
+  const puedeAvanzar = estadoInfo.roles?.includes(perfil?.perfil) && tieneCotizacion
   const puedeRechazar = ["gerente_produccion", "gerente_general"].includes(perfil?.perfil) && ["aprobado_produccion", "aprobado"].includes(proyecto?.estado)
 
   const ecCot: any = {
@@ -149,6 +174,11 @@ export default function ProyectoDetallePage() {
             })}
           </div>
 
+          {!tieneCotizacion && proyecto?.estado === "pendiente_aprobacion" && (
+            <div style={{ marginTop: 12, padding: "8px 12px", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 8, fontSize: 12, color: "#92400e" }}>
+              Debes crear al menos una proforma antes de poder aprobar este proyecto.
+            </div>
+          )}
           {puedeAvanzar && estadoInfo.siguiente && (
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando}
@@ -224,3 +254,6 @@ export default function ProyectoDetallePage() {
     </div>
   )
 }
+
+
+
