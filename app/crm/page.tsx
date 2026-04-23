@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { registrarAccion } from "@/lib/trazabilidad"
 
 const ESTADOS: Record<string, any> = {
   nuevo:        { bg: "#dbeafe", color: "#1e40af", label: "Nuevo" },
@@ -87,6 +88,7 @@ export default function CRMPage() {
       await supabase.from("crm_leads").insert({ ...payload, entidad: "peru" })
     }
     setSaving(false)
+    await registrarAccion({ accion: editando ? "editar" : "crear", modulo: "crm", entidad_tipo: "lead", descripcion: (editando ? "Lead editado: " : "Lead creado: ") + form.razon_social })
     setShowForm(false)
     load()
   }

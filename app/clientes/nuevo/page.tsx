@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import { registrarAccion } from "@/lib/trazabilidad"
 
 const BANCOS = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
 const TIPOS_CUENTA = ["Ahorros", "Corriente"]
@@ -77,6 +78,7 @@ export default function NuevoClientePage() {
     }
 
     setSaving(false)
+    await registrarAccion({ accion: "crear", modulo: "clientes", entidad_id: cliente?.id, entidad_tipo: "cliente", descripcion: "Cliente creado: " + form.razon_social })
     router.push("/clientes")
   }
 
@@ -284,7 +286,8 @@ export default function NuevoClientePage() {
       </div>
 
       <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-        <button onClick={() => router.push("/clientes")} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+        <button onClick={() => await registrarAccion({ accion: "crear", modulo: "clientes", entidad_id: cliente?.id, entidad_tipo: "cliente", descripcion: "Cliente creado: " + form.razon_social })
+    router.push("/clientes")} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
         <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
           {saving ? "Guardando..." : "Crear cliente"}
         </button>

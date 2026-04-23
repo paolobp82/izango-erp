@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams, useRouter } from "next/navigation"
+import { registrarAccion } from "@/lib/trazabilidad"
 
 const COSTOS_INTERNOS = [
   { key: "costo_almacenaje", label: "Almacenaje" },
@@ -218,6 +219,7 @@ export default function CotizacionEditorPage() {
       ...(nuevoEstado ? { estado: nuevoEstado } : {}),
     }).eq("id", cotId)
     setSaving(false)
+    await registrarAccion({ accion: "enviar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion enviada al cliente y aprobada" })
     if (nuevoEstado === "aprobada_cliente") {
       const { data: cotData } = await supabase.from("cotizaciones").select("proyecto_id").eq("id", cotId).single()
       await generarRQs(cotId, cotData?.proyecto_id || id)
@@ -234,6 +236,7 @@ export default function CotizacionEditorPage() {
       })
       setItems(parsed)
       alert("Guardado correctamente")
+      await registrarAccion({ accion: "editar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion guardada como borrador" })
     }
   }
 

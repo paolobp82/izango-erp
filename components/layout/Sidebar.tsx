@@ -19,6 +19,7 @@ const navItems = [
   ]},
   { section: "Administracion", items: [
     { label: "Trazabilidad", href: "/trazabilidad" },
+    { label: "Alertas", href: "/alertas" },
   ]},
 ]
 const ENTIDAD: Record<string,string> = { peru: "Izango Peru", selva: "Izango Selva" }
