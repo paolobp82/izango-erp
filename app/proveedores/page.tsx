@@ -1,165 +1,122 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { useRouter } from "next/navigation"
 
-const CATEGORIAS = ["produccion", "almacenaje", "impresion", "permisos", "instalacion", "performer", "alquiler", "supervision", "movilidad", "otros"]
-const TIPOS_PAGO = ["contado", "credito_30", "credito_60", "credito_90"]
-const BANCOS = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Otro"]
-
-export default function ProveedoresPage() {
+export default function NuevoClientePage() {
   const supabase = createClient()
-  const [proveedores, setProveedores] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [editando, setEditando] = useState<any>(null)
+  const router = useRouter()
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ nombre: "", ruc: "", categoria: "Producción", banco: "", numero_cuenta: "", cuenta_interbancaria: "", tipo_pago: "contado" })
-
-  useEffect(() => { load() }, [])
-
-  async function load() {
-    const { data } = await supabase.from("proveedores").select("*").order("nombre")
-    setProveedores(data || [])
-    setLoading(false)
-  }
-
-  function abrirNuevo() {
-    setEditando(null)
-    setForm({ nombre: "", ruc: "", categoria: "Producción", banco: "", numero_cuenta: "", cuenta_interbancaria: "", tipo_pago: "contado" })
-    setShowForm(true)
-  }
-
-  function abrirEditar(prov: any) {
-    setEditando(prov)
-    setForm({ nombre: prov.nombre || "", ruc: prov.ruc || "", categoria: prov.categoria || "Producción", banco: prov.banco || "", numero_cuenta: prov.numero_cuenta || "", cuenta_interbancaria: prov.cuenta_interbancaria || "", tipo_pago: prov.tipo_pago || "contado" })
-    setShowForm(true)
-  }
+  const [form, setForm] = useState({
+    razon_social: "", ruc: "", nombre_contacto: "", email_contacto: "",
+    telefono_contacto: "", nombre_contacto_admin: "", email_contacto_admin: "",
+    telefono_contacto_admin: "", direccion: "",
+  })
 
   async function guardar() {
-    if (!form.nombre) { alert("El nombre es obligatorio"); return }
+    if (!form.razon_social) { alert("Razon social es obligatoria"); return }
     setSaving(true)
-    if (editando) { await supabase.from("proveedores").update({ ...form, entidad: "peru" }).eq("id", editando.id) }
-    else { await supabase.from("proveedores").insert({ ...form, entidad: "peru" }) }
+    const { data, error } = await supabase.from("clientes").insert({
+      razon_social: form.razon_social,
+      ruc: form.ruc || null,
+      nombre_contacto: form.nombre_contacto || null,
+      email_contacto: form.email_contacto || null,
+      telefono_contacto: form.telefono_contacto || null,
+      nombre_contacto_admin: form.nombre_contacto_admin || null,
+      email_contacto_admin: form.email_contacto_admin || null,
+      telefono_contacto_admin: form.telefono_contacto_admin || null,
+      direccion: form.direccion || null,
+    }).select().single()
     setSaving(false)
-    setShowForm(false)
-    load()
+    if (error) { alert("Error: " + error.message); return }
+    router.push("/clientes")
   }
 
-  async function eliminar(id: string, nombre: string) {
-    if (!confirm("¿Eliminar proveedor " + nombre + "?")) return
-    await supabase.from("proveedores").delete().eq("id", id)
-    load()
-  }
-
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  const inp: any = { padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Proveedores</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{proveedores.length} proveedores registrados</p>
+    <div style={{ maxWidth: 720, margin: "0 auto" }}>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <a href="/clientes" style={{ color: "#9ca3af", fontSize: 12 }}>Clientes</a>
+          <span style={{ color: "#d1d5db" }}>/</span>
+          <span style={{ fontSize: 12, color: "#4b5563" }}>Nuevo cliente</span>
         </div>
-        <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proveedor</button>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Nuevo cliente</h1>
       </div>
 
-      {showForm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: 520, maxHeight: "90vh", overflowY: "auto" }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 20px", color: "#111827" }}>{editando ? "Editar proveedor" : "Nuevo proveedor"}</h2>
-            <div style={{ display: "grid", gap: 14 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>NOMBRE *</label>
-                  <input style={inp} value={form.nombre} placeholder="Nombre del proveedor" onChange={e => setForm({ ...form, nombre: e.target.value })} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>RUC</label>
-                  <input style={inp} value={form.ruc} placeholder="20xxxxxxxxx" onChange={e => setForm({ ...form, ruc: e.target.value })} />
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>CATEGORÍA</label>
-                  <select style={inp} value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}>
-                    {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>TIPO DE PAGO</label>
-                  <select style={inp} value={form.tipo_pago} onChange={e => setForm({ ...form, tipo_pago: e.target.value })}>
-                    {TIPOS_PAGO.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>BANCO</label>
-                <select style={inp} value={form.banco} onChange={e => setForm({ ...form, banco: e.target.value })}>
-                  <option value="">Sin banco</option>
-                  {BANCOS.map(b => <option key={b}>{b}</option>)}
-                </select>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>N° CUENTA</label>
-                  <input style={inp} value={form.numero_cuenta} placeholder="Número de cuenta" onChange={e => setForm({ ...form, numero_cuenta: e.target.value })} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>CCI</label>
-                  <input style={inp} value={form.cuenta_interbancaria} placeholder="Cuenta interbancaria" onChange={e => setForm({ ...form, cuenta_interbancaria: e.target.value })} />
-                </div>
-              </div>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 16, marginTop: 0 }}>Datos de la empresa</h2>
+        <div style={{ display: "grid", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label style={lbl}>Razon social *</label>
+              <input style={inp} value={form.razon_social} placeholder="Razon social de la empresa"
+                onChange={e => setForm({ ...form, razon_social: e.target.value })} />
             </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : editando ? "Actualizar" : "Crear proveedor"}</button>
+            <div>
+              <label style={lbl}>RUC</label>
+              <input style={inp} value={form.ruc} placeholder="20xxxxxxxxx"
+                onChange={e => setForm({ ...form, ruc: e.target.value })} />
             </div>
           </div>
+          <div>
+            <label style={lbl}>Direccion</label>
+            <input style={inp} value={form.direccion} placeholder="Direccion de la empresa"
+              onChange={e => setForm({ ...form, direccion: e.target.value })} />
+          </div>
         </div>
-      )}
+      </div>
 
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {proveedores.length === 0 ? (
-          <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay proveedores. Crea el primero.</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RUC</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CATEGORÍA</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>BANCO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO PAGO</th>
-                <th style={{ padding: "10px 20px", width: 130 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {proveedores.map((p, idx) => (
-                <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                  <td style={{ padding: "12px 20px", fontWeight: 600, fontSize: 14, color: "#111827" }}>{p.nombre}</td>
-                  <td style={{ padding: "12px", fontSize: 13, color: "#6b7280" }}>{p.ruc || "—"}</td>
-                  <td style={{ padding: "12px" }}>
-                    <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{p.categoria || "—"}</span>
-                  </td>
-                  <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{p.banco || "—"}</td>
-                  <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", textTransform: "capitalize" }}>{p.tipo_pago || "—"}</td>
-                  <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <button onClick={() => abrirEditar(p)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
-                      <button onClick={() => eliminar(p.id, p.nombre)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>Eliminar</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 16, marginTop: 0 }}>Contacto comercial</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <div>
+            <label style={lbl}>Nombre contacto</label>
+            <input style={inp} value={form.nombre_contacto} placeholder="Nombre completo"
+              onChange={e => setForm({ ...form, nombre_contacto: e.target.value })} />
+          </div>
+          <div>
+            <label style={lbl}>Email contacto</label>
+            <input style={inp} type="email" value={form.email_contacto} placeholder="correo@empresa.com"
+              onChange={e => setForm({ ...form, email_contacto: e.target.value })} />
+          </div>
+          <div>
+            <label style={lbl}>Telefono contacto</label>
+            <input style={inp} value={form.telefono_contacto} placeholder="9xxxxxxxx"
+              onChange={e => setForm({ ...form, telefono_contacto: e.target.value })} />
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 16, marginTop: 0 }}>Contacto administracion / pagos</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <div>
+            <label style={lbl}>Nombre contacto admin</label>
+            <input style={inp} value={form.nombre_contacto_admin} placeholder="Nombre completo"
+              onChange={e => setForm({ ...form, nombre_contacto_admin: e.target.value })} />
+          </div>
+          <div>
+            <label style={lbl}>Email admin</label>
+            <input style={inp} type="email" value={form.email_contacto_admin} placeholder="admin@empresa.com"
+              onChange={e => setForm({ ...form, email_contacto_admin: e.target.value })} />
+          </div>
+          <div>
+            <label style={lbl}>Telefono admin</label>
+            <input style={inp} value={form.telefono_contacto_admin} placeholder="9xxxxxxxx"
+              onChange={e => setForm({ ...form, telefono_contacto_admin: e.target.value })} />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+        <button onClick={() => router.push("/clientes")} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+        <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
+          {saving ? "Guardando..." : "Crear cliente"}
+        </button>
       </div>
     </div>
   )
 }
-
-
-

@@ -32,7 +32,7 @@ export default function RQPage() {
     }
     const { data } = await supabase
       .from("requerimientos_pago")
-      .select("*, proyecto:proyectos(nombre, codigo), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
+      .select("*, proyecto:proyectos(nombre, codigo, productor:perfiles!productor_id(nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
       .order("created_at", { ascending: false })
     setRqs(data || [])
     const provIds = [...new Set((data || []).map((r: any) => r.proveedor_id).filter(Boolean))]
@@ -134,6 +134,7 @@ export default function RQPage() {
                 <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>N° RQ</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRODUCTOR</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESCRIPCIÓN</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MONTO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
@@ -153,6 +154,7 @@ export default function RQPage() {
                       <div style={{ fontSize: 11, color: "#9ca3af" }}>{rq.proyecto?.nombre}</div>
                     </td>
                     <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{rq.proveedor_nombre || rq.proveedor?.nombre || "—"}</td>
+                    <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : "—"}</td>
                     <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rq.descripcion || "—"}</td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{fmt(rq.monto_solicitado)}</td>
                     <td style={{ padding: "12px" }}>
@@ -256,4 +258,7 @@ export default function RQPage() {
     </div>
   )
 }
+
+
+
 
