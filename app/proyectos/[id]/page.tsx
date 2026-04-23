@@ -1,7 +1,10 @@
 "use client"
+import { registrarAccion } from "@/lib/trazabilidad"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams, useRouter } from "next/navigation"
+import { registrarAccion } from "@/lib/trazabilidad"
+import { registrarAccion } from "@/lib/trazabilidad"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general"] },
@@ -72,6 +75,7 @@ export default function ProyectoDetallePage() {
     }
     setCambiando(true)
     await supabase.from("proyectos").update({ estado: nuevoEstado }).eq("id", id)
+    await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: " + nuevoEstado, datos_nuevos: { estado: nuevoEstado } })
     setProyecto({ ...proyecto, estado: nuevoEstado })
     setCambiando(false)
   }
@@ -254,6 +258,7 @@ export default function ProyectoDetallePage() {
     </div>
   )
 }
+
 
 
 

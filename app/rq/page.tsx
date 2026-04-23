@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { registrarAccion } from "@/lib/trazabilidad"
 
 const ESTADOS: Record<string, any> = {
   pendiente:            { bg: "#fef9c3", color: "#92400e",  label: "pendiente_aprobacion" },
@@ -268,6 +269,7 @@ export default function RQPage() {
     </div>
   )
 }
+
 
 
 

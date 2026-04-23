@@ -17,6 +17,7 @@ const navItems = [
     { label: "Req. de pago", href: "/rq" },
     { label: "Facturacion", href: "/facturacion" },
     { label: "Liquidaciones", href: "/liquidaciones" },
+    { label: "Trazabilidad", href: "/trazabilidad" },
   ]},
 ]
 const ENTIDAD: Record<string,string> = { peru: "Izango Peru", selva: "Izango Selva" }
@@ -68,5 +69,6 @@ export default function Sidebar({ perfil }: { perfil: any }) {
     </aside>
   )
 }
+
 
 
