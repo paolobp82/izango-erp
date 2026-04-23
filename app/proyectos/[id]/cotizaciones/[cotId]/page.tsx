@@ -153,6 +153,31 @@ export default function CotizacionEditorPage() {
   const totalFinal = subtotalConFee + igvMonto
   const margenGlobal = totalFinal > 0 ? ((totalFinal - totalCosto) / totalFinal) * 100 : 0
 
+  async function generarRQs(cotizacionId: string, proyectoId: string) {
+    const itemsConProveedor = items.filter(i => i.proveedor_id && i.precio_cliente > 0)
+    if (itemsConProveedor.length === 0) return
+    const { count } = await supabase.from("requerimientos_pago").select("*", { count: "exact", head: true }).eq("proyecto_id", proyectoId)
+    let rqNum = (count || 0) + 1
+    for (const item of itemsConProveedor) {
+      const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
+      const numeroRq = "RQ-" + proyectoId.slice(0,6).toUpperCase() + "-" + String(rqNum).padStart(3, "0")
+      await supabase.from("requerimientos_pago").insert({
+        proyecto_id: proyectoId,
+        cotizacion_item_id: String(item.id).startsWith("new_") ? null : item.id,
+        numero_rq: numeroRq,
+        estado: "pendiente",
+        proveedor_id: item.proveedor_id,
+        proveedor_nombre: prov?.nombre || item.proveedor_nombre || "",
+        proveedor_banco: prov?.banco || "",
+        proveedor_cuenta: prov?.numero_cuenta || "",
+        proveedor_tipo_pago: prov?.tipo_pago || null,
+        monto_solicitado: item.precio_cliente,
+        descripcion: item.descripcion,
+      })
+      rqNum++
+    }
+  }
+
   async function guardar(nuevoEstado?: string) {
     if (!cotId || !id) return
     setSaving(true)
@@ -209,6 +234,9 @@ export default function CotizacionEditorPage() {
 
     setSaving(false)
 
+    if (nuevoEstado === "aprobada_cliente") {
+      await generarRQs(cotId, id)
+    }
     if (nuevoEstado) {
       router.push("/proyectos/" + id)
     } else {
@@ -541,4 +569,6 @@ export default function CotizacionEditorPage() {
     </div>
   )
 }
+
+
 
