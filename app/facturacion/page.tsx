@@ -209,7 +209,7 @@ export default function FacturacionPage() {
                 </div>
               </div>
               <div>
-                <label style={lbl}>LINK REPORTE GOOGLE DRIVE</label>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>LINK REPORTE GOOGLE DRIVE</label>
                 <input style={inp} value={form.link_reporte || ""} placeholder="https://drive.google.com/..."
                   onChange={e => setForm({ ...form, link_reporte: e.target.value })} />
               </div>
