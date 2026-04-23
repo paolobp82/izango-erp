@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import ImportExport from "@/components/ImportExport"
 import { registrarAccion } from "@/lib/trazabilidad"
 
 const CATEGORIAS = ["produccion", "almacenaje", "impresion", "permisos", "instalacion", "performer", "alquiler", "supervision", "movilidad", "otros"]
@@ -126,7 +127,8 @@ export default function ProveedoresPage() {
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Proveedores</h1>
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{proveedores.length} proveedores registrados</p>
         </div>
-        <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proveedor</button>
+        <ImportExport modulo="proveedores" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"ruc",label:"RUC"},{key:"categoria",label:"Categoria"},{key:"banco",label:"Banco"},{key:"numero_cuenta",label:"N cuenta"},{key:"cuenta_interbancaria",label:"CCI"},{key:"tipo_pago",label:"Tipo pago"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email contacto"},{key:"telefono_contacto",label:"Telefono"}]} datos={proveedores} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proveedores").insert({...r,entidad:"peru",tipo_pago:r.tipo_pago||"contado",categoria:r.categoria||"otros"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
+          <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proveedor</button>
       </div>
 
       {showForm && (

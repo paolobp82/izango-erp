@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import ImportExport from "@/components/ImportExport"
 import { registrarAccion } from "@/lib/trazabilidad"
 
 const ESTADOS: Record<string, any> = {
@@ -108,7 +109,8 @@ export default function FacturacionPage() {
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Facturación</h1>
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{facturas.length} facturas registradas</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva factura</button>
+        <ImportExport modulo="facturas" campos={[{key:"numero_factura",label:"N factura",requerido:true},{key:"subtotal",label:"Subtotal"},{key:"detraccion_pct",label:"Detraccion %"},{key:"retencion_pct",label:"Retencion %"},{key:"banco_receptor",label:"Banco"},{key:"fecha_emision",label:"Fecha emision"},{key:"fecha_abono",label:"Fecha abono"}]} datos={facturas} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("facturas").insert({...r,estado:"pendiente",igv:(Number(r.subtotal)||0)*0.18,monto_final_abonado:Number(r.subtotal)||0}); if(error)errores.push(r.numero_factura+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
+          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva factura</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>

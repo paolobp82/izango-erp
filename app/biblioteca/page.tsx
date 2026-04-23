@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import ImportExport from "@/components/ImportExport"
 import { registrarAccion } from "@/lib/trazabilidad"
 
 const COSTOS_INTERNOS = [
@@ -114,7 +115,8 @@ export default function BibliotecaPage() {
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Biblioteca de items</h1>
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{items.length} items guardados</p>
         </div>
-        <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo item</button>
+        <ImportExport modulo="biblioteca" campos={[{key:"descripcion",label:"Descripcion",requerido:true},{key:"categoria",label:"Categoria"},{key:"costo_almacenaje",label:"Costo almacenaje"},{key:"costo_impresion",label:"Costo impresion"},{key:"costo_alquiler",label:"Costo alquiler"},{key:"margen_pct",label:"Margen %"},{key:"proveedor_nombre",label:"Proveedor"}]} datos={items} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const costoTotal=(Number(r.costo_almacenaje)||0)+(Number(r.costo_impresion)||0)+(Number(r.costo_alquiler)||0); const margen=Number(r.margen_pct)||40; const precioCliente=margen<100?costoTotal/(1-margen/100):costoTotal; const{error}=await supabase.from("items_biblioteca").insert({...r,costo_total:costoTotal,precio_cliente:precioCliente,activo:true}); if(error)errores.push(r.descripcion+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
+          <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo item</button>
       </div>
 
       {showForm && (

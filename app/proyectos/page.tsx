@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import ImportExport from "@/components/ImportExport"
 import { useRouter } from "next/navigation"
 
 const ESTADO_LABEL: Record<string, string> = {
