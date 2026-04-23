@@ -32,7 +32,7 @@ export default function ProformasPage() {
       .order("created_at", { ascending: false })
     setCotizaciones(data || [])
     const clientesUnicos = Array.from(
-      new Map((data || []).map((c: any) => [c.proyecto?.cliente?.id, c.proyecto?.cliente]).filter(([k]) => k)).values()
+      new Map((data || []).map((c: any) => [c.proyecto?.cliente?.id, c.proyecto?.cliente] as [string, any]).filter(([k]) => k)).values()
     )
     setClientes(clientesUnicos)
     setLoading(false)
