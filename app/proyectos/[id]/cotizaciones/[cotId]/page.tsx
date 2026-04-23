@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams, useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { enviarAlerta } from "@/lib/alertas"
 
 const COSTOS_INTERNOS = [
   { key: "costo_almacenaje", label: "Almacenaje" },
@@ -160,6 +161,7 @@ export default function CotizacionEditorPage() {
     let rqNum = (count || 0) + 1
     for (const item of itemsConProveedor) {
       const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
+      await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, version: cotizacion?.version, total: totalFinal, proyecto_id: id })
       await supabase.from("requerimientos_pago").insert({
         proyecto_id: proyectoId,
         cotizacion_item_id: String(item.id).startsWith("new_") ? null : item.id,
