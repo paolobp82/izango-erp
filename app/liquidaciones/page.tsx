@@ -125,6 +125,31 @@ export default function LiquidacionesPage() {
     alert("Guardado correctamente")
   }
 
+  async function aprobarLiquidacion() {
+    if (!perfil) return
+    const rol = perfil.perfil
+    const updates: any = {}
+    if (rol === "gerente_produccion" && !selected.aprobado_produccion) {
+      updates.aprobado_produccion = true
+      updates.aprobado_produccion_por = perfil.id
+      updates.aprobado_produccion_at = new Date().toISOString()
+    } else if (rol === "gerente_general" && selected.aprobado_produccion && !selected.aprobado_gg) {
+      updates.aprobado_gg = true
+      updates.aprobado_gg_por = perfil.id
+      updates.aprobado_gg_at = new Date().toISOString()
+      updates.cerrada = true
+      updates.fecha_cierre = new Date().toISOString()
+      if (selected.proyecto_id) {
+        await supabase.from("proyectos").update({ estado: "facturado" }).eq("id", selected.proyecto_id)
+      }
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabase.from("liquidaciones").update(updates).eq("id", selected.id)
+      setSelected({ ...selected, ...updates })
+      load()
+    }
+  }
+
   async function cerrarLiquidacion() {
     if (!confirm("¿Cerrar esta liquidación? Ya no se podrá editar.")) return
     await supabase.from("liquidaciones").update({ cerrada: true, aprobada_por: perfil?.id, fecha_cierre: new Date().toISOString() }).eq("id", selected.id)
@@ -196,7 +221,19 @@ export default function LiquidacionesPage() {
                   <div style={{ fontSize: 12, color: "#6b7280" }}>{selected.proyecto?.cliente?.razon_social}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  {!selected.cerrada && (
+                  {!selected.cerrada && perfil?.perfil === "gerente_produccion" && !selected.aprobado_produccion && (
+                  <button onClick={aprobarLiquidacion} className="btn-primary" style={{ fontSize: 12 }}>Aprobar (Produccion)</button>
+                )}
+                {!selected.cerrada && perfil?.perfil === "gerente_general" && selected.aprobado_produccion && !selected.aprobado_gg && (
+                  <button onClick={aprobarLiquidacion} className="btn-primary" style={{ fontSize: 12 }}>Aprobar GG - Pasar a Facturacion</button>
+                )}
+                {selected.aprobado_produccion && !selected.aprobado_gg && (
+                  <span style={{ fontSize: 11, color: "#15803d" }}>✓ Aprobado Produccion</span>
+                )}
+                {selected.cerrada && (
+                  <span style={{ fontSize: 11, color: "#15803d", fontWeight: 600 }}>✓ Liquidacion cerrada y aprobada</span>
+                )}
+                {!selected.cerrada && (
                     <>
                       <button onClick={guardarItems} className="btn-secondary" style={{ fontSize: 12 }}>Guardar</button>
                       <button onClick={cerrarLiquidacion} className="btn-primary" style={{ fontSize: 12 }}>Cerrar liquidación</button>
@@ -274,3 +311,5 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
+
