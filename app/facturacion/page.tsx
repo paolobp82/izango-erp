@@ -26,7 +26,7 @@ export default function FacturacionPage() {
     subtotal: "", igv: "18",
     detraccion_pct: "0", retencion_pct: "0",
     pronto_pago_entidad: "", pronto_pago_pct: "0",
-    banco_receptor: "", fecha_emision: "", fecha_abono: "",
+    banco_receptor: "", fecha_emision: "", fecha_abono: "", link_reporte: "",
   })
 
   useEffect(() => { load() }, [])
@@ -77,6 +77,7 @@ export default function FacturacionPage() {
       banco_receptor: form.banco_receptor || null,
       fecha_emision: form.fecha_emision || null,
       fecha_abono: form.fecha_abono || null,
+        link_reporte: form.link_reporte || null,
     })
     await enviarAlerta("proyecto_facturacion", { nombre: proyectos.find((p:any) => p.id === form.proyecto_id)?.nombre || "—", codigo: proyectos.find((p:any) => p.id === form.proyecto_id)?.codigo || "—", cliente: "—" })
     await registrarAccion({ accion: "crear", modulo: "facturacion", entidad_tipo: "factura", descripcion: "Factura creada: " + form.numero_factura })
@@ -204,6 +205,13 @@ export default function FacturacionPage() {
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>FECHA ABONO</label>
                   <input type="date" style={inp} value={form.fecha_abono}
                     onChange={e => setForm({ ...form, fecha_abono: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <label style={lbl}>LINK REPORTE GOOGLE DRIVE</label>
+              <input style={inp} value={form.link_reporte || ""} placeholder="https://drive.google.com/..."
+                onChange={e => setForm({ ...form, link_reporte: e.target.value })} />
+            </div>
                 </div>
               </div>
               {Number(form.subtotal) > 0 && (
@@ -252,6 +260,7 @@ export default function FacturacionPage() {
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>A ABONAR</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>EMISIÓN</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>REPORTE</th>
                 <th style={{ padding: "10px 20px", width: 120 }}></th>
               </tr>
             </thead>
@@ -273,6 +282,9 @@ export default function FacturacionPage() {
                       <span style={{ background: ec.bg, color: ec.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{ec.label}</span>
                     </td>
                     <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{f.fecha_emision || "—"}</td>
+                    <td style={{ padding: "12px" }}>
+                      {f.link_reporte ? <a href={f.link_reporte} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#0F6E56", fontWeight: 600 }}>📁 Ver reporte</a> : <span style={{ fontSize: 12, color: "#9ca3af" }}>—</span>}
+                    </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
                       <select style={{ padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: "#fff", cursor: "pointer" }}
                         value={f.estado} onChange={e => cambiarEstado(f.id, e.target.value)}>
