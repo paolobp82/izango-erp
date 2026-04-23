@@ -205,14 +205,12 @@ export default function FacturacionPage() {
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>FECHA ABONO</label>
                   <input type="date" style={inp} value={form.fecha_abono}
                     onChange={e => setForm({ ...form, fecha_abono: e.target.value })} />
-              </div>
-            </div>
-            <div>
-              <label style={lbl}>LINK REPORTE GOOGLE DRIVE</label>
-              <input style={inp} value={form.link_reporte || ""} placeholder="https://drive.google.com/..."
-                onChange={e => setForm({ ...form, link_reporte: e.target.value })} />
-            </div>
                 </div>
+              </div>
+              <div>
+                <label style={lbl}>LINK REPORTE GOOGLE DRIVE</label>
+                <input style={inp} value={form.link_reporte || ""} placeholder="https://drive.google.com/..."
+                  onChange={e => setForm({ ...form, link_reporte: e.target.value })} />
               </div>
               {Number(form.subtotal) > 0 && (
                 <div style={{ background: "#f0fdf4", border: "1px solid #1D9E75", borderRadius: 8, padding: 12 }}>
