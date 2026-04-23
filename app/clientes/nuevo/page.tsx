@@ -286,8 +286,7 @@ export default function NuevoClientePage() {
       </div>
 
       <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-        <button onClick={async () => await registrarAccion({ accion: "crear", modulo: "clientes", entidad_id: cliente?.id, entidad_tipo: "cliente", descripcion: "Cliente creado: " + form.razon_social })
-    router.push("/clientes")} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+        <button onClick={() => router.push("/clientes")} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
         <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
           {saving ? "Guardando..." : "Crear cliente"}
         </button>
