@@ -180,6 +180,7 @@ export default function LiquidacionesPage() {
             <option value="">+ Nueva liquidación</option>
             {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} — {p.nombre}</option>)}
           </select>
+          <ImportExport modulo="liquidaciones" campos={[{key:"proyecto_nombre",label:"Proyecto"},{key:"costo_presupuestado",label:"Costo presupuestado"},{key:"precio_cliente_presupuestado",label:"Precio cliente"},{key:"margen_presupuestado_pct",label:"Margen %"},{key:"margen_real_pct",label:"Margen real %"}]} datos={liquidaciones.map((l:any)=>({...l,proyecto_nombre:l.proyecto?.nombre,proyecto_codigo:l.proyecto?.codigo}))} onImportar={async () => ({ exitosos: 0, errores: ["Las liquidaciones se generan automaticamente"] })} />
         </div>
       </div>
 
