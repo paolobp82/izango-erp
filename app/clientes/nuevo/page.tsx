@@ -1,69 +1,139 @@
-﻿"use client"
-import { useState, useEffect } from "react"
+﻿@"
+"use client"
+import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
-export default function NuevoClientePage() {
-  const router = useRouter()
+
+export default function NuevoProyectoPage() {
   const supabase = createClient()
-  const [loading, setLoading] = useState(false)
-  const [entidad, setEntidad] = useState("peru")
-  const [form, setForm] = useState({ razon_social:"", ruc:"", nombre_contacto:"", telefono_contacto:"", email_contacto:"", nombre_facturacion:"", telefono_facturacion:"", email_facturacion:"", direccion:"" })
+  const router = useRouter()
+  const [clientes, setClientes] = useState<any[]>([])
+  const [perfiles, setPerfiles] = useState<any[]>([])
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    nombre: "", cliente_id: "", productor_id: "", estado: "pendiente_aprobacion",
+    descripcion_requerimiento: "", presupuesto_referencial: "",
+    fecha_limite_cotizacion: "", fecha_inicio: "", fecha_fin_estimada: "",
+  })
+
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data: p } = await supabase.from("perfiles").select("entidad").eq("id", user!.id).single()
-      setEntidad(p?.entidad||"peru")
+      const { data: cls } = await supabase.from("clientes").select("id, razon_social").order("razon_social")
+      setClientes(cls || [])
+      const { data: perfs } = await supabase.from("perfiles").select("id, nombre, apellido").eq("activo", true).order("nombre")
+      setPerfiles(perfs || [])
     }
     load()
   }, [])
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from("clientes").insert({...form, entidad, created_by: user?.id})
-    if (error) { alert("Error: "+error.message); setLoading(false); return }
-    router.push("/clientes")
+
+  async function guardar() {
+    if (!form.nombre || !form.cliente_id) { alert("Nombre y cliente son obligatorios"); return }
+    setSaving(true)
+    const { count } = await supabase.from("proyectos").select("*", { count: "exact", head: true })
+    const codigo = "IZ-26" + String((count || 0) + 1).padStart(3, "0")
+    const payload: any = {
+      nombre: form.nombre, cliente_id: form.cliente_id, estado: form.estado, codigo,
+      descripcion_requerimiento: form.descripcion_requerimiento || null,
+      presupuesto_referencial: form.presupuesto_referencial ? Number(form.presupuesto_referencial) : null,
+      fecha_limite_cotizacion: form.fecha_limite_cotizacion || null,
+      fecha_inicio: form.fecha_inicio || null,
+      fecha_fin_estimada: form.fecha_fin_estimada || null,
+    }
+    if (form.productor_id) payload.productor_id = form.productor_id
+    const { data, error } = await supabase.from("proyectos").insert(payload).select().single()
+    setSaving(false)
+    if (error) { alert("Error: " + error.message); return }
+    router.push("/proyectos/" + data.id)
   }
-  const f = (k:string,v:string) => setForm({...form,[k]:v})
-  const inputStyle = {width:"100%",padding:"8px 12px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:13,outline:"none",background:"#fff",fontFamily:"inherit"}
-  const labelStyle = {display:"block",fontSize:11,color:"#6b7280",marginBottom:4,fontWeight:500}
+
+  const inp: any = { padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }
+
   return (
-    <div style={{maxWidth:672}}>
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
-        <a href="/clientes" style={{color:"#9ca3af",fontSize:13}}>Clientes</a>
-        <span style={{color:"#d1d5db"}}>/</span>
-        <span style={{fontSize:13}}>Nuevo cliente</span>
+    <div style={{ maxWidth: 720, margin: "0 auto" }}>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <a href="/proyectos" style={{ color: "#9ca3af", fontSize: 12 }}>Proyectos</a>
+          <span style={{ color: "#d1d5db" }}>/</span>
+          <span style={{ fontSize: 12, color: "#4b5563" }}>Nuevo proyecto</span>
+        </div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Nuevo proyecto</h1>
       </div>
-      <h1 style={{fontSize:20,fontWeight:600,marginBottom:24}}>Nuevo cliente</h1>
-      <form onSubmit={handleSubmit}>
-        <div className="card" style={{marginBottom:16}}>
-          <h2 style={{fontSize:14,fontWeight:500,marginBottom:16,marginTop:0}}>Datos principales</h2>
-          <div style={{marginBottom:14}}><label style={labelStyle}>Razon social *</label><input style={inputStyle} value={form.razon_social} onChange={e=>f("razon_social",e.target.value)} required /></div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-            <div><label style={labelStyle}>RUC</label><input style={inputStyle} maxLength={11} value={form.ruc} onChange={e=>f("ruc",e.target.value)} /></div>
-            <div><label style={labelStyle}>Direccion</label><input style={inputStyle} value={form.direccion} onChange={e=>f("direccion",e.target.value)} /></div>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 16, marginTop: 0 }}>Información general</h2>
+        <div style={{ display: "grid", gap: 16 }}>
+          <div>
+            <label style={lbl}>Nombre del proyecto *</label>
+            <input style={inp} value={form.nombre} placeholder="Ej: Activación Honda Lima 2025"
+              onChange={e => setForm({ ...form, nombre: e.target.value })} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label style={lbl}>Cliente *</label>
+              <select style={inp} value={form.cliente_id} onChange={e => setForm({ ...form, cliente_id: e.target.value })}>
+                <option value="">Seleccionar cliente</option>
+                {clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Productor</label>
+              <select style={inp} value={form.productor_id} onChange={e => setForm({ ...form, productor_id: e.target.value })}>
+                <option value="">Sin asignar</option>
+                {perfiles.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label style={lbl}>Estado</label>
+              <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
+                <option value="pendiente_aprobacion">Pendiente aprobación</option>
+                <option value="aprobado">Aprobado</option>
+                <option value="en_curso">En curso</option>
+                <option value="terminado">Terminado</option>
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Presupuesto referencial (S/)</label>
+              <input type="number" style={inp} value={form.presupuesto_referencial} placeholder="0.00"
+                onChange={e => setForm({ ...form, presupuesto_referencial: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <label style={lbl}>Descripción / Requerimiento</label>
+            <textarea style={{ ...inp, minHeight: 80, resize: "vertical" }} value={form.descripcion_requerimiento}
+              placeholder="Brief del cliente..."
+              onChange={e => setForm({ ...form, descripcion_requerimiento: e.target.value })} />
           </div>
         </div>
-        <div className="card" style={{marginBottom:16}}>
-          <h2 style={{fontSize:14,fontWeight:500,marginBottom:16,marginTop:0}}>Contacto comercial</h2>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:14}}>
-            <div><label style={labelStyle}>Nombre</label><input style={inputStyle} value={form.nombre_contacto} onChange={e=>f("nombre_contacto",e.target.value)} /></div>
-            <div><label style={labelStyle}>Telefono</label><input style={inputStyle} value={form.telefono_contacto} onChange={e=>f("telefono_contacto",e.target.value)} /></div>
+      </div>
+      <div className="card" style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 16, marginTop: 0 }}>Fechas</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <div>
+            <label style={lbl}>Límite cotización</label>
+            <input type="date" style={inp} value={form.fecha_limite_cotizacion}
+              onChange={e => setForm({ ...form, fecha_limite_cotizacion: e.target.value })} />
           </div>
-          <div><label style={labelStyle}>Email</label><input type="email" style={inputStyle} value={form.email_contacto} onChange={e=>f("email_contacto",e.target.value)} /></div>
-        </div>
-        <div className="card" style={{marginBottom:16}}>
-          <h2 style={{fontSize:14,fontWeight:500,marginBottom:16,marginTop:0}}>Contacto de facturacion</h2>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:14}}>
-            <div><label style={labelStyle}>Nombre</label><input style={inputStyle} value={form.nombre_facturacion} onChange={e=>f("nombre_facturacion",e.target.value)} /></div>
-            <div><label style={labelStyle}>Telefono</label><input style={inputStyle} value={form.telefono_facturacion} onChange={e=>f("telefono_facturacion",e.target.value)} /></div>
+          <div>
+            <label style={lbl}>Fecha inicio</label>
+            <input type="date" style={inp} value={form.fecha_inicio}
+              onChange={e => setForm({ ...form, fecha_inicio: e.target.value })} />
           </div>
-          <div><label style={labelStyle}>Email</label><input type="email" style={inputStyle} value={form.email_facturacion} onChange={e=>f("email_facturacion",e.target.value)} /></div>
+          <div>
+            <label style={lbl}>Fecha fin estimada</label>
+            <input type="date" style={inp} value={form.fecha_fin_estimada}
+              onChange={e => setForm({ ...form, fecha_fin_estimada: e.target.value })} />
+          </div>
         </div>
-        <div style={{display:"flex",gap:12,justifyContent:"flex-end"}}>
-          <a href="/clientes" className="btn-secondary">Cancelar</a>
-          <button type="submit" disabled={loading} className="btn-primary" style={{opacity:loading?0.6:1}}>{loading?"Guardando...":"Crear cliente"}</button>
-        </div>
-      </form>
+      </div>
+      <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+        <button onClick={() => router.push("/proyectos")} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+        <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
+          {saving ? "Guardando..." : "Crear proyecto"}
+        </button>
+      </div>
     </div>
   )
 }
+"@ | Out-File -LiteralPath "C:\Users\user\Desktop\izango-erp\app\proyectos\nuevo\page.tsx" -Encoding UTF8 -Force

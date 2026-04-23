@@ -254,6 +254,9 @@ export default function CotizacionEditorPage() {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button onClick={() => guardar()} disabled={saving} className="btn-secondary" style={{ fontSize: 12 }}>
+            <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cotId}/preview`)} className="btn-secondary" style={{ fontSize: 12 }}>
+  👁 Preview
+</button>
             {saving ? "Guardando..." : "Guardar borrador"}
           </button>
           <button onClick={() => guardar("aprobada_cliente")} disabled={saving} className="btn-primary" style={{ fontSize: 12 }}>

@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
 const navItems = [
@@ -9,6 +9,7 @@ const navItems = [
   ]},
   { section: "Comercial", items: [
     { label: "Proformas", href: "/proformas" },
+    { label: "Proveedores", href: "/proveedores" },
   ]},
   { section: "Finanzas", items: [
     { label: "Req. de pago", href: "/rq" },
