@@ -63,7 +63,7 @@ function newItem(cotizacionId: any, orden: number) {
 }
 
 export default function CotizacionEditorPage() {
-  const params = useParams()
+ const params = useParams() as { id: string; cotId: string }
   const router = useRouter()
   const supabase = createClient()
   const [cotizacion, setCotizacion] = useState<any>(null)
@@ -78,14 +78,14 @@ export default function CotizacionEditorPage() {
       const { data: cot } = await supabase
         .from("cotizaciones")
         .select("*, proyecto:proyectos(id,nombre,codigo,cliente:clientes(razon_social))")
-        .eq("id", params.cotId as string)
+        .eq("id", params.cotId)
         .single()
       setCotizacion(cot)
       setProyecto(cot?.proyecto)
       const { data: its } = await supabase
         .from("cotizacion_items")
         .select("*")
-        .eq("cotizacion_id", params.cotId as string)
+        .eq("cotizacion_id", params.cotId)
         .order("orden")
       const parsed = (its || []).map((i: any) => {
         let ep = [], ea = []
