@@ -1,6 +1,8 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { registrarAccion } from "@/lib/trazabilidad"
+import { enviarAlerta } from "@/lib/alertas"
 import { useRouter } from "next/navigation"
 
 export default function LiquidacionesPage() {
@@ -138,6 +140,7 @@ export default function LiquidacionesPage() {
       updates.aprobado_gg_por = perfil.id
       updates.aprobado_gg_at = new Date().toISOString()
       updates.cerrada = true
+      await enviarAlerta("proyecto_liquidado", { nombre: selected?.proyecto?.nombre || "Proyecto", codigo: selected?.proyecto?.codigo || "", margen: selected?.margen_real_pct?.toFixed(1) || "0" })
       updates.fecha_cierre = new Date().toISOString()
       if (selected.proyecto_id) {
         await supabase.from("proyectos").update({ estado: "facturado" }).eq("id", selected.proyecto_id)

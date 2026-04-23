@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { registrarAccion } from "@/lib/trazabilidad"
 
 const COSTOS_INTERNOS = [
   { key: "costo_almacenaje", label: "Almacenaje" },
@@ -85,6 +86,7 @@ export default function BibliotecaPage() {
     } else {
       await supabase.from("items_biblioteca").insert(payload)
     }
+    await registrarAccion({ accion: editando ? "editar" : "crear", modulo: "biblioteca", entidad_tipo: "item", descripcion: (editando ? "Item editado: " : "Item creado: ") + form.descripcion })
     setSaving(false)
     setShowForm(false)
     load()

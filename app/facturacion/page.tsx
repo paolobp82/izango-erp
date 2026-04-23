@@ -77,6 +77,7 @@ export default function FacturacionPage() {
       fecha_emision: form.fecha_emision || null,
       fecha_abono: form.fecha_abono || null,
     })
+    await enviarAlerta("proyecto_facturacion", { nombre: proyectos.find((p:any) => p.id === form.proyecto_id)?.nombre || "—", codigo: proyectos.find((p:any) => p.id === form.proyecto_id)?.codigo || "—", cliente: "—" })
     await registrarAccion({ accion: "crear", modulo: "facturacion", entidad_tipo: "factura", descripcion: "Factura creada: " + form.numero_factura })
     setSaving(false)
     setShowForm(false)

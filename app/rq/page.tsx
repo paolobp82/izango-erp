@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { enviarAlerta } from "@/lib/alertas"
 
 const ESTADOS: Record<string, any> = {
   pendiente:            { bg: "#fef9c3", color: "#92400e",  label: "pendiente_aprobacion" },

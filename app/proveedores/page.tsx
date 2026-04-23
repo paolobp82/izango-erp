@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { registrarAccion } from "@/lib/trazabilidad"
 
 const CATEGORIAS = ["produccion", "almacenaje", "impresion", "permisos", "instalacion", "performer", "alquiler", "supervision", "movilidad", "otros"]
 const TIPOS_PAGO = ["contado", "credito_30", "credito_60", "credito_90"]
@@ -100,6 +101,7 @@ export default function ProveedoresPage() {
         })
       }
     }
+    await registrarAccion({ accion: editando ? "editar" : "crear", modulo: "proveedores", entidad_tipo: "proveedor", descripcion: (editando ? "Proveedor editado: " : "Proveedor creado: ") + form.nombre })
     setSaving(false)
     setShowForm(false)
     load()
