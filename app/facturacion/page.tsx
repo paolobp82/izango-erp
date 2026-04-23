@@ -84,7 +84,7 @@ export default function FacturacionPage() {
     await registrarAccion({ accion: "crear", modulo: "facturacion", entidad_tipo: "factura", descripcion: "Factura creada: " + form.numero_factura })
     setSaving(false)
     setShowForm(false)
-    setForm({ proyecto_id: "", numero_factura: "", estado: "pendiente", subtotal: "", igv: "18", detraccion_pct: "0", retencion_pct: "0", pronto_pago_entidad: "", pronto_pago_pct: "0", banco_receptor: "", fecha_emision: "", fecha_abono: "" })
+    setForm({ proyecto_id: "", numero_factura: "", estado: "pendiente", subtotal: "", igv: "18", detraccion_pct: "0", retencion_pct: "0", pronto_pago_entidad: "", pronto_pago_pct: "0", banco_receptor: "", fecha_emision: "", fecha_abono: "", link_reporte: "" })
     load()
   }
 
