@@ -44,6 +44,16 @@ export default function RQPage() {
   }
 
   async function cambiarEstado(id: string, estado: string, extra?: any) {
+    if (estado === "pagado") {
+      const rq = rqs.find(r => r.id === id)
+      if (rq?.proyecto_id) {
+        const otrosRqs = rqs.filter(r => r.proyecto_id === rq.proyecto_id && r.id !== id)
+        const todosPagados = otrosRqs.every(r => r.estado === "pagado")
+        if (todosPagados) {
+          await supabase.from("proyectos").update({ estado: "en_curso" }).eq("id", rq.proyecto_id)
+        }
+      }
+    }
     const updates: any = { estado, ...extra }
     if (estado === "aprobado_produccion") updates.aprobado_por = perfil?.id
     if (estado === "aprobado") updates.aprobado_por = perfil?.id
@@ -258,6 +268,7 @@ export default function RQPage() {
     </div>
   )
 }
+
 
 
 
