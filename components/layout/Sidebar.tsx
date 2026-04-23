@@ -6,6 +6,7 @@ const navItems = [
     { label: "Dashboard", href: "/dashboard" },
     { label: "Proyectos", href: "/proyectos" },
     { label: "Clientes", href: "/clientes" },
+    { label: "CRM", href: "/crm" },
   ]},
   { section: "Comercial", items: [
     { label: "Proformas", href: "/proformas" },
@@ -67,4 +68,5 @@ export default function Sidebar({ perfil }: { perfil: any }) {
     </aside>
   )
 }
+
 
