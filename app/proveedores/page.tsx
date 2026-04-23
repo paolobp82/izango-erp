@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 
-const CATEGORIAS = ["Producción", "Alquiler", "Logística", "RRHH", "Impresión", "Permisos", "Tecnología", "Otros"]
-const TIPOS_PAGO = ["transferencia", "efectivo", "cheque", "yape", "plin"]
+const CATEGORIAS = ["produccion", "almacenaje", "impresion", "permisos", "instalacion", "performer", "alquiler", "supervision", "movilidad", "otros"]
+const TIPOS_PAGO = ["contado", "credito_30", "credito_60", "credito_90"]
 const BANCOS = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Otro"]
 
 export default function ProveedoresPage() {
@@ -13,7 +13,7 @@ export default function ProveedoresPage() {
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ nombre: "", ruc: "", categoria: "Producción", banco: "", numero_cuenta: "", cuenta_interbancaria: "", tipo_pago: "transferencia" })
+  const [form, setForm] = useState({ nombre: "", ruc: "", categoria: "Producción", banco: "", numero_cuenta: "", cuenta_interbancaria: "", tipo_pago: "contado" })
 
   useEffect(() => { load() }, [])
 
@@ -25,21 +25,21 @@ export default function ProveedoresPage() {
 
   function abrirNuevo() {
     setEditando(null)
-    setForm({ nombre: "", ruc: "", categoria: "Producción", banco: "", numero_cuenta: "", cuenta_interbancaria: "", tipo_pago: "transferencia" })
+    setForm({ nombre: "", ruc: "", categoria: "Producción", banco: "", numero_cuenta: "", cuenta_interbancaria: "", tipo_pago: "contado" })
     setShowForm(true)
   }
 
   function abrirEditar(prov: any) {
     setEditando(prov)
-    setForm({ nombre: prov.nombre || "", ruc: prov.ruc || "", categoria: prov.categoria || "Producción", banco: prov.banco || "", numero_cuenta: prov.numero_cuenta || "", cuenta_interbancaria: prov.cuenta_interbancaria || "", tipo_pago: prov.tipo_pago || "transferencia" })
+    setForm({ nombre: prov.nombre || "", ruc: prov.ruc || "", categoria: prov.categoria || "Producción", banco: prov.banco || "", numero_cuenta: prov.numero_cuenta || "", cuenta_interbancaria: prov.cuenta_interbancaria || "", tipo_pago: prov.tipo_pago || "contado" })
     setShowForm(true)
   }
 
   async function guardar() {
     if (!form.nombre) { alert("El nombre es obligatorio"); return }
     setSaving(true)
-    if (editando) { await supabase.from("proveedores").update(form).eq("id", editando.id) }
-    else { await supabase.from("proveedores").insert(form) }
+    if (editando) { await supabase.from("proveedores").update({ ...form, entidad: "peru" }).eq("id", editando.id) }
+    else { await supabase.from("proveedores").insert({ ...form, entidad: "peru" }) }
     setSaving(false)
     setShowForm(false)
     load()
@@ -160,3 +160,6 @@ export default function ProveedoresPage() {
     </div>
   )
 }
+
+
+

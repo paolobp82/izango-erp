@@ -171,7 +171,7 @@ export default function CotizacionEditorPage() {
         proveedor_banco: prov?.banco || "",
         proveedor_cuenta: prov?.numero_cuenta || "",
         proveedor_tipo_pago: prov?.tipo_pago || null,
-        monto_solicitado: item.precio_cliente,
+        monto_solicitado: item.costo_total,
         descripcion: item.descripcion,
       })
       rqNum++
@@ -235,7 +235,9 @@ export default function CotizacionEditorPage() {
     setSaving(false)
 
     if (nuevoEstado === "aprobada_cliente") {
-      await generarRQs(cotId, id)
+      const { data: cotData } = await supabase.from("cotizaciones").select("proyecto_id").eq("id", cotId).single()
+      const proyectoId = cotData?.proyecto_id || id
+      await generarRQs(cotId, proyectoId)
     }
     if (nuevoEstado) {
       router.push("/proyectos/" + id)
@@ -569,6 +571,9 @@ export default function CotizacionEditorPage() {
     </div>
   )
 }
+
+
+
 
 
 

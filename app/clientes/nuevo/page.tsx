@@ -1,4 +1,3 @@
-﻿@"
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
@@ -136,4 +135,3 @@ export default function NuevoProyectoPage() {
     </div>
   )
 }
-"@ | Out-File -LiteralPath "C:\Users\user\Desktop\izango-erp\app\proyectos\nuevo\page.tsx" -Encoding UTF8 -Force

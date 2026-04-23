@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 
 const ESTADOS: Record<string, any> = {
-  pendiente:            { bg: "#fef9c3", color: "#92400e",  label: "Pendiente" },
+  pendiente:            { bg: "#fef9c3", color: "#92400e",  label: "pendiente_aprobacion" },
   aprobado_produccion:  { bg: "#fed7aa", color: "#9a3412",  label: "Aprobado Producción" },
   aprobado:             { bg: "#dcfce7", color: "#15803d",  label: "Aprobado GG" },
   programado:           { bg: "#dbeafe", color: "#1e40af",  label: "Programado" },
@@ -55,7 +55,7 @@ export default function RQPage() {
 
   function getSiguienteAccion(rq: any) {
     const rol = perfil?.perfil
-    if (rq.estado === "pendiente" && (rol === "gerente_produccion" || rol === "gerente_general"))
+    if (rq.estado === "pendiente_aprobacion" && (rol === "gerente_produccion" || rol === "gerente_general"))
       return { label: "Aprobar (Producción)", nextEstado: "aprobado_produccion", color: "#15803d" }
     if (rq.estado === "aprobado_produccion" && rol === "gerente_general")
       return { label: "Aprobar (GG)", nextEstado: "aprobado", color: "#1e40af" }
@@ -74,7 +74,7 @@ export default function RQPage() {
     return true
   })
 
-  const totalPendiente = rqs.filter(r => r.estado === "pendiente").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalPendiente = rqs.filter(r => r.estado === "pendiente_aprobacion").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
   const totalAprobado = rqs.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).reduce((s, r) => s + (r.monto_solicitado || 0), 0)
   const totalProgramado = rqs.filter(r => r.estado === "programado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
   const totalPagado = rqs.filter(r => r.estado === "pagado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
@@ -92,7 +92,7 @@ export default function RQPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         {[
-          { label: "Pendientes", value: fmt(totalPendiente), color: "#92400e", bg: "#fef9c3", count: rqs.filter(r => r.estado === "pendiente").length },
+          { label: "Pendientes", value: fmt(totalPendiente), color: "#92400e", bg: "#fef9c3", count: rqs.filter(r => r.estado === "pendiente_aprobacion").length },
           { label: "En aprobación", value: fmt(totalAprobado), color: "#9a3412", bg: "#fed7aa", count: rqs.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length },
           { label: "Programados", value: fmt(totalProgramado), color: "#1e40af", bg: "#dbeafe", count: rqs.filter(r => r.estado === "programado").length },
           { label: "Pagados", value: fmt(totalPagado), color: "#166534", bg: "#f0fdf4", count: rqs.filter(r => r.estado === "pagado").length },
@@ -206,13 +206,13 @@ export default function RQPage() {
               <div style={{ background: "#f9fafb", borderRadius: 8, padding: 12 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 8 }}>Flujo de aprobación</div>
                 {[
-                  { estado: "pendiente", label: "Creado", rol: "" },
+                  { estado: "pendiente_aprobacion", label: "Creado", rol: "" },
                   { estado: "aprobado_produccion", label: "Aprobado Producción", rol: "gerente_produccion" },
                   { estado: "aprobado", label: "Aprobado GG", rol: "gerente_general" },
                   { estado: "programado", label: "Programado pago", rol: "administrador" },
                   { estado: "pagado", label: "Pagado", rol: "administrador" },
                 ].map((paso, i) => {
-                  const estados = ["pendiente","aprobado_produccion","aprobado","programado","pagado"]
+                  const estados = ["pendiente_aprobacion","aprobado_produccion","aprobado","programado","pagado"]
                   const idx = estados.indexOf(selected.estado)
                   const pasoIdx = estados.indexOf(paso.estado)
                   const completado = pasoIdx <= idx
@@ -256,3 +256,4 @@ export default function RQPage() {
     </div>
   )
 }
+
