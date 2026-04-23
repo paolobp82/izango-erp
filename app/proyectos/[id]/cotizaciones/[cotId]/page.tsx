@@ -231,7 +231,7 @@ export default function CotizacionEditorPage() {
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+    <div style={{ maxWidth: 1401, margin: "0 auto" }}>
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
