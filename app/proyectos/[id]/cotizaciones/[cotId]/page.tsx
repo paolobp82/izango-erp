@@ -52,6 +52,7 @@ export default function CotizacionEditorPage() {
   const [proyecto, setProyecto] = useState<any>(null)
   const [items, setItems] = useState<any[]>([])
   const [proveedores, setProveedores] = useState<any[]>([])
+  const [centrosCostos, setCentrosCostos] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
@@ -79,6 +80,8 @@ export default function CotizacionEditorPage() {
       })
       setItems(parsed)
       const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre")
+      const { data: ccs } = await supabase.from("centro_costos").select("id, nombre, tipo").eq("activo", true).order("nombre")
+      setCentrosCostos(ccs || [])
       setProveedores(provs || [])
       setLoading(false)
     }
@@ -204,6 +207,7 @@ export default function CotizacionEditorPage() {
         costo_total: item.costo_total || 0, precio_cliente: item.precio_cliente || 0,
         margen_monto: item.margen_monto || 0, proveedor_id: item.proveedor_id || null,
         proveedor_nombre: item.proveedor_nombre || null,
+        centro_costo_id: item.centro_costo_id || null,
         extras_produccion: JSON.stringify(item.extras_produccion || []),
         extras_alquiler: JSON.stringify(item.extras_alquiler || []),
       }
@@ -451,7 +455,13 @@ export default function CotizacionEditorPage() {
                               )}
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ fontSize: 11, color: "#6b7280" }}>Proveedor:</span>
+                              <span style={{ fontSize: 11, color: "#6b7280" }}>Centro de costos:</span>
+                              <select style={{ ...inp, minWidth: 160 }} value={item.centro_costo_id || ""}
+                                onChange={e => updateItem(item.id, "centro_costo_id", e.target.value || null)}>
+                                <option value="">Sin centro</option>
+                                {centrosCostos.map((cc: any) => <option key={cc.id} value={cc.id}>{cc.nombre}</option>)}
+                              </select>
+                              <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 8 }}>Proveedor:</span>
                               <select style={{ ...inp, minWidth: 180 }} value={item.proveedor_id || ""}
                                 onChange={e => {
                                   const prov = proveedores.find((p: any) => p.id === e.target.value)
