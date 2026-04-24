@@ -3,6 +3,7 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { enviarAlerta } from "@/lib/alertas"
+import { notificarATodos } from "@/lib/notificaciones"
 export default function NuevoProyectoPage() {
   const router = useRouter()
   const supabase = createClient()
