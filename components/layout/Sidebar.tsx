@@ -14,7 +14,7 @@ const ACCESO: Record<string, string[]> = {
   comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas"],
   productor: ["/dashboard","/proyectos","/calendario","/gestor","/rq","/alertas"],
   administrador: ["/dashboard","/clientes","/proveedores","/facturacion","/liquidaciones","/alertas"],
-  gerente_finanzas: ["/dashboard","/rq","/facturacion","/liquidaciones","/proyectos","/alertas"],
+  gerente_finanzas: ["/dashboard","/rq","/facturacion","/liquidaciones","/flujo-caja","/proyectos","/alertas"],
 }
 
 const ALL_NAV = [
@@ -35,6 +35,7 @@ const ALL_NAV = [
     { label: "Req. de pago", href: "/rq" },
     { label: "Facturacion", href: "/facturacion" },
     { label: "Liquidaciones", href: "/liquidaciones" },
+    { label: "Flujo de caja", href: "/flujo-caja" },
   ]},
   { section: "Administracion", items: [
     { label: "Trazabilidad", href: "/trazabilidad" },
