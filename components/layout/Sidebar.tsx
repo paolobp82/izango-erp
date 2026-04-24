@@ -95,3 +95,5 @@ export default function Sidebar({ perfil }: { perfil: any }) {
       </div>
     </aside>
   )
+
+}
