@@ -97,7 +97,46 @@ export default function PreviewCotizacionPage() {
             <option value="peru">Izango 360 SAC (Peru)</option>
             <option value="selva">Izango Selva 360 SAC</option>
           </select>
-          <button onClick={() => window.print()}
+          return (
+    <div style={{ maxWidth: 900, margin: "0 auto 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <a href={"/proyectos/" + id + "/cotizaciones/" + cotId}
+        style={{ fontSize: 13, color: "#64748b", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>
+        ← Volver al editor
+      </a>
+      <div style={{ display: "flex", gap: 8 }}>
+        <select value={entidad} onChange={e => setEntidad(e.target.value as any)}
+          style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: 7, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
+          <option value="peru">Izango 360 SAC (Peru)</option>
+          <option value="selva">Izango Selva 360 SAC</option>
+        </select>
+        <button
+          onClick={() => {
+            const tel = proyecto?.cliente?.telefono_contacto?.replace(/\D/g, "") || ""
+            const nombre = proyecto?.cliente?.razon_social || "cliente"
+            const proyecto_nombre = proyecto?.nombre || ""
+            const codigo = proyecto?.codigo || ""
+            const version = cotizacion?.version || 1
+            const total = "S/ " + Number(totalFinal || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })
+            const validez = cotizacion?.validez_dias || 10
+            const msg = `Hola ${nombre}, le hacemos llegar la Proforma ${codigo}-V${version} para el proyecto "${proyecto_nombre}" por un total de ${total} (inc. IGV). Validez: ${validez} días calendario. Quedamos atentos a su confirmación. Saludos, ${ag.contacto} - ${ag.nombre}`
+            const url = tel ? `https://wa.me/51${tel}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`
+            window.open(url, "_blank")
+          }}
+          style={{ padding: "7px 16px", background: "#25D366", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          💬 Enviar por WhatsApp
+        </button>
+        <button
+  onClick={() => {
+    const tel = proyecto?.cliente?.telefono_contacto?.replace(/\D/g, "") || ""
+    const nombre = proyecto?.cliente?.razon_social || "cliente"
+    const msg = `Hola ${nombre}, le hacemos llegar la Proforma ${proyecto?.codigo}-V${cotizacion?.version} para el proyecto "${proyecto?.nombre}" por un total de ${fmt(totalFinal)} (inc. IGV). Validez: ${cotizacion?.validez_dias || 10} días. Saludos, ${ag.contacto} - ${ag.nombre}`
+    const url = tel ? `https://wa.me/51${tel}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`
+    window.open(url, "_blank")
+  }}
+  style={{ padding: "7px 16px", background: "#25D366", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+  💬 WhatsApp
+</button>
+        <button onClick={() => window.print()}
             style={{ padding: "7px 16px", background: COLOR_PRIMARY, border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
             Imprimir / PDF
           </button>
