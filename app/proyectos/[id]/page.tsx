@@ -135,6 +135,10 @@ export default function ProyectoDetallePage() {
             {proyecto?.productor && <span style={{ marginLeft: 8, color: "#9ca3af" }}>· Productor: {proyecto.productor.nombre} {proyecto.productor.apellido}</span>}
           </p>
         </div>
+        <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
+          style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#fff", color: "#0F6E56", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          📥 Reporte PDF
+        </a>
         <button onClick={nuevaVersion} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
           {creando ? "Creando..." : "+ Nueva proforma"}
         </button>
