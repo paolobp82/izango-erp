@@ -36,6 +36,7 @@ const ALL_NAV = [
     { label: "Facturacion", href: "/facturacion" },
     { label: "Liquidaciones", href: "/liquidaciones" },
     { label: "Flujo de caja", href: "/flujo-caja" },
+    { label: "Centro de costos", href: "/centro-costos" },
   ]},
   { section: "Administracion", items: [
     { label: "Trazabilidad", href: "/trazabilidad" },
