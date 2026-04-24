@@ -1,7 +1,8 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import Sidebar from "./Sidebar"
+import BusquedaGlobal from "@/components/BusquedaGlobal"
 import { useRouter } from "next/navigation"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -36,7 +37,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{display:"flex",minHeight:"100vh"}}>
       <Sidebar perfil={perfil} />
-      <main style={{marginLeft:224,flex:1,padding:24,minHeight:"100vh"}}>{children}</main>
+      <div style={{marginLeft:224,flex:1,display:"flex",flexDirection:"column",minHeight:"100vh"}}>
+      <header style={{background:"#fff",borderBottom:"1px solid #f3f4f6",padding:"12px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+        <BusquedaGlobal />
+      </header>
+      <main style={{flex:1,padding:24}}>{children}</main>
+    </div>
     </div>
   )
 }
