@@ -1,6 +1,23 @@
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
-const navItems = [
+
+const ENTIDAD: Record<string,string> = { peru: "Izango Peru", selva: "Izango Selva" }
+const PERFIL: Record<string,string> = {
+  gerente_general:"Gerente General", comercial:"Comercial",
+  gerente_produccion:"Gerente de Produccion", productor:"Productor",
+  administrador:"Administrador", gerente_finanzas:"Gerente de Finanzas",
+}
+
+const ACCESO: Record<string, string[]> = {
+  gerente_general: ["*"],
+  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/proformas","/biblioteca","/rq","/liquidaciones","/trazabilidad","/alertas"],
+  comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas"],
+  productor: ["/dashboard","/proyectos","/calendario","/gestor","/rq","/alertas"],
+  administrador: ["/dashboard","/clientes","/proveedores","/facturacion","/liquidaciones","/alertas"],
+  gerente_finanzas: ["/dashboard","/rq","/facturacion","/liquidaciones","/proyectos","/alertas"],
+}
+
+const ALL_NAV = [
   { section: "Principal", items: [
     { label: "Dashboard", href: "/dashboard" },
     { label: "Proyectos", href: "/proyectos" },
@@ -24,18 +41,24 @@ const navItems = [
     { label: "Alertas", href: "/alertas" },
   ]},
 ]
-const ENTIDAD: Record<string,string> = { peru: "Izango Peru", selva: "Izango Selva" }
-const PERFIL: Record<string,string> = {
-  gerente_general:"Gerente General", comercial:"Comercial",
-  gerente_produccion:"Gerente de Produccion", productor:"Productor",
-  administrador:"Administrador", gerente_finanzas:"Gerente de Finanzas",
-}
+
 export default function Sidebar({ perfil }: { perfil: any }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
   async function logout() { await supabase.auth.signOut(); router.push("/auth/login") }
   const initials = `${perfil.nombre[0]}${perfil.apellido[0]}`.toUpperCase()
+
+  const acceso = ACCESO[perfil.perfil] || []
+  const esAdmin = acceso.includes("*")
+
+  const navItems = ALL_NAV.map(section => ({
+    ...section,
+    items: section.items.filter(item =>
+      esAdmin || acceso.some(a => item.href.startsWith(a))
+    )
+  })).filter(section => section.items.length > 0)
+
   return (
     <aside style={{width:224,background:"#fff",borderRight:"1px solid #f3f4f6",display:"flex",flexDirection:"column",height:"100vh",position:"fixed",left:0,top:0}}>
       <div style={{padding:"16px",borderBottom:"1px solid #f3f4f6",display:"flex",alignItems:"center",gap:12}}>
@@ -72,5 +95,3 @@ export default function Sidebar({ perfil }: { perfil: any }) {
       </div>
     </aside>
   )
-
-}
