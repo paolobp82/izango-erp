@@ -22,6 +22,7 @@ export default function ProyectoDetallePage() {
 
   const [proyecto, setProyecto] = useState<any>(null)
   const [cotizaciones, setCotizaciones] = useState<any[]>([])
+  const [historial, setHistorial] = useState<Record<string, any[]>>({})
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [creando, setCreando] = useState(false)
@@ -42,6 +43,14 @@ export default function ProyectoDetallePage() {
       .single()
     setProyecto(proy)
     const { data: cots } = await supabase.from("cotizaciones").select("*").eq("proyecto_id", id).order("version")
+    if (cots && cots.length > 0) {
+      const hist: Record<string, any[]> = {}
+      for (const cot of cots) {
+        const { data: h } = await supabase.from("cotizacion_historial").select("*").eq("cotizacion_id", cot.id).order("created_at", { ascending: false })
+        hist[cot.id] = h || []
+      }
+      setHistorial(hist)
+    }
     setCotizaciones(cots || [])
     setLoading(false)
   }
@@ -217,6 +226,7 @@ export default function ProyectoDetallePage() {
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TOTAL CLIENTE</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MARGEN</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONDICIÓN PAGO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>HISTORIAL</th>
                 <th style={{ padding: "10px 20px", width: 160 }}></th>
               </tr>
             </thead>
@@ -236,6 +246,22 @@ export default function ProyectoDetallePage() {
                       {cot.margen_pct > 0 ? cot.margen_pct.toFixed(1) + "%" : "—"}
                     </td>
                     <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{cot.condicion_pago || "—"}</td>
+                    <td style={{ padding: "12px" }}>
+                      {historial[cot.id] && historial[cot.id].length > 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          {historial[cot.id].slice(0, 3).map((h: any, i: number) => (
+                            <div key={i} style={{ fontSize: 10, color: "#9ca3af", display: "flex", gap: 4, alignItems: "center" }}>
+                              <span style={{ color: h.accion === "aprobada_cliente" ? "#15803d" : "#6b7280" }}>
+                                {h.accion === "aprobada_cliente" ? "✓" : "✎"}
+                              </span>
+                              <span>{h.usuario_nombre}</span>
+                              <span>·</span>
+                              <span>{new Date(h.created_at).toLocaleDateString("es-PE")}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                         <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>

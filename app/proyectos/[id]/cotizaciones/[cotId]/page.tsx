@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams, useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { registrarHistorial } from "@/lib/historial"
 import { enviarAlerta } from "@/lib/alertas"
 
 const COSTOS_INTERNOS = [
@@ -224,7 +225,8 @@ export default function CotizacionEditorPage() {
     await registrarAccion({ accion: "enviar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion enviada al cliente y aprobada" })
     if (nuevoEstado === "aprobada_cliente") {
       const { data: cotData } = await supabase.from("cotizaciones").select("proyecto_id").eq("id", cotId).single()
-      await generarRQs(cotId, cotData?.proyecto_id || id)
+      await registrarHistorial({ cotizacion_id: cotId!, accion: "aprobada_cliente", estado_anterior: "borrador", estado_nuevo: "aprobada_cliente", descripcion: "Cotizacion enviada y aprobada por cliente. Total: " + fmt(totalFinal) + " Margen: " + margenGlobal.toFixed(1) + "%" })
+    await generarRQs(cotId, cotData?.proyecto_id || id)
     }
     if (nuevoEstado) {
       router.push("/proyectos/" + id)
@@ -237,6 +239,7 @@ export default function CotizacionEditorPage() {
         return calcItem({ ...i, extras_produccion: ep, extras_alquiler: ea })
       })
       setItems(parsed)
+      await registrarHistorial({ cotizacion_id: cotId!, accion: "guardado", descripcion: "Borrador guardado. Total: " + fmt(totalFinal) })
       alert("Guardado correctamente")
       await registrarAccion({ accion: "editar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion guardada como borrador" })
     }
