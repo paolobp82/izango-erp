@@ -19,6 +19,9 @@ export default function CentroCostosPage() {
   const supabase = createClient()
   const [centros, setCentros] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [filtroDesde, setFiltroDesde] = useState("")
+  const [filtroHasta, setFiltroHasta] = useState("")
+  const [periodoRapido, setPeriodoRapido] = useState("todo")
   const [selected, setSelected] = useState<any>(null)
   const [itemsDetalle, setItemsDetalle] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -27,6 +30,28 @@ export default function CentroCostosPage() {
   const [form, setForm] = useState({ nombre: "", tipo: "evento", descripcion: "", presupuesto: "" })
 
   useEffect(() => { load() }, [])
+
+  function aplicarPeriodoRapido(periodo: string) {
+    const hoy = new Date()
+    setPeriodoRapido(periodo)
+    if (periodo === "semana") {
+      const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - hoy.getDay() + 1)
+      setFiltroDesde(lunes.toISOString().slice(0,10))
+      setFiltroHasta(hoy.toISOString().slice(0,10))
+    } else if (periodo === "mes") {
+      setFiltroDesde(new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0,10))
+      setFiltroHasta(hoy.toISOString().slice(0,10))
+    } else if (periodo === "trimestre") {
+      const ini = new Date(hoy.getFullYear(), Math.floor(hoy.getMonth()/3)*3, 1)
+      setFiltroDesde(ini.toISOString().slice(0,10))
+      setFiltroHasta(hoy.toISOString().slice(0,10))
+    } else if (periodo === "anio") {
+      setFiltroDesde(new Date(hoy.getFullYear(), 0, 1).toISOString().slice(0,10))
+      setFiltroHasta(hoy.toISOString().slice(0,10))
+    } else {
+      setFiltroDesde(""); setFiltroHasta("")
+    }
+  }
 
   async function load() {
     // Traer centros con suma ejecutado desde cotizacion_items aprobados
@@ -148,6 +173,39 @@ export default function CentroCostosPage() {
           </div>
         </div>
       )}
+
+      {/* Filtros de fecha */}
+      <div className="card" style={{ marginBottom: 16, padding: "12px 16px" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>Periodo:</span>
+          {[
+            { key: "todo", label: "Todo" },
+            { key: "semana", label: "Esta semana" },
+            { key: "mes", label: "Este mes" },
+            { key: "trimestre", label: "Trimestre" },
+            { key: "anio", label: "Este año" },
+            { key: "custom", label: "Personalizado" },
+          ].map(p => (
+            <button key={p.key} onClick={() => aplicarPeriodoRapido(p.key)}
+              style={{ padding: "5px 12px", border: "1px solid " + (periodoRapido === p.key ? "#0F6E56" : "#e5e7eb"), borderRadius: 6, background: periodoRapido === p.key ? "#0F6E56" : "#fff", color: periodoRapido === p.key ? "#fff" : "#374151", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: periodoRapido === p.key ? 600 : 400 }}>
+              {p.label}
+            </button>
+          ))}
+          {periodoRapido === "custom" && (
+            <>
+              <input type="date" value={filtroDesde} onChange={e => setFiltroDesde(e.target.value)}
+                style={{ padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit" }} />
+              <span style={{ fontSize: 12, color: "#9ca3af" }}>—</span>
+              <input type="date" value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)}
+                style={{ padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit" }} />
+            </>
+          )}
+          {(filtroDesde || filtroHasta) && selected && (
+            <button onClick={() => loadDetalle(selected.id)} className="btn-primary" style={{ fontSize: 12 }}>Aplicar filtro</button>
+          )}
+          {filtroDesde && <span style={{ fontSize: 11, color: "#9ca3af" }}>Mostrando desde {filtroDesde} hasta {filtroHasta || "hoy"}</span>}
+        </div>
+      </div>
 
       {/* Tabla principal presupuesto vs ejecutado */}
       <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>
