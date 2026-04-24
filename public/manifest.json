@@ -1,0 +1,22 @@
+{
+  "name": "Izango 360 ERP",
+  "short_name": "Izango ERP",
+  "description": "Sistema ERP para Izango 360 SAC",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#03E373",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
