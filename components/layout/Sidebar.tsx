@@ -10,11 +10,11 @@ const PERFIL: Record<string,string> = {
 
 const ACCESO: Record<string, string[]> = {
   gerente_general: ["*"],
-  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/proformas","/biblioteca","/rq","/liquidaciones","/trazabilidad","/alertas","/inventario"],
-  comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas"],
-  productor: ["/dashboard","/proyectos","/calendario","/gestor","/rq","/alertas","/inventario"],
-  administrador: ["/dashboard","/clientes","/proveedores","/facturacion","/liquidaciones","/alertas","/inventario"],
-  gerente_finanzas: ["/dashboard","/rq","/facturacion","/liquidaciones","/flujo-caja","/proyectos","/alertas"],
+  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/proformas","/biblioteca","/rq","/liquidaciones","/trazabilidad","/alertas","/inventario","/perfil"],
+  comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/perfil"],
+  productor: ["/dashboard","/proyectos","/calendario","/gestor","/rq","/alertas","/inventario","/perfil"],
+  administrador: ["/dashboard","/clientes","/proveedores","/facturacion","/liquidaciones","/alertas","/inventario","/perfil"],
+  gerente_finanzas: ["/dashboard","/rq","/facturacion","/liquidaciones","/flujo-caja","/proyectos","/alertas","/perfil"],
 }
 
 const ALL_NAV = [
