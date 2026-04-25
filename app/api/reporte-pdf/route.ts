@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
     const cotAprobada = cotizaciones?.find((c) => c.estado === "aprobada_cliente") || cotizaciones?.[cotizaciones.length-1]
     const items = cotAprobada?.cotizacion_items || []
     const liqItems = liquidacion?.liquidacion_items || []
-    const fmt = (n) => "S/ " + Number(n||0).toLocaleString("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2})
-    const fmtPct = (n) => Number(n||0).toFixed(1) + "%"
+    const fmt = (n: number) => "S/ " + Number(n||0).toLocaleString("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2})
+    const fmtPct = (n: number) => Number(n||0).toFixed(1) + "%"
     const totalRQs = (rqs||[]).reduce((s,r) => s+(r.monto_solicitado||0), 0)
     const totalFacturado = (facturas||[]).reduce((s,f) => s+((f.subtotal||0)+(f.igv||0)), 0)
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><style>
