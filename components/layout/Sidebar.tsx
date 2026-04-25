@@ -80,7 +80,7 @@ export default function Sidebar({ perfil }: { perfil: any }) {
 
   return (
     <aside style={{width:224,background:"#fff",borderRight:"1px solid #f3f4f6",display:"flex",flexDirection:"column",height:"100vh",position:"fixed",left:0,top:0}}>
-      <div style={{padding:"16px",borderBottom:"1px solid #f3f4f6",display:"flex",alignItems:"center",gap:12}}>
+      <a href="/dashboard" style={{padding:"16px",borderBottom:"1px solid #f3f4f6",display:"flex",alignItems:"center",gap:12,textDecoration:"none"}}>
         <div style={{background:"#03E373",borderRadius:10,padding:"6px 8px",flexShrink:0}}>
           <img src="https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png" alt="Izango" style={{height:32,objectFit:"contain",display:"block"}} />
         </div>
