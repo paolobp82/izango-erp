@@ -58,6 +58,10 @@ const ALL_NAV = [
   { section: "Administracion", items: [
     { label: "Trazabilidad", href: "/trazabilidad" },
     { label: "Alertas", href: "/alertas" },
+    { label: "Usuarios", href: "/admin/usuarios" },
+  ]},
+  { section: "Mi cuenta", items: [
+    { label: "Mi perfil", href: "/perfil" },
   ]},
 ]
 
