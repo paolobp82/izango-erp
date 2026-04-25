@@ -33,7 +33,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (loading) return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f9fafb"}}>
       <div style={{textAlign:"center"}}>
-        <div style={{width:40,height:40,background:"#1D9E75",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
+        <div style={{width:40,height:40,background:"#03E373",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
           <span style={{color:"#fff",fontWeight:700}}>iz</span>
         </div>
         <p style={{color:"#6b7280",fontSize:13}}>Cargando...</p>

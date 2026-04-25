@@ -81,7 +81,7 @@ export default function Sidebar({ perfil }: { perfil: any }) {
   return (
     <aside style={{width:224,background:"#fff",borderRight:"1px solid #f3f4f6",display:"flex",flexDirection:"column",height:"100vh",position:"fixed",left:0,top:0}}>
       <div style={{padding:"16px",borderBottom:"1px solid #f3f4f6",display:"flex",alignItems:"center",gap:12}}>
-        <div style={{width:32,height:32,background:"#1D9E75",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+        <div style={{width:32,height:32,background:"#03E373",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
           <span style={{color:"#fff",fontWeight:700,fontSize:12}}>iz</span>
         </div>
         <div>
@@ -104,7 +104,7 @@ export default function Sidebar({ perfil }: { perfil: any }) {
       </nav>
       <div style={{padding:"12px",borderTop:"1px solid #f3f4f6"}}>
         <div style={{display:"flex",alignItems:"center",gap:12,padding:"0 8px",marginBottom:8}}>
-          <div style={{width:32,height:32,borderRadius:"50%",background:"#E1F5EE",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:"#04342C",flexShrink:0}}>{initials}</div>
+          <div style={{width:32,height:32,borderRadius:"50%",background:"#e6fff4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:"#04342C",flexShrink:0}}>{initials}</div>
           <div style={{minWidth:0}}>
             <div style={{fontSize:12,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{perfil.nombre} {perfil.apellido}</div>
             <div style={{fontSize:11,color:"#9ca3af",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{PERFIL[perfil.perfil]}</div>
