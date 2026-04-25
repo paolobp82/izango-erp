@@ -9,7 +9,7 @@ export default function PerfilPage() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState("")
   const [error, setError] = useState("")
-  const [form, setForm] = useState({ nombre: "", apellido: "", email: "" })
+  const [form, setForm] = useState({ nombre: "", apellido: "", email: "", cargo: "" })
   const [passForm, setPassForm] = useState({ actual: "", nueva: "", confirmar: "" })
   const [savingPass, setSavingPass] = useState(false)
   const [msgPass, setMsgPass] = useState("")
@@ -22,7 +22,7 @@ export default function PerfilPage() {
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
       setPerfil({ ...p, email: user.email })
-      setForm({ nombre: p?.nombre || "", apellido: p?.apellido || "", email: user.email || "" })
+      setForm({ nombre: p?.nombre || "", apellido: p?.apellido || "", email: user.email || "", cargo: p?.cargo || "" })
     }
     setLoading(false)
   }
@@ -31,7 +31,7 @@ export default function PerfilPage() {
     setSaving(true)
     setMsg("")
     setError("")
-    const { error } = await supabase.from("perfiles").update({ nombre: form.nombre, apellido: form.apellido }).eq("id", perfil.id)
+    const { error } = await supabase.from("perfiles").update({ nombre: form.nombre, apellido: form.apellido, cargo: form.cargo }).eq("id", perfil.id)
     if (error) { setError("Error al guardar: " + error.message) }
     else { setMsg("Perfil actualizado correctamente") }
     setSaving(false)
@@ -83,9 +83,14 @@ export default function PerfilPage() {
         <div>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>{perfil?.nombre} {perfil?.apellido}</div>
           <div style={{ fontSize: 13, color: "#6b7280" }}>{perfil?.email}</div>
-          <span style={{ background: "#e6fff4", color: "#027a45", padding: "2px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, marginTop: 4, display: "inline-block" }}>
-            {PERFIL_LABEL[perfil?.perfil] || perfil?.perfil}
-          </span>
+          <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+            <span style={{ background: "#e6fff4", color: "#027a45", padding: "2px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+              {PERFIL_LABEL[perfil?.perfil] || perfil?.perfil}
+            </span>
+            {perfil?.cargo && <span style={{ background: "#f1f5f9", color: "#475569", padding: "2px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+              {perfil?.cargo}
+            </span>}
+          </div>
         </div>
       </div>
 
@@ -101,6 +106,10 @@ export default function PerfilPage() {
             <label style={lbl}>Apellido</label>
             <input style={inp} value={form.apellido} onChange={e => setForm({ ...form, apellido: e.target.value })} />
           </div>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={lbl}>Cargo / Puesto</label>
+          <input style={inp} value={form.cargo} placeholder="Ej: Director Comercial, Productor Senior..." onChange={e => setForm({ ...form, cargo: e.target.value })} />
         </div>
         <div style={{ marginBottom: 16 }}>
           <label style={lbl}>Email</label>
