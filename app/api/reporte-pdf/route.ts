@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
     const liqItems = liquidacion?.liquidacion_items || []
     const fmt = (n: number) => "S/ " + Number(n||0).toLocaleString("es-PE",{minimumFractionDigits:2,maximumFractionDigits:2})
     const fmtPct = (n: number) => Number(n||0).toFixed(1) + "%"
-    const totalRQs = (rqs||[]).reduce((s,r) => s+(r.monto_solicitado||0), 0)
-    const totalFacturado = (facturas||[]).reduce((s,f) => s+((f.subtotal||0)+(f.igv||0)), 0)
+    const totalRQs = (rqs||[]).reduce((s: number,r: any) => s+(r.monto_solicitado||0), 0)
+    const totalFacturado = (facturas||[]).reduce((s: number,f: any) => s+((f.subtotal||0)+(f.igv||0)), 0)
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><style>
     *{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:12px;color:#1D2040}
     .header{background:#03E373;padding:24px 32px;display:flex;justify-content:space-between;align-items:center}
@@ -76,11 +76,11 @@ export async function GET(request: NextRequest) {
       </div>
       ${cotAprobada?`<div class="section"><div class="section-title">Cotización aprobada — V${cotAprobada.version}</div>
       <table><thead><tr><th>N°</th><th>Descripción</th><th style="text-align:right">Costo</th><th style="text-align:center">Margen</th><th style="text-align:right">Precio cliente</th></tr></thead>
-      <tbody>${items.map((it,i)=>`<tr><td>${i+1}</td><td>${it.descripcion||"—"}</td><td style="text-align:right">${fmt(it.costo_total||0)}</td><td style="text-align:center">${fmtPct(it.margen_pct||0)}</td><td style="text-align:right;font-weight:700">${fmt(it.precio_cliente||0)}</td></tr>`).join("")}</tbody></table>
+      <tbody>${items.map((it: any,i: number)=>`<tr><td>${i+1}</td><td>${it.descripcion||"—"}</td><td style="text-align:right">${fmt(it.costo_total||0)}</td><td style="text-align:center">${fmtPct(it.margen_pct||0)}</td><td style="text-align:right;font-weight:700">${fmt(it.precio_cliente||0)}</td></tr>`).join("")}</tbody></table>
       <div class="total"><span style="font-size:12px;font-weight:600">TOTAL CLIENTE (inc. IGV)</span><span class="total-v">${fmt(cotAprobada.total_cliente||0)}</span></div></div>`:""}
       ${rqs&&rqs.length>0?`<div class="section"><div class="section-title">Requerimientos de pago (${rqs.length})</div>
       <table><thead><tr><th>N° RQ</th><th>Descripción</th><th>Proveedor</th><th style="text-align:right">Monto</th><th>Estado</th></tr></thead>
-      <tbody>${rqs.map(r=>`<tr><td style="font-family:monospace">${r.numero_rq||"—"}</td><td>${r.descripcion||"—"}</td><td>${r.proveedor_nombre||"—"}</td><td style="text-align:right;font-weight:700">${fmt(r.monto_solicitado||0)}</td><td>${r.estado}</td></tr>`).join("")}</tbody></table>
+      <tbody>${rqs.map((r: any)=>`<tr><td style="font-family:monospace">${r.numero_rq||"—"}</td><td>${r.descripcion||"—"}</td><td>${r.proveedor_nombre||"—"}</td><td style="text-align:right;font-weight:700">${fmt(r.monto_solicitado||0)}</td><td>${r.estado}</td></tr>`).join("")}</tbody></table>
       <div style="text-align:right;margin-top:8px;font-size:12px;font-weight:700">Total RQs: ${fmt(totalRQs)}</div></div>`:""}
       ${liquidacion?`<div class="section"><div class="section-title">Liquidación ${liquidacion.cerrada?"✓ Cerrada":"Abierta"}</div>
       <div class="grid-3" style="margin-bottom:12px">
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
       </div></div>`:""}
       ${facturas&&facturas.length>0?`<div class="section"><div class="section-title">Facturación</div>
       <table><thead><tr><th>N° Factura</th><th style="text-align:right">Subtotal</th><th style="text-align:right">IGV</th><th style="text-align:right">Total</th><th>Estado</th><th>Emisión</th></tr></thead>
-      <tbody>${facturas.map(f=>`<tr><td style="font-weight:700">${f.numero_factura}</td><td style="text-align:right">${fmt(f.subtotal||0)}</td><td style="text-align:right">${fmt(f.igv||0)}</td><td style="text-align:right;font-weight:700;color:#0F6E56">${fmt((f.subtotal||0)+(f.igv||0))}</td><td>${f.estado}</td><td>${f.fecha_emision||"—"}</td></tr>`).join("")}</tbody></table>
+      <tbody>${facturas.map((f: any)=>`<tr><td style="font-weight:700">${f.numero_factura}</td><td style="text-align:right">${fmt(f.subtotal||0)}</td><td style="text-align:right">${fmt(f.igv||0)}</td><td style="text-align:right;font-weight:700;color:#0F6E56">${fmt((f.subtotal||0)+(f.igv||0))}</td><td>${f.estado}</td><td>${f.fecha_emision||"—"}</td></tr>`).join("")}</tbody></table>
       <div style="text-align:right;margin-top:8px;font-size:12px;font-weight:700;color:#0F6E56">Total facturado: ${fmt(totalFacturado)}</div></div>`:""}
     </div>
     <div class="footer"><span>Izango 360 S.A.C. · RUC 20600487583 · jsosa@izango.com.pe</span><span>${proyecto?.codigo} · ${new Date().toLocaleDateString("es-PE")}</span></div>
