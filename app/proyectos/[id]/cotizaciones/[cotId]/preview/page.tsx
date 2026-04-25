@@ -2,41 +2,181 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams } from "next/navigation"
+import { pdf, Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
 
-const AGENCIA = {
+const AGENCIA: any = {
   peru: {
-    nombre: "Izango 360 S.A.C.",
-    ruc: "20600487583",
+    nombre: "Izango 360 S.A.C.", ruc: "20600487583",
     direccion: "Jiron Los Rosales 240, San Luis, Lima",
-    contacto: "Jose Manuel Sosa Canessa",
-    cargo: "Director Comercial",
-    celular: "987 627 997",
-    email: "jsosa@izango.com.pe",
-    banco: "BCP",
-    tipo_cuenta: "Corriente Soles",
-    numero_cuenta: "390-2247794-0-81",
-    cci: "002-390002247794081-35",
+    contacto: "Jose Manuel Sosa Canessa", cargo: "Director Comercial",
+    celular: "987 627 997", email: "jsosa@izango.com.pe",
+    banco: "BCP", tipo_cuenta: "Corriente Soles",
+    numero_cuenta: "390-2247794-0-81", cci: "002-390002247794081-35",
     cuenta_detraccion: "000-14062335",
   },
   selva: {
-    nombre: "Izango Selva 360 S.A.C.",
-    ruc: "20607083721",
+    nombre: "Izango Selva 360 S.A.C.", ruc: "20607083721",
     direccion: "Cal. los Claveles Nro. 157, Maynas, Loreto",
-    contacto: "Jose Manuel Sosa Canessa",
-    cargo: "Director Comercial",
-    celular: "987 627 997",
-    email: "jsosa@izango.com.pe",
-    banco: "BCP",
-    tipo_cuenta: "Corriente Soles",
-    numero_cuenta: "194-9396704-0-99",
-    cci: "002-19400939670409-994",
+    contacto: "Jose Manuel Sosa Canessa", cargo: "Director Comercial",
+    celular: "987 627 997", email: "jsosa@izango.com.pe",
+    banco: "BCP", tipo_cuenta: "Corriente Soles",
+    numero_cuenta: "194-9396704-0-99", cci: "002-19400939670409-994",
     cuenta_detraccion: "000-14062335",
   }
 }
 
 const LOGO_URL = "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
-const COLOR_PRIMARY = "#03E373"
-const COLOR_DARK = "#1D2040"
+const GREEN = "#03E373"
+const DARK = "#1D2040"
+const GRAY = "#64748b"
+const LIGHT = "#f8fafc"
+
+const s = StyleSheet.create({
+  page: { fontFamily: "Helvetica", fontSize: 10, color: DARK, backgroundColor: "#fff", paddingBottom: 40 },
+  header: { backgroundColor: GREEN, padding: "16 32", flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  logo: { height: 50 },
+  headerRight: { alignItems: "flex-end" },
+  proformaTitle: { fontSize: 18, fontWeight: "bold", color: DARK },
+  headerSub: { fontSize: 9, color: DARK, marginTop: 2 },
+  body: { padding: "16 32" },
+  row2: { flexDirection: "row", gap: 10, marginBottom: 14 },
+  box: { flex: 1, backgroundColor: LIGHT, borderRadius: 6, padding: 10 },
+  boxLeft: { flex: 1, backgroundColor: LIGHT, borderRadius: 6, padding: 10, borderLeft: "3 solid " + GREEN },
+  label: { fontSize: 8, fontWeight: "bold", color: GRAY, textTransform: "uppercase", marginBottom: 4 },
+  bold14: { fontSize: 12, fontWeight: "bold", color: DARK },
+  small: { fontSize: 9, color: GRAY, marginTop: 1 },
+  tableHeader: { flexDirection: "row", backgroundColor: DARK, padding: "7 8" },
+  tableRow: { flexDirection: "row", padding: "6 8", borderBottom: "1 solid #f1f5f9" },
+  tableRowAlt: { flexDirection: "row", padding: "6 8", borderBottom: "1 solid #f1f5f9", backgroundColor: LIGHT },
+  thCenter: { color: "#fff", fontWeight: "bold", fontSize: 8, textAlign: "center" },
+  thLeft: { color: "#fff", fontWeight: "bold", fontSize: 8 },
+  thRight: { color: GREEN, fontWeight: "bold", fontSize: 8, textAlign: "right" },
+  tdCenter: { fontSize: 9, textAlign: "center", color: GRAY },
+  tdLeft: { fontSize: 9, color: DARK },
+  tdRight: { fontSize: 9, textAlign: "right", color: GRAY },
+  tdRightBold: { fontSize: 9, textAlign: "right", fontWeight: "bold", color: DARK },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", padding: "5 0", borderBottom: "1 solid #f1f5f9" },
+  totalFinal: { flexDirection: "row", justifyContent: "space-between", padding: "10 14", backgroundColor: DARK, borderRadius: 8, marginTop: 6 },
+  footer: { position: "absolute", bottom: 16, left: 32, right: 32, borderTop: "2 solid " + GREEN, paddingTop: 8, flexDirection: "row", justifyContent: "space-between" },
+  footerText: { fontSize: 8, color: "#94a3b8" },
+  bankBox: { backgroundColor: LIGHT, borderRadius: 6, padding: 12, border: "1 solid #e2e8f0", marginBottom: 12 },
+  bankGrid: { flexDirection: "row", gap: 12, marginTop: 6 },
+  bankItem: { flex: 1 },
+})
+
+const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeMonto, subtotalConFee, igvPct, igvMonto, totalFinal }: any) => (
+  <Document>
+    <Page size="A4" style={s.page}>
+      {/* Header */}
+      <View style={s.header} fixed>
+        <Image src={LOGO_URL} style={s.logo} />
+        <View style={s.headerRight}>
+          <Text style={s.proformaTitle}>PROFORMA</Text>
+          <Text style={s.headerSub}>N° {proyecto?.codigo}-V{cotizacion?.version}</Text>
+          <Text style={s.headerSub}>Fecha: {today}</Text>
+          <Text style={s.headerSub}>Validez: {cotizacion?.validez_dias || 10} dias</Text>
+        </View>
+      </View>
+
+      <View style={s.body}>
+        {/* De / Para */}
+        <View style={s.row2}>
+          <View style={s.boxLeft}>
+            <Text style={s.label}>De</Text>
+            <Text style={s.bold14}>{ag.nombre}</Text>
+            <Text style={s.small}>RUC: {ag.ruc}</Text>
+            <Text style={s.small}>{ag.direccion}</Text>
+            <Text style={[s.small, { marginTop: 4 }]}>{ag.contacto} - {ag.cargo}</Text>
+            <Text style={s.small}>{ag.celular}  {ag.email}</Text>
+          </View>
+          <View style={s.box}>
+            <Text style={s.label}>Para</Text>
+            <Text style={s.bold14}>{proyecto?.cliente?.razon_social}</Text>
+            {proyecto?.cliente?.ruc ? <Text style={s.small}>RUC: {proyecto.cliente.ruc}</Text> : null}
+            {proyecto?.cliente?.direccion ? <Text style={s.small}>{proyecto.cliente.direccion}</Text> : null}
+            {proyecto?.cliente?.nombre_contacto ? <Text style={[s.small, { marginTop: 4 }]}>Attn: {proyecto.cliente.nombre_contacto}</Text> : null}
+            {proyecto?.cliente?.email_contacto ? <Text style={s.small}>{proyecto.cliente.email_contacto}</Text> : null}
+            <Text style={[s.small, { fontWeight: "bold", color: DARK, marginTop: 4 }]}>{proyecto?.nombre}</Text>
+            <Text style={s.small}>Condicion: {cotizacion?.condicion_pago}</Text>
+          </View>
+        </View>
+
+        {/* Tabla */}
+        <View style={s.tableHeader} fixed>
+          <Text style={[s.thCenter, { width: 22 }]}>N</Text>
+          <Text style={[s.thLeft, { flex: 1 }]}>Descripcion</Text>
+          <Text style={[s.thCenter, { width: 38 }]}>Cant.</Text>
+          <Text style={[s.thCenter, { width: 38 }]}>Dias</Text>
+          <Text style={[s.thCenter, { width: 65 }]}>P. Unit.</Text>
+          <Text style={[s.thRight, { width: 65 }]}>Total</Text>
+        </View>
+        {items.map((item: any, idx: number) => (
+          <View key={item.id} style={idx % 2 === 0 ? s.tableRow : s.tableRowAlt} wrap={false}>
+            <Text style={[s.tdCenter, { width: 22 }]}>{idx + 1}</Text>
+            <Text style={[s.tdLeft, { flex: 1 }]}>{item.descripcion || "-"}</Text>
+            <Text style={[s.tdCenter, { width: 38 }]}>{item.cantidad}</Text>
+            <Text style={[s.tdCenter, { width: 38 }]}>{item.fechas}</Text>
+            <Text style={[s.tdRight, { width: 65 }]}>{item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "-"}</Text>
+            <Text style={[s.tdRightBold, { width: 65 }]}>{item.precio_cliente > 0 ? fmt(item.precio_cliente) : "-"}</Text>
+          </View>
+        ))}
+
+        {/* Totales */}
+        <View style={{ alignItems: "flex-end", marginTop: 12, marginBottom: 14 }}>
+          <View style={{ width: 230 }}>
+            {feePct > 0 && (
+              <View style={s.totalRow}>
+                <Text style={{ fontSize: 9, color: GRAY }}>Fee agencia ({feePct}%)</Text>
+                <Text style={{ fontSize: 9 }}>{fmt(feeMonto)}</Text>
+              </View>
+            )}
+            <View style={s.totalRow}>
+              <Text style={{ fontSize: 9, color: GRAY }}>Subtotal antes IGV</Text>
+              <Text style={{ fontSize: 9 }}>{fmt(subtotalConFee)}</Text>
+            </View>
+            <View style={s.totalRow}>
+              <Text style={{ fontSize: 9, color: GRAY }}>IGV ({igvPct}%)</Text>
+              <Text style={{ fontSize: 9 }}>{fmt(igvMonto)}</Text>
+            </View>
+            <View style={s.totalFinal}>
+              <Text style={{ fontSize: 11, fontWeight: "bold", color: "#fff" }}>TOTAL</Text>
+              <Text style={{ fontSize: 14, fontWeight: "bold", color: GREEN }}>{fmt(totalFinal)}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Datos bancarios */}
+        <View style={s.bankBox}>
+          <Text style={s.label}>Datos para el pago</Text>
+          <View style={s.bankGrid}>
+            <View style={s.bankItem}>
+              <Text style={[s.small, { color: "#94a3b8" }]}>Banco</Text>
+              <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.banco} - {ag.tipo_cuenta}</Text>
+            </View>
+            <View style={s.bankItem}>
+              <Text style={[s.small, { color: "#94a3b8" }]}>N Cuenta</Text>
+              <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.numero_cuenta}</Text>
+            </View>
+            <View style={s.bankItem}>
+              <Text style={[s.small, { color: "#94a3b8" }]}>CCI</Text>
+              <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.cci}</Text>
+            </View>
+          </View>
+          <View style={{ marginTop: 6 }}>
+            <Text style={[s.small, { color: "#94a3b8" }]}>Cuenta Detraccion (Banco de la Nacion)</Text>
+            <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.cuenta_detraccion}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Footer fijo en cada pagina */}
+      <View style={s.footer} fixed>
+        <Text style={s.footerText}>Validez: {cotizacion?.validez_dias || 10} dias - {ag.nombre} - RUC {ag.ruc}</Text>
+        <Text style={s.footerText}>{ag.email} - {ag.celular}</Text>
+      </View>
+    </Page>
+  </Document>
+)
 
 export default function PreviewCotizacionPage() {
   const rawParams = useParams()
@@ -48,6 +188,7 @@ export default function PreviewCotizacionPage() {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [entidad, setEntidad] = useState<"peru" | "selva">("peru")
+  const [generando, setGenerando] = useState(false)
 
   useEffect(() => {
     if (!cotId) return
@@ -83,46 +224,62 @@ export default function PreviewCotizacionPage() {
   const igvMonto = subtotalConFee * (igvPct / 100)
   const totalFinal = subtotalConFee + igvMonto
 
+  const pdfProps = { ag, proyecto, cotizacion, items, fmt, today, feePct, feeMonto, subtotalConFee, igvPct, igvMonto, totalFinal }
+
+  const descargarPDF = async () => {
+    setGenerando(true)
+    try {
+      const blob = await pdf(<ProformaPDF {...pdfProps} />).toBlob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `Proforma-${proyecto?.codigo}-V${cotizacion?.version}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error(err)
+      alert("Error al generar PDF")
+    }
+    setGenerando(false)
+  }
+
+  
+
+  const COLOR_PRIMARY = "#03E373"
+  const COLOR_DARK = "#1D2040"
+  const LOGO_URL_WEB = "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
+
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh", padding: "20px 0 40px" }}>
-      {/* Toolbar */}
       <div style={{ maxWidth: 900, margin: "0 auto 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <a href={"/proyectos/" + id + "/cotizaciones/" + cotId}
-          style={{ fontSize: 13, color: "#64748b", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>
+        <a href={"/proyectos/" + id + "/cotizaciones/" + cotId} style={{ fontSize: 13, color: "#64748b", textDecoration: "none" }}>
           ← Volver al editor
         </a>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select value={entidad} onChange={e => setEntidad(e.target.value as any)}
             style={{ padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: 7, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
             <option value="peru">Izango 360 SAC (Peru)</option>
             <option value="selva">Izango Selva 360 SAC</option>
           </select>
-          <button onClick={() => { const tel = proyecto?.cliente?.telefono_contacto?.replace(/\D/g, "") || ""; const nombre = proyecto?.cliente?.razon_social || "cliente"; const msg = `Hola ${nombre}, le hacemos llegar la Proforma ${proyecto?.codigo}-V${cotizacion?.version} para el proyecto "${proyecto?.nombre}" por un total de ${fmt(totalFinal)} (inc. IGV). Validez: ${cotizacion?.validez_dias || 10} dias. Saludos, ${ag.contacto} - ${ag.nombre}`; const url = tel ? `https://wa.me/51${tel}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`; window.open(url, "_blank") }} style={{ padding: "7px 16px", background: "#25D366", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>💬 WhatsApp</button>
-          <button onClick={() => window.print()}
-            style={{ padding: "7px 16px", background: COLOR_PRIMARY, border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            Imprimir / PDF
+          
+          <button onClick={descargarPDF} disabled={generando}
+            style={{ padding: "7px 16px", background: COLOR_PRIMARY, border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: generando ? 0.7 : 1 }}>
+            {generando ? "Generando..." : "Descargar PDF"}
           </button>
         </div>
       </div>
-      {/* Documento */}
-      <div style={{ maxWidth: 900, margin: "0 auto", background: "#fff", borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)", overflow: "hidden" }}>
 
-        {/* Header verde */}
+      <div style={{ maxWidth: 900, margin: "0 auto", background: "#fff", borderRadius: 12, boxShadow: "0 4px 24px rgba(0,0,0,0.08)", overflow: "hidden" }}>
         <div style={{ background: COLOR_PRIMARY, padding: "28px 40px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <img src={LOGO_URL} alt="Izango" style={{ height: 100, objectFit: "contain" }} />
+          <img src={LOGO_URL_WEB} alt="Izango" style={{ height: 100, objectFit: "contain" }} />
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: COLOR_DARK, letterSpacing: "-0.5px" }}>PROFORMA</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: COLOR_DARK, marginTop: 2 }}>
-              N° {proyecto?.codigo}-V{cotizacion?.version}
-            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: COLOR_DARK, marginTop: 2 }}>N° {proyecto?.codigo}-V{cotizacion?.version}</div>
             <div style={{ fontSize: 12, color: COLOR_DARK, opacity: 0.7, marginTop: 2 }}>Fecha: {today}</div>
             <div style={{ fontSize: 12, color: COLOR_DARK, opacity: 0.7 }}>Validez: {cotizacion?.validez_dias || 10} días</div>
           </div>
         </div>
-
         <div style={{ padding: "32px 40px" }}>
-
-          {/* Info agencia y cliente */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 28 }}>
             <div style={{ background: "#f8fafc", borderRadius: 10, padding: "16px 20px", borderLeft: "4px solid " + COLOR_PRIMARY }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>De</div>
@@ -143,8 +300,6 @@ export default function PreviewCotizacionPage() {
               <div style={{ fontSize: 12, color: "#64748b" }}>Condición: {cotizacion?.condicion_pago}</div>
             </div>
           </div>
-
-          {/* Tabla items */}
           <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 24 }}>
             <thead>
               <tr style={{ background: COLOR_DARK }}>
@@ -173,8 +328,6 @@ export default function PreviewCotizacionPage() {
               ))}
             </tbody>
           </table>
-
-          {/* Totales */}
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 28 }}>
             <div style={{ width: 340 }}>
               {feePct > 0 && (
@@ -197,12 +350,8 @@ export default function PreviewCotizacionPage() {
               </div>
             </div>
           </div>
-
-          {/* Datos bancarios */}
           <div style={{ background: "#f8fafc", borderRadius: 10, padding: "18px 24px", marginBottom: 24, border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>
-              Datos para el pago
-            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Datos para el pago</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
               <div>
                 <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", marginBottom: 3 }}>Banco</div>
@@ -222,20 +371,12 @@ export default function PreviewCotizacionPage() {
               </div>
             </div>
           </div>
-
-          {/* Footer */}
           <div style={{ borderTop: "2px solid " + COLOR_PRIMARY, paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>
-              Validez: {cotizacion?.validez_dias || 10} días calendario · {ag.nombre} · RUC {ag.ruc}
-            </div>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>
-              {ag.email} &middot; {ag.celular}
-            </div>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>Validez: {cotizacion?.validez_dias || 10} días calendario · {ag.nombre} · RUC {ag.ruc}</div>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>{ag.email} &middot; {ag.celular}</div>
           </div>
-
         </div>
       </div>
     </div>
   )
-
 }

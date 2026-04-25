@@ -4,15 +4,19 @@ import { createClient } from "@/lib/supabase"
 import Sidebar from "./Sidebar"
 import BusquedaGlobal from "@/components/BusquedaGlobal"
 import Notificaciones from "@/components/Notificaciones"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const pathname = usePathname()
   const supabase = createClient()
 
+  const isAuthRoute = pathname?.startsWith("/auth")
+
   useEffect(() => {
+    if (isAuthRoute) { setLoading(false); return }
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push("/auth/login"); return }
@@ -22,7 +26,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [pathname])
+
+  if (isAuthRoute) return <>{children}</>
 
   if (loading) return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f9fafb"}}>
@@ -39,12 +45,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div style={{display:"flex",minHeight:"100vh"}}>
       <Sidebar perfil={perfil} />
       <div style={{marginLeft:224,flex:1,display:"flex",flexDirection:"column",minHeight:"100vh"}}>
-      <header style={{background:"#fff",borderBottom:"1px solid #f3f4f6",padding:"12px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
-        <BusquedaGlobal />
-        <Notificaciones usuarioId={perfil.id} />
-      </header>
-      <main style={{flex:1,padding:24}}>{children}</main>
-    </div>
+        <header style={{background:"#fff",borderBottom:"1px solid #f3f4f6",padding:"12px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+          <BusquedaGlobal />
+          <Notificaciones usuarioId={perfil.id} />
+        </header>
+        <main style={{flex:1,padding:24}}>{children}</main>
+      </div>
     </div>
   )
 }

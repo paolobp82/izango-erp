@@ -10,6 +10,16 @@ const BANCOS = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha",
 const TIPOS_CUENTA = ["Ahorros", "Corriente"]
 const TIPOS_TRANSFERENCIA = ["Transferencia bancaria", "Yape", "Plin", "Efectivo", "Cheque"]
 
+async function consultarRUC(ruc) {
+  try {
+    const res = await fetch(`/api/ruc?numero=${ruc}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || data.error) return null;
+    return { razonSocial: data.nombre, direccion: data.direccion };
+  } catch { return null; }
+}
+
 export default function ProveedoresPage() {
   const supabase = createClient()
   const [proveedores, setProveedores] = useState<any[]>([])
@@ -18,6 +28,8 @@ export default function ProveedoresPage() {
   const [editando, setEditando] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [esCliente, setEsCliente] = useState(false)
+  const [buscandoRUC, setBuscandoRUC] = useState(false)
+  const [rucEstado, setRucEstado] = useState(null)
   const [contactosAdicionales, setContactosAdicionales] = useState<any[]>([])
   const [form, setForm] = useState({
     nombre: "", ruc: "", categoria: "produccion", tipo_pago: "contado",
@@ -149,7 +161,28 @@ export default function ProveedoresPage() {
                   </div>
                   <div>
                     <label style={lbl}>RUC</label>
-                    <input style={inp} value={form.ruc} placeholder="20xxxxxxxxx" onChange={e => setForm({ ...form, ruc: e.target.value })} />
+                    <div style={{ position: "relative" }}>
+                      <input style={{ ...inp, paddingRight: 36 }} value={form.ruc} placeholder="20xxxxxxxxx"
+                        onChange={async e => {
+                          const val = e.target.value.replace(/\D/g, "").slice(0, 11);
+                          setForm(prev => ({ ...prev, ruc: val }));
+                          setRucEstado(null);
+                          if (val.length === 11) {
+                            setBuscandoRUC(true);
+                            const data = await consultarRUC(val);
+                            setBuscandoRUC(false);
+                            if (data && data.razonSocial) {
+                              setForm(prev => ({ ...prev, ruc: val, nombre: data.razonSocial }));
+                              setRucEstado("ok");
+                            } else { setRucEstado("error"); }
+                          }
+                        }} />
+                      <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14 }}>
+                        {buscandoRUC ? "⏳" : rucEstado === "ok" ? "✅" : rucEstado === "error" ? "❌" : ""}
+                      </span>
+                    </div>
+                    {rucEstado === "ok" && <div style={{ fontSize: 11, color: "#16a34a", marginTop: 4 }}>RUC valido - nombre autocompleto</div>}
+                    {rucEstado === "error" && <div style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>RUC no encontrado</div>}
                   </div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
