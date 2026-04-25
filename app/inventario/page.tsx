@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import ImportExport from "@/components/ImportExport"
 
 const CATEGORIAS = ["activo", "consumible", "material"]
 const UNIDADES = ["unidad", "kg", "metro", "litro", "caja", "par", "juego"]
@@ -105,6 +106,27 @@ export default function InventarioPage() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => router.push("/inventario/ordenes")} className="btn-secondary" style={{ fontSize: 13 }}>📋 Ordenes</button>
+          <ImportExport
+            modulo="inventario_items"
+            campos={[
+              {key:"nombre",label:"Nombre",requerido:true},
+              {key:"descripcion",label:"Descripcion"},
+              {key:"categoria",label:"Categoria"},
+              {key:"unidad",label:"Unidad"},
+              {key:"stock_minimo",label:"Stock minimo"},
+              {key:"tiene_variantes",label:"Tiene variantes"},
+              {key:"foto_url",label:"URL Foto"},
+            ]}
+            datos={items}
+            onImportar={async (registros) => {
+              let exitosos=0; const errores: string[]=[];
+              for(const r of registros){
+                const {error}=await supabase.from("inventario_items").insert({...r,activo:true});
+                if(error)errores.push(r.nombre+": "+error.message); else exitosos++;
+              }
+              load(); return{exitosos,errores};
+            }}
+          />
           <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo item</button>
         </div>
       </div>

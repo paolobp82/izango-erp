@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import ImportExport from "@/components/ImportExport"
 
 export default function UbicacionesPage() {
   const supabase = createClient()
@@ -63,6 +64,23 @@ export default function UbicacionesPage() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <a href="/inventario" className="btn-secondary" style={{ fontSize: 13, textDecoration: "none", padding: "7px 14px", borderRadius: 7 }}>← Inventario</a>
+          <ImportExport
+            modulo="inventario_ubicaciones"
+            campos={[
+              {key:"nombre",label:"Nombre",requerido:true},
+              {key:"tipo",label:"Tipo"},
+              {key:"direccion",label:"Direccion"},
+            ]}
+            datos={ubicaciones}
+            onImportar={async (registros) => {
+              let exitosos=0; const errores: string[]=[];
+              for(const r of registros){
+                const {error}=await supabase.from("inventario_ubicaciones").insert({...r,activo:true});
+                if(error)errores.push(r.nombre+": "+error.message); else exitosos++;
+              }
+              load(); return{exitosos,errores};
+            }}
+          />
           <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva ubicación</button>
         </div>
       </div>

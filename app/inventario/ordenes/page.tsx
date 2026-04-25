@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import ImportExport from "@/components/ImportExport"
 
 const TIPOS = ["salida", "ingreso", "devolucion", "traslado"]
 const ESTADOS = ["borrador", "aprobada", "ejecutada", "cerrada", "cancelada"]
@@ -158,6 +159,32 @@ export default function OrdenesInventarioPage() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <a href="/inventario" className="btn-secondary" style={{ fontSize: 13, textDecoration: "none", padding: "7px 14px", borderRadius: 7 }}>← Inventario</a>
+          <ImportExport
+            modulo="inventario_ordenes"
+            campos={[
+              {key:"numero_orden",label:"N Orden"},
+              {key:"tipo",label:"Tipo"},
+              {key:"estado",label:"Estado"},
+              {key:"direccion_destino",label:"Direccion destino"},
+              {key:"contacto_receptor",label:"Contacto receptor"},
+              {key:"dni_receptor",label:"DNI receptor"},
+              {key:"telefono_receptor",label:"Telefono receptor"},
+              {key:"transportista",label:"Transportista"},
+              {key:"vehiculo_placa",label:"Placa"},
+              {key:"fecha_entrega",label:"Fecha entrega"},
+              {key:"fecha_retorno_esperada",label:"Fecha retorno esperada"},
+              {key:"notas",label:"Notas"},
+            ]}
+            datos={ordenes}
+            onImportar={async (registros) => {
+              let exitosos=0; const errores: string[]=[];
+              for(const r of registros){
+                const {error}=await supabase.from("inventario_ordenes").insert({...r,estado:r.estado||"borrador"});
+                if(error)errores.push((r.numero_orden||"?")+": "+error.message); else exitosos++;
+              }
+              load(); return{exitosos,errores};
+            }}
+          />
           <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva orden</button>
         </div>
       </div>
