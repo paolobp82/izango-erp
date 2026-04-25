@@ -44,6 +44,9 @@ const ALL_NAV = [
     { label: "Ordenes", href: "/inventario/ordenes" },
     { label: "Ubicaciones", href: "/inventario/ubicaciones" },
   ]},
+  { section: "IA", items: [
+    { label: "Asistente IA", href: "/ia" },
+  ]},
   { section: "RRHH", items: [
     { label: "Trabajadores", href: "/rrhh/trabajadores" },
     { label: "Planilla", href: "/rrhh/planilla" },
