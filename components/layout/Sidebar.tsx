@@ -44,6 +44,14 @@ const ALL_NAV = [
     { label: "Ordenes", href: "/inventario/ordenes" },
     { label: "Ubicaciones", href: "/inventario/ubicaciones" },
   ]},
+  { section: "RRHH", items: [
+    { label: "Trabajadores", href: "/rrhh/trabajadores" },
+    { label: "Planilla", href: "/rrhh/planilla" },
+    { label: "Horas extras", href: "/rrhh/horas-extras" },
+    { label: "Vacaciones", href: "/rrhh/vacaciones" },
+    { label: "Permisos", href: "/rrhh/permisos" },
+    { label: "Faltas medicas", href: "/rrhh/faltas-medicas" },
+  ]},
   { section: "Administracion", items: [
     { label: "Trazabilidad", href: "/trazabilidad" },
     { label: "Alertas", href: "/alertas" },
