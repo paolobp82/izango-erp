@@ -10,10 +10,10 @@ const PERFIL: Record<string,string> = {
 
 const ACCESO: Record<string, string[]> = {
   gerente_general: ["*"],
-  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/proformas","/biblioteca","/rq","/liquidaciones","/trazabilidad","/alertas"],
+  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/proformas","/biblioteca","/rq","/liquidaciones","/trazabilidad","/alertas","/inventario"],
   comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas"],
-  productor: ["/dashboard","/proyectos","/calendario","/gestor","/rq","/alertas"],
-  administrador: ["/dashboard","/clientes","/proveedores","/facturacion","/liquidaciones","/alertas"],
+  productor: ["/dashboard","/proyectos","/calendario","/gestor","/rq","/alertas","/inventario"],
+  administrador: ["/dashboard","/clientes","/proveedores","/facturacion","/liquidaciones","/alertas","/inventario"],
   gerente_finanzas: ["/dashboard","/rq","/facturacion","/liquidaciones","/flujo-caja","/proyectos","/alertas"],
 }
 
@@ -38,6 +38,11 @@ const ALL_NAV = [
     { label: "Conciliacion", href: "/conciliacion" },
     { label: "Flujo de caja", href: "/flujo-caja" },
     { label: "Centro de costos", href: "/centro-costos" },
+  ]},
+  { section: "Operaciones", items: [
+    { label: "Inventario", href: "/inventario" },
+    { label: "Ordenes", href: "/inventario/ordenes" },
+    { label: "Ubicaciones", href: "/inventario/ubicaciones" },
   ]},
   { section: "Administracion", items: [
     { label: "Trazabilidad", href: "/trazabilidad" },
