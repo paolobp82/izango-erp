@@ -36,8 +36,8 @@ function newItem(cotizacionId: any, orden: number, familiaId?: string) {
   return calcItem({
     id: "new_" + Date.now(), cotizacion_id: cotizacionId, orden,
     descripcion: "", cantidad: 1, fechas: 1, margen_pct: 40, costo_manual: null,
-    tipo: "item", familia_id: familiaId || null, es_opcional: false, incluir_en_total: true, columna_extra_valor: "", columna_extra_valor: "",
-    celda_titulo: null, numero_item: null,
+    tipo: "item", familia_id: familiaId || null, es_opcional: false, incluir_en_total: true,
+    celda_titulo: null, numero_item: null, columna_extra_valor: "",
     costo_almacenaje: 0, costo_impresion: 0, costo_permisos: 0, costo_instalacion: 0,
     costo_performer: 0, costo_alquiler: 0, costo_supervision: 0, costo_movilidad: 0,
     costo_otros: 0, proveedor_id: null, proveedor_nombre: "", extras_produccion: [], extras_alquiler: [],
@@ -48,7 +48,7 @@ function newFamilia(cotizacionId: any, orden: number) {
   return {
     id: "new_fam_" + Date.now(), cotizacion_id: cotizacionId, orden,
     tipo: "familia", descripcion: "Nueva familia", familia_id: null,
-    es_opcional: false, incluir_en_total: true, celda_titulo: null, numero_item: null,
+    es_opcional: false, incluir_en_total: true, celda_titulo: null, numero_item: null, columna_extra_valor: "",
     cantidad: 1, fechas: 1, margen_pct: 0, costo_manual: null,
     costo_almacenaje: 0, costo_impresion: 0, costo_permisos: 0, costo_instalacion: 0,
     costo_performer: 0, costo_alquiler: 0, costo_supervision: 0, costo_movilidad: 0,
@@ -61,7 +61,7 @@ function newCeldaExtra(cotizacionId: any, orden: number) {
   return {
     id: "new_cel_" + Date.now(), cotizacion_id: cotizacionId, orden,
     tipo: "celda_extra", descripcion: "", familia_id: null,
-    es_opcional: false, incluir_en_total: false, celda_titulo: "Campo adicional", numero_item: null,
+    es_opcional: false, incluir_en_total: false, celda_titulo: "Campo adicional", numero_item: null, columna_extra_valor: "",
     cantidad: 1, fechas: 1, margen_pct: 0, costo_manual: null,
     costo_almacenaje: 0, costo_impresion: 0, costo_permisos: 0, costo_instalacion: 0,
     costo_performer: 0, costo_alquiler: 0, costo_supervision: 0, costo_movilidad: 0,
@@ -87,13 +87,13 @@ export default function CotizacionEditorPage() {
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
   const [feeActivo, setFeeActivo] = useState(true)
   const [showBiblioteca, setShowBiblioteca] = useState(false)
+  const [biblioteca, setBiblioteca] = useState<any[]>([])
+  const [busquedaBib, setBusquedaBib] = useState("")
   const [bloqueada, setBloqueada] = useState(false)
   const [perfilActual, setPerfilActual] = useState<any>(null)
   const [descuentoPct, setDescuentoPct] = useState(0)
   const [subitems, setSubitems] = useState<Record<string, any[]>>({})
   const [columnaExtra, setColumnaExtra] = useState<{activa: boolean, titulo: string}>({activa: false, titulo: "Dirección"})
-  const [biblioteca, setBiblioteca] = useState<any[]>([])
-  const [busquedaBib, setBusquedaBib] = useState("")
 
   useEffect(() => {
     if (!cotId) return
@@ -108,7 +108,6 @@ export default function CotizacionEditorPage() {
       setBloqueada(cot?.bloqueada || false)
       setDescuentoPct(cot?.descuento_pct || 0)
       if (cot?.columna_extra_titulo) setColumnaExtra({ activa: true, titulo: cot.columna_extra_titulo })
-      if (cot?.columna_extra_titulo) setColumnaExtra({ activa: true, titulo: cot.columna_extra_titulo })
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
@@ -122,7 +121,6 @@ export default function CotizacionEditorPage() {
         return calcItem({ ...i, extras_produccion: ep, extras_alquiler: ea })
       })
       setItems(parsed)
-      // Cargar subitems
       const subitemsMap: Record<string, any[]> = {}
       for (const item of parsed) {
         const { data: subs } = await supabase.from("cotizacion_subitems").select("*, proveedor:proveedores(nombre)").eq("item_id", item.id).order("orden")
@@ -151,6 +149,8 @@ export default function CotizacionEditorPage() {
       id: "new_" + Date.now(), cotizacion_id: cotId, orden: items.length,
       descripcion: item.descripcion, cantidad: 1, fechas: 1,
       margen_pct: item.margen_pct || 40, costo_manual: null,
+      tipo: "item", familia_id: null, es_opcional: false, incluir_en_total: true,
+      celda_titulo: null, numero_item: null, columna_extra_valor: "",
       costo_almacenaje: item.costo_almacenaje || 0, costo_impresion: item.costo_impresion || 0,
       costo_permisos: item.costo_permisos || 0, costo_instalacion: item.costo_instalacion || 0,
       costo_performer: item.costo_performer || 0, costo_alquiler: item.costo_alquiler || 0,
@@ -194,24 +194,20 @@ export default function CotizacionEditorPage() {
     }))
   }
 
+  function removeItem(itemId: string) {
+    setItems(prev => prev.filter(i => i.id !== itemId))
+  }
+
   function addSubitem(itemId: string) {
     setSubitems(prev => ({
       ...prev,
       [itemId]: [...(prev[itemId] || []), { id: "new_sub_" + Date.now(), item_id: itemId, descripcion: "", proveedor_id: null, proveedor_nombre: "", monto: 0, orden: (prev[itemId] || []).length }]
     }))
-    // Recalcular costo del item padre desde subitems
-    setItems(prev => prev.map(i => {
-      if (i.id !== itemId) return i
-      const subs = subitems[itemId] || []
-      const total = subs.reduce((s: number, sb: any) => s + (Number(sb.monto) || 0), 0)
-      return calcItem({ ...i, costo_manual: total || null })
-    }))
   }
 
   function updateSubitem(itemId: string, subId: string, field: string, value: any) {
     setSubitems(prev => {
-      const updated = (prev[itemId] || []).map(s => s.id === subId ? { ...s, [field]: value } : s)
-      // Recalcular costo del item padre
+      const updated = (prev[itemId] || []).map((s: any) => s.id === subId ? { ...s, [field]: value } : s)
       const total = updated.reduce((s: number, sb: any) => s + (Number(sb.monto) || 0), 0)
       setItems(items => items.map(i => i.id !== itemId ? i : calcItem({ ...i, costo_manual: total > 0 ? total : null })))
       return { ...prev, [itemId]: updated }
@@ -220,19 +216,13 @@ export default function CotizacionEditorPage() {
 
   function removeSubitem(itemId: string, subId: string) {
     setSubitems(prev => {
-      const updated = (prev[itemId] || []).filter(s => s.id !== subId)
+      const updated = (prev[itemId] || []).filter((s: any) => s.id !== subId)
       const total = updated.reduce((s: number, sb: any) => s + (Number(sb.monto) || 0), 0)
       setItems(items => items.map(i => i.id !== itemId ? i : calcItem({ ...i, costo_manual: total > 0 ? total : null })))
       return { ...prev, [itemId]: updated }
     })
   }
-
-  function removeItem(itemId: string) {
-    setItems(prev => prev.filter(i => i.id !== itemId))
-  }
-
   const itemsActivos = items.filter(i => i.tipo !== "familia" && i.tipo !== "celda_extra" && i.incluir_en_total !== false)
-  const itemsOpcionales = items.filter(i => i.es_opcional || i.incluir_en_total === false)
   const totalCosto = itemsActivos.reduce((s, i) => s + (i.costo_total || 0), 0)
   const totalPrecioCliente = itemsActivos.reduce((s, i) => s + (i.precio_cliente || 0), 0)
   const feePct = feeActivo ? (cotizacion?.fee_agencia_pct ?? 10) : 0
@@ -247,12 +237,10 @@ export default function CotizacionEditorPage() {
 
   async function generarRQs(cotizacionId: string, proyectoId: string) {
     const itemsConProveedor = items.filter(i => i.proveedor_id && i.costo_total > 0)
-    if (itemsConProveedor.length === 0) return
     const { count } = await supabase.from("requerimientos_pago").select("*", { count: "exact", head: true }).eq("proyecto_id", proyectoId)
     let rqNum = (count || 0) + 1
     for (const item of itemsConProveedor) {
       const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
-      await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, version: cotizacion?.version, total: totalFinal, proyecto_id: id })
       await supabase.from("requerimientos_pago").insert({
         proyecto_id: proyectoId,
         cotizacion_item_id: String(item.id).startsWith("new_") ? null : item.id,
@@ -268,7 +256,6 @@ export default function CotizacionEditorPage() {
       })
       rqNum++
     }
-    // Generar RQs por subitems
     for (const item of items) {
       const subs = subitems[item.id] || []
       for (const sub of subs) {
@@ -280,8 +267,6 @@ export default function CotizacionEditorPage() {
           estado: "pendiente_aprobacion",
           proveedor_id: sub.proveedor_id,
           proveedor_nombre: prov?.nombre || sub.proveedor_nombre || "",
-          proveedor_banco: prov?.banco || "",
-          proveedor_cuenta: prov?.numero_cuenta || "",
           monto_solicitado: sub.monto,
           descripcion: item.descripcion + " — " + sub.descripcion,
         })
@@ -291,13 +276,6 @@ export default function CotizacionEditorPage() {
   }
 
   async function guardar(nuevoEstado?: string) {
-    if (nuevoEstado === "aprobada_cliente") {
-      const sinProveedor = items.filter(i => !i.proveedor_id && i.costo_total > 0)
-      if (sinProveedor.length > 0) {
-        alert("Todos los items deben tener un proveedor asignado antes de enviar al cliente.")
-        return
-      }
-    }
     if (!cotId || !id) return
     setSaving(true)
     for (const item of items) {
@@ -324,7 +302,6 @@ export default function CotizacionEditorPage() {
         celda_titulo: item.celda_titulo || null,
         numero_item: item.numero_item || null,
         columna_extra_valor: item.columna_extra_valor || null,
-        columna_extra_valor: item.columna_extra_valor || null,
       }
       if (String(item.id).startsWith("new_")) {
         await supabase.from("cotizacion_items").insert(payload)
@@ -336,37 +313,35 @@ export default function CotizacionEditorPage() {
       subtotal_costo: totalCosto, subtotal_precio_cliente: totalPrecioCliente,
       fee_agencia_monto: feeMonto, fee_agencia_pct: feePct, fee_activo: feeActivo,
       subtotal_con_fee: subtotalConFee, igv_monto: igvMonto, igv_pct: igvPct,
-      descuento_pct: descuentoPct || 0,
-      columna_extra_titulo: columnaExtra.activa ? columnaExtra.titulo : null,
-      columna_extra_titulo: columnaExtra.activa ? columnaExtra.titulo : null,
       total_cliente: totalFinal, margen_pct: margenGlobal,
       condicion_pago: cotizacion?.condicion_pago, validez_dias: cotizacion?.validez_dias,
+      descuento_pct: descuentoPct || 0,
+      columna_extra_titulo: columnaExtra.activa ? columnaExtra.titulo : null,
       ...(nuevoEstado ? { estado: nuevoEstado } : {}),
     }).eq("id", cotId)
-    // Guardar subitems
     for (const [itemId, subs] of Object.entries(subitems)) {
       const dbItemId = String(itemId).startsWith("new_") ? null : itemId
       if (!dbItemId) continue
       await supabase.from("cotizacion_subitems").delete().eq("item_id", dbItemId)
       if (subs.length > 0) {
         await supabase.from("cotizacion_subitems").insert(
-          subs.map((s, i) => ({
-            item_id: dbItemId,
-            descripcion: s.descripcion,
-            proveedor_id: s.proveedor_id || null,
-            proveedor_nombre: s.proveedor_nombre || "",
-            monto: Number(s.monto) || 0,
-            orden: i,
+          subs.map((s: any, i: number) => ({
+            item_id: dbItemId, descripcion: s.descripcion,
+            proveedor_id: s.proveedor_id || null, proveedor_nombre: s.proveedor_nombre || "",
+            monto: Number(s.monto) || 0, orden: i,
           }))
         )
       }
     }
     setSaving(false)
-    await registrarAccion({ accion: "enviar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion enviada al cliente y aprobada" })
+    await registrarAccion({ accion: "editar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion guardada" })
     if (nuevoEstado === "aprobada_cliente") {
+      await supabase.from("cotizaciones").update({ bloqueada: true, bloqueada_por: perfilActual?.id }).eq("id", cotId)
+      setBloqueada(true)
       const { data: cotData } = await supabase.from("cotizaciones").select("proyecto_id").eq("id", cotId).single()
-      await registrarHistorial({ cotizacion_id: cotId!, accion: "aprobada_cliente", estado_anterior: "borrador", estado_nuevo: "aprobada_cliente", descripcion: "Cotizacion enviada y aprobada por cliente. Total: " + fmt(totalFinal) + " Margen: " + margenGlobal.toFixed(1) + "%" })
-    await generarRQs(cotId, cotData?.proyecto_id || id)
+      await registrarHistorial({ cotizacion_id: cotId!, accion: "aprobada_cliente", estado_anterior: "borrador", estado_nuevo: "aprobada_cliente", descripcion: "Aprobada. Total: " + fmt(totalFinal) })
+      await generarRQs(cotId, cotData?.proyecto_id || id)
+      await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, version: cotizacion?.version, total: totalFinal, proyecto_id: id })
     }
     if (nuevoEstado) {
       router.push("/proyectos/" + id)
@@ -379,64 +354,54 @@ export default function CotizacionEditorPage() {
         return calcItem({ ...i, extras_produccion: ep, extras_alquiler: ea })
       })
       setItems(parsed)
-      await registrarHistorial({ cotizacion_id: cotId!, accion: "guardado", descripcion: "Borrador guardado. Total: " + fmt(totalFinal) })
       alert("Guardado correctamente")
-      await registrarAccion({ accion: "editar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion guardada como borrador" })
     }
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const inp: any = { padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", outline: "none" }
-
   const puedeDesbloquear = perfilActual?.perfil === "superadmin" || perfilActual?.email === "jsosa@izango.com.pe" || perfilActual?.email === "pbastianelli@izango.com.pe"
 
-  if (!cotId) return <div style={{ color: "#dc2626", padding: 24 }}>Error: ID de cotización no encontrado.</div>
+  if (!cotId) return <div style={{ color: "#dc2626", padding: 24 }}>Error: ID no encontrado.</div>
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
   return (
     <div style={{ maxWidth: 1400, margin: "0 auto" }}>
 
-      {/* Modal Biblioteca */}
       {showBiblioteca && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 600, maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "#111827" }}>Seleccionar desde biblioteca</h2>
-              <button onClick={() => setShowBiblioteca(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
+              <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Seleccionar desde biblioteca</h2>
+              <button onClick={() => setShowBiblioteca(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22 }}>×</button>
             </div>
             <input style={{ padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", marginBottom: 12 }}
               placeholder="Buscar item..." value={busquedaBib} onChange={e => setBusquedaBib(e.target.value)} autoFocus />
             <div style={{ overflowY: "auto", flex: 1 }}>
               {biblioteca.filter(i => !busquedaBib || i.descripcion?.toLowerCase().includes(busquedaBib.toLowerCase())).map(item => (
                 <div key={item.id} onClick={() => cargarDesdeLibreria(item)}
-                  style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", borderRadius: 8, transition: "background 0.1s" }}
+                  style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", borderRadius: 8 }}
                   onMouseEnter={e => (e.currentTarget.style.background = "#f0fdf4")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{item.descripcion}</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{item.descripcion}</div>
                       {item.categoria && <span style={{ fontSize: 11, color: "#6b7280" }}>{item.categoria}</span>}
-                      {item.proveedor_nombre && <span style={{ fontSize: 11, color: "#9ca3af", marginLeft: 8 }}>· {item.proveedor_nombre}</span>}
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#0F6E56" }}>{fmt(item.precio_cliente || 0)}</div>
-                      <div style={{ fontSize: 11, color: "#9ca3af" }}>{item.margen_pct}% margen</div>
-                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0F6E56" }}>{fmt(item.precio_cliente || 0)}</div>
                   </div>
                 </div>
               ))}
-              {biblioteca.length === 0 && <div style={{ padding: 24, textAlign: "center", color: "#9ca3af" }}>No hay items en la biblioteca</div>}
             </div>
           </div>
         </div>
       )}
 
-      {/* Banner bloqueada */}
       {bloqueada && (
         <div style={{ background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <span style={{ fontWeight: 700, color: "#991b1b", fontSize: 13 }}>🔒 Cotización aprobada y bloqueada</span>
-            <span style={{ color: "#dc2626", fontSize: 12, marginLeft: 8 }}>No se puede editar. Genera una nueva versión para hacer cambios.</span>
+            <span style={{ color: "#dc2626", fontSize: 12, marginLeft: 8 }}>Genera una nueva versión para hacer cambios.</span>
           </div>
           {puedeDesbloquear && (
             <button onClick={async () => {
@@ -449,7 +414,6 @@ export default function CotizacionEditorPage() {
         </div>
       )}
 
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -482,9 +446,8 @@ export default function CotizacionEditorPage() {
         </div>
       </div>
 
-      {/* Condiciones comerciales */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 16, alignItems: "end" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 16, alignItems: "end" }}>
           <div>
             <label style={{ display: "block", fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Condición de pago</label>
             <select style={{ ...inp, width: "100%" }} value={cotizacion?.condicion_pago || ""}
@@ -520,14 +483,11 @@ export default function CotizacionEditorPage() {
           </div>
         </div>
       </div>
-
-      {/* Tabla */}
       <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 0 }}>
         <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ fontSize: 13, fontWeight: 600, margin: 0, color: "#374151" }}>Itemizado del presupuesto</h2>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "#9ca3af" }}>▶ Expande cada ítem para costos internos y proveedor</span>
+            <span style={{ fontSize: 11, color: "#9ca3af" }}>▶ Expande cada ítem para costos internos</span>
             {!columnaExtra.activa ? (
               <button onClick={() => setColumnaExtra({ activa: true, titulo: "Dirección" })}
                 style={{ fontSize: 11, color: "#1e40af", background: "none", border: "1px dashed #93c5fd", borderRadius: 6, padding: "2px 10px", cursor: "pointer" }}>
@@ -542,6 +502,7 @@ export default function CotizacionEditorPage() {
               </div>
             )}
           </div>
+        </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
             <thead>
@@ -556,22 +517,21 @@ export default function CotizacionEditorPage() {
                 <th style={{ textAlign: "right", width: 120, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Total S/</th>
                 <th style={{ textAlign: "center", width: 95, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Margen %</th>
                 <th style={{ textAlign: "right", width: 130, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Precio cli.</th>
-                <th style={{ textAlign: "center", width: 60, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>Opc.</th>
+                <th style={{ textAlign: "center", width: 40, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>Opc.</th>
                 <th style={{ width: 30 }}></th>
               </tr>
             </thead>
             <tbody>
               {items.map((item, idx) => {
                 if (item.tipo === "familia") {
-                  const familiaItems = items.filter(i => i.familia_id === item.id && i.tipo !== "familia")
+                  const familiaItems = items.filter(i => i.familia_id === item.id)
                   const subtotalFamilia = familiaItems.filter(i => i.incluir_en_total !== false).reduce((s, i) => s + (i.precio_cliente || 0), 0)
-                  const familiaIdx = items.indexOf(item)
                   return (
                     <tr key={item.id} style={{ background: "#1D2040", borderBottom: "1px solid #374151" }}>
                       <td style={{ padding: "8px 6px", textAlign: "center" }}>
                         <button onClick={() => removeItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 14 }}>×</button>
                       </td>
-                      <td colSpan={7} style={{ padding: "8px 12px" }}>
+                      <td colSpan={columnaExtra.activa ? 8 : 7} style={{ padding: "8px 12px" }}>
                         <input style={{ ...inp, background: "transparent", border: "none", color: "#03E373", fontWeight: 800, fontSize: 14, width: "100%" }}
                           value={item.descripcion} placeholder="Nombre de la familia..."
                           onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
@@ -579,19 +539,22 @@ export default function CotizacionEditorPage() {
                       <td style={{ textAlign: "right", padding: "8px 12px", color: "#03E373", fontWeight: 700, fontSize: 13 }}>
                         {subtotalFamilia > 0 ? fmt(subtotalFamilia) : "—"}
                       </td>
-                      <td colSpan={2} style={{ padding: "8px 8px", textAlign: "right" }}>
+                      <td style={{ padding: "8px 6px", textAlign: "right" }}>
                         <button onClick={() => {
-                          const nuevoItem = newItem(cotId, familiaIdx + familiaItems.length + 1, item.id)
+                          const thisIdx = items.indexOf(item)
+                          const familiaItemsCount = items.filter(i => i.familia_id === item.id).length
+                          const nuevoItem = newItem(cotId, thisIdx + familiaItemsCount + 1, item.id)
                           setItems(prev => {
-                            const idx = prev.findIndex(i => i.id === item.id)
-                            const insertIdx = prev.slice(idx + 1).findIndex(i => i.tipo === "familia" && i.id !== item.id)
-                            const pos = insertIdx === -1 ? prev.length : idx + 1 + insertIdx
+                            const fi = prev.findIndex(i => i.id === item.id)
+                            const nextFamIdx = prev.slice(fi + 1).findIndex(i => i.tipo === "familia")
+                            const pos = nextFamIdx === -1 ? prev.length : fi + 1 + nextFamIdx
                             return [...prev.slice(0, pos), nuevoItem, ...prev.slice(pos)]
                           })
-                        }} style={{ background: "none", border: "1px dashed #03E373", borderRadius: 6, color: "#03E373", fontSize: 10, padding: "2px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                        }} style={{ background: "none", border: "1px dashed #03E373", borderRadius: 6, color: "#03E373", fontSize: 10, padding: "2px 8px", cursor: "pointer" }}>
                           + item
                         </button>
                       </td>
+                      <td></td>
                     </tr>
                   )
                 }
@@ -601,13 +564,14 @@ export default function CotizacionEditorPage() {
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
                         <button onClick={() => removeItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 14 }}>×</button>
                       </td>
-                      <td style={{ padding: "6px 8px", minWidth: 140 }}>
-                        <input style={{ ...inp, width: "100%", fontWeight: 700, color: "#92400e", fontSize: 12, background: "#fff8f0", borderColor: "#f59e0b" }} value={item.celda_titulo || ""}
-                          placeholder="Titulo del campo..." onChange={e => updateItem(item.id, "celda_titulo", e.target.value)} />
+                      <td style={{ padding: "6px 8px" }}>
+                        <input style={{ ...inp, width: "100%", fontWeight: 700, color: "#92400e", fontSize: 12, background: "#fff8f0", borderColor: "#f59e0b" }}
+                          value={item.celda_titulo || ""} placeholder="Título..."
+                          onChange={e => updateItem(item.id, "celda_titulo", e.target.value)} />
                       </td>
-                      <td colSpan={8} style={{ padding: "6px 12px" }}>
+                      <td colSpan={columnaExtra.activa ? 9 : 8} style={{ padding: "6px 12px" }}>
                         <input style={{ ...inp, width: "100%" }} value={item.descripcion || ""}
-                          placeholder="Descripcion..." onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
+                          placeholder="Descripción..." onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
                       </td>
                       <td colSpan={2}></td>
                     </tr>
@@ -615,212 +579,194 @@ export default function CotizacionEditorPage() {
                 }
                 const numItem = items.filter(i => i.tipo !== "familia" && i.tipo !== "celda_extra").indexOf(item) + 1
                 return (
-                <>
-                  <tr key={item.id} style={{ background: item.es_opcional ? "#f0f9ff" : idx % 2 === 0 ? "#fff" : "#fafafa", borderBottom: expandedItems[item.id] ? "none" : "1px solid #f3f4f6", opacity: item.incluir_en_total === false ? 0.7 : 1 }}>
-                    <td style={{ textAlign: "center", padding: "6px 4px" }}>
-                      <button onClick={() => toggleExpand(item.id)}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "#1D2040", fontSize: 13, padding: "2px 6px" }}>
-                        {expandedItems[item.id] ? "▼" : "▶"}
-                      </button>
-                    </td>
-                    <td style={{ textAlign: "center", padding: "6px 4px", fontSize: 11, color: "#9ca3af", fontWeight: 600 }}>{numItem}</td>
-                    <td style={{ padding: "6px 12px" }}>
-                      <input style={{ ...inp, width: "100%", minWidth: 160 }} value={item.descripcion} disabled={bloqueada}
-                        placeholder="Descripción del ítem" onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
-                    </td>
-                    {columnaExtra.activa && (
-                      <td style={{ padding: "6px 8px", width: 160 }}>
-                        <input style={{ ...inp, width: "100%", background: "#eff6ff" }} value={item.columna_extra_valor || ""}
-                          placeholder={columnaExtra.titulo + "..."} onChange={e => updateItem(item.id, "columna_extra_valor", e.target.value)} />
+                  <>
+                    <tr key={item.id} style={{ background: idx % 2 === 0 ? "#fff" : "#fafafa", borderBottom: expandedItems[item.id] ? "none" : "1px solid #f3f4f6", opacity: item.incluir_en_total === false ? 0.7 : 1 }}>
+                      <td style={{ textAlign: "center", padding: "6px 4px" }}>
+                        <button onClick={() => toggleExpand(item.id)}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#1D2040", fontSize: 13, padding: "2px 6px" }}>
+                          {expandedItems[item.id] ? "▼" : "▶"}
+                        </button>
                       </td>
-                    )}
-                    {columnaExtra.activa && (
-                      <td style={{ padding: "6px 8px", width: 160 }}>
-                        <input style={{ ...inp, width: "100%", background: "#eff6ff" }} value={item.columna_extra_valor || ""}
-                          placeholder={columnaExtra.titulo + "..."} onChange={e => updateItem(item.id, "columna_extra_valor", e.target.value)} />
+                      <td style={{ textAlign: "center", padding: "6px 4px", fontSize: 11, color: "#9ca3af", fontWeight: 600 }}>{numItem}</td>
+                      <td style={{ padding: "6px 12px" }}>
+                        <input style={{ ...inp, width: "100%", minWidth: 160 }} value={item.descripcion} disabled={bloqueada}
+                          placeholder="Descripción del ítem" onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
                       </td>
-                    )}
-                    <td style={{ padding: "6px 4px" }}>
-                      <input type="number" style={{ ...inp, width: "100%", textAlign: "center" }} value={item.cantidad}
-                        onChange={e => updateItem(item.id, "cantidad", Number(e.target.value))} />
-                    </td>
-                    <td style={{ padding: "6px 4px" }}>
-                      <input type="number" style={{ ...inp, width: "100%", textAlign: "center" }} value={item.fechas}
-                        onChange={e => updateItem(item.id, "fechas", Number(e.target.value))} />
-                    </td>
-                    <td style={{ padding: "6px 12px" }}>
-                      <input type="number"
-                        style={{ ...inp, width: "100%", textAlign: "right",
-                          color: item.costo_manual !== null && item.costo_manual !== "" ? "#7c3aed" : "#6b7280",
-                          borderColor: item.costo_manual !== null && item.costo_manual !== "" ? "#c4b5fd" : "#e5e7eb" }}
-                        value={item.costo_manual !== null && item.costo_manual !== "" ? item.costo_manual : (item.costo_total > 0 ? item.costo_unitario.toFixed(2) : "")}
-                        placeholder="Auto"
-                        onChange={e => updateItem(item.id, "costo_manual", e.target.value === "" ? null : Number(e.target.value))} />
-                    </td>
-                    <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 12, fontWeight: 600, color: item.costo_total > 0 ? "#dc2626" : "#d1d5db" }}>
-                      {item.costo_total > 0 ? fmt(item.costo_total) : "—"}
-                      {item.costo_manual !== null && item.costo_manual !== "" && (
-                        <span title="Costo manual" style={{ marginLeft: 4, fontSize: 10, color: "#7c3aed" }}>✎</span>
+                      {columnaExtra.activa && (
+                        <td style={{ padding: "6px 8px", width: 160 }}>
+                          <input style={{ ...inp, width: "100%", background: "#eff6ff" }} value={item.columna_extra_valor || ""}
+                            placeholder={columnaExtra.titulo + "..."} onChange={e => updateItem(item.id, "columna_extra_valor", e.target.value)} />
+                        </td>
                       )}
-                    </td>
-                    <td style={{ padding: "6px 4px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 3, justifyContent: "center" }}>
-                        <input type="number" min={0} max={99}
-                          style={{ ...inp, width: 52, textAlign: "center", fontWeight: 700,
-                            color: item.margen_pct >= 35 ? "#0F6E56" : item.margen_pct >= 20 ? "#ca8a04" : "#dc2626",
-                            borderColor: item.margen_pct >= 35 ? "#1D9E75" : item.margen_pct >= 20 ? "#ca8a04" : "#dc2626" }}
-                          value={item.margen_pct}
-                          onChange={e => updateItem(item.id, "margen_pct", Number(e.target.value))} />
-                        <span style={{ fontSize: 10, color: "#9ca3af" }}>%</span>
-                      </div>
-                    </td>
-                    <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 13, color: item.precio_cliente > 0 ? "#0F6E56" : "#d1d5db", fontWeight: 700 }}>
-                      {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "—"}
-                    </td>
-                    <td style={{ textAlign: "center", padding: "6px 4px" }}>
-                      <input type="checkbox" checked={item.incluir_en_total !== false} title="Incluir en total"
-                        onChange={e => updateItem(item.id, "incluir_en_total", e.target.checked)}
-                        style={{ cursor: "pointer", width: 14, height: 14, accentColor: "#03E373" }} />
-                    </td>
-                    <td style={{ textAlign: "center", padding: "6px 4px" }}>
-                      <button onClick={() => removeItem(item.id)}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>×</button>
-                    </td>
-                  </tr>
-
-                  {expandedItems[item.id] && (
-                    <tr key={item.id + "_exp"}>
-                      <td colSpan={9} style={{ padding: 0, background: "#f8fffe", borderBottom: "2px solid #1D9E75" }}>
-                        <div style={{ padding: "12px 16px 16px 48px" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: "#0F6E56", textTransform: "uppercase", letterSpacing: "0.06em" }}>Costos internos</span>
-                              <button onClick={() => addSubitem(item.id)}
-                                style={{ fontSize: 11, color: "#7c3aed", background: "none", border: "1px dashed #7c3aed", borderRadius: 4, padding: "2px 10px", cursor: "pointer" }}>
-                                + Sub-item / Partida
-                              </button>
-                              <span style={{ fontSize: 11, color: "#6b7280" }}>Calculado: <strong>{fmt(item.costo_base_calculado || 0)}</strong></span>
-                              {item.costo_manual !== null && item.costo_manual !== "" && (
-                                <span style={{ fontSize: 11, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: 99 }}>
-                                  ✎ Manual: {fmt(Number(item.costo_manual))}
-                                  <button onClick={() => updateItem(item.id, "costo_manual", null)}
-                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#7c3aed", marginLeft: 4 }}>× quitar</button>
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ fontSize: 11, color: "#6b7280" }}>Familia:</span>
-                              <select style={{ ...inp, minWidth: 140 }} value={item.familia_id || ""}
-                                onChange={e => updateItem(item.id, "familia_id", e.target.value || null)}>
-                                <option value="">Sin familia</option>
-                                {items.filter(i => i.tipo === "familia").map((f: any) => <option key={f.id} value={f.id}>{f.descripcion}</option>)}
-                              </select>
-                              <span style={{ fontSize: 11, color: "#6b7280" }}>Centro de costos:</span>
-                              <select style={{ ...inp, minWidth: 160 }} value={item.centro_costo_id || ""}
-                                onChange={e => updateItem(item.id, "centro_costo_id", e.target.value || null)}>
-                                <option value="">Sin centro</option>
-                                {centrosCostos.map((cc: any) => <option key={cc.id} value={cc.id}>{cc.nombre}</option>)}
-                              </select>
-                              <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 8 }}>Proveedor:</span>
-                              <select style={{ ...inp, minWidth: 180 }} value={item.proveedor_id || ""}
-                                onChange={e => {
-                                  const prov = proveedores.find((p: any) => p.id === e.target.value)
-                                  updateItem(item.id, "proveedor_id", e.target.value || null)
-                                  updateItem(item.id, "proveedor_nombre", prov?.nombre || "")
-                                }}>
-                                <option value="">Sin proveedor</option>
-                                {proveedores.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                              </select>
-                            </div>
-                          </div>
-                          {(subitems[item.id] || []).length > 0 && (
-                            <div style={{ marginBottom: 12, background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: 12 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", marginBottom: 8, textTransform: "uppercase" }}>Sub-items / Partidas</div>
-                              {(subitems[item.id] || []).map((sub: any) => (
-                                <div key={sub.id} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr auto", gap: 8, marginBottom: 6, alignItems: "center" }}>
-                                  <input style={{ ...inp }} value={sub.descripcion} placeholder="Descripcion (ej: Anfitriona 1)"
-                                    onChange={e => updateSubitem(item.id, sub.id, "descripcion", e.target.value)} />
-                                  <select style={inp} value={sub.proveedor_id || ""} onChange={e => {
-                                    const prov = proveedores.find((p: any) => p.id === e.target.value)
-                                    updateSubitem(item.id, sub.id, "proveedor_id", e.target.value || null)
-                                    updateSubitem(item.id, sub.id, "proveedor_nombre", prov?.nombre || "")
-                                  }}>
-                                    <option value="">Sin proveedor</option>
-                                    {proveedores.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                                  </select>
-                                  <input type="number" style={{ ...inp, textAlign: "right" }} value={sub.monto || ""} placeholder="Monto"
-                                    onChange={e => updateSubitem(item.id, sub.id, "monto", Number(e.target.value))} />
-                                  <button onClick={() => removeSubitem(item.id, sub.id)}
-                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 16 }}>×</button>
-                                </div>
-                              ))}
-                              <div style={{ textAlign: "right", fontSize: 12, fontWeight: 700, color: "#7c3aed", marginTop: 4 }}>
-                                Total partidas: {fmt((subitems[item.id] || []).reduce((s: number, sb: any) => s + (Number(sb.monto) || 0), 0))}
-                              </div>
-                            </div>
-                          )}
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
-                            {COSTOS_INTERNOS.map(cat => (
-                              <div key={cat.key} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px" }}>
-                                <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>{cat.label}</div>
-                                <input type="number" style={{ ...inp, width: "100%", border: "none", padding: "2px 0", fontSize: 13, fontWeight: 600 }}
-                                  value={item[cat.key] || ""} placeholder="0"
-                                  onChange={e => updateItem(item.id, cat.key, Number(e.target.value))} />
-                              </div>
-                            ))}
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                            <div>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                                <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>Extras producción</span>
-                                <button onClick={() => addExtra(item.id, "extras_produccion")}
-                                  style={{ fontSize: 11, color: "#0F6E56", background: "none", border: "1px dashed #1D9E75", borderRadius: 4, padding: "2px 10px", cursor: "pointer" }}>
-                                  + Agregar
-                                </button>
-                              </div>
-                              {(item.extras_produccion || []).map((extra: any, i: number) => (
-                                <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4, alignItems: "center" }}>
-                                  <input style={{ ...inp, flex: 1 }} value={extra.label} placeholder="Concepto"
-                                    onChange={e => updateExtra(item.id, "extras_produccion", i, "label", e.target.value)} />
-                                  <input type="number" style={{ ...inp, width: 90, textAlign: "right" }} value={extra.monto || ""} placeholder="0"
-                                    onChange={e => updateExtra(item.id, "extras_produccion", i, "monto", Number(e.target.value))} />
-                                  <button onClick={() => removeExtra(item.id, "extras_produccion", i)}
-                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 14 }}>×</button>
-                                </div>
-                              ))}
-                            </div>
-                            <div>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                                <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>Extras alquiler / RRHH</span>
-                                <button onClick={() => addExtra(item.id, "extras_alquiler")}
-                                  style={{ fontSize: 11, color: "#0F6E56", background: "none", border: "1px dashed #1D9E75", borderRadius: 4, padding: "2px 10px", cursor: "pointer" }}>
-                                  + Agregar
-                                </button>
-                              </div>
-                              {(item.extras_alquiler || []).map((extra: any, i: number) => (
-                                <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4, alignItems: "center" }}>
-                                  <input style={{ ...inp, flex: 1 }} value={extra.label} placeholder="Concepto"
-                                    onChange={e => updateExtra(item.id, "extras_alquiler", i, "label", e.target.value)} />
-                                  <input type="number" style={{ ...inp, width: 90, textAlign: "right" }} value={extra.monto || ""} placeholder="0"
-                                    onChange={e => updateExtra(item.id, "extras_alquiler", i, "monto", Number(e.target.value))} />
-                                  <button onClick={() => removeExtra(item.id, "extras_alquiler", i)}
-                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 14 }}>×</button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
+                      <td style={{ padding: "6px 4px" }}>
+                        <input type="number" style={{ ...inp, width: "100%", textAlign: "center" }} value={item.cantidad}
+                          onChange={e => updateItem(item.id, "cantidad", Number(e.target.value))} />
+                      </td>
+                      <td style={{ padding: "6px 4px" }}>
+                        <input type="number" style={{ ...inp, width: "100%", textAlign: "center" }} value={item.fechas}
+                          onChange={e => updateItem(item.id, "fechas", Number(e.target.value))} />
+                      </td>
+                      <td style={{ padding: "6px 12px" }}>
+                        <input type="number"
+                          style={{ ...inp, width: "100%", textAlign: "right",
+                            color: item.costo_manual !== null && item.costo_manual !== "" ? "#7c3aed" : "#6b7280",
+                            borderColor: item.costo_manual !== null && item.costo_manual !== "" ? "#c4b5fd" : "#e5e7eb" }}
+                          value={item.costo_manual !== null && item.costo_manual !== "" ? item.costo_manual : (item.costo_total > 0 ? item.costo_unitario.toFixed(2) : "")}
+                          placeholder="Auto"
+                          onChange={e => updateItem(item.id, "costo_manual", e.target.value === "" ? null : Number(e.target.value))} />
+                      </td>
+                      <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 12, fontWeight: 600, color: item.costo_total > 0 ? "#dc2626" : "#d1d5db" }}>
+                        {item.costo_total > 0 ? fmt(item.costo_total) : "—"}
+                      </td>
+                      <td style={{ padding: "6px 4px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 3, justifyContent: "center" }}>
+                          <input type="number" min={0} max={99}
+                            style={{ ...inp, width: 52, textAlign: "center", fontWeight: 700,
+                              color: item.margen_pct >= 35 ? "#0F6E56" : item.margen_pct >= 20 ? "#ca8a04" : "#dc2626" }}
+                            value={item.margen_pct}
+                            onChange={e => updateItem(item.id, "margen_pct", Number(e.target.value))} />
+                          <span style={{ fontSize: 10, color: "#9ca3af" }}>%</span>
                         </div>
                       </td>
+                      <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 13, color: item.precio_cliente > 0 ? "#0F6E56" : "#d1d5db", fontWeight: 700 }}>
+                        {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "—"}
+                      </td>
+                      <td style={{ textAlign: "center", padding: "6px 4px" }}>
+                        <input type="checkbox" checked={item.incluir_en_total !== false} title="Incluir en total"
+                          onChange={e => updateItem(item.id, "incluir_en_total", e.target.checked)}
+                          style={{ cursor: "pointer", width: 14, height: 14, accentColor: "#03E373" }} />
+                      </td>
+                      <td style={{ textAlign: "center", padding: "6px 4px" }}>
+                        <button onClick={() => removeItem(item.id)}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>×</button>
+                      </td>
                     </tr>
-                  )}
-                </>
-                )}
-              )}
-
-              {/* Fila Fee */}
+                    {expandedItems[item.id] && (
+                      <tr key={item.id + "_exp"}>
+                        <td colSpan={columnaExtra.activa ? 13 : 12} style={{ padding: 0, background: "#f8fffe", borderBottom: "2px solid #1D9E75" }}>
+                          <div style={{ padding: "12px 16px 16px 48px" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: "#0F6E56", textTransform: "uppercase" }}>Costos internos</span>
+                                <button onClick={() => addSubitem(item.id)}
+                                  style={{ fontSize: 11, color: "#7c3aed", background: "none", border: "1px dashed #7c3aed", borderRadius: 4, padding: "2px 10px", cursor: "pointer" }}>
+                                  + Sub-item / Partida
+                                </button>
+                                {item.costo_manual !== null && item.costo_manual !== "" && (
+                                  <span style={{ fontSize: 11, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: 99 }}>
+                                    ✎ Manual: {fmt(Number(item.costo_manual))}
+                                    <button onClick={() => updateItem(item.id, "costo_manual", null)}
+                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#7c3aed", marginLeft: 4 }}>× quitar</button>
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 11, color: "#6b7280" }}>Familia:</span>
+                                <select style={{ ...inp, minWidth: 140 }} value={item.familia_id || ""}
+                                  onChange={e => updateItem(item.id, "familia_id", e.target.value || null)}>
+                                  <option value="">Sin familia</option>
+                                  {items.filter(i => i.tipo === "familia").map((f: any) => <option key={f.id} value={f.id}>{f.descripcion}</option>)}
+                                </select>
+                                <span style={{ fontSize: 11, color: "#6b7280" }}>Centro costos:</span>
+                                <select style={{ ...inp, minWidth: 140 }} value={item.centro_costo_id || ""}
+                                  onChange={e => updateItem(item.id, "centro_costo_id", e.target.value || null)}>
+                                  <option value="">Sin centro</option>
+                                  {centrosCostos.map((cc: any) => <option key={cc.id} value={cc.id}>{cc.nombre}</option>)}
+                                </select>
+                                <span style={{ fontSize: 11, color: "#6b7280" }}>Proveedor:</span>
+                                <select style={{ ...inp, minWidth: 160 }} value={item.proveedor_id || ""}
+                                  onChange={e => {
+                                    const prov = proveedores.find((p: any) => p.id === e.target.value)
+                                    updateItem(item.id, "proveedor_id", e.target.value || null)
+                                    updateItem(item.id, "proveedor_nombre", prov?.nombre || "")
+                                  }}>
+                                  <option value="">Sin proveedor</option>
+                                  {proveedores.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                            {(subitems[item.id] || []).length > 0 && (
+                              <div style={{ marginBottom: 12, background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: 12 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", marginBottom: 8, textTransform: "uppercase" }}>Sub-items / Partidas</div>
+                                {(subitems[item.id] || []).map((sub: any) => (
+                                  <div key={sub.id} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr auto", gap: 8, marginBottom: 6, alignItems: "center" }}>
+                                    <input style={{ ...inp }} value={sub.descripcion} placeholder="Descripcion (ej: Anfitriona 1)"
+                                      onChange={e => updateSubitem(item.id, sub.id, "descripcion", e.target.value)} />
+                                    <select style={inp} value={sub.proveedor_id || ""} onChange={e => {
+                                      const prov = proveedores.find((p: any) => p.id === e.target.value)
+                                      updateSubitem(item.id, sub.id, "proveedor_id", e.target.value || null)
+                                      updateSubitem(item.id, sub.id, "proveedor_nombre", prov?.nombre || "")
+                                    }}>
+                                      <option value="">Sin proveedor</option>
+                                      {proveedores.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                                    </select>
+                                    <input type="number" style={{ ...inp, textAlign: "right" }} value={sub.monto || ""} placeholder="Monto"
+                                      onChange={e => updateSubitem(item.id, sub.id, "monto", Number(e.target.value))} />
+                                    <button onClick={() => removeSubitem(item.id, sub.id)}
+                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 16 }}>×</button>
+                                  </div>
+                                ))}
+                                <div style={{ textAlign: "right", fontSize: 12, fontWeight: 700, color: "#7c3aed", marginTop: 4 }}>
+                                  Total: {fmt((subitems[item.id] || []).reduce((s: number, sb: any) => s + (Number(sb.monto) || 0), 0))}
+                                </div>
+                              </div>
+                            )}
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
+                              {COSTOS_INTERNOS.map(cat => (
+                                <div key={cat.key} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px" }}>
+                                  <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>{cat.label}</div>
+                                  <input type="number" style={{ ...inp, width: "100%", border: "none", padding: "2px 0", fontSize: 13, fontWeight: 600 }}
+                                    value={item[cat.key] || ""} placeholder="0"
+                                    onChange={e => updateItem(item.id, cat.key, Number(e.target.value))} />
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                              <div>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>Extras producción</span>
+                                  <button onClick={() => addExtra(item.id, "extras_produccion")}
+                                    style={{ fontSize: 11, color: "#0F6E56", background: "none", border: "1px dashed #1D9E75", borderRadius: 4, padding: "2px 10px", cursor: "pointer" }}>+ Agregar</button>
+                                </div>
+                                {(item.extras_produccion || []).map((extra: any, i: number) => (
+                                  <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4, alignItems: "center" }}>
+                                    <input style={{ ...inp, flex: 1 }} value={extra.label} placeholder="Concepto"
+                                      onChange={e => updateExtra(item.id, "extras_produccion", i, "label", e.target.value)} />
+                                    <input type="number" style={{ ...inp, width: 90, textAlign: "right" }} value={extra.monto || ""} placeholder="0"
+                                      onChange={e => updateExtra(item.id, "extras_produccion", i, "monto", Number(e.target.value))} />
+                                    <button onClick={() => removeExtra(item.id, "extras_produccion", i)}
+                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 14 }}>×</button>
+                                  </div>
+                                ))}
+                              </div>
+                              <div>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>Extras alquiler / RRHH</span>
+                                  <button onClick={() => addExtra(item.id, "extras_alquiler")}
+                                    style={{ fontSize: 11, color: "#0F6E56", background: "none", border: "1px dashed #1D9E75", borderRadius: 4, padding: "2px 10px", cursor: "pointer" }}>+ Agregar</button>
+                                </div>
+                                {(item.extras_alquiler || []).map((extra: any, i: number) => (
+                                  <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4, alignItems: "center" }}>
+                                    <input style={{ ...inp, flex: 1 }} value={extra.label} placeholder="Concepto"
+                                      onChange={e => updateExtra(item.id, "extras_alquiler", i, "label", e.target.value)} />
+                                    <input type="number" style={{ ...inp, width: 90, textAlign: "right" }} value={extra.monto || ""} placeholder="0"
+                                      onChange={e => updateExtra(item.id, "extras_alquiler", i, "monto", Number(e.target.value))} />
+                                    <button onClick={() => removeExtra(item.id, "extras_alquiler", i)}
+                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 14 }}>×</button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )
+              })}
               <tr style={{ background: "#f9fafb", borderTop: "2px solid #e5e7eb" }}>
                 <td></td>
-                <td colSpan={5} style={{ padding: "10px 12px" }}>
+                <td colSpan={columnaExtra.activa ? 6 : 5} style={{ padding: "10px 12px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                       <input type="checkbox" checked={feeActivo} onChange={e => setFeeActivo(e.target.checked)} style={{ cursor: "pointer", width: 14, height: 14 }} />
@@ -834,19 +780,18 @@ export default function CotizacionEditorPage() {
                         <span style={{ fontSize: 12, color: "#6b7280" }}>% sobre precio cliente</span>
                       </div>
                     )}
-                    {!feeActivo && <span style={{ fontSize: 11, color: "#9ca3af" }}>No aplica para este presupuesto</span>}
+                    {!feeActivo && <span style={{ fontSize: 11, color: "#9ca3af" }}>No aplica</span>}
                   </div>
                 </td>
                 <td></td>
                 <td style={{ textAlign: "right", padding: "10px 12px", fontSize: 13, fontWeight: 700, color: feeActivo ? "#374151" : "#d1d5db" }}>
                   {feeActivo ? fmt(feeMonto) : "—"}
                 </td>
-                <td></td>
+                <td colSpan={4}></td>
               </tr>
             </tbody>
           </table>
         </div>
-
         <div style={{ padding: "12px 16px", borderTop: "1px solid #f3f4f6", display: "flex", gap: 8 }}>
           <button onClick={abrirBiblioteca}
             style={{ border: "1px dashed #1D2040", borderRadius: 8, background: "none", padding: "7px 18px", fontSize: 12, color: "#1D2040", cursor: "pointer" }}>
@@ -869,7 +814,6 @@ export default function CotizacionEditorPage() {
         </div>
       </div>
 
-      {/* Totales */}
       <div style={{ background: "#E1F5EE", border: "1px solid #1D9E75", borderRadius: 12, padding: "20px 24px", display: "flex", gap: 0, flexWrap: "wrap", alignItems: "stretch", marginTop: 16 }}>
         {[
           { label: "Subtotal costo", value: fmt(totalCosto), color: "#dc2626", size: 18 },
@@ -888,8 +832,6 @@ export default function CotizacionEditorPage() {
         ))}
       </div>
 
-    </div>
-    </div>
     </div>
   )
 }
