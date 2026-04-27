@@ -92,7 +92,6 @@ export default function CotizacionEditorPage() {
   const [descuentoPct, setDescuentoPct] = useState(0)
   const [subitems, setSubitems] = useState<Record<string, any[]>>({})
   const [columnaExtra, setColumnaExtra] = useState<{activa: boolean, titulo: string}>({activa: false, titulo: "Dirección"})
-  const [columnaExtra, setColumnaExtra] = useState<{activa: boolean, titulo: string}>({activa: false, titulo: "Dirección"})
   const [biblioteca, setBiblioteca] = useState<any[]>([])
   const [busquedaBib, setBusquedaBib] = useState("")
 
