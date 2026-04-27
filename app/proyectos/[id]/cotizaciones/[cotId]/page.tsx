@@ -889,5 +889,7 @@ export default function CotizacionEditorPage() {
       </div>
 
     </div>
+    </div>
+    </div>
   )
 }
