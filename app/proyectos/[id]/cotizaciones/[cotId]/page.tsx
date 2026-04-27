@@ -90,6 +90,7 @@ export default function CotizacionEditorPage() {
   const [bloqueada, setBloqueada] = useState(false)
   const [perfilActual, setPerfilActual] = useState<any>(null)
   const [descuentoPct, setDescuentoPct] = useState(0)
+  const [subitems, setSubitems] = useState<Record<string, any[]>>({})
   const [biblioteca, setBiblioteca] = useState<any[]>([])
   const [busquedaBib, setBusquedaBib] = useState("")
 
@@ -118,6 +119,13 @@ export default function CotizacionEditorPage() {
         return calcItem({ ...i, extras_produccion: ep, extras_alquiler: ea })
       })
       setItems(parsed)
+      // Cargar subitems
+      const subitemsMap: Record<string, any[]> = {}
+      for (const item of parsed) {
+        const { data: subs } = await supabase.from("cotizacion_subitems").select("*, proveedor:proveedores(nombre)").eq("item_id", item.id).order("orden")
+        if (subs && subs.length > 0) subitemsMap[item.id] = subs
+      }
+      setSubitems(subitemsMap)
       const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre")
       const { data: ccs } = await supabase.from("centro_costos").select("id, nombre, tipo").eq("activo", true).order("nombre")
       setCentrosCostos(ccs || [])
@@ -183,6 +191,39 @@ export default function CotizacionEditorPage() {
     }))
   }
 
+  function addSubitem(itemId: string) {
+    setSubitems(prev => ({
+      ...prev,
+      [itemId]: [...(prev[itemId] || []), { id: "new_sub_" + Date.now(), item_id: itemId, descripcion: "", proveedor_id: null, proveedor_nombre: "", monto: 0, orden: (prev[itemId] || []).length }]
+    }))
+    // Recalcular costo del item padre desde subitems
+    setItems(prev => prev.map(i => {
+      if (i.id !== itemId) return i
+      const subs = subitems[itemId] || []
+      const total = subs.reduce((s: number, sb: any) => s + (Number(sb.monto) || 0), 0)
+      return calcItem({ ...i, costo_manual: total || null })
+    }))
+  }
+
+  function updateSubitem(itemId: string, subId: string, field: string, value: any) {
+    setSubitems(prev => {
+      const updated = (prev[itemId] || []).map(s => s.id === subId ? { ...s, [field]: value } : s)
+      // Recalcular costo del item padre
+      const total = updated.reduce((s: number, sb: any) => s + (Number(sb.monto) || 0), 0)
+      setItems(items => items.map(i => i.id !== itemId ? i : calcItem({ ...i, costo_manual: total > 0 ? total : null })))
+      return { ...prev, [itemId]: updated }
+    })
+  }
+
+  function removeSubitem(itemId: string, subId: string) {
+    setSubitems(prev => {
+      const updated = (prev[itemId] || []).filter(s => s.id !== subId)
+      const total = updated.reduce((s: number, sb: any) => s + (Number(sb.monto) || 0), 0)
+      setItems(items => items.map(i => i.id !== itemId ? i : calcItem({ ...i, costo_manual: total > 0 ? total : null })))
+      return { ...prev, [itemId]: updated }
+    })
+  }
+
   function removeItem(itemId: string) {
     setItems(prev => prev.filter(i => i.id !== itemId))
   }
@@ -223,6 +264,26 @@ export default function CotizacionEditorPage() {
         descripcion: item.descripcion,
       })
       rqNum++
+    }
+    // Generar RQs por subitems
+    for (const item of items) {
+      const subs = subitems[item.id] || []
+      for (const sub of subs) {
+        if (!sub.proveedor_id || !sub.monto) continue
+        const prov = proveedores.find((p: any) => p.id === sub.proveedor_id)
+        await supabase.from("requerimientos_pago").insert({
+          proyecto_id: proyectoId,
+          numero_rq: "RQ-" + proyectoId.slice(0,6).toUpperCase() + "-" + String(rqNum).padStart(3, "0"),
+          estado: "pendiente_aprobacion",
+          proveedor_id: sub.proveedor_id,
+          proveedor_nombre: prov?.nombre || sub.proveedor_nombre || "",
+          proveedor_banco: prov?.banco || "",
+          proveedor_cuenta: prov?.numero_cuenta || "",
+          monto_solicitado: sub.monto,
+          descripcion: item.descripcion + " — " + sub.descripcion,
+        })
+        rqNum++
+      }
     }
   }
 
@@ -275,6 +336,24 @@ export default function CotizacionEditorPage() {
       condicion_pago: cotizacion?.condicion_pago, validez_dias: cotizacion?.validez_dias,
       ...(nuevoEstado ? { estado: nuevoEstado } : {}),
     }).eq("id", cotId)
+    // Guardar subitems
+    for (const [itemId, subs] of Object.entries(subitems)) {
+      const dbItemId = String(itemId).startsWith("new_") ? null : itemId
+      if (!dbItemId) continue
+      await supabase.from("cotizacion_subitems").delete().eq("item_id", dbItemId)
+      if (subs.length > 0) {
+        await supabase.from("cotizacion_subitems").insert(
+          subs.map((s, i) => ({
+            item_id: dbItemId,
+            descripcion: s.descripcion,
+            proveedor_id: s.proveedor_id || null,
+            proveedor_nombre: s.proveedor_nombre || "",
+            monto: Number(s.monto) || 0,
+            orden: i,
+          }))
+        )
+      }
+    }
     setSaving(false)
     await registrarAccion({ accion: "enviar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion enviada al cliente y aprobada" })
     if (nuevoEstado === "aprobada_cliente") {
@@ -581,6 +660,10 @@ export default function CotizacionEditorPage() {
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                               <span style={{ fontSize: 11, fontWeight: 700, color: "#0F6E56", textTransform: "uppercase", letterSpacing: "0.06em" }}>Costos internos</span>
+                              <button onClick={() => addSubitem(item.id)}
+                                style={{ fontSize: 11, color: "#7c3aed", background: "none", border: "1px dashed #7c3aed", borderRadius: 4, padding: "2px 10px", cursor: "pointer" }}>
+                                + Sub-item / Partida
+                              </button>
                               <span style={{ fontSize: 11, color: "#6b7280" }}>Calculado: <strong>{fmt(item.costo_base_calculado || 0)}</strong></span>
                               {item.costo_manual !== null && item.costo_manual !== "" && (
                                 <span style={{ fontSize: 11, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: 99 }}>
@@ -615,6 +698,32 @@ export default function CotizacionEditorPage() {
                               </select>
                             </div>
                           </div>
+                          {(subitems[item.id] || []).length > 0 && (
+                            <div style={{ marginBottom: 12, background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: 12 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", marginBottom: 8, textTransform: "uppercase" }}>Sub-items / Partidas</div>
+                              {(subitems[item.id] || []).map((sub: any) => (
+                                <div key={sub.id} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr auto", gap: 8, marginBottom: 6, alignItems: "center" }}>
+                                  <input style={{ ...inp }} value={sub.descripcion} placeholder="Descripcion (ej: Anfitriona 1)"
+                                    onChange={e => updateSubitem(item.id, sub.id, "descripcion", e.target.value)} />
+                                  <select style={inp} value={sub.proveedor_id || ""} onChange={e => {
+                                    const prov = proveedores.find((p: any) => p.id === e.target.value)
+                                    updateSubitem(item.id, sub.id, "proveedor_id", e.target.value || null)
+                                    updateSubitem(item.id, sub.id, "proveedor_nombre", prov?.nombre || "")
+                                  }}>
+                                    <option value="">Sin proveedor</option>
+                                    {proveedores.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                                  </select>
+                                  <input type="number" style={{ ...inp, textAlign: "right" }} value={sub.monto || ""} placeholder="Monto"
+                                    onChange={e => updateSubitem(item.id, sub.id, "monto", Number(e.target.value))} />
+                                  <button onClick={() => removeSubitem(item.id, sub.id)}
+                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 16 }}>×</button>
+                                </div>
+                              ))}
+                              <div style={{ textAlign: "right", fontSize: 12, fontWeight: 700, color: "#7c3aed", marginTop: 4 }}>
+                                Total partidas: {fmt((subitems[item.id] || []).reduce((s: number, sb: any) => s + (Number(sb.monto) || 0), 0))}
+                              </div>
+                            </div>
+                          )}
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
                             {COSTOS_INTERNOS.map(cat => (
                               <div key={cat.key} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px" }}>
