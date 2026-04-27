@@ -21,10 +21,11 @@ function calcItem(item: any) {
   const costoBase = COSTOS_INTERNOS.reduce((s, c) => s + (Number(item[c.key]) || 0), 0)
     + (item.extras_produccion || []).reduce((s: number, e: any) => s + (Number(e.monto) || 0), 0)
     + (item.extras_alquiler || []).reduce((s: number, e: any) => s + (Number(e.monto) || 0), 0)
-  const costoTotal = item.costo_manual !== null && item.costo_manual !== undefined && item.costo_manual !== ""
-    ? Number(item.costo_manual) : costoBase
   const cantidad = Number(item.cantidad) || 1
-  const costoUnitario = cantidad > 0 ? costoTotal / cantidad : 0
+  const fechas = Number(item.fechas) || 1
+  const costoUnitario = item.costo_manual !== null && item.costo_manual !== undefined && item.costo_manual !== ""
+    ? Number(item.costo_manual) : costoBase
+  const costoTotal = costoUnitario * cantidad * fechas
   const margenPct = Number(item.margen_pct) || 0
   const precioCliente = margenPct < 100 ? costoTotal / (1 - margenPct / 100) : costoTotal
   const margenMonto = precioCliente - costoTotal
@@ -58,6 +59,8 @@ export default function CotizacionEditorPage() {
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
   const [feeActivo, setFeeActivo] = useState(true)
   const [showBiblioteca, setShowBiblioteca] = useState(false)
+  const [bloqueada, setBloqueada] = useState(false)
+  const [perfilActual, setPerfilActual] = useState<any>(null)
   const [biblioteca, setBiblioteca] = useState<any[]>([])
   const [busquedaBib, setBusquedaBib] = useState("")
 
@@ -71,6 +74,12 @@ export default function CotizacionEditorPage() {
       setCotizacion(cot)
       setProyecto(cot?.proyecto)
       if (cot?.fee_activo === false) setFeeActivo(false)
+      setBloqueada(cot?.bloqueada || false)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+        setPerfilActual(p)
+      }
       const { data: its } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotId).order("orden")
       const parsed = (its || []).map((i: any) => {
         let ep: any[] = [], ea: any[] = []
@@ -252,6 +261,8 @@ export default function CotizacionEditorPage() {
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const inp: any = { padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", outline: "none" }
 
+  const puedeDesbloquear = perfilActual?.perfil === "superadmin" || perfilActual?.email === "jsosa@izango.com.pe" || perfilActual?.email === "pbastianelli@izango.com.pe"
+
   if (!cotId) return <div style={{ color: "#dc2626", padding: 24 }}>Error: ID de cotización no encontrado.</div>
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -293,6 +304,24 @@ export default function CotizacionEditorPage() {
         </div>
       )}
 
+      {/* Banner bloqueada */}
+      {bloqueada && (
+        <div style={{ background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <span style={{ fontWeight: 700, color: "#991b1b", fontSize: 13 }}>🔒 Cotización aprobada y bloqueada</span>
+            <span style={{ color: "#dc2626", fontSize: 12, marginLeft: 8 }}>No se puede editar. Genera una nueva versión para hacer cambios.</span>
+          </div>
+          {puedeDesbloquear && (
+            <button onClick={async () => {
+              await supabase.from("cotizaciones").update({ bloqueada: false }).eq("id", cotId)
+              setBloqueada(false)
+            }} style={{ padding: "6px 14px", border: "1px solid #dc2626", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+              🔓 Desbloquear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
@@ -317,12 +346,12 @@ export default function CotizacionEditorPage() {
             style={{ padding: "6px 14px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
             👁 Preview
           </button>
-          <button onClick={() => guardar()} disabled={saving} className="btn-secondary" style={{ fontSize: 12 }}>
+          {!bloqueada && <button onClick={() => guardar()} disabled={saving} className="btn-secondary" style={{ fontSize: 12 }}>
             {saving ? "Guardando..." : "Guardar borrador"}
-          </button>
-          <button onClick={() => guardar("aprobada_cliente")} disabled={saving} className="btn-primary" style={{ fontSize: 12 }}>
+          </button>}
+          {!bloqueada && <button onClick={() => guardar("aprobada_cliente")} disabled={saving} className="btn-primary" style={{ fontSize: 12 }}>
             Enviar al cliente
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -392,7 +421,7 @@ export default function CotizacionEditorPage() {
                       </button>
                     </td>
                     <td style={{ padding: "6px 12px" }}>
-                      <input style={{ ...inp, width: "100%", minWidth: 160 }} value={item.descripcion}
+                      <input style={{ ...inp, width: "100%", minWidth: 160 }} value={item.descripcion} disabled={bloqueada}
                         placeholder="Descripción del ítem" onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
                     </td>
                     <td style={{ padding: "6px 4px" }}>

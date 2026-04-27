@@ -5,13 +5,14 @@ import { createClient } from "@/lib/supabase"
 import { useParams, useRouter } from "next/navigation"
 
 const FLUJO: Record<string, any> = {
-  pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general"] },
-  aprobado_produccion:  { label: "Aprobado Producción",  bg: "#fed7aa", color: "#9a3412", siguiente: "aprobado",            accion: "Aprobar (GG)",            roles: ["gerente_general"] },
+  pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
+  aprobado_produccion:  { label: "Aprobado Producción",  bg: "#fed7aa", color: "#9a3412", siguiente: "aprobado",            accion: "Aprobar (GG)",            roles: ["gerente_general", "superadmin"] },
   aprobado:             { label: "Aprobado",              bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Iniciar proyecto",        roles: ["gerente_produccion", "gerente_general", "productor"] },
   en_curso:             { label: "En curso",              bg: "#dcfce7", color: "#15803d", siguiente: "terminado",           accion: "Marcar terminado",        roles: ["gerente_produccion", "gerente_general", "productor"] },
   terminado:            { label: "Terminado",             bg: "#f3f4f6", color: "#6b7280", siguiente: "liquidado",           accion: "Pasar a liquidación",     roles: ["gerente_produccion", "gerente_general", "productor"] },
-  liquidado:            { label: "Liquidado",             bg: "#f5f3ff", color: "#6d28d9", siguiente: "facturado",           accion: "Marcar facturado",        roles: ["gerente_produccion", "gerente_general"] },
-  facturado:            { label: "Facturado",             bg: "#f0fdf4", color: "#166534", siguiente: null,                  accion: null,                      roles: [] },
+  liquidado:            { label: "Liquidado",             bg: "#f5f3ff", color: "#6d28d9", siguiente: "facturado",           accion: "Marcar facturado",        roles: ["gerente_produccion", "gerente_general", "superadmin"] },
+  facturado:            { label: "Facturado",             bg: "#f0fdf4", color: "#166534", siguiente: "cancelado",           accion: "Marcar cancelado",        roles: ["gerente_general","superadmin"] },
+  cancelado:            { label: "Cancelado",             bg: "#fee2e2", color: "#991b1b", siguiente: null,                  accion: null,                      roles: [] },
 }
 
 export default function ProyectoDetallePage() {
@@ -93,14 +94,36 @@ export default function ProyectoDetallePage() {
     setProyecto({ ...proyecto, estado: "pendiente_aprobacion" })
   }
 
-  async function nuevaVersion() {
+  async function nuevaVersion(copiarDeId?: string) {
     setCreando(true)
-    const ultimaVersion = cotizaciones.length > 0 ? Math.max(...cotizaciones.map(c => c.version || 1)) : 0
+    const ultimaVersion = cotizaciones.length > 0 ? Math.max(...cotizaciones.map((c: any) => c.version || 1)) : 0
+    let condicion = "50% adelanto / 50% contra entrega"
+    let validez = 10
+    let fee_pct = 10
+    let fee_activo = true
+    let igv_pct = 18
+    let itemsACopiar: any[] = []
+    if (copiarDeId) {
+      const cot = cotizaciones.find((c: any) => c.id === copiarDeId)
+      if (cot) {
+        condicion = cot.condicion_pago || condicion
+        validez = cot.validez_dias || validez
+        fee_pct = cot.fee_agencia_pct || fee_pct
+        fee_activo = cot.fee_activo !== false
+        igv_pct = cot.igv_pct || igv_pct
+      }
+      const { data: its } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", copiarDeId).order("orden")
+      itemsACopiar = its || []
+    }
     const { data: nueva } = await supabase.from("cotizaciones").insert({
       proyecto_id: id, version: ultimaVersion + 1, estado: "borrador",
-      condicion_pago: "50% adelanto / 50% contra entrega", validez_dias: 10,
-      fee_agencia_pct: 10, fee_activo: true, igv_pct: 18, total_cliente: 0, margen_pct: 0,
+      condicion_pago: condicion, validez_dias: validez,
+      fee_agencia_pct: fee_pct, fee_activo, igv_pct, total_cliente: 0, margen_pct: 0,
     }).select().single()
+    if (nueva && itemsACopiar.length > 0) {
+      const copias = itemsACopiar.map(({ id: _id, cotizacion_id: _cid, ...rest }: any) => ({ ...rest, cotizacion_id: nueva.id }))
+      await supabase.from("cotizacion_items").insert(copias)
+    }
     setCreando(false)
     if (nueva) router.push(`/proyectos/${id}/cotizaciones/${nueva.id}`)
   }
@@ -109,7 +132,7 @@ export default function ProyectoDetallePage() {
   const estadoInfo = FLUJO[proyecto?.estado] || { label: proyecto?.estado, bg: "#f3f4f6", color: "#6b7280" }
   const tieneCotizacion = cotizaciones.length > 0
   const puedeAvanzar = estadoInfo.roles?.includes(perfil?.perfil) && tieneCotizacion
-  const puedeRechazar = ["gerente_produccion", "gerente_general"].includes(perfil?.perfil) && ["aprobado_produccion", "aprobado"].includes(proyecto?.estado)
+  const puedeRechazar = ["gerente_produccion", "gerente_general", "superadmin"].includes(perfil?.perfil) && ["aprobado_produccion", "aprobado"].includes(proyecto?.estado)
 
   const ecCot: any = {
     borrador: { bg: "#fef9c3", color: "#92400e" },
@@ -139,9 +162,22 @@ export default function ProyectoDetallePage() {
           style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#fff", color: "#0F6E56", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
           📥 Reporte PDF
         </a>
-        <button onClick={nuevaVersion} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
-          {creando ? "Creando..." : "+ Nueva proforma"}
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {cotizaciones.length > 0 && (
+            <select id="copiar-version" style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
+              <option value="">Nueva vacía</option>
+              {cotizaciones.map((cot: any) => (
+                <option key={cot.id} value={cot.id}>Copiar V{cot.version}</option>
+              ))}
+            </select>
+          )}
+          <button onClick={() => {
+            const sel = document.getElementById("copiar-version") as HTMLSelectElement
+            nuevaVersion(sel?.value || undefined)
+          }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
+            {creando ? "Creando..." : "+ Nueva proforma"}
+          </button>
+        </div>
       </div>
 
       <div className="card" style={{ marginBottom: 24 }}>
