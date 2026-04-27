@@ -1,7 +1,9 @@
+"use client"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
 
 const ENTIDAD: Record<string,string> = { peru: "Izango Peru", selva: "Izango Selva" }
+
 const PERFIL: Record<string,string> = {
   superadmin:"Super Administrador",
   gerente_general:"Gerente General",
@@ -26,7 +28,12 @@ const ACCESO: Record<string, string[]> = {
   logistica: ["/dashboard","/calendario","/inventario","/rq","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil"],
   comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil"],
   practicante: ["/dashboard","/proyectos","/calendario","/gestor","/crm","/proformas","/biblioteca","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil"],
-},
+}
+
+const ALL_NAV = [
+  { section: "Principal", items: [
+    { label: "Dashboard", href: "/dashboard" },
+    { label: "Proyectos", href: "/proyectos" },
     { label: "Calendario", href: "/calendario" },
     { label: "Gestor", href: "/gestor" },
     { label: "Clientes", href: "/clientes" },
@@ -124,5 +131,4 @@ export default function Sidebar({ perfil }: { perfil: any }) {
       </div>
     </aside>
   )
-
 }
