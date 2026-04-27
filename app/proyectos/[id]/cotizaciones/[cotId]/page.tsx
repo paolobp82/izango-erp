@@ -542,21 +542,6 @@ export default function CotizacionEditorPage() {
               </div>
             )}
           </div>
-            {!columnaExtra.activa ? (
-              <button onClick={() => setColumnaExtra({ activa: true, titulo: "Dirección" })}
-                style={{ fontSize: 11, color: "#1e40af", background: "none", border: "1px dashed #93c5fd", borderRadius: 6, padding: "2px 10px", cursor: "pointer" }}>
-                + Columna extra
-              </button>
-            ) : (
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <input style={{ padding: "3px 8px", border: "1px solid #93c5fd", borderRadius: 6, fontSize: 11, fontFamily: "inherit", width: 120, background: "#eff6ff" }}
-                  value={columnaExtra.titulo} onChange={e => setColumnaExtra({ ...columnaExtra, titulo: e.target.value })} />
-                <button onClick={() => setColumnaExtra({ activa: false, titulo: "Dirección" })}
-                  style={{ fontSize: 11, color: "#dc2626", background: "none", border: "none", cursor: "pointer" }}>× quitar</button>
-              </div>
-            )}
-          </div>
-        </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
             <thead>
