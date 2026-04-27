@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { registrarAccion } from "@/lib/trazabilidad"
+import StarRating from "@/components/StarRating"
 
 const CATEGORIAS = ["produccion", "almacenaje", "impresion", "permisos", "instalacion", "performer", "alquiler", "supervision", "movilidad", "otros"]
 const TIPOS_PAGO = ["contado", "credito_30", "credito_60", "credito_90"]
@@ -12,17 +13,18 @@ const TIPOS_TRANSFERENCIA = ["Transferencia bancaria", "Yape", "Plin", "Efectivo
 
 async function consultarRUC(ruc) {
   try {
-    const res = await fetch(`/api/ruc?numero=${ruc}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data || data.error) return null;
-    return { razonSocial: data.nombre, direccion: data.direccion };
-  } catch { return null; }
+    const res = await fetch(`/api/ruc?numero=${ruc}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    if (!data || data.error) return null
+    return { razonSocial: data.nombre, direccion: data.direccion }
+  } catch { return null }
 }
 
 export default function ProveedoresPage() {
   const supabase = createClient()
   const [proveedores, setProveedores] = useState<any[]>([])
+  const [ratings, setRatings] = useState<Record<string, { promedio: number; total: number }>>({})
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
@@ -31,6 +33,10 @@ export default function ProveedoresPage() {
   const [buscandoRUC, setBuscandoRUC] = useState(false)
   const [rucEstado, setRucEstado] = useState(null)
   const [contactosAdicionales, setContactosAdicionales] = useState<any[]>([])
+  const [calificacionPendiente, setCalificacionPendiente] = useState<number | null>(null)
+  const [comentarioPendiente, setComentarioPendiente] = useState("")
+  const [savingRating, setSavingRating] = useState(false)
+  const [historialCalificaciones, setHistorialCalificaciones] = useState<any[]>([])
   const [form, setForm] = useState({
     nombre: "", ruc: "", categoria: "produccion", tipo_pago: "contado",
     nombre_contacto: "", email_contacto: "", telefono_contacto: "",
@@ -45,21 +51,48 @@ export default function ProveedoresPage() {
   async function load() {
     const { data } = await supabase.from("proveedores").select("*").order("nombre")
     setProveedores(data || [])
+    await loadRatings(data || [])
     setLoading(false)
+  }
+
+  async function loadRatings(provs: any[]) {
+    if (!provs.length) return
+    const { data } = await supabase.from("proveedores_rating").select("*")
+    if (!data) return
+    const map: Record<string, { promedio: number; total: number }> = {}
+    data.forEach((r: any) => {
+      map[r.proveedor_id] = { promedio: parseFloat(r.rating_promedio), total: parseInt(r.total_calificaciones) }
+    })
+    setRatings(map)
+  }
+
+  async function loadHistorial(proveedorId: string) {
+    const { data } = await supabase
+      .from("proveedor_calificaciones")
+      .select("*")
+      .eq("proveedor_id", proveedorId)
+      .order("created_at", { ascending: false })
+      .limit(5)
+    setHistorialCalificaciones(data || [])
   }
 
   function abrirNuevo() {
     setEditando(null)
     setEsCliente(false)
     setContactosAdicionales([])
+    setCalificacionPendiente(null)
+    setComentarioPendiente("")
+    setHistorialCalificaciones([])
     setForm({ nombre: "", ruc: "", categoria: "produccion", tipo_pago: "contado", nombre_contacto: "", email_contacto: "", telefono_contacto: "", nombre_contacto_admin: "", email_contacto_admin: "", telefono_contacto_admin: "", banco: "", tipo_cuenta: "", numero_cuenta: "", cuenta_interbancaria: "", banco_2: "", tipo_cuenta_2: "", numero_cuenta_2: "", cci_2: "", cuenta_detraccion: "", tipo_pago_transferencia: "Transferencia bancaria" })
     setShowForm(true)
   }
 
-  function abrirEditar(prov: any) {
+  async function abrirEditar(prov: any) {
     setEditando(prov)
     setEsCliente(prov.es_cliente || false)
     setContactosAdicionales(prov.contactos_adicionales ? JSON.parse(prov.contactos_adicionales) : [])
+    setCalificacionPendiente(null)
+    setComentarioPendiente("")
     setForm({
       nombre: prov.nombre || "", ruc: prov.ruc || "", categoria: prov.categoria || "produccion",
       tipo_pago: prov.tipo_pago || "contado",
@@ -73,7 +106,26 @@ export default function ProveedoresPage() {
       cuenta_detraccion: prov.cuenta_detraccion || "",
       tipo_pago_transferencia: prov.tipo_pago_transferencia || "Transferencia bancaria",
     })
+    await loadHistorial(prov.id)
     setShowForm(true)
+  }
+
+  async function guardarCalificacion() {
+    if (!calificacionPendiente || !editando) return
+    setSavingRating(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from("proveedor_calificaciones").insert({
+      proveedor_id: editando.id,
+      usuario_id: user?.id,
+      calificacion: calificacionPendiente,
+      comentario: comentarioPendiente || null,
+      origen: "ficha",
+    })
+    await loadHistorial(editando.id)
+    await loadRatings(proveedores)
+    setCalificacionPendiente(null)
+    setComentarioPendiente("")
+    setSavingRating(false)
   }
 
   function agregarContacto() {
@@ -140,7 +192,7 @@ export default function ProveedoresPage() {
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{proveedores.length} proveedores registrados</p>
         </div>
         <ImportExport modulo="proveedores" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"ruc",label:"RUC"},{key:"categoria",label:"Categoria"},{key:"banco",label:"Banco"},{key:"numero_cuenta",label:"N cuenta"},{key:"cuenta_interbancaria",label:"CCI"},{key:"tipo_pago",label:"Tipo pago"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email contacto"},{key:"telefono_contacto",label:"Telefono"}]} datos={proveedores} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proveedores").insert({...r,entidad:"peru",tipo_pago:r.tipo_pago||"contado",categoria:r.categoria||"otros"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
-          <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proveedor</button>
+        <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proveedor</button>
       </div>
 
       {showForm && (
@@ -164,17 +216,17 @@ export default function ProveedoresPage() {
                     <div style={{ position: "relative" }}>
                       <input style={{ ...inp, paddingRight: 36 }} value={form.ruc} placeholder="20xxxxxxxxx"
                         onChange={async e => {
-                          const val = e.target.value.replace(/\D/g, "").slice(0, 11);
-                          setForm(prev => ({ ...prev, ruc: val }));
-                          setRucEstado(null);
+                          const val = e.target.value.replace(/\D/g, "").slice(0, 11)
+                          setForm(prev => ({ ...prev, ruc: val }))
+                          setRucEstado(null)
                           if (val.length === 11) {
-                            setBuscandoRUC(true);
-                            const data = await consultarRUC(val);
-                            setBuscandoRUC(false);
+                            setBuscandoRUC(true)
+                            const data = await consultarRUC(val)
+                            setBuscandoRUC(false)
                             if (data && data.razonSocial) {
-                              setForm(prev => ({ ...prev, ruc: val, nombre: data.razonSocial }));
-                              setRucEstado("ok");
-                            } else { setRucEstado("error"); }
+                              setForm(prev => ({ ...prev, ruc: val, nombre: data.razonSocial }))
+                              setRucEstado("ok")
+                            } else { setRucEstado("error") }
                           }
                         }} />
                       <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14 }}>
@@ -267,6 +319,70 @@ export default function ProveedoresPage() {
                   <div><label style={lbl}>TIPO TRANSFERENCIA</label><select style={inp} value={form.tipo_pago_transferencia} onChange={e => setForm({ ...form, tipo_pago_transferencia: e.target.value })}>{TIPOS_TRANSFERENCIA.map(t => <option key={t}>{t}</option>)}</select></div>
                 </div>
               </div>
+
+              {/* ─── SECCIÓN CALIFICACIÓN ─── */}
+              {editando && (
+                <div>
+                  <h3 style={section}>Calificación del proveedor</h3>
+
+                  {/* Rating actual */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={lbl}>RATING ACTUAL</label>
+                    <StarRating
+                      rating={ratings[editando.id]?.promedio || 0}
+                      totalVotos={ratings[editando.id]?.total || 0}
+                      size="lg"
+                      showCount={true}
+                    />
+                  </div>
+
+                  {/* Nueva calificación */}
+                  <div style={{ background: "#f9fafb", borderRadius: 8, padding: 14, border: "1px solid #e5e7eb" }}>
+                    <label style={{ ...lbl, marginBottom: 8 }}>AGREGAR CALIFICACIÓN</label>
+                    <StarRating
+                      rating={calificacionPendiente || 0}
+                      onRate={(v) => setCalificacionPendiente(v)}
+                      size="lg"
+                      showCount={false}
+                    />
+                    {calificacionPendiente && (
+                      <div style={{ marginTop: 10 }}>
+                        <input
+                          style={{ ...inp, marginBottom: 8 }}
+                          placeholder="Comentario opcional..."
+                          value={comentarioPendiente}
+                          onChange={e => setComentarioPendiente(e.target.value)}
+                        />
+                        <button
+                          onClick={guardarCalificacion}
+                          disabled={savingRating}
+                          style={{ fontSize: 12, padding: "6px 14px", background: "#1D9E75", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}
+                        >
+                          {savingRating ? "Guardando..." : "Guardar calificación"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Historial últimas 5 */}
+                  {historialCalificaciones.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <label style={{ ...lbl, marginBottom: 8 }}>ÚLTIMAS CALIFICACIONES</label>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {historialCalificaciones.map((c) => (
+                          <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: "6px 10px" }}>
+                            <StarRating rating={c.calificacion} size="sm" showCount={false} />
+                            {c.comentario && <span style={{ fontSize: 12, color: "#374151", flex: 1 }}>{c.comentario}</span>}
+                            <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>
+                              {new Date(c.created_at).toLocaleDateString("es-PE")}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
@@ -290,6 +406,7 @@ export default function ProveedoresPage() {
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>BANCO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONTACTO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO PAGO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RATING</th>
                 <th style={{ padding: "10px 20px", width: 130 }}></th>
               </tr>
             </thead>
@@ -307,6 +424,18 @@ export default function ProveedoresPage() {
                   <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{p.banco || "—"}</td>
                   <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{p.nombre_contacto || "—"}</td>
                   <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{p.tipo_pago || "—"}</td>
+                  <td style={{ padding: "12px" }}>
+                    {ratings[p.id] ? (
+                      <StarRating
+                        rating={ratings[p.id].promedio}
+                        totalVotos={ratings[p.id].total}
+                        size="sm"
+                        showCount={true}
+                      />
+                    ) : (
+                      <span style={{ fontSize: 11, color: "#d1d5db" }}>Sin rating</span>
+                    )}
+                  </td>
                   <td style={{ padding: "12px 20px", textAlign: "right" }}>
                     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                       <button onClick={() => abrirEditar(p)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
@@ -321,5 +450,4 @@ export default function ProveedoresPage() {
       </div>
     </div>
   )
-
 }
