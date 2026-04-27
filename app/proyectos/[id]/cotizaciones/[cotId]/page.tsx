@@ -869,8 +869,6 @@ export default function CotizacionEditorPage() {
         </div>
       </div>
 
-      </div>
-
       {/* Totales */}
       <div style={{ background: "#E1F5EE", border: "1px solid #1D9E75", borderRadius: 12, padding: "20px 24px", display: "flex", gap: 0, flexWrap: "wrap", alignItems: "stretch", marginTop: 16 }}>
         {[
