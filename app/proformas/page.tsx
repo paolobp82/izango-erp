@@ -22,14 +22,20 @@ export default function ProformasPage() {
   const [filtroCliente, setFiltroCliente] = useState("")
   const [busqueda, setBusqueda] = useState("")
   const [clientes, setClientes] = useState<any[]>([])
+  const [debugInfo, setDebugInfo] = useState("")
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("cotizaciones")
       .select("*, proyecto:proyectos(id, nombre, codigo, cliente:clientes(id, razon_social))")
       .order("created_at", { ascending: false })
+
+    console.log("COTIZACIONES DATA:", data)
+    console.log("COTIZACIONES ERROR:", error)
+    setDebugInfo(`Registros: ${data?.length ?? 0} | Error: ${error?.message ?? "ninguno"}`)
+
     setCotizaciones(data || [])
     const clientesUnicos = Array.from(
       new Map((data || []).map((c: any) => [c.proyecto?.cliente?.id, c.proyecto?.cliente] as [string, any]).filter(([k]) => k)).values()
@@ -64,6 +70,7 @@ export default function ProformasPage() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Proformas</h1>
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{cotizaciones.length} proformas en total</p>
+          {debugInfo && <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{debugInfo}</p>}
         </div>
       </div>
 
@@ -169,5 +176,4 @@ export default function ProformasPage() {
       </div>
     </div>
   )
-
 }
