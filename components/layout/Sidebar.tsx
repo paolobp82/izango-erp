@@ -118,7 +118,7 @@ export default function Sidebar({ perfil }: { perfil: any }) {
             <div style={{fontSize:10,fontWeight:500,color:"#9ca3af",textTransform:"uppercase",letterSpacing:"0.07em",padding:"0 8px",marginBottom:4}}>{s.section}</div>
             {s.items.map(item => (
               <a key={item.href} href={item.href}
-                className={`sidebar-item${pathname.startsWith(item.href) ? " active" : ""}`}>
+                className={`sidebar-item${pathname === item.href || (item.href !== "/inventario" && pathname.startsWith(item.href)) ? " active" : ""}`}>
                 {item.label}
               </a>
             ))}
