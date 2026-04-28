@@ -88,8 +88,16 @@ export default function FacturacionPage() {
     load()
   }
 
-  async function cambiarEstado(id: string, estado: string) {
+async function cambiarEstado(id: string, estado: string) {
     await supabase.from("facturas").update({ estado }).eq("id", id)
+    // Si la factura se marca como cobrada → el proyecto pasa a "Pagado" (cancelado)
+    if (estado === "cobrada") {
+      const factura = facturas.find(f => f.id === id)
+      if (factura?.proyecto_id) {
+        await supabase.from("proyectos").update({ estado: "cancelado" }).eq("id", factura.proyecto_id)
+        await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: factura.proyecto_id, entidad_tipo: "proyecto", descripcion: "Proyecto marcado como Pagado por cobro de factura", datos_nuevos: { estado: "cancelado" } })
+      }
+    }
     load()
     if (selected?.id === id) setSelected({ ...selected, estado })
   }
