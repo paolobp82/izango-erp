@@ -8,12 +8,12 @@ import { enviarAlerta } from "@/lib/alertas"
 
 const COSTOS_INTERNOS = [
   { key: "costo_almacenaje", label: "Almacenaje" },
-  { key: "costo_impresion", label: "Impresi├│n" },
+  { key: "costo_impresion", label: "Impresión" },
   { key: "costo_permisos", label: "Permisos" },
-  { key: "costo_instalacion", label: "Instalaci├│n" },
+  { key: "costo_instalacion", label: "Instalación" },
   { key: "costo_performer", label: "Performer" },
   { key: "costo_alquiler", label: "Alquiler" },
-  { key: "costo_supervision", label: "Supervisi├│n" },
+  { key: "costo_supervision", label: "Supervisión" },
   { key: "costo_movilidad", label: "Movilidad" },
 ]
 
@@ -93,7 +93,7 @@ export default function CotizacionEditorPage() {
   const [perfilActual, setPerfilActual] = useState<any>(null)
   const [descuentoPct, setDescuentoPct] = useState(0)
   const [subitems, setSubitems] = useState<Record<string, any[]>>({})
-  const [columnaExtra, setColumnaExtra] = useState<{activa: boolean, titulo: string}>({activa: false, titulo: "Direcci├│n"})
+  const [columnaExtra, setColumnaExtra] = useState<{activa: boolean, titulo: string}>({activa: false, titulo: "Dirección"})
 
   useEffect(() => {
     if (!cotId) return
@@ -268,7 +268,7 @@ export default function CotizacionEditorPage() {
           proveedor_id: sub.proveedor_id,
           proveedor_nombre: prov?.nombre || sub.proveedor_nombre || "",
           monto_solicitado: sub.monto,
-          descripcion: item.descripcion + " ÔÇö " + sub.descripcion,
+          descripcion: item.descripcion + " — " + sub.descripcion,
         })
         rqNum++
       }
@@ -373,7 +373,7 @@ export default function CotizacionEditorPage() {
           <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 600, maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Seleccionar desde biblioteca</h2>
-              <button onClick={() => setShowBiblioteca(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22 }}>├ù</button>
+              <button onClick={() => setShowBiblioteca(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22 }}>×</button>
             </div>
             <input style={{ padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", marginBottom: 12 }}
               placeholder="Buscar item..." value={busquedaBib} onChange={e => setBusquedaBib(e.target.value)} autoFocus />
@@ -400,15 +400,15 @@ export default function CotizacionEditorPage() {
       {bloqueada && (
         <div style={{ background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <span style={{ fontWeight: 700, color: "#991b1b", fontSize: 13 }}>­ƒöÆ Cotizaci├│n aprobada y bloqueada</span>
-            <span style={{ color: "#dc2626", fontSize: 12, marginLeft: 8 }}>Genera una nueva versi├│n para hacer cambios.</span>
+            <span style={{ fontWeight: 700, color: "#991b1b", fontSize: 13 }}>🔒 Cotización aprobada y bloqueada</span>
+            <span style={{ color: "#dc2626", fontSize: 12, marginLeft: 8 }}>Genera una nueva versión para hacer cambios.</span>
           </div>
           {puedeDesbloquear && (
             <button onClick={async () => {
               await supabase.from("cotizaciones").update({ bloqueada: false }).eq("id", cotId)
               setBloqueada(false)
             }} style={{ padding: "6px 14px", border: "1px solid #dc2626", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-              ­ƒöô Desbloquear
+              🔓 Desbloquear
             </button>
           )}
         </div>
@@ -425,7 +425,7 @@ export default function CotizacionEditorPage() {
           </div>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#111827" }}>{proyecto?.nombre}</h1>
           <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-            {proyecto?.cliente?.razon_social} ┬À V{cotizacion?.version} ┬À <span style={{
+            {proyecto?.cliente?.razon_social} · V{cotizacion?.version} · <span style={{
               background: cotizacion?.estado === "aprobada_cliente" ? "#dcfce7" : "#fef9c3",
               color: cotizacion?.estado === "aprobada_cliente" ? "#15803d" : "#92400e",
               padding: "1px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600
@@ -435,7 +435,7 @@ export default function CotizacionEditorPage() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cotId}/preview`)}
             style={{ padding: "6px 14px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-            ­ƒæü Preview
+            👁 Preview
           </button>
           {!bloqueada && <button onClick={() => guardar()} disabled={saving} className="btn-secondary" style={{ fontSize: 12 }}>
             {saving ? "Guardando..." : "Guardar borrador"}
@@ -449,20 +449,20 @@ export default function CotizacionEditorPage() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 16, alignItems: "end" }}>
           <div>
-            <label style={{ display: "block", fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Condici├│n de pago</label>
+            <label style={{ display: "block", fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Condición de pago</label>
             <select style={{ ...inp, width: "100%" }} value={cotizacion?.condicion_pago || ""}
               onChange={e => setCotizacion({ ...cotizacion, condicion_pago: e.target.value })}>
               <option>50% adelanto / 50% contra entrega</option>
               <option>30% adelanto / 70% contra entrega</option>
               <option>100% adelanto</option>
-              <option>Cr├®dito 30 d├¡as</option>
-              <option>Cr├®dito 60 d├¡as</option>
-              <option>Cr├®dito 90 d├¡as</option>
+              <option>Crédito 30 días</option>
+              <option>Crédito 60 días</option>
+              <option>Crédito 90 días</option>
               <option>A tratar</option>
             </select>
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Validez (d├¡as)</label>
+            <label style={{ display: "block", fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Validez (días)</label>
             <input type="number" style={{ ...inp, width: "100%" }} value={cotizacion?.validez_dias || 10}
               onChange={e => setCotizacion({ ...cotizacion, validez_dias: Number(e.target.value) })} />
           </div>
@@ -487,9 +487,9 @@ export default function CotizacionEditorPage() {
         <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ fontSize: 13, fontWeight: 600, margin: 0, color: "#374151" }}>Itemizado del presupuesto</h2>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "#9ca3af" }}>ÔûÂ Expande cada ├¡tem para costos internos</span>
+            <span style={{ fontSize: 11, color: "#9ca3af" }}>▶ Expande cada ítem para costos internos</span>
             {!columnaExtra.activa ? (
-              <button onClick={() => setColumnaExtra({ activa: true, titulo: "Direcci├│n" })}
+              <button onClick={() => setColumnaExtra({ activa: true, titulo: "Dirección" })}
                 style={{ fontSize: 11, color: "#1e40af", background: "none", border: "1px dashed #93c5fd", borderRadius: 6, padding: "2px 10px", cursor: "pointer" }}>
                 + Columna extra
               </button>
@@ -497,8 +497,8 @@ export default function CotizacionEditorPage() {
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <input style={{ padding: "3px 8px", border: "1px solid #93c5fd", borderRadius: 6, fontSize: 11, fontFamily: "inherit", width: 120, background: "#eff6ff" }}
                   value={columnaExtra.titulo} onChange={e => setColumnaExtra({ ...columnaExtra, titulo: e.target.value })} />
-                <button onClick={() => setColumnaExtra({ activa: false, titulo: "Direcci├│n" })}
-                  style={{ fontSize: 11, color: "#dc2626", background: "none", border: "none", cursor: "pointer" }}>├ù quitar</button>
+                <button onClick={() => setColumnaExtra({ activa: false, titulo: "Dirección" })}
+                  style={{ fontSize: 11, color: "#dc2626", background: "none", border: "none", cursor: "pointer" }}>× quitar</button>
               </div>
             )}
           </div>
@@ -512,7 +512,7 @@ export default function CotizacionEditorPage() {
                 <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Elemento</th>
                 {columnaExtra.activa && <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#93c5fd", width: 160 }}>{columnaExtra.titulo}</th>}
                 <th style={{ textAlign: "center", width: 65, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Cant.</th>
-                <th style={{ textAlign: "center", width: 65, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#fff" }}>D├¡as</th>
+                <th style={{ textAlign: "center", width: 65, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Días</th>
                 <th style={{ textAlign: "right", width: 120, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>C. Unit.</th>
                 <th style={{ textAlign: "right", width: 120, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Total S/</th>
                 <th style={{ textAlign: "center", width: 95, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Margen %</th>
@@ -529,7 +529,7 @@ export default function CotizacionEditorPage() {
                   return (
                     <tr key={item.id} style={{ background: "#1D2040", borderBottom: "1px solid #374151" }}>
                       <td style={{ padding: "8px 6px", textAlign: "center" }}>
-                        <button onClick={() => removeItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 14 }}>├ù</button>
+                        <button onClick={() => removeItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 14 }}>×</button>
                       </td>
                       <td colSpan={columnaExtra.activa ? 8 : 7} style={{ padding: "8px 12px" }}>
                         <input style={{ ...inp, background: "transparent", border: "none", color: "#03E373", fontWeight: 800, fontSize: 14, width: "100%" }}
@@ -537,7 +537,7 @@ export default function CotizacionEditorPage() {
                           onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
                       </td>
                       <td style={{ textAlign: "right", padding: "8px 12px", color: "#03E373", fontWeight: 700, fontSize: 13 }}>
-                        {subtotalFamilia > 0 ? fmt(subtotalFamilia) : "ÔÇö"}
+                        {subtotalFamilia > 0 ? fmt(subtotalFamilia) : "—"}
                       </td>
                       <td style={{ padding: "8px 6px", textAlign: "right" }}>
                         <button onClick={() => {
@@ -562,16 +562,16 @@ export default function CotizacionEditorPage() {
                   return (
                     <tr key={item.id} style={{ background: "#fffbeb", borderBottom: "1px solid #f3f4f6" }}>
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
-                        <button onClick={() => removeItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 14 }}>├ù</button>
+                        <button onClick={() => removeItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 14 }}>×</button>
                       </td>
                       <td style={{ padding: "6px 8px" }}>
                         <input style={{ ...inp, width: "100%", fontWeight: 700, color: "#92400e", fontSize: 12, background: "#fff8f0", borderColor: "#f59e0b" }}
-                          value={item.celda_titulo || ""} placeholder="T├¡tulo..."
+                          value={item.celda_titulo || ""} placeholder="Título..."
                           onChange={e => updateItem(item.id, "celda_titulo", e.target.value)} />
                       </td>
                       <td colSpan={columnaExtra.activa ? 9 : 8} style={{ padding: "6px 12px" }}>
                         <input style={{ ...inp, width: "100%" }} value={item.descripcion || ""}
-                          placeholder="Descripci├│n..." onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
+                          placeholder="Descripción..." onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
                       </td>
                       <td colSpan={2}></td>
                     </tr>
@@ -584,13 +584,13 @@ export default function CotizacionEditorPage() {
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
                         <button onClick={() => toggleExpand(item.id)}
                           style={{ background: "none", border: "none", cursor: "pointer", color: "#1D2040", fontSize: 13, padding: "2px 6px" }}>
-                          {expandedItems[item.id] ? "Ôû╝" : "ÔûÂ"}
+                          {expandedItems[item.id] ? "▼" : "▶"}
                         </button>
                       </td>
                       <td style={{ textAlign: "center", padding: "6px 4px", fontSize: 11, color: "#9ca3af", fontWeight: 600 }}>{numItem}</td>
                       <td style={{ padding: "6px 12px" }}>
                         <input style={{ ...inp, width: "100%", minWidth: 160 }} value={item.descripcion} disabled={bloqueada}
-                          placeholder="Descripci├│n del ├¡tem" onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
+                          placeholder="Descripción del ítem" onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
                       </td>
                       {columnaExtra.activa && (
                         <td style={{ padding: "6px 8px", width: 160 }}>
@@ -616,7 +616,7 @@ export default function CotizacionEditorPage() {
                           onChange={e => updateItem(item.id, "costo_manual", e.target.value === "" ? null : Number(e.target.value))} />
                       </td>
                       <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 12, fontWeight: 600, color: item.costo_total > 0 ? "#dc2626" : "#d1d5db" }}>
-                        {item.costo_total > 0 ? fmt(item.costo_total) : "ÔÇö"}
+                        {item.costo_total > 0 ? fmt(item.costo_total) : "—"}
                       </td>
                       <td style={{ padding: "6px 4px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 3, justifyContent: "center" }}>
@@ -629,7 +629,7 @@ export default function CotizacionEditorPage() {
                         </div>
                       </td>
                       <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 13, color: item.precio_cliente > 0 ? "#0F6E56" : "#d1d5db", fontWeight: 700 }}>
-                        {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "ÔÇö"}
+                        {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "—"}
                       </td>
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
                         <input type="checkbox" checked={item.incluir_en_total !== false} title="Incluir en total"
@@ -638,7 +638,7 @@ export default function CotizacionEditorPage() {
                       </td>
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
                         <button onClick={() => removeItem(item.id)}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>├ù</button>
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>×</button>
                       </td>
                     </tr>
                     {expandedItems[item.id] && (
@@ -654,9 +654,9 @@ export default function CotizacionEditorPage() {
                                 </button>
                                 {item.costo_manual !== null && item.costo_manual !== "" && (
                                   <span style={{ fontSize: 11, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: 99 }}>
-                                    Ô£Ä Manual: {fmt(Number(item.costo_manual))}
+                                    ✎ Manual: {fmt(Number(item.costo_manual))}
                                     <button onClick={() => updateItem(item.id, "costo_manual", null)}
-                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#7c3aed", marginLeft: 4 }}>├ù quitar</button>
+                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#7c3aed", marginLeft: 4 }}>× quitar</button>
                                   </span>
                                 )}
                               </div>
@@ -703,7 +703,7 @@ export default function CotizacionEditorPage() {
                                     <input type="number" style={{ ...inp, textAlign: "right" }} value={sub.monto || ""} placeholder="Monto"
                                       onChange={e => updateSubitem(item.id, sub.id, "monto", Number(e.target.value))} />
                                     <button onClick={() => removeSubitem(item.id, sub.id)}
-                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 16 }}>├ù</button>
+                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 16 }}>×</button>
                                   </div>
                                 ))}
                                 <div style={{ textAlign: "right", fontSize: 12, fontWeight: 700, color: "#7c3aed", marginTop: 4 }}>
@@ -724,7 +724,7 @@ export default function CotizacionEditorPage() {
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                               <div>
                                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                                  <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>Extras producci├│n</span>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>Extras producción</span>
                                   <button onClick={() => addExtra(item.id, "extras_produccion")}
                                     style={{ fontSize: 11, color: "#0F6E56", background: "none", border: "1px dashed #1D9E75", borderRadius: 4, padding: "2px 10px", cursor: "pointer" }}>+ Agregar</button>
                                 </div>
@@ -735,7 +735,7 @@ export default function CotizacionEditorPage() {
                                     <input type="number" style={{ ...inp, width: 90, textAlign: "right" }} value={extra.monto || ""} placeholder="0"
                                       onChange={e => updateExtra(item.id, "extras_produccion", i, "monto", Number(e.target.value))} />
                                     <button onClick={() => removeExtra(item.id, "extras_produccion", i)}
-                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 14 }}>├ù</button>
+                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 14 }}>×</button>
                                   </div>
                                 ))}
                               </div>
@@ -752,7 +752,7 @@ export default function CotizacionEditorPage() {
                                     <input type="number" style={{ ...inp, width: 90, textAlign: "right" }} value={extra.monto || ""} placeholder="0"
                                       onChange={e => updateExtra(item.id, "extras_alquiler", i, "monto", Number(e.target.value))} />
                                     <button onClick={() => removeExtra(item.id, "extras_alquiler", i)}
-                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 14 }}>├ù</button>
+                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 14 }}>×</button>
                                   </div>
                                 ))}
                               </div>
@@ -785,7 +785,7 @@ export default function CotizacionEditorPage() {
                 </td>
                 <td></td>
                 <td style={{ textAlign: "right", padding: "10px 12px", fontSize: 13, fontWeight: 700, color: feeActivo ? "#374151" : "#d1d5db" }}>
-                  {feeActivo ? fmt(feeMonto) : "ÔÇö"}
+                  {feeActivo ? fmt(feeMonto) : "—"}
                 </td>
                 <td colSpan={4}></td>
               </tr>
@@ -795,7 +795,7 @@ export default function CotizacionEditorPage() {
         <div style={{ padding: "12px 16px", borderTop: "1px solid #f3f4f6", display: "flex", gap: 8 }}>
           <button onClick={abrirBiblioteca}
             style={{ border: "1px dashed #1D2040", borderRadius: 8, background: "none", padding: "7px 18px", fontSize: 12, color: "#1D2040", cursor: "pointer" }}>
-            ­ƒôÜ Desde biblioteca
+            📚 Desde biblioteca
           </button>
           <button onClick={() => setItems(prev => [...prev, newFamilia(cotId, prev.length)])}
             style={{ border: "1px dashed #03E373", borderRadius: 8, background: "none", padding: "7px 18px", fontSize: 12, color: "#027a45", cursor: "pointer" }}>
@@ -805,7 +805,7 @@ export default function CotizacionEditorPage() {
             const ultimaFamilia = [...items].reverse().find(i => i.tipo === "familia")
             setItems(prev => [...prev, newItem(cotId, prev.length, ultimaFamilia?.id)])
           }} style={{ border: "1px dashed #d1d5db", borderRadius: 8, background: "none", padding: "7px 18px", fontSize: 12, color: "#6b7280", cursor: "pointer" }}>
-            + Agregar ├¡tem
+            + Agregar ítem
           </button>
           <button onClick={() => setItems(prev => [...prev, newCeldaExtra(cotId, prev.length)])}
             style={{ border: "1px dashed #f59e0b", borderRadius: 8, background: "none", padding: "7px 18px", fontSize: 12, color: "#92400e", cursor: "pointer" }}>
