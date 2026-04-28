@@ -18,6 +18,11 @@ const FLUJO: Record<string, any> = {
 
 const FLUJO_BREADCRUMB = ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "en_curso", "terminado", "liquidado", "facturado", "cancelado"]
 
+const ENTIDADES = [
+  { value: "peru", label: "Izango Peru" },
+  { value: "selva", label: "Izango Selva" },
+]
+
 export default function ProyectoDetallePage() {
   const params = useParams()
   const router = useRouter()
@@ -32,6 +37,7 @@ export default function ProyectoDetallePage() {
   const [creando, setCreando] = useState(false)
   const [cambiando, setCambiando] = useState(false)
   const [versionAprobar, setVersionAprobar] = useState("")
+  const [editandoEntidad, setEditandoEntidad] = useState(false)
 
   useEffect(() => { load() }, [id])
 
@@ -55,7 +61,6 @@ export default function ProyectoDetallePage() {
         hist[cot.id] = h || []
       }
       setHistorial(hist)
-      // Pre-seleccionar la versión aprobada si existe, o la última
       const yaAprobada = cots.find((c: any) => c.estado === "aprobada_cliente")
       if (yaAprobada) setVersionAprobar(yaAprobada.id)
       else if (proy?.cotizacion_aprobada_id) setVersionAprobar(proy.cotizacion_aprobada_id)
@@ -67,20 +72,15 @@ export default function ProyectoDetallePage() {
 
   async function cambiarEstado(nuevoEstado: string) {
     setCambiando(true)
-
-    // Al iniciar proyecto: marcar la versión seleccionada como aprobada_cliente
     if (nuevoEstado === "en_curso" && versionAprobar) {
-      // Desmarcar otras versiones
       for (const cot of cotizaciones) {
         if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
           await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", cot.id)
         }
       }
-      // Marcar la seleccionada
       await supabase.from("cotizaciones").update({ estado: "aprobada_cliente" }).eq("id", versionAprobar)
       await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar }).eq("id", id)
     }
-
     if (nuevoEstado === "terminado") {
       const cotAprobada = cotizaciones.find(c => c.id === versionAprobar) || cotizaciones.find(c => c.estado === "aprobada_cliente")
       const { data: liqExistente } = await supabase.from("liquidaciones").select("id").eq("proyecto_id", id).single()
@@ -105,7 +105,6 @@ export default function ProyectoDetallePage() {
         }
       }
     }
-
     await supabase.from("proyectos").update({ estado: nuevoEstado }).eq("id", id)
     await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: " + nuevoEstado, datos_nuevos: { estado: nuevoEstado } })
     setProyecto({ ...proyecto, estado: nuevoEstado })
@@ -120,6 +119,19 @@ export default function ProyectoDetallePage() {
     await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Proyecto rechazado", datos_nuevos: { estado: "rechazado" } })
     setProyecto({ ...proyecto, estado: "rechazado" })
     setCambiando(false)
+  }
+
+  async function cambiarEntidad(entidad: string) {
+    await supabase.from("proyectos").update({ entidad }).eq("id", id)
+    setProyecto({ ...proyecto, entidad })
+    setEditandoEntidad(false)
+  }
+
+  async function eliminarVersion(cotId: string, version: number) {
+    if (!confirm(`¿Eliminar proforma V${version}? Esta acción no se puede deshacer.`)) return
+    await supabase.from("cotizacion_items").delete().eq("cotizacion_id", cotId)
+    await supabase.from("cotizaciones").delete().eq("id", cotId)
+    load()
   }
 
   async function nuevaVersion(copiarDeId?: string) {
@@ -160,6 +172,7 @@ export default function ProyectoDetallePage() {
   const puedeAvanzar = estadoInfo.roles?.includes(perfil?.perfil) && tieneCotizacion && !esEstadoFinal
   const puedeRechazar = ["gerente_produccion", "gerente_general", "superadmin"].includes(perfil?.perfil) && !esEstadoFinal
   const cotAprobada = cotizaciones.find(c => c.estado === "aprobada_cliente") || cotizaciones.find(c => c.id === proyecto?.cotizacion_aprobada_id)
+  const esSuperAdmin = perfil?.perfil === "superadmin"
 
   const ecCot: any = {
     borrador: { bg: "#fef9c3", color: "#92400e" },
@@ -180,15 +193,32 @@ export default function ProyectoDetallePage() {
             <span style={{ fontSize: 12, color: "#4b5563" }}>{proyecto?.codigo}</span>
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>{proyecto?.nombre}</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-            {proyecto?.cliente?.razon_social}
-            {proyecto?.productor && <span style={{ marginLeft: 8, color: "#9ca3af" }}>· Productor: {proyecto.productor.nombre} {proyecto.productor.apellido}</span>}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>{proyecto?.cliente?.razon_social}</span>
+            {proyecto?.productor && <span style={{ color: "#9ca3af", fontSize: 13 }}>· Productor: {proyecto.productor.nombre} {proyecto.productor.apellido}</span>}
             {cotAprobada && (
-              <span style={{ marginLeft: 8, background: "#dcfce7", color: "#15803d", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>
+              <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>
                 ✓ V{cotAprobada.version} aprobada
               </span>
             )}
-          </p>
+            {/* Selector de entidad */}
+            {editandoEntidad ? (
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {ENTIDADES.map(e => (
+                  <button key={e.value} onClick={() => cambiarEntidad(e.value)}
+                    style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, border: proyecto?.entidad === e.value ? "2px solid #0F6E56" : "1px solid #e5e7eb", background: proyecto?.entidad === e.value ? "#f0fdf4" : "#fff", color: proyecto?.entidad === e.value ? "#0F6E56" : "#6b7280", cursor: "pointer", fontWeight: proyecto?.entidad === e.value ? 700 : 400 }}>
+                    {e.label}
+                  </button>
+                ))}
+                <button onClick={() => setEditandoEntidad(false)} style={{ fontSize: 11, color: "#9ca3af", background: "none", border: "none", cursor: "pointer" }}>×</button>
+              </div>
+            ) : (
+              <button onClick={() => setEditandoEntidad(true)}
+                style={{ fontSize: 11, background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 99, padding: "2px 8px", cursor: "pointer" }}>
+                🏢 {ENTIDADES.find(e => e.value === proyecto?.entidad)?.label || proyecto?.entidad || "Sin entidad"}
+              </button>
+            )}
+          </div>
         </div>
         <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
           style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#fff", color: "#0F6E56", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -267,7 +297,6 @@ export default function ProyectoDetallePage() {
             </div>
           )}
 
-          {/* Selector de versión a aprobar — solo cuando está en estado "aprobado" y va a iniciar */}
           {puedeAvanzar && proyecto?.estado === "aprobado" && cotizaciones.length > 0 && (
             <div style={{ marginTop: 12, padding: "12px 16px", background: "#f0fdf4", border: "1px solid #1D9E75", borderRadius: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#0F6E56", marginBottom: 8 }}>
@@ -275,14 +304,12 @@ export default function ProyectoDetallePage() {
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {cotizaciones.map((cot: any) => (
-                  <button key={cot.id} type="button"
-                    onClick={() => setVersionAprobar(cot.id)}
+                  <button key={cot.id} type="button" onClick={() => setVersionAprobar(cot.id)}
                     style={{
                       padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: versionAprobar === cot.id ? 700 : 400,
                       border: versionAprobar === cot.id ? "2px solid #0F6E56" : "1px solid #e5e7eb",
                       background: versionAprobar === cot.id ? "#dcfce7" : "#fff",
-                      color: versionAprobar === cot.id ? "#15803d" : "#374151",
-                      cursor: "pointer",
+                      color: versionAprobar === cot.id ? "#15803d" : "#374151", cursor: "pointer",
                     }}>
                     V{cot.version}
                     {cot.total_cliente > 0 && <span style={{ marginLeft: 6, fontSize: 11, color: versionAprobar === cot.id ? "#15803d" : "#9ca3af" }}>{fmt(cot.total_cliente)}</span>}
@@ -295,9 +322,7 @@ export default function ProyectoDetallePage() {
 
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             {puedeAvanzar && estadoInfo.siguiente && (
-              <button
-                onClick={() => cambiarEstado(estadoInfo.siguiente)}
-                disabled={cambiando || (proyecto?.estado === "aprobado" && !versionAprobar)}
+              <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando || (proyecto?.estado === "aprobado" && !versionAprobar)}
                 style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado" && !versionAprobar) ? 0.5 : 1 }}>
                 {cambiando ? "..." : estadoInfo.accion}
               </button>
@@ -332,7 +357,7 @@ export default function ProyectoDetallePage() {
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MARGEN</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONDICIÓN PAGO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>HISTORIAL</th>
-                <th style={{ padding: "10px 20px", width: 160 }}></th>
+                <th style={{ padding: "10px 20px", width: 180 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -344,9 +369,7 @@ export default function ProyectoDetallePage() {
                     <td style={{ padding: "12px 20px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>V{cot.version}</span>
-                        {esAprobada && (
-                          <span style={{ fontSize: 10, background: "#dcfce7", color: "#15803d", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>✓ Aprobada</span>
-                        )}
+                        {esAprobada && <span style={{ fontSize: 10, background: "#dcfce7", color: "#15803d", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>✓ Aprobada</span>}
                       </div>
                     </td>
                     <td style={{ padding: "12px" }}>
@@ -383,6 +406,12 @@ export default function ProyectoDetallePage() {
                         <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>
                           Preview
                         </button>
+                        {esSuperAdmin && !esAprobada && (
+                          <button onClick={() => eliminarVersion(cot.id, cot.version)}
+                            style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
+                            Borrar
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

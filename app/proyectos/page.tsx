@@ -18,8 +18,10 @@ const ESTADO_LABEL: Record<string, string> = {
 
 export default function ProyectosPage() {
   const [proyectos, setProyectos] = useState<any[]>([])
+  const [eliminados, setEliminados] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [eliminando, setEliminando] = useState<string | null>(null)
+  const [showEliminados, setShowEliminados] = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
@@ -29,40 +31,87 @@ export default function ProyectosPage() {
     const { data } = await supabase
       .from("proyectos")
       .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente)")
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
     setProyectos(data || [])
+
+    // Proyectos eliminados en los últimos 2 días
+    const hace2dias = new Date()
+    hace2dias.setDate(hace2dias.getDate() - 2)
+    const { data: elim } = await supabase
+      .from("proyectos")
+      .select("*, cliente:clientes(razon_social)")
+      .not("deleted_at", "is", null)
+      .gte("deleted_at", hace2dias.toISOString())
+      .order("deleted_at", { ascending: false })
+    setEliminados(elim || [])
     setLoading(false)
   }
 
   async function eliminar(id: string, nombre: string) {
-    if (!confirm("¿Eliminar el proyecto " + nombre + "? Esta acción no se puede deshacer.")) return
+    if (!confirm("¿Eliminar el proyecto " + nombre + "? Podrás recuperarlo en los próximos 2 días.")) return
     setEliminando(id)
-    const { data: cots } = await supabase.from("cotizaciones").select("id").eq("proyecto_id", id)
-    if (cots && cots.length > 0) {
-      await supabase.from("cotizacion_items").delete().in("cotizacion_id", cots.map((c: any) => c.id))
-      await supabase.from("cotizaciones").delete().eq("proyecto_id", id)
-    }
-    await supabase.from("proyectos").delete().eq("id", id)
+    await supabase.from("proyectos").update({ deleted_at: new Date().toISOString() }).eq("id", id)
     setEliminando(null)
     load()
   }
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  async function recuperar(id: string) {
+    await supabase.from("proyectos").update({ deleted_at: null }).eq("id", id)
+    load()
+  }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Proyectos</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{proyectos.length} proyectos</p>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+            {proyectos.length} proyectos
+            {eliminados.length > 0 && (
+              <button onClick={() => setShowEliminados(!showEliminados)}
+                style={{ marginLeft: 12, fontSize: 12, color: "#dc2626", background: "#fee2e2", border: "none", borderRadius: 99, padding: "2px 8px", cursor: "pointer" }}>
+                🗑 {eliminados.length} eliminado{eliminados.length > 1 ? "s" : ""} (recuperables)
+              </button>
+            )}
+          </p>
         </div>
         <ImportExport modulo="proyectos" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"descripcion_requerimiento",label:"Descripcion"},{key:"presupuesto_referencial",label:"Presupuesto"},{key:"fecha_limite_cotizacion",label:"Fecha limite cotizacion"},{key:"fecha_inicio",label:"Fecha ejecucion"},{key:"fecha_fin_estimada",label:"Fecha fin estimada"}]} datos={proyectos} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proyectos").insert({...r,entidad:"peru",estado:"pendiente_aprobacion"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
         <button onClick={() => router.push("/proyectos/nuevo")} className="btn-primary" style={{ fontSize: 13 }}>
           + Nuevo proyecto
         </button>
       </div>
+
+      {/* Panel de eliminados recuperables */}
+      {showEliminados && eliminados.length > 0 && (
+        <div style={{ marginBottom: 20, background: "#fff8f8", border: "1px solid #fecaca", borderRadius: 10, padding: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#dc2626", marginBottom: 12 }}>
+            🗑 Proyectos eliminados — recuperables por 2 días
+          </div>
+          {eliminados.map(p => {
+            const eliminadoHace = Math.floor((Date.now() - new Date(p.deleted_at).getTime()) / (1000 * 60 * 60))
+            const horasRestantes = 48 - eliminadoHace
+            return (
+              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #fee2e2" }}>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{p.nombre}</span>
+                  <span style={{ fontSize: 11, color: "#9ca3af", marginLeft: 8 }}>{p.cliente?.razon_social}</span>
+                  <span style={{ fontSize: 11, color: "#dc2626", marginLeft: 8 }}>Expira en {horasRestantes}h</span>
+                </div>
+                <button onClick={() => recuperar(p.id)}
+                  style={{ fontSize: 12, padding: "4px 12px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontWeight: 600 }}>
+                  Recuperar
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {proyectos.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay proyectos aún</div>
