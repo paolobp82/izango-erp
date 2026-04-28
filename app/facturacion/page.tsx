@@ -22,6 +22,7 @@ export default function FacturacionPage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState<any>(null)
+  const [filtroEstado, setFiltroEstado] = useState("todos")
   const [form, setForm] = useState({
     proyecto_id: "", numero_factura: "", estado: "pendiente",
     subtotal: "", igv: "18",
@@ -78,7 +79,7 @@ export default function FacturacionPage() {
       banco_receptor: form.banco_receptor || null,
       fecha_emision: form.fecha_emision || null,
       fecha_abono: form.fecha_abono || null,
-        link_reporte: form.link_reporte || null,
+      link_reporte: form.link_reporte || null,
     })
     await enviarAlerta("proyecto_facturacion", { nombre: proyectos.find((p:any) => p.id === form.proyecto_id)?.nombre || "—", codigo: proyectos.find((p:any) => p.id === form.proyecto_id)?.codigo || "—", cliente: "—" })
     await registrarAccion({ accion: "crear", modulo: "facturacion", entidad_tipo: "factura", descripcion: "Factura creada: " + form.numero_factura })
@@ -88,9 +89,9 @@ export default function FacturacionPage() {
     load()
   }
 
-async function cambiarEstado(id: string, estado: string) {
+  async function cambiarEstado(id: string, estado: string) {
     await supabase.from("facturas").update({ estado }).eq("id", id)
-    // Si la factura se marca como cobrada → el proyecto pasa a "Pagado" (cancelado)
+    // Si cobrada → proyecto pasa a Pagado
     if (estado === "cobrada") {
       const factura = facturas.find(f => f.id === id)
       if (factura?.proyecto_id) {
@@ -106,9 +107,19 @@ async function cambiarEstado(id: string, estado: string) {
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const m = calcularMontos()
 
-  const totalEmitido = facturas.filter(f => f.estado !== "anulada").reduce((s, f) => s + (f.subtotal + f.igv || 0), 0)
+  // Facturas filtradas
+  const facturasFiltradas = facturas.filter(f => filtroEstado === "todos" || f.estado === filtroEstado)
+
+  // Totales globales (sin filtro)
+  const totalEmitido = facturas.filter(f => f.estado !== "anulada").reduce((s, f) => s + ((f.subtotal || 0) + (f.igv || 0)), 0)
   const totalCobrado = facturas.filter(f => f.estado === "cobrada").reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
   const totalPendiente = facturas.filter(f => f.estado === "emitida").reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
+  const totalDetracciones = facturas.filter(f => f.estado !== "anulada").reduce((s, f) => s + (f.detraccion_monto || 0), 0)
+
+  // Totales filtrados
+  const totalFiltradoFactura = facturasFiltradas.filter(f => f.estado !== "anulada").reduce((s, f) => s + ((f.subtotal || 0) + (f.igv || 0)), 0)
+  const totalFiltradoAbonado = facturasFiltradas.filter(f => f.estado !== "anulada").reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
+  const totalFiltradoDetraccion = facturasFiltradas.filter(f => f.estado !== "anulada").reduce((s, f) => s + (f.detraccion_monto || 0), 0)
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -120,20 +131,35 @@ async function cambiarEstado(id: string, estado: string) {
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{facturas.length} facturas registradas</p>
         </div>
         <ImportExport modulo="facturas" campos={[{key:"numero_factura",label:"N factura",requerido:true},{key:"subtotal",label:"Subtotal"},{key:"detraccion_pct",label:"Detraccion %"},{key:"retencion_pct",label:"Retencion %"},{key:"banco_receptor",label:"Banco"},{key:"fecha_emision",label:"Fecha emision"},{key:"fecha_abono",label:"Fecha abono"}]} datos={facturas} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("facturas").insert({...r,estado:"pendiente",igv:(Number(r.subtotal)||0)*0.18,monto_final_abonado:Number(r.subtotal)||0}); if(error)errores.push(r.numero_factura+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
-          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva factura</button>
+        <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva factura</button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+      {/* Cards resumen global */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         {[
           { label: "Total emitido", value: fmt(totalEmitido), color: "#1e40af", bg: "#dbeafe" },
           { label: "Por cobrar", value: fmt(totalPendiente), color: "#92400e", bg: "#fef9c3" },
           { label: "Cobrado", value: fmt(totalCobrado), color: "#15803d", bg: "#dcfce7" },
+          { label: "Total detracciones", value: fmt(totalDetracciones), color: "#6d28d9", bg: "#f5f3ff" },
         ].map(t => (
           <div key={t.label} className="card" style={{ background: t.bg, border: "none" }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: t.color, textTransform: "uppercase", marginBottom: 4 }}>{t.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: t.color }}>{t.value}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: t.color }}>{t.value}</div>
           </div>
         ))}
+      </div>
+
+      {/* Filtro por estado */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
+        <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
+          <option value="todos">Todos los estados</option>
+          {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        {filtroEstado !== "todos" && (
+          <span style={{ fontSize: 12, color: "#6b7280" }}>
+            {facturasFiltradas.length} facturas · Total: <strong>{fmt(totalFiltradoFactura)}</strong> · A abonar: <strong>{fmt(totalFiltradoAbonado)}</strong> · Detracciones: <strong style={{ color: "#6d28d9" }}>{fmt(totalFiltradoDetraccion)}</strong>
+          </span>
+        )}
       </div>
 
       {showForm && (
@@ -151,20 +177,17 @@ async function cambiarEstado(id: string, estado: string) {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>N° FACTURA *</label>
-                  <input style={inp} value={form.numero_factura} placeholder="F001-00001"
-                    onChange={e => setForm({ ...form, numero_factura: e.target.value })} />
+                  <input style={inp} value={form.numero_factura} placeholder="F001-00001" onChange={e => setForm({ ...form, numero_factura: e.target.value })} />
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>SUBTOTAL S/ *</label>
-                  <input type="number" style={inp} value={form.subtotal} placeholder="0.00"
-                    onChange={e => setForm({ ...form, subtotal: e.target.value })} />
+                  <input type="number" style={inp} value={form.subtotal} placeholder="0.00" onChange={e => setForm({ ...form, subtotal: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>IGV %</label>
-                  <input type="number" style={inp} value={form.igv}
-                    onChange={e => setForm({ ...form, igv: e.target.value })} />
+                  <input type="number" style={inp} value={form.igv} onChange={e => setForm({ ...form, igv: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>ESTADO</label>
@@ -176,25 +199,21 @@ async function cambiarEstado(id: string, estado: string) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>DETRACCIÓN %</label>
-                  <input type="number" style={inp} value={form.detraccion_pct}
-                    onChange={e => setForm({ ...form, detraccion_pct: e.target.value })} />
+                  <input type="number" style={inp} value={form.detraccion_pct} onChange={e => setForm({ ...form, detraccion_pct: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>RETENCIÓN %</label>
-                  <input type="number" style={inp} value={form.retencion_pct}
-                    onChange={e => setForm({ ...form, retencion_pct: e.target.value })} />
+                  <input type="number" style={inp} value={form.retencion_pct} onChange={e => setForm({ ...form, retencion_pct: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>PRONTO PAGO %</label>
-                  <input type="number" style={inp} value={form.pronto_pago_pct}
-                    onChange={e => setForm({ ...form, pronto_pago_pct: e.target.value })} />
+                  <input type="number" style={inp} value={form.pronto_pago_pct} onChange={e => setForm({ ...form, pronto_pago_pct: e.target.value })} />
                 </div>
               </div>
               {Number(form.pronto_pago_pct) > 0 && (
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>ENTIDAD PRONTO PAGO</label>
-                  <input style={inp} value={form.pronto_pago_entidad} placeholder="Nombre de la entidad"
-                    onChange={e => setForm({ ...form, pronto_pago_entidad: e.target.value })} />
+                  <input style={inp} value={form.pronto_pago_entidad} placeholder="Nombre de la entidad" onChange={e => setForm({ ...form, pronto_pago_entidad: e.target.value })} />
                 </div>
               )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -207,19 +226,16 @@ async function cambiarEstado(id: string, estado: string) {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>FECHA EMISIÓN</label>
-                  <input type="date" style={inp} value={form.fecha_emision}
-                    onChange={e => setForm({ ...form, fecha_emision: e.target.value })} />
+                  <input type="date" style={inp} value={form.fecha_emision} onChange={e => setForm({ ...form, fecha_emision: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>FECHA ABONO</label>
-                  <input type="date" style={inp} value={form.fecha_abono}
-                    onChange={e => setForm({ ...form, fecha_abono: e.target.value })} />
+                  <input type="date" style={inp} value={form.fecha_abono} onChange={e => setForm({ ...form, fecha_abono: e.target.value })} />
                 </div>
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>LINK REPORTE GOOGLE DRIVE</label>
-                <input style={inp} value={form.link_reporte || ""} placeholder="https://drive.google.com/..."
-                  onChange={e => setForm({ ...form, link_reporte: e.target.value })} />
+                <input style={inp} value={form.link_reporte || ""} placeholder="https://drive.google.com/..." onChange={e => setForm({ ...form, link_reporte: e.target.value })} />
               </div>
               {Number(form.subtotal) > 0 && (
                 <div style={{ background: "#f0fdf4", border: "1px solid #1D9E75", borderRadius: 8, padding: 12 }}>
@@ -227,16 +243,16 @@ async function cambiarEstado(id: string, estado: string) {
                   <div style={{ display: "grid", gap: 4 }}>
                     {[
                       { label: "Subtotal", value: fmt(m.subtotal) },
-                      { label: "IGV (" + form.igv + "%)", value: fmt(m.igvMonto) },
+                      { label: `IGV (${form.igv}%)`, value: fmt(m.igvMonto) },
                       { label: "Total factura", value: fmt(m.total), bold: true },
-                      ...(m.detraccionMonto > 0 ? [{ label: "Detracción (" + form.detraccion_pct + "%)", value: "- " + fmt(m.detraccionMonto) }] : []),
-                      ...(m.retencionMonto > 0 ? [{ label: "Retención (" + form.retencion_pct + "%)", value: "- " + fmt(m.retencionMonto) }] : []),
-                      ...(m.prontoPagoMonto > 0 ? [{ label: "Pronto pago (" + form.pronto_pago_pct + "%)", value: "- " + fmt(m.prontoPagoMonto) }] : []),
+                      ...(m.detraccionMonto > 0 ? [{ label: `Detracción (${form.detraccion_pct}%)`, value: "- " + fmt(m.detraccionMonto), highlight: "#6d28d9" }] : []),
+                      ...(m.retencionMonto > 0 ? [{ label: `Retención (${form.retencion_pct}%)`, value: "- " + fmt(m.retencionMonto) }] : []),
+                      ...(m.prontoPagoMonto > 0 ? [{ label: `Pronto pago (${form.pronto_pago_pct}%)`, value: "- " + fmt(m.prontoPagoMonto) }] : []),
                       { label: "Monto a abonar", value: fmt(m.montoFinal), bold: true, color: "#0F6E56" },
-                    ].map(r => (
+                    ].map((r: any) => (
                       <div key={r.label} style={{ display: "flex", justifyContent: "space-between" }}>
                         <span style={{ fontSize: 12, color: "#6b7280" }}>{r.label}</span>
-                        <span style={{ fontSize: 12, fontWeight: (r as any).bold ? 700 : 400, color: (r as any).color || "#374151" }}>{r.value}</span>
+                        <span style={{ fontSize: 12, fontWeight: r.bold ? 700 : 400, color: r.color || r.highlight || "#374151" }}>{r.value}</span>
                       </div>
                     ))}
                   </div>
@@ -254,7 +270,7 @@ async function cambiarEstado(id: string, estado: string) {
       )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {facturas.length === 0 ? (
+        {facturasFiltradas.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay facturas registradas</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -264,6 +280,7 @@ async function cambiarEstado(id: string, estado: string) {
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TOTAL</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6d28d9" }}>DETRACCIÓN</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>A ABONAR</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>EMISIÓN</th>
@@ -272,7 +289,7 @@ async function cambiarEstado(id: string, estado: string) {
               </tr>
             </thead>
             <tbody>
-              {facturas.map((f, idx) => {
+              {facturasFiltradas.map((f, idx) => {
                 const ec = ESTADOS[f.estado] || { bg: "#f3f4f6", color: "#6b7280", label: f.estado }
                 const total = (f.subtotal || 0) + (f.igv || 0)
                 return (
@@ -284,13 +301,23 @@ async function cambiarEstado(id: string, estado: string) {
                     </td>
                     <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{f.proyecto?.cliente?.razon_social || "—"}</td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: "#374151" }}>{fmt(total)}</td>
+                    <td style={{ padding: "12px", textAlign: "right" }}>
+                      {f.detraccion_monto > 0 ? (
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#6d28d9" }}>- {fmt(f.detraccion_monto)}</div>
+                          <div style={{ fontSize: 10, color: "#9ca3af" }}>{f.detraccion_pct}%</div>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 12, color: "#d1d5db" }}>—</span>
+                      )}
+                    </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{fmt(f.monto_final_abonado)}</td>
                     <td style={{ padding: "12px" }}>
                       <span style={{ background: ec.bg, color: ec.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{ec.label}</span>
                     </td>
                     <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{f.fecha_emision || "—"}</td>
                     <td style={{ padding: "12px" }}>
-                      {f.link_reporte ? <a href={f.link_reporte} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#0F6E56", fontWeight: 600 }}>📁 Ver reporte</a> : <span style={{ fontSize: 12, color: "#9ca3af" }}>—</span>}
+                      {f.link_reporte ? <a href={f.link_reporte} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#0F6E56", fontWeight: 600 }}>📁 Ver</a> : <span style={{ fontSize: 12, color: "#9ca3af" }}>—</span>}
                     </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
                       <select style={{ padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: "#fff", cursor: "pointer" }}
@@ -302,6 +329,18 @@ async function cambiarEstado(id: string, estado: string) {
                 )
               })}
             </tbody>
+            {/* Footer con totales filtrados */}
+            <tfoot>
+              <tr style={{ background: "#f9fafb", borderTop: "2px solid #e5e7eb" }}>
+                <td colSpan={3} style={{ padding: "10px 20px", fontSize: 12, fontWeight: 700, color: "#374151" }}>
+                  TOTALES {filtroEstado !== "todos" ? `(${ESTADOS[filtroEstado]?.label})` : "(todos)"}
+                </td>
+                <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#374151" }}>{fmt(totalFiltradoFactura)}</td>
+                <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#6d28d9" }}>- {fmt(totalFiltradoDetraccion)}</td>
+                <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#0F6E56" }}>{fmt(totalFiltradoAbonado)}</td>
+                <td colSpan={4}></td>
+              </tr>
+            </tfoot>
           </table>
         )}
       </div>
