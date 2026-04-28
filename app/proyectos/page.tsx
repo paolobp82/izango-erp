@@ -16,6 +16,11 @@ const ESTADO_LABEL: Record<string, string> = {
   rechazado: "Rechazado",
 }
 
+const ENTIDAD_LABEL: Record<string, string> = {
+  peru: "Izango Peru",
+  selva: "Izango Selva",
+}
+
 export default function ProyectosPage() {
   const [proyectos, setProyectos] = useState<any[]>([])
   const [eliminados, setEliminados] = useState<any[]>([])
@@ -34,8 +39,6 @@ export default function ProyectosPage() {
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
     setProyectos(data || [])
-
-    // Proyectos eliminados en los últimos 2 días
     const hace2dias = new Date()
     hace2dias.setDate(hace2dias.getDate() - 2)
     const { data: elim } = await supabase
@@ -81,17 +84,12 @@ export default function ProyectosPage() {
           </p>
         </div>
         <ImportExport modulo="proyectos" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"descripcion_requerimiento",label:"Descripcion"},{key:"presupuesto_referencial",label:"Presupuesto"},{key:"fecha_limite_cotizacion",label:"Fecha limite cotizacion"},{key:"fecha_inicio",label:"Fecha ejecucion"},{key:"fecha_fin_estimada",label:"Fecha fin estimada"}]} datos={proyectos} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proyectos").insert({...r,entidad:"peru",estado:"pendiente_aprobacion"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
-        <button onClick={() => router.push("/proyectos/nuevo")} className="btn-primary" style={{ fontSize: 13 }}>
-          + Nuevo proyecto
-        </button>
+        <button onClick={() => router.push("/proyectos/nuevo")} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proyecto</button>
       </div>
 
-      {/* Panel de eliminados recuperables */}
       {showEliminados && eliminados.length > 0 && (
         <div style={{ marginBottom: 20, background: "#fff8f8", border: "1px solid #fecaca", borderRadius: 10, padding: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#dc2626", marginBottom: 12 }}>
-            🗑 Proyectos eliminados — recuperables por 2 días
-          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#dc2626", marginBottom: 12 }}>🗑 Proyectos eliminados — recuperables por 2 días</div>
           {eliminados.map(p => {
             const eliminadoHace = Math.floor((Date.now() - new Date(p.deleted_at).getTime()) / (1000 * 60 * 60))
             const horasRestantes = 48 - eliminadoHace
@@ -121,6 +119,7 @@ export default function ProyectosPage() {
               <tr style={{ background: "#f9fafb" }}>
                 <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CÓDIGO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ENTIDAD</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRODUCTOR</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
@@ -149,6 +148,11 @@ export default function ProyectosPage() {
                     <td style={{ padding: "12px" }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{p.nombre}</div>
                     </td>
+                    <td style={{ padding: "12px" }}>
+                      <span style={{ fontSize: 11, background: p.entidad === "selva" ? "#fef9c3" : "#dbeafe", color: p.entidad === "selva" ? "#92400e" : "#1e40af", padding: "2px 8px", borderRadius: 99, fontWeight: 600 }}>
+                        {ENTIDAD_LABEL[p.entidad] || p.entidad || "—"}
+                      </span>
+                    </td>
                     <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{p.cliente?.razon_social || "—"}</td>
                     <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{prod}</td>
                     <td style={{ padding: "12px" }}>
@@ -159,18 +163,10 @@ export default function ProyectosPage() {
                     <td style={{ padding: "12px" }}>
                       {p.cotizacion_aprobada ? (
                         <div>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "2px 8px", borderRadius: 99 }}>
-                            ✓ V{p.cotizacion_aprobada.version}
-                          </span>
-                          {p.cotizacion_aprobada.total_cliente > 0 && (
-                            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-                              {fmt(p.cotizacion_aprobada.total_cliente)}
-                            </div>
-                          )}
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "2px 8px", borderRadius: 99 }}>✓ V{p.cotizacion_aprobada.version}</span>
+                          {p.cotizacion_aprobada.total_cliente > 0 && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{fmt(p.cotizacion_aprobada.total_cliente)}</div>}
                         </div>
-                      ) : (
-                        <span style={{ fontSize: 11, color: "#d1d5db" }}>—</span>
-                      )}
+                      ) : <span style={{ fontSize: 11, color: "#d1d5db" }}>—</span>}
                     </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

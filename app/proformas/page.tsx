@@ -20,22 +20,17 @@ export default function ProformasPage() {
   const [loading, setLoading] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState("")
   const [filtroCliente, setFiltroCliente] = useState("")
+  const [filtroEntidad, setFiltroEntidad] = useState("")
   const [busqueda, setBusqueda] = useState("")
   const [clientes, setClientes] = useState<any[]>([])
-  const [debugInfo, setDebugInfo] = useState("")
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("cotizaciones")
-      .select("*, proyecto:proyectos!proyecto_id(id, nombre, codigo, cliente:clientes!cliente_id(id, razon_social))")
+      .select("*, proyecto:proyectos!proyecto_id(id, nombre, codigo, entidad, cliente:clientes!cliente_id(id, razon_social))")
       .order("created_at", { ascending: false })
-
-    console.log("COTIZACIONES DATA:", data)
-    console.log("COTIZACIONES ERROR:", error)
-    setDebugInfo(`Registros: ${data?.length ?? 0} | Error: ${error?.message ?? "ninguno"}`)
-
     setCotizaciones(data || [])
     const clientesUnicos = Array.from(
       new Map((data || []).map((c: any) => [c.proyecto?.cliente?.id, c.proyecto?.cliente] as [string, any]).filter(([k]) => k)).values()
@@ -49,6 +44,7 @@ export default function ProformasPage() {
   const filtradas = cotizaciones.filter(c => {
     if (filtroEstado && c.estado !== filtroEstado) return false
     if (filtroCliente && c.proyecto?.cliente?.id !== filtroCliente) return false
+    if (filtroEntidad && c.proyecto?.entidad !== filtroEntidad) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
       if (!c.proyecto?.nombre?.toLowerCase().includes(q) &&
@@ -70,7 +66,6 @@ export default function ProformasPage() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Proformas</h1>
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{cotizaciones.length} proformas en total</p>
-          {debugInfo && <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{debugInfo}</p>}
         </div>
       </div>
 
@@ -103,12 +98,18 @@ export default function ProformasPage() {
             {Object.entries(ESTADO_COT).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
           <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
+            value={filtroEntidad} onChange={e => setFiltroEntidad(e.target.value)}>
+            <option value="">Todas las entidades</option>
+            <option value="peru">Izango Peru</option>
+            <option value="selva">Izango Selva</option>
+          </select>
+          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
             value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}>
             <option value="">Todos los clientes</option>
             {clientes.map((c: any) => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
           </select>
-          {(filtroEstado || filtroCliente || busqueda) && (
-            <button onClick={() => { setFiltroEstado(""); setFiltroCliente(""); setBusqueda("") }}
+          {(filtroEstado || filtroCliente || filtroEntidad || busqueda) && (
+            <button onClick={() => { setFiltroEstado(""); setFiltroCliente(""); setFiltroEntidad(""); setBusqueda("") }}
               style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
               Limpiar filtros
             </button>
@@ -122,6 +123,7 @@ export default function ProformasPage() {
           <thead>
             <tr style={{ background: "#f9fafb" }}>
               <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
+              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ENTIDAD</th>
               <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
               <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>VERSION</th>
               <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
@@ -133,15 +135,21 @@ export default function ProformasPage() {
           </thead>
           <tbody>
             {filtradas.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay proformas</td></tr>
+              <tr><td colSpan={9} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay proformas</td></tr>
             ) : (
               filtradas.map((cot, idx) => {
                 const ec = ESTADO_COT[cot.estado] || { bg: "#f3f4f6", color: "#6b7280", label: cot.estado }
+                const entidad = cot.proyecto?.entidad
                 return (
                   <tr key={cot.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                     <td style={{ padding: "12px 20px" }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{cot.proyecto?.nombre}</div>
                       <div style={{ fontSize: 11, color: "#9ca3af" }}>{cot.proyecto?.codigo}</div>
+                    </td>
+                    <td style={{ padding: "12px" }}>
+                      <span style={{ fontSize: 11, background: entidad === "selva" ? "#fef9c3" : "#dbeafe", color: entidad === "selva" ? "#92400e" : "#1e40af", padding: "2px 8px", borderRadius: 99, fontWeight: 600 }}>
+                        {entidad === "selva" ? "Izango Selva" : "Izango Peru"}
+                      </span>
                     </td>
                     <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{cot.proyecto?.cliente?.razon_social || "—"}</td>
                     <td style={{ padding: "12px", textAlign: "center", fontWeight: 700, fontSize: 14, color: "#374151" }}>V{cot.version}</td>
