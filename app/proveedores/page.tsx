@@ -37,10 +37,14 @@ export default function ProveedoresPage() {
   const [comentarioPendiente, setComentarioPendiente] = useState("")
   const [savingRating, setSavingRating] = useState(false)
   const [historialCalificaciones, setHistorialCalificaciones] = useState<any[]>([])
+  const [filtroCategoria, setFiltroCategoria] = useState("")
+  const [filtroTipoPago, setFiltroTipoPago] = useState("")
+  const [filtroRating, setFiltroRating] = useState("")
+  const [busqueda, setBusqueda] = useState("")
   const [form, setForm] = useState({
     nombre: "", ruc: "", categoria: "produccion", tipo_pago: "contado",
-    nombre_contacto: "", email_contacto: "", telefono_contacto: "",
-    nombre_contacto_admin: "", email_contacto_admin: "", telefono_contacto_admin: "",
+    nombre_contacto: "", apellido_contacto: "", email_contacto: "", telefono_contacto: "",
+    nombre_contacto_admin: "", apellido_contacto_admin: "", email_contacto_admin: "", telefono_contacto_admin: "",
     banco: "", tipo_cuenta: "", numero_cuenta: "", cuenta_interbancaria: "",
     banco_2: "", tipo_cuenta_2: "", numero_cuenta_2: "", cci_2: "",
     cuenta_detraccion: "", tipo_pago_transferencia: "Transferencia bancaria",
@@ -83,7 +87,7 @@ export default function ProveedoresPage() {
     setCalificacionPendiente(null)
     setComentarioPendiente("")
     setHistorialCalificaciones([])
-    setForm({ nombre: "", ruc: "", categoria: "produccion", tipo_pago: "contado", nombre_contacto: "", email_contacto: "", telefono_contacto: "", nombre_contacto_admin: "", email_contacto_admin: "", telefono_contacto_admin: "", banco: "", tipo_cuenta: "", numero_cuenta: "", cuenta_interbancaria: "", banco_2: "", tipo_cuenta_2: "", numero_cuenta_2: "", cci_2: "", cuenta_detraccion: "", tipo_pago_transferencia: "Transferencia bancaria" })
+    setForm({ nombre: "", ruc: "", categoria: "produccion", tipo_pago: "contado", nombre_contacto: "", apellido_contacto: "", email_contacto: "", telefono_contacto: "", nombre_contacto_admin: "", apellido_contacto_admin: "", email_contacto_admin: "", telefono_contacto_admin: "", banco: "", tipo_cuenta: "", numero_cuenta: "", cuenta_interbancaria: "", banco_2: "", tipo_cuenta_2: "", numero_cuenta_2: "", cci_2: "", cuenta_detraccion: "", tipo_pago_transferencia: "Transferencia bancaria" })
     setShowForm(true)
   }
 
@@ -96,8 +100,9 @@ export default function ProveedoresPage() {
     setForm({
       nombre: prov.nombre || "", ruc: prov.ruc || "", categoria: prov.categoria || "produccion",
       tipo_pago: prov.tipo_pago || "contado",
-      nombre_contacto: prov.nombre_contacto || "", email_contacto: prov.email_contacto || "",
-      telefono_contacto: prov.telefono_contacto || "", nombre_contacto_admin: prov.nombre_contacto_admin || "",
+      nombre_contacto: prov.nombre_contacto || "", apellido_contacto: prov.apellido_contacto || "",
+      email_contacto: prov.email_contacto || "", telefono_contacto: prov.telefono_contacto || "",
+      nombre_contacto_admin: prov.nombre_contacto_admin || "", apellido_contacto_admin: prov.apellido_contacto_admin || "",
       email_contacto_admin: prov.email_contacto_admin || "", telefono_contacto_admin: prov.telefono_contacto_admin || "",
       banco: prov.banco || "", tipo_cuenta: prov.tipo_cuenta || "",
       numero_cuenta: prov.numero_cuenta || "", cuenta_interbancaria: prov.cuenta_interbancaria || "",
@@ -115,11 +120,8 @@ export default function ProveedoresPage() {
     setSavingRating(true)
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from("proveedor_calificaciones").insert({
-      proveedor_id: editando.id,
-      usuario_id: user?.id,
-      calificacion: calificacionPendiente,
-      comentario: comentarioPendiente || null,
-      origen: "ficha",
+      proveedor_id: editando.id, usuario_id: user?.id,
+      calificacion: calificacionPendiente, comentario: comentarioPendiente || null, origen: "ficha",
     })
     await loadHistorial(editando.id)
     await loadRatings(proveedores)
@@ -182,6 +184,23 @@ export default function ProveedoresPage() {
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
   const section: any = { fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 14, marginTop: 0, paddingBottom: 8, borderBottom: "1px solid #f3f4f6" }
 
+  // Filtros
+  const proveedoresFiltrados = proveedores.filter(p => {
+    if (filtroCategoria && p.categoria !== filtroCategoria) return false
+    if (filtroTipoPago && p.tipo_pago !== filtroTipoPago) return false
+    if (filtroRating) {
+      const r = ratings[p.id]?.promedio || 0
+      if (filtroRating === "4+" && r < 4) return false
+      if (filtroRating === "3+" && r < 3) return false
+      if (filtroRating === "sin" && r > 0) return false
+    }
+    if (busqueda) {
+      const q = busqueda.toLowerCase()
+      if (!p.nombre?.toLowerCase().includes(q) && !p.ruc?.includes(q)) return false
+    }
+    return true
+  })
+
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
   return (
@@ -189,10 +208,35 @@ export default function ProveedoresPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Proveedores</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{proveedores.length} proveedores registrados</p>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{proveedoresFiltrados.length} de {proveedores.length} proveedores</p>
         </div>
-        <ImportExport modulo="proveedores" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"ruc",label:"RUC"},{key:"categoria",label:"Categoria"},{key:"banco",label:"Banco"},{key:"numero_cuenta",label:"N cuenta"},{key:"cuenta_interbancaria",label:"CCI"},{key:"tipo_pago",label:"Tipo pago"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email contacto"},{key:"telefono_contacto",label:"Telefono"}]} datos={proveedores} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proveedores").insert({...r,entidad:"peru",tipo_pago:r.tipo_pago||"contado",categoria:r.categoria||"otros"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
+        <ImportExport modulo="proveedores" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"ruc",label:"RUC"},{key:"categoria",label:"Categoria"},{key:"banco",label:"Banco"},{key:"numero_cuenta",label:"N cuenta"},{key:"cuenta_interbancaria",label:"CCI"},{key:"tipo_pago",label:"Tipo pago"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"apellido_contacto",label:"Apellido contacto"},{key:"email_contacto",label:"Email contacto"},{key:"telefono_contacto",label:"Telefono"}]} datos={proveedores} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proveedores").insert({...r,entidad:"peru",tipo_pago:r.tipo_pago||"contado",categoria:r.categoria||"otros"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
         <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proveedor</button>
+      </div>
+
+      {/* Filtros */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <input style={{ ...inp, width: 200 }} placeholder="Buscar por nombre o RUC..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+        <select style={{ ...inp, width: "auto" }} value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}>
+          <option value="">Todas las categorias</option>
+          {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select style={{ ...inp, width: "auto" }} value={filtroTipoPago} onChange={e => setFiltroTipoPago(e.target.value)}>
+          <option value="">Todos los tipos de pago</option>
+          {TIPOS_PAGO.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select style={{ ...inp, width: "auto" }} value={filtroRating} onChange={e => setFiltroRating(e.target.value)}>
+          <option value="">Todos los ratings</option>
+          <option value="4+">4+ estrellas</option>
+          <option value="3+">3+ estrellas</option>
+          <option value="sin">Sin calificar</option>
+        </select>
+        {(filtroCategoria || filtroTipoPago || filtroRating || busqueda) && (
+          <button onClick={() => { setFiltroCategoria(""); setFiltroTipoPago(""); setFiltroRating(""); setBusqueda("") }}
+            style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -260,8 +304,9 @@ export default function ProveedoresPage() {
 
               <div>
                 <h3 style={section}>Contacto comercial</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                  <div><label style={lbl}>NOMBRE</label><input style={inp} value={form.nombre_contacto} placeholder="Nombre completo" onChange={e => setForm({ ...form, nombre_contacto: e.target.value })} /></div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
+                  <div><label style={lbl}>NOMBRE</label><input style={inp} value={form.nombre_contacto} placeholder="Nombre" onChange={e => setForm({ ...form, nombre_contacto: e.target.value })} /></div>
+                  <div><label style={lbl}>APELLIDO</label><input style={inp} value={form.apellido_contacto} placeholder="Apellido" onChange={e => setForm({ ...form, apellido_contacto: e.target.value })} /></div>
                   <div><label style={lbl}>EMAIL</label><input style={inp} value={form.email_contacto} placeholder="correo@empresa.com" onChange={e => setForm({ ...form, email_contacto: e.target.value })} /></div>
                   <div><label style={lbl}>TELEFONO</label><input style={inp} value={form.telefono_contacto} placeholder="9xxxxxxxx" onChange={e => setForm({ ...form, telefono_contacto: e.target.value })} /></div>
                 </div>
@@ -269,8 +314,9 @@ export default function ProveedoresPage() {
 
               <div>
                 <h3 style={section}>Contacto administracion / pagos</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                  <div><label style={lbl}>NOMBRE</label><input style={inp} value={form.nombre_contacto_admin} placeholder="Nombre completo" onChange={e => setForm({ ...form, nombre_contacto_admin: e.target.value })} /></div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
+                  <div><label style={lbl}>NOMBRE</label><input style={inp} value={form.nombre_contacto_admin} placeholder="Nombre" onChange={e => setForm({ ...form, nombre_contacto_admin: e.target.value })} /></div>
+                  <div><label style={lbl}>APELLIDO</label><input style={inp} value={form.apellido_contacto_admin} placeholder="Apellido" onChange={e => setForm({ ...form, apellido_contacto_admin: e.target.value })} /></div>
                   <div><label style={lbl}>EMAIL</label><input style={inp} value={form.email_contacto_admin} placeholder="admin@empresa.com" onChange={e => setForm({ ...form, email_contacto_admin: e.target.value })} /></div>
                   <div><label style={lbl}>TELEFONO</label><input style={inp} value={form.telefono_contacto_admin} placeholder="9xxxxxxxx" onChange={e => setForm({ ...form, telefono_contacto_admin: e.target.value })} /></div>
                 </div>
@@ -320,62 +366,34 @@ export default function ProveedoresPage() {
                 </div>
               </div>
 
-              {/* ─── SECCIÓN CALIFICACIÓN ─── */}
               {editando && (
                 <div>
-                  <h3 style={section}>Calificación del proveedor</h3>
-
-                  {/* Rating actual */}
+                  <h3 style={section}>Calificacion del proveedor</h3>
                   <div style={{ marginBottom: 16 }}>
                     <label style={lbl}>RATING ACTUAL</label>
-                    <StarRating
-                      rating={ratings[editando.id]?.promedio || 0}
-                      totalVotos={ratings[editando.id]?.total || 0}
-                      size="lg"
-                      showCount={true}
-                    />
+                    <StarRating rating={ratings[editando.id]?.promedio || 0} totalVotos={ratings[editando.id]?.total || 0} size="lg" showCount={true} />
                   </div>
-
-                  {/* Nueva calificación */}
                   <div style={{ background: "#f9fafb", borderRadius: 8, padding: 14, border: "1px solid #e5e7eb" }}>
-                    <label style={{ ...lbl, marginBottom: 8 }}>AGREGAR CALIFICACIÓN</label>
-                    <StarRating
-                      rating={calificacionPendiente || 0}
-                      onRate={(v) => setCalificacionPendiente(v)}
-                      size="lg"
-                      showCount={false}
-                    />
+                    <label style={{ ...lbl, marginBottom: 8 }}>AGREGAR CALIFICACION</label>
+                    <StarRating rating={calificacionPendiente || 0} onRate={(v) => setCalificacionPendiente(v)} size="lg" showCount={false} />
                     {calificacionPendiente && (
                       <div style={{ marginTop: 10 }}>
-                        <input
-                          style={{ ...inp, marginBottom: 8 }}
-                          placeholder="Comentario opcional..."
-                          value={comentarioPendiente}
-                          onChange={e => setComentarioPendiente(e.target.value)}
-                        />
-                        <button
-                          onClick={guardarCalificacion}
-                          disabled={savingRating}
-                          style={{ fontSize: 12, padding: "6px 14px", background: "#1D9E75", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}
-                        >
-                          {savingRating ? "Guardando..." : "Guardar calificación"}
+                        <input style={{ ...inp, marginBottom: 8 }} placeholder="Comentario opcional..." value={comentarioPendiente} onChange={e => setComentarioPendiente(e.target.value)} />
+                        <button onClick={guardarCalificacion} disabled={savingRating} style={{ fontSize: 12, padding: "6px 14px", background: "#1D9E75", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+                          {savingRating ? "Guardando..." : "Guardar calificacion"}
                         </button>
                       </div>
                     )}
                   </div>
-
-                  {/* Historial últimas 5 */}
                   {historialCalificaciones.length > 0 && (
                     <div style={{ marginTop: 12 }}>
-                      <label style={{ ...lbl, marginBottom: 8 }}>ÚLTIMAS CALIFICACIONES</label>
+                      <label style={{ ...lbl, marginBottom: 8 }}>ULTIMAS CALIFICACIONES</label>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {historialCalificaciones.map((c) => (
                           <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: "6px 10px" }}>
                             <StarRating rating={c.calificacion} size="sm" showCount={false} />
                             {c.comentario && <span style={{ fontSize: 12, color: "#374151", flex: 1 }}>{c.comentario}</span>}
-                            <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>
-                              {new Date(c.created_at).toLocaleDateString("es-PE")}
-                            </span>
+                            <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>{new Date(c.created_at).toLocaleDateString("es-PE")}</span>
                           </div>
                         ))}
                       </div>
@@ -394,8 +412,8 @@ export default function ProveedoresPage() {
       )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {proveedores.length === 0 ? (
-          <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay proveedores. Crea el primero.</div>
+        {proveedoresFiltrados.length === 0 ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay proveedores con estos filtros.</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -411,7 +429,7 @@ export default function ProveedoresPage() {
               </tr>
             </thead>
             <tbody>
-              {proveedores.map((p, idx) => (
+              {proveedoresFiltrados.map((p, idx) => (
                 <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                   <td style={{ padding: "12px 20px" }}>
                     <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{p.nombre}</div>
@@ -422,16 +440,13 @@ export default function ProveedoresPage() {
                     <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{p.categoria || "—"}</span>
                   </td>
                   <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{p.banco || "—"}</td>
-                  <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{p.nombre_contacto || "—"}</td>
+                  <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
+                    {p.nombre_contacto ? `${p.nombre_contacto}${p.apellido_contacto ? " " + p.apellido_contacto : ""}` : "—"}
+                  </td>
                   <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{p.tipo_pago || "—"}</td>
                   <td style={{ padding: "12px" }}>
                     {ratings[p.id] ? (
-                      <StarRating
-                        rating={ratings[p.id].promedio}
-                        totalVotos={ratings[p.id].total}
-                        size="sm"
-                        showCount={true}
-                      />
+                      <StarRating rating={ratings[p.id].promedio} totalVotos={ratings[p.id].total} size="sm" showCount={true} />
                     ) : (
                       <span style={{ fontSize: 11, color: "#d1d5db" }}>Sin rating</span>
                     )}
