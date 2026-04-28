@@ -6,13 +6,52 @@ import ImportExport from "@/components/ImportExport"
 import { enviarAlerta } from "@/lib/alertas"
 
 const ESTADOS: Record<string, any> = {
-  pendiente:            { bg: "#fef9c3", color: "#92400e",  label: "pendiente_aprobacion" },
+  pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e",  label: "Pendiente aprobación" },
   aprobado_produccion:  { bg: "#fed7aa", color: "#9a3412",  label: "Aprobado Producción" },
   aprobado:             { bg: "#dcfce7", color: "#15803d",  label: "Aprobado GG" },
-  programado:           { bg: "#dbeafe", color: "#1e40af",  label: "Programado" },
+  programado:           { bg: "#dbeafe", color: "#1e40af",  label: "Programado pago" },
   pagado:               { bg: "#f0fdf4", color: "#166534",  label: "Pagado" },
   rechazado:            { bg: "#fee2e2", color: "#991b1b",  label: "Rechazado" },
 }
+
+// Flujo de aprobación con roles permitidos por paso
+const FLUJO = [
+  {
+    estado: "pendiente_aprobacion",
+    label: "Creado",
+    siguiente: "aprobado_produccion",
+    accion: "Aprobar (Producción)",
+    roles: ["gerente_produccion", "gerente_general", "superadmin"],
+  },
+  {
+    estado: "aprobado_produccion",
+    label: "Aprobado Producción",
+    siguiente: "aprobado",
+    accion: "Aprobar (GG)",
+    roles: ["gerente_general", "superadmin"],
+  },
+  {
+    estado: "aprobado",
+    label: "Aprobado GG",
+    siguiente: "programado",
+    accion: "Programar pago",
+    roles: ["controller", "superadmin"],
+  },
+  {
+    estado: "programado",
+    label: "Programado pago",
+    siguiente: "pagado",
+    accion: "Confirmar pago",
+    roles: ["controller", "superadmin"],
+  },
+  {
+    estado: "pagado",
+    label: "Pagado",
+    siguiente: null,
+    accion: null,
+    roles: [],
+  },
+]
 
 export default function RQPage() {
   const supabase = createClient()
@@ -58,25 +97,32 @@ export default function RQPage() {
       }
     }
     const updates: any = { estado, ...extra }
-    if (estado === "aprobado_produccion") updates.aprobado_por = perfil?.id
-    if (estado === "aprobado") updates.aprobado_por = perfil?.id
-    if (estado === "pagado") updates.fecha_pago = extra?.fecha_pago || new Date().toISOString().split("T")[0]
+    if (["aprobado_produccion", "aprobado", "programado", "pagado"].includes(estado)) {
+      updates.aprobado_por = perfil?.id
+    }
+    if (estado === "pagado") {
+      updates.fecha_pago = extra?.fecha_pago || fechaPago || new Date().toISOString().split("T")[0]
+    }
     await supabase.from("requerimientos_pago").update(updates).eq("id", id)
+    await registrarAccion({ accion: "cambiar_estado", modulo: "rq", entidad_id: id, entidad_tipo: "rq", descripcion: "RQ cambiado a: " + estado })
     load()
-    if (selected?.id === id) setSelected({ ...selected, estado, ...updates })
+    if (selected?.id === id) setSelected((prev: any) => ({ ...prev, estado, ...updates }))
   }
 
   function getSiguienteAccion(rq: any) {
     const rol = perfil?.perfil
-    if (rq.estado === "pendiente_aprobacion" && (rol === "gerente_produccion" || rol === "gerente_general"))
-      return { label: "Aprobar (Producción)", nextEstado: "aprobado_produccion", color: "#15803d" }
-    if (rq.estado === "aprobado_produccion" && rol === "gerente_general")
-      return { label: "Aprobar (GG)", nextEstado: "aprobado", color: "#1e40af" }
-    if (rq.estado === "aprobado" && rol === "administrador")
-      return { label: "Programar pago", nextEstado: "programado", color: "#7c3aed" }
-    if (rq.estado === "programado" && rol === "administrador")
-      return { label: "Confirmar pago", nextEstado: "pagado", color: "#0F6E56" }
+    const paso = FLUJO.find(f => f.estado === rq.estado)
+    if (!paso || !paso.siguiente) return null
+    if (paso.roles.includes(rol)) {
+      return { label: paso.accion, nextEstado: paso.siguiente, color: "#0F6E56" }
+    }
     return null
+  }
+
+  function puedeRechazar(rq: any) {
+    const rol = perfil?.perfil
+    if (rq.estado === "pagado" || rq.estado === "rechazado") return false
+    return ["gerente_produccion", "gerente_general", "controller", "superadmin"].includes(rol)
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -88,7 +134,7 @@ export default function RQPage() {
   })
 
   const totalPendiente = rqs.filter(r => r.estado === "pendiente_aprobacion").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
-  const totalAprobado = rqs.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalAprobado = rqs.filter(r => ["aprobado_produccion", "aprobado"].includes(r.estado)).reduce((s, r) => s + (r.monto_solicitado || 0), 0)
   const totalProgramado = rqs.filter(r => r.estado === "programado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
   const totalPagado = rqs.filter(r => r.estado === "pagado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
 
@@ -99,10 +145,14 @@ export default function RQPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Requerimientos de pago</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{rqs.length} RQs · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}</p>
-                  </div>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+            {rqs.length} RQs · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}
+          </p>
+        </div>
         <ImportExport modulo="requerimientos" campos={[{key:"numero_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"estado",label:"Estado"}]} datos={rqs} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
       </div>
+
+      {/* Cards resumen */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         {[
           { label: "Pendientes", value: fmt(totalPendiente), color: "#92400e", bg: "#fef9c3", count: rqs.filter(r => r.estado === "pendiente_aprobacion").length },
@@ -117,6 +167,7 @@ export default function RQPage() {
         ))}
       </div>
 
+      {/* Filtros */}
       <div className="card" style={{ marginBottom: 16, padding: "12px 16px" }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
@@ -139,7 +190,8 @@ export default function RQPage() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 380px" : "1fr", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 400px" : "1fr", gap: 16 }}>
+        {/* Tabla */}
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -159,7 +211,8 @@ export default function RQPage() {
                 const ec = ESTADOS[rq.estado] || { bg: "#f3f4f6", color: "#6b7280", label: rq.estado }
                 const accion = getSiguienteAccion(rq)
                 return (
-                  <tr key={rq.id} style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === rq.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}
+                  <tr key={rq.id}
+                    style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === rq.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}
                     onClick={() => setSelected(selected?.id === rq.id ? null : rq)}>
                     <td style={{ padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#0F6E56" }}>{rq.numero_rq}</td>
                     <td style={{ padding: "12px" }}>
@@ -167,8 +220,12 @@ export default function RQPage() {
                       <div style={{ fontSize: 11, color: "#9ca3af" }}>{rq.proyecto?.nombre}</div>
                     </td>
                     <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{rq.proveedor_nombre || rq.proveedor?.nombre || "—"}</td>
-                    <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : "—"}</td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rq.descripcion || "—"}</td>
+                    <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>
+                      {rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : "—"}
+                    </td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {rq.descripcion || "—"}
+                    </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{fmt(rq.monto_solicitado)}</td>
                     <td style={{ padding: "12px" }}>
                       <span style={{ background: ec.bg, color: ec.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
@@ -187,18 +244,20 @@ export default function RQPage() {
                 )
               })}
               {filtrados.length === 0 && (
-                <tr><td colSpan={7} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay requerimientos de pago</td></tr>
+                <tr><td colSpan={8} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay requerimientos de pago</td></tr>
               )}
             </tbody>
           </table>
         </div>
 
+        {/* Panel detalle */}
         {selected && (
           <div className="card" style={{ position: "sticky", top: 20, alignSelf: "start" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{selected.numero_rq}</div>
               <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 18 }}>×</button>
             </div>
+
             <div style={{ display: "grid", gap: 12 }}>
               <div>
                 <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 2 }}>Proyecto</div>
@@ -218,37 +277,51 @@ export default function RQPage() {
                 <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 2 }}>Monto solicitado</div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: "#0F6E56" }}>{fmt(selected.monto_solicitado)}</div>
               </div>
+
+              {/* Flujo de aprobación */}
               <div style={{ background: "#f9fafb", borderRadius: 8, padding: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 8 }}>Flujo de aprobación</div>
-                {[
-                  { estado: "pendiente_aprobacion", label: "Creado", rol: "" },
-                  { estado: "aprobado_produccion", label: "Aprobado Producción", rol: "gerente_produccion" },
-                  { estado: "aprobado", label: "Aprobado GG", rol: "gerente_general" },
-                  { estado: "programado", label: "Programado pago", rol: "administrador" },
-                  { estado: "pagado", label: "Pagado", rol: "administrador" },
-                ].map((paso, i) => {
-                  const estados = ["pendiente_aprobacion","aprobado_produccion","aprobado","programado","pagado"]
-                  const idx = estados.indexOf(selected.estado)
-                  const pasoIdx = estados.indexOf(paso.estado)
-                  const completado = pasoIdx <= idx
-                  const actual = pasoIdx === idx
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>Flujo de aprobación</div>
+                {FLUJO.map((paso, i) => {
+                  const estados = FLUJO.map(f => f.estado)
+                  const idxActual = estados.indexOf(selected.estado)
+                  const pasoIdx = i
+                  const completado = pasoIdx <= idxActual
+                  const actual = pasoIdx === idxActual
+                  const rolLabel: Record<string, string> = {
+                    gerente_produccion: "Gerente Prod.",
+                    gerente_general: "Gerente General",
+                    controller: "Controller",
+                    superadmin: "Superadmin",
+                  }
+                  const rolesLabel = paso.roles.filter(r => r !== "superadmin").map(r => rolLabel[r] || r).join(", ")
                   return (
-                    <div key={paso.estado} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <div style={{ width: 20, height: 20, borderRadius: "50%", background: completado ? "#0F6E56" : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <div key={paso.estado} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: "50%", background: completado ? "#0F6E56" : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{i + 1}</span>
                       </div>
-                      <span style={{ fontSize: 12, color: actual ? "#0F6E56" : completado ? "#374151" : "#9ca3af", fontWeight: actual ? 700 : 400 }}>{paso.label}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: actual ? "#0F6E56" : completado ? "#374151" : "#9ca3af", fontWeight: actual ? 700 : 400 }}>
+                          {paso.label}
+                        </div>
+                        {rolesLabel && (
+                          <div style={{ fontSize: 10, color: "#9ca3af" }}>{rolesLabel}</div>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
               </div>
-              {selected.estado === "programado" && perfil?.perfil === "administrador" && (
+
+              {/* Fecha de pago para programar/pagar */}
+              {(selected.estado === "aprobado" || selected.estado === "programado") && getSiguienteAccion(selected) && (
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 4 }}>Fecha de pago</div>
                   <input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)}
-                    style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, width: "100%", fontFamily: "inherit" }} />
+                    style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, width: "100%", fontFamily: "inherit", outline: "none" }} />
                 </div>
               )}
+
+              {/* Botón acción principal */}
               {getSiguienteAccion(selected) && (
                 <button onClick={() => {
                   const accion = getSiguienteAccion(selected)
@@ -258,11 +331,30 @@ export default function RQPage() {
                   {getSiguienteAccion(selected)?.label}
                 </button>
               )}
-              {(perfil?.perfil === "gerente_produccion" || perfil?.perfil === "gerente_general") && selected.estado !== "rechazado" && selected.estado !== "pagado" && (
+
+              {/* Botón rechazar */}
+              {puedeRechazar(selected) && (
                 <button onClick={() => cambiarEstado(selected.id, "rechazado")}
                   style={{ padding: "8px", border: "1px solid #fee2e2", borderRadius: 8, background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>
                   Rechazar RQ
                 </button>
+              )}
+
+              {/* Info si no puede hacer nada */}
+              {!getSiguienteAccion(selected) && selected.estado !== "pagado" && selected.estado !== "rechazado" && (
+                <div style={{ padding: "8px 12px", background: "#f9fafb", borderRadius: 8, fontSize: 12, color: "#9ca3af", textAlign: "center" }}>
+                  {(() => {
+                    const paso = FLUJO.find(f => f.estado === selected.estado)
+                    if (!paso) return "Estado final"
+                    const rolLabel: Record<string, string> = {
+                      gerente_produccion: "Gerente de Producción",
+                      gerente_general: "Gerente General",
+                      controller: "Controller",
+                    }
+                    const rolesStr = paso.roles.filter(r => r !== "superadmin").map(r => rolLabel[r] || r).join(" o ")
+                    return `Requiere aprobación de: ${rolesStr}`
+                  })()}
+                </div>
               )}
             </div>
           </div>
@@ -271,9 +363,3 @@ export default function RQPage() {
     </div>
   )
 }
-
-
-
-
-
-
