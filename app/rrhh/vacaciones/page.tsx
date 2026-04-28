@@ -13,6 +13,8 @@ export default function VacacionesPage() {
   const [trabajadorPropio, setTrabajadorPropio] = useState<any>(null)
   const [filtroEstado, setFiltroEstado] = useState("")
   const [filtroTrabajador, setFiltroTrabajador] = useState("")
+  const [motivoRechazo, setMotivoRechazo] = useState("")
+  const [showRechazo, setShowRechazo] = useState<string | null>(null)
   const [form, setForm] = useState({ fecha_inicio: "", fecha_fin: "", motivo: "" })
 
   useEffect(() => { load() }, [])
@@ -34,7 +36,10 @@ export default function VacacionesPage() {
     setLoading(false)
   }
 
-  const esAdmin = perfil?.perfil === "superadmin" || perfil?.perfil === "gerente_general" || perfil?.perfil === "administrador" || perfil?.perfil === "controller"
+  // Puede VER todas las solicitudes
+  const esAdmin = ["superadmin", "gerente_general", "administrador", "controller"].includes(perfil?.perfil)
+  // Solo ESTOS pueden aprobar/rechazar
+  const puedeAprobar = ["superadmin", "gerente_general"].includes(perfil?.perfil)
 
   async function guardar() {
     if (!form.fecha_inicio || !form.fecha_fin) { alert("Fechas son obligatorias"); return }
@@ -49,9 +54,17 @@ export default function VacacionesPage() {
     load()
   }
 
-  async function cambiarEstado(id: string, estado: string, notas: string = "") {
+  async function aprobar(id: string) {
     const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from("rrhh_vacaciones").update({ estado, aprobado_por: user?.id, notas_admin: notas }).eq("id", id)
+    await supabase.from("rrhh_vacaciones").update({ estado: "aprobada", aprobado_por: user?.id, notas_admin: null }).eq("id", id)
+    load()
+  }
+
+  async function rechazar(id: string) {
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from("rrhh_vacaciones").update({ estado: "rechazada", aprobado_por: user?.id, notas_admin: motivoRechazo || null }).eq("id", id)
+    setShowRechazo(null)
+    setMotivoRechazo("")
     load()
   }
 
@@ -62,9 +75,11 @@ export default function VacacionesPage() {
     return matchEstado && matchTrab
   })
 
+  const pendientes = registros.filter(r => r.estado === "pendiente").length
+
   const ESTADO_COLOR: any = {
     pendiente: { bg: "#fef3c7", color: "#92400e" },
-    aprobada: { bg: "#d1fae5", color: "#065f46" },
+    aprobada:  { bg: "#d1fae5", color: "#065f46" },
     rechazada: { bg: "#fee2e2", color: "#dc2626" },
   }
 
@@ -78,7 +93,14 @@ export default function VacacionesPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Vacaciones</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{registrosFiltrados.length} solicitudes</p>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+            {registrosFiltrados.length} solicitudes
+            {puedeAprobar && pendientes > 0 && (
+              <span style={{ marginLeft: 8, background: "#fef3c7", color: "#92400e", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>
+                {pendientes} pendiente{pendientes > 1 ? "s" : ""} de aprobación
+              </span>
+            )}
+          </p>
         </div>
         <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Solicitar vacaciones</button>
       </div>
@@ -98,6 +120,13 @@ export default function VacacionesPage() {
         </div>
       )}
 
+      {/* Alerta para aprobadores */}
+      {puedeAprobar && pendientes > 0 && (
+        <div style={{ marginBottom: 16, padding: "10px 16px", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 8, fontSize: 13, color: "#92400e", fontWeight: 600 }}>
+          ⚠️ Hay {pendientes} solicitud{pendientes > 1 ? "es" : ""} de vacaciones esperando tu aprobación.
+        </div>
+      )}
+
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {registrosFiltrados.length === 0 ? (
           <div style={{ padding: "40px", textAlign: "center", color: "#9ca3af" }}>No hay solicitudes de vacaciones.</div>
@@ -111,6 +140,7 @@ export default function VacacionesPage() {
                 <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DÍAS</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MOTIVO</th>
                 <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>APROBADO POR</th>
                 {esAdmin && <th style={{ padding: "10px 20px", width: 160 }}></th>}
               </tr>
             </thead>
@@ -127,14 +157,26 @@ export default function VacacionesPage() {
                     <td style={{ padding: "12px", textAlign: "center" }}>
                       <span style={{ background: ec.bg, color: ec.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{r.estado}</span>
                     </td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
+                      {r.aprobador ? `${r.aprobador.nombre} ${r.aprobador.apellido}` : "—"}
+                    </td>
                     {esAdmin && (
                       <td style={{ padding: "12px 20px" }}>
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                          {r.estado === "pendiente" && (
+                          {puedeAprobar && r.estado === "pendiente" && (
                             <>
-                              <button onClick={() => cambiarEstado(r.id, "aprobada")} style={{ fontSize: 12, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Aprobar</button>
-                              <button onClick={() => cambiarEstado(r.id, "rechazada")} style={{ fontSize: 12, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>Rechazar</button>
+                              <button onClick={() => aprobar(r.id)}
+                                style={{ fontSize: 12, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer", fontWeight: 600 }}>
+                                Aprobar
+                              </button>
+                              <button onClick={() => setShowRechazo(r.id)}
+                                style={{ fontSize: 12, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
+                                Rechazar
+                              </button>
                             </>
+                          )}
+                          {!puedeAprobar && r.estado === "pendiente" && (
+                            <span style={{ fontSize: 11, color: "#9ca3af" }}>Esperando GG</span>
                           )}
                         </div>
                       </td>
@@ -147,6 +189,29 @@ export default function VacacionesPage() {
         )}
       </div>
 
+      {/* Modal rechazo */}
+      {showRechazo && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: 400 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 16px", color: "#111827" }}>Motivo de rechazo</h3>
+            <textarea
+              style={{ ...inp, minHeight: 80, resize: "vertical", marginBottom: 16 }}
+              placeholder="Explica el motivo del rechazo (opcional)..."
+              value={motivoRechazo}
+              onChange={e => setMotivoRechazo(e.target.value)}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => { setShowRechazo(null); setMotivoRechazo("") }} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+              <button onClick={() => rechazar(showRechazo)}
+                style={{ padding: "7px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                Confirmar rechazo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal nueva solicitud */}
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 440 }}>
