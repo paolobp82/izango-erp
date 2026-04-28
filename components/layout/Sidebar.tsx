@@ -20,14 +20,14 @@ const PERFIL: Record<string,string> = {
 const ACCESO: Record<string, string[]> = {
   superadmin: ["*"],
   gerente_general: ["*"],
-  administrador: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/proveedores","/biblioteca","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/inventario","/rrhh","/ia","/trazabilidad","/alertas","/admin","/perfil"],
-  controller: ["/dashboard","/proyectos","/calendario","/clientes","/proformas","/proveedores","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/inventario","/rrhh","/ia","/trazabilidad","/alertas","/perfil"],
-  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/proformas","/biblioteca","/rq","/liquidaciones","/inventario","/rrhh","/ia","/trazabilidad","/alertas","/perfil"],
-  gerente_finanzas: ["/dashboard","/proyectos","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/ia","/alertas","/perfil"],
-  productor: ["/dashboard","/proyectos","/calendario","/gestor","/proformas","/biblioteca","/rq","/liquidaciones","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil"],
-  logistica: ["/dashboard","/calendario","/inventario","/rq","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil"],
-  comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil"],
-  practicante: ["/dashboard","/proyectos","/calendario","/gestor","/crm","/proformas","/biblioteca","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil"],
+  administrador: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/proveedores","/biblioteca","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/inventario","/rrhh","/ia","/trazabilidad","/alertas","/admin","/perfil","/tareas"],
+  controller: ["/dashboard","/proyectos","/calendario","/clientes","/proformas","/proveedores","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/inventario","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas"],
+  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/proformas","/biblioteca","/rq","/liquidaciones","/caja-chica","/inventario","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas"],
+  gerente_finanzas: ["/dashboard","/proyectos","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/ia","/alertas","/perfil","/tareas"],
+  productor: ["/dashboard","/proyectos","/calendario","/gestor","/proformas","/biblioteca","/rq","/liquidaciones","/caja-chica","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil","/tareas"],
+  logistica: ["/dashboard","/calendario","/inventario","/rq","/caja-chica","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil","/tareas"],
+  comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil","/tareas"],
+  practicante: ["/dashboard","/proyectos","/calendario","/gestor","/crm","/proformas","/biblioteca","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil","/tareas"],
 }
 
 const ALL_NAV = [
@@ -35,7 +35,7 @@ const ALL_NAV = [
     { label: "Dashboard", href: "/dashboard" },
     { label: "Proyectos", href: "/proyectos" },
     { label: "Calendario", href: "/calendario" },
-   { label: "Gestor", href: "/gestor" },
+    { label: "Gestor", href: "/gestor" },
     { label: "Tareas", href: "/tareas" },
     { label: "Clientes", href: "/clientes" },
     { label: "CRM", href: "/crm" },
@@ -52,6 +52,7 @@ const ALL_NAV = [
     { label: "Conciliacion", href: "/conciliacion" },
     { label: "Flujo de caja", href: "/flujo-caja" },
     { label: "Centro de costos", href: "/centro-costos" },
+    { label: "Caja chica", href: "/caja-chica" },
   ]},
   { section: "Operaciones", items: [
     { label: "Inventario", href: "/inventario" },
