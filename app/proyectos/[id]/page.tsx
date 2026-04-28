@@ -7,13 +7,16 @@ import { useParams, useRouter } from "next/navigation"
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
   aprobado_produccion:  { label: "Aprobado Producción",  bg: "#fed7aa", color: "#9a3412", siguiente: "aprobado",            accion: "Aprobar (GG)",            roles: ["gerente_general", "superadmin"] },
-  aprobado:             { label: "Aprobado",              bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Iniciar proyecto",        roles: ["gerente_produccion", "gerente_general", "productor"] },
-  en_curso:             { label: "En curso",              bg: "#dcfce7", color: "#15803d", siguiente: "terminado",           accion: "Marcar terminado",        roles: ["gerente_produccion", "gerente_general", "productor"] },
-  terminado:            { label: "Terminado",             bg: "#f3f4f6", color: "#6b7280", siguiente: "liquidado",           accion: "Pasar a liquidación",     roles: ["gerente_produccion", "gerente_general", "productor"] },
+  aprobado:             { label: "Aprobado",              bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Iniciar proyecto",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
+  en_curso:             { label: "En curso",              bg: "#dcfce7", color: "#15803d", siguiente: "terminado",           accion: "Marcar terminado",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
+  terminado:            { label: "Terminado",             bg: "#f3f4f6", color: "#6b7280", siguiente: "liquidado",           accion: "Pasar a liquidación",     roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   liquidado:            { label: "Liquidado",             bg: "#f5f3ff", color: "#6d28d9", siguiente: "facturado",           accion: "Marcar facturado",        roles: ["gerente_produccion", "gerente_general", "superadmin"] },
-  facturado:            { label: "Facturado",             bg: "#f0fdf4", color: "#166534", siguiente: "cancelado",           accion: "Marcar cancelado",        roles: ["gerente_general","superadmin"] },
-  cancelado:            { label: "Cancelado",             bg: "#fee2e2", color: "#991b1b", siguiente: null,                  accion: null,                      roles: [] },
+  facturado:            { label: "Facturado",             bg: "#e0f2fe", color: "#0369a1", siguiente: "cancelado",           accion: "Marcar pagado",           roles: ["gerente_general", "superadmin"] },
+  cancelado:            { label: "Pagado",                bg: "#f0fdf4", color: "#166534", siguiente: null,                  accion: null,                      roles: [] },
+  rechazado:            { label: "Rechazado",             bg: "#fde8d8", color: "#c2410c", siguiente: null,                  accion: null,                      roles: [] },
 }
+
+const FLUJO_BREADCRUMB = ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "en_curso", "terminado", "liquidado", "facturado", "cancelado"]
 
 export default function ProyectoDetallePage() {
   const params = useParams()
@@ -90,8 +93,11 @@ export default function ProyectoDetallePage() {
 
   async function rechazar() {
     if (!confirm("¿Rechazar este proyecto?")) return
-    await supabase.from("proyectos").update({ estado: "pendiente_aprobacion" }).eq("id", id)
-    setProyecto({ ...proyecto, estado: "pendiente_aprobacion" })
+    setCambiando(true)
+    await supabase.from("proyectos").update({ estado: "rechazado" }).eq("id", id)
+    await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Proyecto rechazado", datos_nuevos: { estado: "rechazado" } })
+    setProyecto({ ...proyecto, estado: "rechazado" })
+    setCambiando(false)
   }
 
   async function nuevaVersion(copiarDeId?: string) {
@@ -131,8 +137,9 @@ export default function ProyectoDetallePage() {
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const estadoInfo = FLUJO[proyecto?.estado] || { label: proyecto?.estado, bg: "#f3f4f6", color: "#6b7280" }
   const tieneCotizacion = cotizaciones.length > 0
-  const puedeAvanzar = estadoInfo.roles?.includes(perfil?.perfil) && tieneCotizacion
-  const puedeRechazar = ["gerente_produccion", "gerente_general", "superadmin"].includes(perfil?.perfil) && ["aprobado_produccion", "aprobado"].includes(proyecto?.estado)
+  const esEstadoFinal = ["cancelado", "rechazado"].includes(proyecto?.estado)
+  const puedeAvanzar = estadoInfo.roles?.includes(perfil?.perfil) && tieneCotizacion && !esEstadoFinal
+  const puedeRechazar = ["gerente_produccion", "gerente_general", "superadmin"].includes(perfil?.perfil) && !esEstadoFinal
 
   const ecCot: any = {
     borrador: { bg: "#fef9c3", color: "#92400e" },
@@ -202,48 +209,53 @@ export default function ProyectoDetallePage() {
           </div>
         </div>
 
-        {/* Flujo de aprobación */}
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #f3f4f6" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {Object.entries(FLUJO).map(([estado, info]: [string, any], idx, arr) => {
-              const estados = Object.keys(FLUJO)
-              const idxActual = estados.indexOf(proyecto?.estado)
-              const idxEste = estados.indexOf(estado)
-              const completado = idxEste <= idxActual
+            {FLUJO_BREADCRUMB.map((estado, idx) => {
+              const info = FLUJO[estado]
+              const idxActual = FLUJO_BREADCRUMB.indexOf(proyecto?.estado)
+              const completado = idx <= idxActual
               const actual = estado === proyecto?.estado
               return (
                 <div key={estado} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <div style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{idxEste + 1}</span>
+                      <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{idx + 1}</span>
                     </div>
                     <span style={{ fontSize: 11, fontWeight: actual ? 700 : 400, color: actual ? info.color : completado ? "#374151" : "#9ca3af" }}>{info.label}</span>
                   </div>
-                  {idx < arr.length - 1 && <span style={{ color: "#d1d5db", fontSize: 14 }}>→</span>}
+                  {idx < FLUJO_BREADCRUMB.length - 1 && <span style={{ color: "#d1d5db", fontSize: 14 }}>→</span>}
                 </div>
               )
             })}
           </div>
+
+          {proyecto?.estado === "rechazado" && (
+            <div style={{ marginTop: 12, padding: "8px 12px", background: "#fde8d8", border: "1px solid #fdba74", borderRadius: 8, fontSize: 12, color: "#c2410c", fontWeight: 600 }}>
+              Este proyecto fue rechazado y no puede avanzar.
+            </div>
+          )}
 
           {!tieneCotizacion && proyecto?.estado === "pendiente_aprobacion" && (
             <div style={{ marginTop: 12, padding: "8px 12px", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 8, fontSize: 12, color: "#92400e" }}>
               Debes crear al menos una proforma antes de poder aprobar este proyecto.
             </div>
           )}
-          {puedeAvanzar && estadoInfo.siguiente && (
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            {puedeAvanzar && estadoInfo.siguiente && (
               <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando}
                 style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
                 {cambiando ? "..." : estadoInfo.accion}
               </button>
-              {puedeRechazar && (
-                <button onClick={rechazar}
-                  style={{ padding: "8px 16px", border: "1px solid #fee2e2", borderRadius: 8, background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>
-                  Rechazar
-                </button>
-              )}
-            </div>
-          )}
+            )}
+            {puedeRechazar && (
+              <button onClick={rechazar} disabled={cambiando}
+                style={{ padding: "8px 16px", border: "1px solid #fde8d8", borderRadius: 8, background: "#fff", color: "#c2410c", cursor: "pointer", fontSize: 13 }}>
+                Rechazar proyecto
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -322,7 +334,3 @@ export default function ProyectoDetallePage() {
     </div>
   )
 }
-
-
-
-

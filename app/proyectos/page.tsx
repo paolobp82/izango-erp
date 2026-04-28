@@ -1,12 +1,19 @@
-"use client"
+﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { useRouter } from "next/navigation"
 
 const ESTADO_LABEL: Record<string, string> = {
-  pendiente_aprobacion: "Pendiente", aprobado: "Aprobado", en_curso: "En curso",
-  terminado: "Terminado", facturado: "Facturado", liquidado: "Liquidado",
+  pendiente_aprobacion: "Pendiente",
+  aprobado_produccion: "Aprobado Prod.",
+  aprobado: "Aprobado",
+  en_curso: "En curso",
+  terminado: "Terminado",
+  liquidado: "Liquidado",
+  facturado: "Facturado",
+  cancelado: "Pagado",
+  rechazado: "Rechazado",
 }
 
 export default function ProyectosPage() {
@@ -71,7 +78,17 @@ export default function ProyectosPage() {
             </thead>
             <tbody>
               {proyectos.map((p, idx) => {
-                const ec: any = { pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e" }, aprobado: { bg: "#dbeafe", color: "#1e40af" }, en_curso: { bg: "#dcfce7", color: "#15803d" }, terminado: { bg: "#f3f4f6", color: "#6b7280" }, facturado: { bg: "#f5f3ff", color: "#6d28d9" }, liquidado: { bg: "#f3f4f6", color: "#374151" } }
+                const ec: any = {
+                  pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e" },
+                  aprobado_produccion:  { bg: "#fed7aa", color: "#9a3412" },
+                  aprobado:             { bg: "#dbeafe", color: "#1e40af" },
+                  en_curso:             { bg: "#dcfce7", color: "#15803d" },
+                  terminado:            { bg: "#f3f4f6", color: "#6b7280" },
+                  liquidado:            { bg: "#f5f3ff", color: "#6d28d9" },
+                  facturado:            { bg: "#f0fdf4", color: "#166534" },
+                  cancelado:            { bg: "#fee2e2", color: "#991b1b" },
+                  rechazado:            { bg: "#fde8d8", color: "#c2410c" },
+                }
                 const e = ec[p.estado] || { bg: "#f3f4f6", color: "#6b7280" }
                 const prod = p.productor ? p.productor.nombre + " " + p.productor.apellido : "—"
                 return (
@@ -106,4 +123,3 @@ export default function ProyectosPage() {
     </div>
   )
 }
-
