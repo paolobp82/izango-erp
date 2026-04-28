@@ -29,7 +29,7 @@ export default function ProformasPage() {
   async function load() {
     const { data, error } = await supabase
       .from("cotizaciones")
-      .select("*, proyecto:proyectos(id, nombre, codigo, cliente:clientes(id, razon_social))")
+      .select("*, proyecto:proyectos!proyecto_id(id, nombre, codigo, cliente:clientes!cliente_id(id, razon_social))")
       .order("created_at", { ascending: false })
 
     console.log("COTIZACIONES DATA:", data)
