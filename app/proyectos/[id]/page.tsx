@@ -31,6 +31,7 @@ export default function ProyectoDetallePage() {
 
   const [proyecto, setProyecto] = useState<any>(null)
   const [cotizaciones, setCotizaciones] = useState<any[]>([])
+  const [cotizacionesEliminadas, setCotizacionesEliminadas] = useState<any[]>([])
   const [historial, setHistorial] = useState<Record<string, any[]>>({})
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -38,6 +39,7 @@ export default function ProyectoDetallePage() {
   const [cambiando, setCambiando] = useState(false)
   const [versionAprobar, setVersionAprobar] = useState("")
   const [editandoEntidad, setEditandoEntidad] = useState(false)
+  const [showVersionesEliminadas, setShowVersionesEliminadas] = useState(false)
 
   useEffect(() => { load() }, [id])
 
@@ -53,7 +55,9 @@ export default function ProyectoDetallePage() {
       .eq("id", id)
       .single()
     setProyecto(proy)
-    const { data: cots } = await supabase.from("cotizaciones").select("*").eq("proyecto_id", id).order("version")
+
+    // Cotizaciones activas
+    const { data: cots } = await supabase.from("cotizaciones").select("*").eq("proyecto_id", id).is("deleted_at", null).order("version")
     if (cots && cots.length > 0) {
       const hist: Record<string, any[]> = {}
       for (const cot of cots) {
@@ -67,6 +71,13 @@ export default function ProyectoDetallePage() {
       else setVersionAprobar(cots[cots.length - 1]?.id || "")
     }
     setCotizaciones(cots || [])
+
+    // Cotizaciones eliminadas en últimos 2 días
+    const hace2dias = new Date()
+    hace2dias.setDate(hace2dias.getDate() - 2)
+    const { data: elim } = await supabase.from("cotizaciones").select("*").eq("proyecto_id", id).not("deleted_at", "is", null).gte("deleted_at", hace2dias.toISOString()).order("deleted_at", { ascending: false })
+    setCotizacionesEliminadas(elim || [])
+
     setLoading(false)
   }
 
@@ -128,9 +139,13 @@ export default function ProyectoDetallePage() {
   }
 
   async function eliminarVersion(cotId: string, version: number) {
-    if (!confirm(`¿Eliminar proforma V${version}? Esta acción no se puede deshacer.`)) return
-    await supabase.from("cotizacion_items").delete().eq("cotizacion_id", cotId)
-    await supabase.from("cotizaciones").delete().eq("id", cotId)
+    if (!confirm(`¿Eliminar proforma V${version}? Podrás recuperarla en los próximos 2 días.`)) return
+    await supabase.from("cotizaciones").update({ deleted_at: new Date().toISOString() }).eq("id", cotId)
+    load()
+  }
+
+  async function recuperarVersion(cotId: string) {
+    await supabase.from("cotizaciones").update({ deleted_at: null }).eq("id", cotId)
     load()
   }
 
@@ -172,7 +187,6 @@ export default function ProyectoDetallePage() {
   const puedeAvanzar = estadoInfo.roles?.includes(perfil?.perfil) && tieneCotizacion && !esEstadoFinal
   const puedeRechazar = ["gerente_produccion", "gerente_general", "superadmin"].includes(perfil?.perfil) && !esEstadoFinal
   const cotAprobada = cotizaciones.find(c => c.estado === "aprobada_cliente") || cotizaciones.find(c => c.id === proyecto?.cotizacion_aprobada_id)
-  const esSuperAdmin = perfil?.perfil === "superadmin"
 
   const ecCot: any = {
     borrador: { bg: "#fef9c3", color: "#92400e" },
@@ -201,7 +215,6 @@ export default function ProyectoDetallePage() {
                 ✓ V{cotAprobada.version} aprobada
               </span>
             )}
-            {/* Selector de entidad */}
             {editandoEntidad ? (
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 {ENTIDADES.map(e => (
@@ -227,7 +240,7 @@ export default function ProyectoDetallePage() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {cotizaciones.length > 0 && (
             <select id="copiar-version" style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
-              <option value="">Nueva vacía</option>
+              <option value="">Nueva vacia</option>
               {cotizaciones.map((cot: any) => (
                 <option key={cot.id} value={cot.id}>Copiar V{cot.version}</option>
               ))}
@@ -300,7 +313,7 @@ export default function ProyectoDetallePage() {
           {puedeAvanzar && proyecto?.estado === "aprobado" && cotizaciones.length > 0 && (
             <div style={{ marginTop: 12, padding: "12px 16px", background: "#f0fdf4", border: "1px solid #1D9E75", borderRadius: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#0F6E56", marginBottom: 8 }}>
-                ✓ Selecciona la versión aprobada por el cliente
+                ✓ Selecciona la version aprobada por el cliente
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {cotizaciones.map((cot: any) => (
@@ -337,27 +350,57 @@ export default function ProyectoDetallePage() {
         </div>
       </div>
 
+      {/* Versiones eliminadas recuperables */}
+      {cotizacionesEliminadas.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <button onClick={() => setShowVersionesEliminadas(!showVersionesEliminadas)}
+            style={{ fontSize: 12, color: "#dc2626", background: "#fee2e2", border: "none", borderRadius: 99, padding: "3px 10px", cursor: "pointer", marginBottom: 8 }}>
+            🗑 {cotizacionesEliminadas.length} version{cotizacionesEliminadas.length > 1 ? "es eliminadas" : " eliminada"} (recuperable{cotizacionesEliminadas.length > 1 ? "s" : ""})
+          </button>
+          {showVersionesEliminadas && (
+            <div style={{ background: "#fff8f8", border: "1px solid #fecaca", borderRadius: 10, padding: 12 }}>
+              {cotizacionesEliminadas.map(cot => {
+                const horasRestantes = 48 - Math.floor((Date.now() - new Date(cot.deleted_at).getTime()) / (1000 * 60 * 60))
+                return (
+                  <div key={cot.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #fee2e2" }}>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>V{cot.version}</span>
+                      {cot.total_cliente > 0 && <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 8 }}>{fmt(cot.total_cliente)}</span>}
+                      <span style={{ fontSize: 11, color: "#dc2626", marginLeft: 8 }}>Expira en {horasRestantes}h</span>
+                    </div>
+                    <button onClick={() => recuperarVersion(cot.id)}
+                      style={{ fontSize: 12, padding: "3px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontWeight: 600 }}>
+                      Recuperar
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Proformas</h2>
-          <span style={{ fontSize: 12, color: "#9ca3af" }}>{cotizaciones.length} versión{cotizaciones.length !== 1 ? "es" : ""}</span>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>{cotizaciones.length} version{cotizaciones.length !== 1 ? "es" : ""}</span>
         </div>
         {cotizaciones.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af" }}>
-            <div style={{ fontSize: 14, marginBottom: 4 }}>No hay proformas aún</div>
-            <div style={{ fontSize: 12 }}>Crea la primera versión para comenzar</div>
+            <div style={{ fontSize: 14, marginBottom: 4 }}>No hay proformas aun</div>
+            <div style={{ fontSize: 12 }}>Crea la primera version para comenzar</div>
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>VERSIÓN</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>VERSION</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TOTAL CLIENTE</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MARGEN</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONDICIÓN PAGO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONDICION PAGO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>HISTORIAL</th>
-                <th style={{ padding: "10px 20px", width: 180 }}></th>
+                <th style={{ padding: "10px 20px", width: 200 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -406,7 +449,7 @@ export default function ProyectoDetallePage() {
                         <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>
                           Preview
                         </button>
-                        {esSuperAdmin && !esAprobada && (
+                        {!esAprobada && (
                           <button onClick={() => eliminarVersion(cot.id, cot.version)}
                             style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
                             Borrar
