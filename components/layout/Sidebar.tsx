@@ -20,10 +20,10 @@ const PERFIL: Record<string,string> = {
 const ACCESO: Record<string, string[]> = {
   superadmin: ["*"],
   gerente_general: ["*"],
-  administrador: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/proveedores","/biblioteca","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/inventario","/rrhh","/ia","/trazabilidad","/alertas","/admin","/perfil","/tareas"],
-  controller: ["/dashboard","/proyectos","/calendario","/clientes","/proformas","/proveedores","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/inventario","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas"],
+  administrador: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/proveedores","/biblioteca","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/inventario","/rrhh","/ia","/trazabilidad","/alertas","/admin","/perfil","/tareas"],
+  controller: ["/dashboard","/proyectos","/calendario","/clientes","/proformas","/proveedores","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/inventario","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas"],
   gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/proformas","/biblioteca","/rq","/liquidaciones","/caja-chica","/inventario","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas"],
-  gerente_finanzas: ["/dashboard","/proyectos","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/ia","/alertas","/perfil","/tareas"],
+  gerente_finanzas: ["/dashboard","/proyectos","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/ia","/alertas","/perfil","/tareas"],
   productor: ["/dashboard","/proyectos","/calendario","/gestor","/proformas","/biblioteca","/rq","/liquidaciones","/caja-chica","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil","/tareas"],
   logistica: ["/dashboard","/calendario","/inventario","/rq","/caja-chica","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil","/tareas"],
   comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/perfil","/tareas"],
@@ -54,6 +54,7 @@ const ALL_NAV = [
     { label: "Centro de costos", href: "/centro-costos" },
     { label: "Caja chica", href: "/caja-chica" },
     { label: "Gastos oficina", href: "/gastos-oficina" },
+    { label: "Prestamos", href: "/prestamos" },
   ]},
   { section: "Operaciones", items: [
     { label: "Inventario", href: "/inventario" },
