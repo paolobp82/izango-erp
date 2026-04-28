@@ -28,7 +28,7 @@ export default function ProyectosPage() {
   async function load() {
     const { data } = await supabase
       .from("proyectos")
-      .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido)")
+      .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente)")
       .order("created_at", { ascending: false })
     setProyectos(data || [])
     setLoading(false)
@@ -48,6 +48,8 @@ export default function ProyectosPage() {
   }
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+
+  const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   return (
     <div>
@@ -73,6 +75,7 @@ export default function ProyectosPage() {
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRODUCTOR</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>V. APROBADA</th>
                 <th style={{ padding: "10px 20px", width: 150 }}></th>
               </tr>
             </thead>
@@ -86,7 +89,7 @@ export default function ProyectosPage() {
                   terminado:            { bg: "#f3f4f6", color: "#6b7280" },
                   liquidado:            { bg: "#f5f3ff", color: "#6d28d9" },
                   facturado:            { bg: "#f0fdf4", color: "#166534" },
-                  cancelado:            { bg: "#fee2e2", color: "#991b1b" },
+                  cancelado:            { bg: "#f0fdf4", color: "#166534" },
                   rechazado:            { bg: "#fde8d8", color: "#c2410c" },
                 }
                 const e = ec[p.estado] || { bg: "#f3f4f6", color: "#6b7280" }
@@ -103,6 +106,22 @@ export default function ProyectosPage() {
                       <span style={{ background: e.bg, color: e.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
                         {ESTADO_LABEL[p.estado] || p.estado || "—"}
                       </span>
+                    </td>
+                    <td style={{ padding: "12px" }}>
+                      {p.cotizacion_aprobada ? (
+                        <div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "2px 8px", borderRadius: 99 }}>
+                            ✓ V{p.cotizacion_aprobada.version}
+                          </span>
+                          {p.cotizacion_aprobada.total_cliente > 0 && (
+                            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                              {fmt(p.cotizacion_aprobada.total_cliente)}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 11, color: "#d1d5db" }}>—</span>
+                      )}
                     </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

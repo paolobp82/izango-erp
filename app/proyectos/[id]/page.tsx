@@ -31,6 +31,7 @@ export default function ProyectoDetallePage() {
   const [loading, setLoading] = useState(true)
   const [creando, setCreando] = useState(false)
   const [cambiando, setCambiando] = useState(false)
+  const [versionAprobar, setVersionAprobar] = useState("")
 
   useEffect(() => { load() }, [id])
 
@@ -54,14 +55,34 @@ export default function ProyectoDetallePage() {
         hist[cot.id] = h || []
       }
       setHistorial(hist)
+      // Pre-seleccionar la versión aprobada si existe, o la última
+      const yaAprobada = cots.find((c: any) => c.estado === "aprobada_cliente")
+      if (yaAprobada) setVersionAprobar(yaAprobada.id)
+      else if (proy?.cotizacion_aprobada_id) setVersionAprobar(proy.cotizacion_aprobada_id)
+      else setVersionAprobar(cots[cots.length - 1]?.id || "")
     }
     setCotizaciones(cots || [])
     setLoading(false)
   }
 
   async function cambiarEstado(nuevoEstado: string) {
+    setCambiando(true)
+
+    // Al iniciar proyecto: marcar la versión seleccionada como aprobada_cliente
+    if (nuevoEstado === "en_curso" && versionAprobar) {
+      // Desmarcar otras versiones
+      for (const cot of cotizaciones) {
+        if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
+          await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", cot.id)
+        }
+      }
+      // Marcar la seleccionada
+      await supabase.from("cotizaciones").update({ estado: "aprobada_cliente" }).eq("id", versionAprobar)
+      await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar }).eq("id", id)
+    }
+
     if (nuevoEstado === "terminado") {
-      const cotAprobada = cotizaciones.find(c => c.estado === "aprobada_cliente")
+      const cotAprobada = cotizaciones.find(c => c.id === versionAprobar) || cotizaciones.find(c => c.estado === "aprobada_cliente")
       const { data: liqExistente } = await supabase.from("liquidaciones").select("id").eq("proyecto_id", id).single()
       if (!liqExistente) {
         const { data: liq } = await supabase.from("liquidaciones").insert({
@@ -84,11 +105,12 @@ export default function ProyectoDetallePage() {
         }
       }
     }
-    setCambiando(true)
+
     await supabase.from("proyectos").update({ estado: nuevoEstado }).eq("id", id)
     await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: " + nuevoEstado, datos_nuevos: { estado: nuevoEstado } })
     setProyecto({ ...proyecto, estado: nuevoEstado })
     setCambiando(false)
+    load()
   }
 
   async function rechazar() {
@@ -104,10 +126,7 @@ export default function ProyectoDetallePage() {
     setCreando(true)
     const ultimaVersion = cotizaciones.length > 0 ? Math.max(...cotizaciones.map((c: any) => c.version || 1)) : 0
     let condicion = "50% adelanto / 50% contra entrega"
-    let validez = 10
-    let fee_pct = 10
-    let fee_activo = true
-    let igv_pct = 18
+    let validez = 10, fee_pct = 10, fee_activo = true, igv_pct = 18
     let itemsACopiar: any[] = []
     if (copiarDeId) {
       const cot = cotizaciones.find((c: any) => c.id === copiarDeId)
@@ -140,6 +159,7 @@ export default function ProyectoDetallePage() {
   const esEstadoFinal = ["cancelado", "rechazado"].includes(proyecto?.estado)
   const puedeAvanzar = estadoInfo.roles?.includes(perfil?.perfil) && tieneCotizacion && !esEstadoFinal
   const puedeRechazar = ["gerente_produccion", "gerente_general", "superadmin"].includes(perfil?.perfil) && !esEstadoFinal
+  const cotAprobada = cotizaciones.find(c => c.estado === "aprobada_cliente") || cotizaciones.find(c => c.id === proyecto?.cotizacion_aprobada_id)
 
   const ecCot: any = {
     borrador: { bg: "#fef9c3", color: "#92400e" },
@@ -163,6 +183,11 @@ export default function ProyectoDetallePage() {
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
             {proyecto?.cliente?.razon_social}
             {proyecto?.productor && <span style={{ marginLeft: 8, color: "#9ca3af" }}>· Productor: {proyecto.productor.nombre} {proyecto.productor.apellido}</span>}
+            {cotAprobada && (
+              <span style={{ marginLeft: 8, background: "#dcfce7", color: "#15803d", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>
+                ✓ V{cotAprobada.version} aprobada
+              </span>
+            )}
           </p>
         </div>
         <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
@@ -242,10 +267,38 @@ export default function ProyectoDetallePage() {
             </div>
           )}
 
+          {/* Selector de versión a aprobar — solo cuando está en estado "aprobado" y va a iniciar */}
+          {puedeAvanzar && proyecto?.estado === "aprobado" && cotizaciones.length > 0 && (
+            <div style={{ marginTop: 12, padding: "12px 16px", background: "#f0fdf4", border: "1px solid #1D9E75", borderRadius: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#0F6E56", marginBottom: 8 }}>
+                ✓ Selecciona la versión aprobada por el cliente
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {cotizaciones.map((cot: any) => (
+                  <button key={cot.id} type="button"
+                    onClick={() => setVersionAprobar(cot.id)}
+                    style={{
+                      padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: versionAprobar === cot.id ? 700 : 400,
+                      border: versionAprobar === cot.id ? "2px solid #0F6E56" : "1px solid #e5e7eb",
+                      background: versionAprobar === cot.id ? "#dcfce7" : "#fff",
+                      color: versionAprobar === cot.id ? "#15803d" : "#374151",
+                      cursor: "pointer",
+                    }}>
+                    V{cot.version}
+                    {cot.total_cliente > 0 && <span style={{ marginLeft: 6, fontSize: 11, color: versionAprobar === cot.id ? "#15803d" : "#9ca3af" }}>{fmt(cot.total_cliente)}</span>}
+                    {cot.estado === "aprobada_cliente" && <span style={{ marginLeft: 4, fontSize: 10 }}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             {puedeAvanzar && estadoInfo.siguiente && (
-              <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando}
-                style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+              <button
+                onClick={() => cambiarEstado(estadoInfo.siguiente)}
+                disabled={cambiando || (proyecto?.estado === "aprobado" && !versionAprobar)}
+                style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado" && !versionAprobar) ? 0.5 : 1 }}>
                 {cambiando ? "..." : estadoInfo.accion}
               </button>
             )}
@@ -285,9 +338,17 @@ export default function ProyectoDetallePage() {
             <tbody>
               {cotizaciones.map((cot, idx) => {
                 const e = ecCot[cot.estado] || { bg: "#f3f4f6", color: "#6b7280" }
+                const esAprobada = cot.id === proyecto?.cotizacion_aprobada_id || cot.estado === "aprobada_cliente"
                 return (
-                  <tr key={cot.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                    <td style={{ padding: "12px 20px", fontWeight: 700, fontSize: 15, color: "#111827" }}>V{cot.version}</td>
+                  <tr key={cot.id} style={{ borderTop: "1px solid #f3f4f6", background: esAprobada ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                    <td style={{ padding: "12px 20px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>V{cot.version}</span>
+                        {esAprobada && (
+                          <span style={{ fontSize: 10, background: "#dcfce7", color: "#15803d", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>✓ Aprobada</span>
+                        )}
+                      </div>
+                    </td>
                     <td style={{ padding: "12px" }}>
                       <span style={{ background: e.bg, color: e.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{cot.estado || "borrador"}</span>
                     </td>
