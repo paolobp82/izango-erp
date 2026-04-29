@@ -100,7 +100,7 @@ export default function CotizacionEditorPage() {
     async function load() {
       const { data: cot } = await supabase
         .from("cotizaciones")
-        .select("*, proyecto:proyectos(id,nombre,codigo,cliente:clientes(razon_social))")
+        .select("*, proyecto:proyectos!proyecto_id(id,nombre,codigo,cliente:clientes!cliente_id(razon_social))")
         .eq("id", cotId).single()
       setCotizacion(cot)
       setProyecto(cot?.proyecto)
