@@ -34,9 +34,9 @@ export default function NuevoProyectoPage() {
   }, [])
 
   async function loadEntidadData(entidad: string) {
-    const { data: cls } = await supabase.from("clientes").select("*").eq("entidad", entidad).eq("activo", true).order("razon_social")
+    const { data: cls } = await supabase.from("clientes").select("*").eq("activo", true).order("razon_social")
     setClientes(cls || [])
-    const { data: prods } = await supabase.from("perfiles").select("*").in("perfil", ["productor", "gerente_produccion"]).eq("entidad", entidad).eq("activo", true)
+    const { data: prods } = await supabase.from("perfiles").select("*").in("perfil", ["productor", "gerente_produccion"]).eq("activo", true)
     setProductores(prods || [])
   }
 
