@@ -7,21 +7,14 @@ export default function ClientesPage() {
   const supabase = createClient()
   const [clientes, setClientes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [entidad, setEntidad] = useState("peru")
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data: p } = await supabase.from("perfiles").select("entidad").eq("id", user.id).single()
-      const ent = p?.entidad || "peru"
-      setEntidad(ent)
-      const { data } = await supabase.from("clientes").select("*").eq("entidad", ent).order("razon_social")
-      setClientes(data || [])
-      setLoading(false)
-    }
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    const { data } = await supabase.from("clientes").select("*").order("razon_social")
+    setClientes(data || [])
+    setLoading(false)
+  }
 
   const CAMPOS = [
     { key: "razon_social", label: "Razon social", requerido: true },
@@ -43,15 +36,14 @@ export default function ClientesPage() {
     const errores: string[] = []
     for (const r of registros) {
       try {
-        const { error } = await supabase.from("clientes").insert({ ...r, entidad })
+        const { error } = await supabase.from("clientes").insert({ ...r, entidad: "peru" })
         if (error) errores.push(r.razon_social + ": " + error.message)
         else exitosos++
       } catch (e: any) {
         errores.push(r.razon_social + ": " + e.message)
       }
     }
-    const { data } = await supabase.from("clientes").select("*").eq("entidad", entidad).order("razon_social")
-    setClientes(data || [])
+    load()
     return { exitosos, errores }
   }
 
@@ -65,12 +57,7 @@ export default function ClientesPage() {
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>{clientes.length} clientes registrados</p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <ImportExport
-            modulo="clientes"
-            campos={CAMPOS}
-            datos={clientes}
-            onImportar={importarClientes}
-          />
+          <ImportExport modulo="clientes" campos={CAMPOS} datos={clientes} onImportar={importarClientes} />
           <a href="/clientes/nuevo" className="btn-primary">+ Nuevo cliente</a>
         </div>
       </div>
