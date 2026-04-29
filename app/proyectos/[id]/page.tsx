@@ -406,7 +406,7 @@ export default function ProyectoDetallePage() {
             <tbody>
               {cotizaciones.map((cot, idx) => {
                 const e = ecCot[cot.estado] || { bg: "#f3f4f6", color: "#6b7280" }
-                const esAprobada = cot.id === proyecto?.cotizacion_aprobada_id || cot.estado === "aprobada_cliente"
+                const esAprobada = (cot.id === proyecto?.cotizacion_aprobada_id || cot.estado === "aprobada_cliente") && ["en_curso","terminado","liquidado","facturado","cancelado"].includes(proyecto?.estado)
                 return (
                   <tr key={cot.id} style={{ borderTop: "1px solid #f3f4f6", background: esAprobada ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                     <td style={{ padding: "12px 20px" }}>
