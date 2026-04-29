@@ -343,7 +343,7 @@ export default function RQPage() {
                       <label style={lbl}>Nota de pago</label>
                       <input style={inp} value={datosPago.nota_pago} placeholder="Observaciones opcionales..." onChange={e => setDatosPago({ ...datosPago, nota_pago: e.target.value })} readOnly={false} />
                     </div>
-                    {selected.estado !== "pagado" && (
+                    {puedeEditarPago && (
                       <button onClick={guardarDatosPago} disabled={guardandoPago}
                         style={{ fontSize: 12, padding: "6px", border: "none", borderRadius: 6, background: "#1D9E75", color: "#fff", cursor: "pointer", fontWeight: 600 }}>
                         {guardandoPago ? "Guardando..." : "Guardar datos operacion"}
