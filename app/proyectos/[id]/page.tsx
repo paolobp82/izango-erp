@@ -416,7 +416,11 @@ export default function ProyectoDetallePage() {
                       </div>
                     </td>
                     <td style={{ padding: "12px" }}>
-                      <span style={{ background: e.bg, color: e.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{cot.estado || "borrador"}</span>
+                    <option value="borrador">Borrador</option>
+<option value="enviada_cliente">Enviada</option>
+<option value="pendiente">Pendiente</option>
+<option value="aprobada_cliente">Aprobada</option>
+<option value="rechazada">Rechazada</option>  
                     </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>
                       {cot.total_cliente > 0 ? fmt(cot.total_cliente) : "—"}
