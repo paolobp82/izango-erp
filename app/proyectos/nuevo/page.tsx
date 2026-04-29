@@ -27,8 +27,9 @@ export default function NuevoProyectoPage() {
       setPerfil(p)
       setForm(f => ({ ...f, entidad: p?.entidad || "peru" }))
       await loadEntidadData(p?.entidad || "peru")
-      const { count } = await supabase.from("proyectos").select("id", { count: "exact", head: true })
-      setForm(f => ({ ...f, codigo: `IZ-${26000 + (count || 0) + 1}` }))
+      const { data: lastProj } = await supabase.from("proyectos").select("codigo").order("codigo", { ascending: false }).limit(1).single()
+      const lastNum = lastProj?.codigo ? parseInt(lastProj.codigo.replace("IZ-", "")) : 26000
+      setForm(f => ({ ...f, codigo: `IZ-${lastNum + 1}` }))
     }
     load()
   }, [])
