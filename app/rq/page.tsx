@@ -315,33 +315,33 @@ export default function RQPage() {
                   <div style={{ display: "grid", gap: 8 }}>
                     <div>
                       <label style={lbl}>N operacion / referencia</label>
-                      <input style={inp} value={datosPago.numero_operacion} placeholder="Ej: 123456789" onChange={e => setDatosPago({ ...datosPago, numero_operacion: e.target.value })} readOnly={selected.estado === "pagado"} />
+                      <input style={inp} value={datosPago.numero_operacion} placeholder="Ej: 123456789" onChange={e => setDatosPago({ ...datosPago, numero_operacion: e.target.value })} readOnly={false} />
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                       <div>
                         <label style={lbl}>Banco origen</label>
-                        <select style={inp} value={datosPago.banco_pago} onChange={e => setDatosPago({ ...datosPago, banco_pago: e.target.value })} disabled={selected.estado === "pagado"}>
+                        <select style={inp} value={datosPago.banco_pago} onChange={e => setDatosPago({ ...datosPago, banco_pago: e.target.value })} disabled={false}>
                           <option value="">Seleccionar</option>
                           {BANCOS_PAGO.map(b => <option key={b}>{b}</option>)}
                         </select>
                       </div>
                       <div>
                         <label style={lbl}>Tipo transferencia</label>
-                        <select style={inp} value={datosPago.tipo_transferencia} onChange={e => setDatosPago({ ...datosPago, tipo_transferencia: e.target.value })} disabled={selected.estado === "pagado"}>
+                        <select style={inp} value={datosPago.tipo_transferencia} onChange={e => setDatosPago({ ...datosPago, tipo_transferencia: e.target.value })} disabled={false}>
                           {TIPOS_TRANSFERENCIA.map(t => <option key={t}>{t}</option>)}
                         </select>
                       </div>
                     </div>
                     <div>
                       <label style={lbl}>Link voucher (Google Drive)</label>
-                      <input style={inp} value={datosPago.voucher_url} placeholder="https://drive.google.com/..." onChange={e => setDatosPago({ ...datosPago, voucher_url: e.target.value })} readOnly={selected.estado === "pagado"} />
+                      <input style={inp} value={datosPago.voucher_url} placeholder="https://drive.google.com/..." onChange={e => setDatosPago({ ...datosPago, voucher_url: e.target.value })} readOnly={false} />
                       {datosPago.voucher_url && (
                         <a href={datosPago.voucher_url} target="_blank" style={{ fontSize: 11, color: "#1e40af", display: "inline-block", marginTop: 3 }}>Ver voucher →</a>
                       )}
                     </div>
                     <div>
                       <label style={lbl}>Nota de pago</label>
-                      <input style={inp} value={datosPago.nota_pago} placeholder="Observaciones opcionales..." onChange={e => setDatosPago({ ...datosPago, nota_pago: e.target.value })} readOnly={selected.estado === "pagado"} />
+                      <input style={inp} value={datosPago.nota_pago} placeholder="Observaciones opcionales..." onChange={e => setDatosPago({ ...datosPago, nota_pago: e.target.value })} readOnly={false} />
                     </div>
                     {selected.estado !== "pagado" && (
                       <button onClick={guardarDatosPago} disabled={guardandoPago}
