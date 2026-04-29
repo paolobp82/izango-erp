@@ -416,11 +416,14 @@ export default function ProyectoDetallePage() {
                       </div>
                     </td>
                     <td style={{ padding: "12px" }}>
-                    <option value="borrador">Borrador</option>
-<option value="enviada_cliente">Enviada</option>
-<option value="pendiente">Pendiente</option>
-<option value="aprobada_cliente">Aprobada</option>
-<option value="rechazada">Rechazada</option>  
+                      <select value={cot.estado || "borrador"} onChange={async ev => { await supabase.from("cotizaciones").update({ estado: ev.target.value }).eq("id", cot.id); load() }}
+                        style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "1px solid " + e.color, background: e.bg, color: e.color, cursor: "pointer", fontFamily: "inherit", outline: "none" }}>
+                        <option value="borrador">Borrador</option>
+                        <option value="enviada_cliente">Enviada</option>
+                        <option value="pendiente">Pendiente</option>
+                        <option value="aprobada_cliente">Aprobada</option>
+                        <option value="rechazada">Rechazada</option>
+                      </select>
                     </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>
                       {cot.total_cliente > 0 ? fmt(cot.total_cliente) : "—"}
