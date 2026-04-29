@@ -199,7 +199,7 @@ export default function PreviewCotizacionPage() {
         if (p?.entidad) setEntidad(p.entidad)
       }
       const { data: cot } = await supabase.from("cotizaciones")
-        .select("*, proyecto:proyectos(id,nombre,codigo,cliente:clientes(razon_social,ruc,direccion,nombre_contacto,email_contacto,telefono_contacto))")
+        .select("*, proyecto:proyectos!proyecto_id(id,nombre,codigo,cliente:clientes!cliente_id(razon_social,ruc,direccion,nombre_contacto,email_contacto,telefono_contacto))")
         .eq("id", cotId).single()
       setCotizacion(cot)
       setProyecto(cot?.proyecto)
