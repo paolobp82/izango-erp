@@ -135,7 +135,13 @@ export default function TrabajadoresPage() {
     load()
   }
 
-  const esAdmin = perfil?.perfil === "superadmin" || perfil?.perfil === "gerente_general" || perfil?.perfil === "administrador" || perfil?.perfil === "controller"
+  // Todos pueden ver y editar fichas excepto sueldo
+  const esAdmin = ["superadmin","gerente_general","administrador","controller","gerente_produccion","productor","practicante","logistica","comercial"].includes(perfil?.perfil)
+  // Solo estos pueden ver sueldo base
+  const esAdminFinanzas = ["superadmin","gerente_general","administrador","controller"].includes(perfil?.perfil)
+  // Solo estos pueden aprobar/desbloquear/eliminar
+  const esAdminRRHH = ["superadmin","gerente_general","administrador","controller"].includes(perfil?.perfil)
+
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
   const tabStyle = (active: boolean) => ({ padding: "6px 16px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: active ? "#1D2040" : "#f3f4f6", color: active ? "#fff" : "#6b7280" })
@@ -151,17 +157,19 @@ export default function TrabajadoresPage() {
         </div>
         {esAdmin && (
           <div style={{ display: "flex", gap: 8 }}>
-            <ImportExport modulo="rrhh_trabajadores"
-              campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"apellido",label:"Apellido",requerido:true},{key:"dni",label:"DNI"},{key:"email",label:"Email"},{key:"telefono",label:"Telefono"},{key:"fecha_ingreso",label:"Fecha ingreso"},{key:"cargo",label:"Cargo"},{key:"area",label:"Area"},{key:"tipo",label:"Tipo"},{key:"sueldo_base",label:"Sueldo base"},{key:"banco",label:"Banco"},{key:"numero_cuenta",label:"N cuenta"},{key:"cci",label:"CCI"},{key:"sistema_pension",label:"Sistema pension"}]}
-              datos={trabajadores}
-              onImportar={async (registros) => {
-                let exitosos=0; const errores: string[]=[]
-                for(const r of registros){
-                  const {error}=await supabase.from("rrhh_trabajadores").insert({...r,activo:true,ficha_aprobada:false,ficha_bloqueada:false})
-                  if(error)errores.push(r.nombre+": "+error.message); else exitosos++
-                }
-                load(); return{exitosos,errores}
-              }} />
+            {esAdminFinanzas && (
+              <ImportExport modulo="rrhh_trabajadores"
+                campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"apellido",label:"Apellido",requerido:true},{key:"dni",label:"DNI"},{key:"email",label:"Email"},{key:"telefono",label:"Telefono"},{key:"fecha_ingreso",label:"Fecha ingreso"},{key:"cargo",label:"Cargo"},{key:"area",label:"Area"},{key:"tipo",label:"Tipo"},{key:"sueldo_base",label:"Sueldo base"},{key:"banco",label:"Banco"},{key:"numero_cuenta",label:"N cuenta"},{key:"cci",label:"CCI"},{key:"sistema_pension",label:"Sistema pension"}]}
+                datos={trabajadores}
+                onImportar={async (registros) => {
+                  let exitosos=0; const errores: string[]=[]
+                  for(const r of registros){
+                    const {error}=await supabase.from("rrhh_trabajadores").insert({...r,activo:true,ficha_aprobada:false,ficha_bloqueada:false})
+                    if(error)errores.push(r.nombre+": "+error.message); else exitosos++
+                  }
+                  load(); return{exitosos,errores}
+                }} />
+            )}
             <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo trabajador</button>
           </div>
         )}
@@ -177,7 +185,7 @@ export default function TrabajadoresPage() {
                 <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TRABAJADOR</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CARGO / AREA</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO</th>
-                {esAdmin && <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>SUELDO BASE</th>}
+                {esAdminFinanzas && <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>SUELDO BASE</th>}
                 <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FICHA</th>
                 <th style={{ padding: "10px 20px", width: 200 }}></th>
               </tr>
@@ -207,7 +215,7 @@ export default function TrabajadoresPage() {
                   <td style={{ padding: "12px" }}>
                     <span style={{ background: t.tipo === "planilla" ? "#dbeafe" : t.tipo === "honorarios" ? "#fef3c7" : "#f0fdf4", color: t.tipo === "planilla" ? "#1e40af" : t.tipo === "honorarios" ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{t.tipo}</span>
                   </td>
-                  {esAdmin && <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: "#111827" }}>S/ {Number(t.sueldo_base || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</td>}
+                  {esAdminFinanzas && <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: "#111827" }}>S/ {Number(t.sueldo_base || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</td>}
                   <td style={{ padding: "12px", textAlign: "center" }}>
                     {t.ficha_aprobada ? (
                       <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>Aprobada</span>
@@ -221,6 +229,10 @@ export default function TrabajadoresPage() {
                         <>
                           <button onClick={() => abrirEditar(t)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
                           <button onClick={() => { setTrabajadorSeleccionado(t.id); cargarHistorial(t.id); setShowContrato(true); cargarContratos(t.id) }} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer" }}>Historial</button>
+                        </>
+                      )}
+                      {esAdminRRHH && (
+                        <>
                           {!t.ficha_aprobada && <button onClick={() => aprobarFicha(t.id)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Aprobar</button>}
                           {t.ficha_aprobada && t.ficha_bloqueada && <button onClick={() => desbloquearFicha(t.id)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", color: "#1e40af", cursor: "pointer" }}>Desbloquear</button>}
                           <button onClick={() => eliminar(t.id)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>x</button>
@@ -235,7 +247,6 @@ export default function TrabajadoresPage() {
         )}
       </div>
 
-      {/* Modal trabajador */}
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 720, maxHeight: "92vh", overflowY: "auto" }}>
@@ -292,7 +303,7 @@ export default function TrabajadoresPage() {
                   <div><label style={lbl}>Fecha ingreso</label><input style={inp} type="date" value={form.fecha_ingreso} onChange={e => setForm({ ...form, fecha_ingreso: e.target.value })} /></div>
                   <div><label style={lbl}>Sistema pension</label><select style={inp} value={form.sistema_pension} onChange={e => setForm({ ...form, sistema_pension: e.target.value })}>{PENSIONES.map(p => <option key={p}>{p}</option>)}</select></div>
                 </div>
-                {esAdmin && <div><label style={lbl}>Sueldo base</label><input style={inp} type="number" value={form.sueldo_base} onChange={e => setForm({ ...form, sueldo_base: parseFloat(e.target.value) || 0 })} /></div>}
+                {esAdminFinanzas && <div><label style={lbl}>Sueldo base</label><input style={inp} type="number" value={form.sueldo_base} onChange={e => setForm({ ...form, sueldo_base: parseFloat(e.target.value) || 0 })} /></div>}
               </div>
             )}
 
@@ -353,7 +364,6 @@ export default function TrabajadoresPage() {
         </div>
       )}
 
-      {/* Modal historial completo */}
       {showContrato && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
@@ -361,13 +371,10 @@ export default function TrabajadoresPage() {
               <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Historial del trabajador</h2>
               <button onClick={() => setShowContrato(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
             </div>
-
             {loadingHistorial ? (
               <div style={{ color: "#6b7280", padding: 20 }}>Cargando historial...</div>
             ) : historial && (
               <div style={{ display: "grid", gap: 20 }}>
-
-                {/* Vacaciones */}
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                     <span>Vacaciones</span>
@@ -392,8 +399,6 @@ export default function TrabajadoresPage() {
                     </table>
                   )}
                 </div>
-
-                {/* Horas extras */}
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                     <span>Horas extras</span>
@@ -418,8 +423,6 @@ export default function TrabajadoresPage() {
                     </table>
                   )}
                 </div>
-
-                {/* Permisos */}
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                     <span>Permisos</span>
@@ -444,8 +447,6 @@ export default function TrabajadoresPage() {
                     </table>
                   )}
                 </div>
-
-                {/* Faltas medicas */}
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                     <span>Faltas medicas</span>
@@ -470,7 +471,6 @@ export default function TrabajadoresPage() {
                     </table>
                   )}
                 </div>
-
               </div>
             )}
           </div>
