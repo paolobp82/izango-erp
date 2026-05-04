@@ -17,6 +17,7 @@ export default function TrabajadoresPage() {
   const [editando, setEditando] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [perfil, setPerfil] = useState<any>(null)
+  const [userId, setUserId] = useState<string>("")
   const [tab, setTab] = useState("info")
   const [contratos, setContratos] = useState<any[]>([])
   const [showContrato, setShowContrato] = useState(false)
@@ -37,12 +38,22 @@ export default function TrabajadoresPage() {
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-      setPerfil(p)
+    if (!user) return
+    setUserId(user.id)
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const esAdminTotal = ["superadmin","gerente_general","controller","administrador"].includes(p?.perfil)
+
+    if (esAdminTotal) {
+      // Admins ven todos
+      const { data } = await supabase.from("rrhh_trabajadores").select("*").eq("activo", true).order("apellido")
+      setTrabajadores(data || [])
+    } else {
+      // El resto solo ve su propia ficha
+      const { data } = await supabase.from("rrhh_trabajadores").select("*").eq("activo", true).eq("user_id", user.id)
+      setTrabajadores(data || [])
     }
-    const { data } = await supabase.from("rrhh_trabajadores").select("*").eq("activo", true).order("apellido")
-    setTrabajadores(data || [])
     setLoading(false)
   }
 
@@ -83,7 +94,7 @@ export default function TrabajadoresPage() {
     setForm({
       nombre: t.nombre, apellido: t.apellido, dni: t.dni || "", email: t.email || "",
       telefono: t.telefono || "", fecha_ingreso: t.fecha_ingreso || "", cargo: t.cargo || "",
-      area: t.area || "", tipo: t.tipo, modalidad_contrato: t.modalidad_contrato || "",
+      area: t.area || "", tipo: t.tipo || "planilla", modalidad_contrato: t.modalidad_contrato || "",
       banco: t.banco || "", tipo_cuenta: t.tipo_cuenta || "", numero_cuenta: t.numero_cuenta || "",
       cci: t.cci || "", sistema_pension: t.sistema_pension || "AFP_Integra",
       sueldo_base: t.sueldo_base || 0, foto_url: t.foto_url || "",
@@ -99,11 +110,22 @@ export default function TrabajadoresPage() {
   async function guardar() {
     if (!form.nombre || !form.apellido) { alert("Nombre y apellido son obligatorios"); return }
     setSaving(true)
-    const payload = { ...form, sueldo_base: parseFloat(form.sueldo_base.toString()) || 0, updated_at: new Date().toISOString() }
+    const payload = {
+      ...form,
+      tipo: form.tipo || "planilla",
+      sueldo_base: parseFloat(form.sueldo_base.toString()) || 0,
+      updated_at: new Date().toISOString()
+    }
     if (editando) {
       await supabase.from("rrhh_trabajadores").update(payload).eq("id", editando.id)
     } else {
-      await supabase.from("rrhh_trabajadores").insert({ ...payload, activo: true, ficha_aprobada: false, ficha_bloqueada: false })
+      await supabase.from("rrhh_trabajadores").insert({
+        ...payload,
+        activo: true,
+        ficha_aprobada: false,
+        ficha_bloqueada: false,
+        user_id: userId
+      })
     }
     setSaving(false)
     setShowForm(false)
@@ -135,12 +157,9 @@ export default function TrabajadoresPage() {
     load()
   }
 
-  // Todos pueden ver y editar fichas excepto sueldo
-  const esAdmin = ["superadmin","gerente_general","administrador","controller","gerente_produccion","productor","practicante","logistica","comercial"].includes(perfil?.perfil)
-  // Solo estos pueden ver sueldo base
-  const esAdminFinanzas = ["superadmin","gerente_general","administrador","controller"].includes(perfil?.perfil)
-  // Solo estos pueden aprobar/desbloquear/eliminar
+  const esAdminTotal = ["superadmin","gerente_general","controller","administrador"].includes(perfil?.perfil)
   const esAdminRRHH = ["superadmin","gerente_general","administrador","controller"].includes(perfil?.perfil)
+  const puedeVerSueldo = ["superadmin","gerente_general","administrador","controller"].includes(perfil?.perfil)
 
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
@@ -153,31 +172,44 @@ export default function TrabajadoresPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Trabajadores</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{trabajadores.length} trabajadores activos</p>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+            {esAdminTotal ? `${trabajadores.length} trabajadores activos` : "Mi ficha de trabajador"}
+          </p>
         </div>
-        {esAdmin && (
-          <div style={{ display: "flex", gap: 8 }}>
-            {esAdminFinanzas && (
-              <ImportExport modulo="rrhh_trabajadores"
-                campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"apellido",label:"Apellido",requerido:true},{key:"dni",label:"DNI"},{key:"email",label:"Email"},{key:"telefono",label:"Telefono"},{key:"fecha_ingreso",label:"Fecha ingreso"},{key:"cargo",label:"Cargo"},{key:"area",label:"Area"},{key:"tipo",label:"Tipo"},{key:"sueldo_base",label:"Sueldo base"},{key:"banco",label:"Banco"},{key:"numero_cuenta",label:"N cuenta"},{key:"cci",label:"CCI"},{key:"sistema_pension",label:"Sistema pension"}]}
-                datos={trabajadores}
-                onImportar={async (registros) => {
-                  let exitosos=0; const errores: string[]=[]
-                  for(const r of registros){
-                    const {error}=await supabase.from("rrhh_trabajadores").insert({...r,activo:true,ficha_aprobada:false,ficha_bloqueada:false})
-                    if(error)errores.push(r.nombre+": "+error.message); else exitosos++
-                  }
-                  load(); return{exitosos,errores}
-                }} />
-            )}
+        <div style={{ display: "flex", gap: 8 }}>
+          {esAdminTotal && (
+            <ImportExport modulo="rrhh_trabajadores"
+              campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"apellido",label:"Apellido",requerido:true},{key:"dni",label:"DNI"},{key:"email",label:"Email"},{key:"telefono",label:"Telefono"},{key:"fecha_ingreso",label:"Fecha ingreso"},{key:"cargo",label:"Cargo"},{key:"area",label:"Area"},{key:"tipo",label:"Tipo"},{key:"sueldo_base",label:"Sueldo base"},{key:"banco",label:"Banco"},{key:"numero_cuenta",label:"N cuenta"},{key:"cci",label:"CCI"},{key:"sistema_pension",label:"Sistema pension"}]}
+              datos={trabajadores}
+              onImportar={async (registros) => {
+                let exitosos=0; const errores: string[]=[]
+                for(const r of registros){
+                  const {error}=await supabase.from("rrhh_trabajadores").insert({...r,activo:true,tipo:r.tipo||"planilla",ficha_aprobada:false,ficha_bloqueada:false})
+                  if(error)errores.push(r.nombre+": "+error.message); else exitosos++
+                }
+                load(); return{exitosos,errores}
+              }} />
+          )}
+          {/* Solo puede crear si no tiene ficha propia */}
+          {!esAdminTotal && trabajadores.length === 0 && (
+            <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Crear mi ficha</button>
+          )}
+          {esAdminTotal && (
             <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo trabajador</button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {trabajadores.length === 0 ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "#9ca3af" }}>No hay trabajadores registrados.</div>
+          <div style={{ padding: "40px", textAlign: "center", color: "#9ca3af" }}>
+            <div style={{ fontSize: 14, marginBottom: 8 }}>
+              {esAdminTotal ? "No hay trabajadores registrados." : "Aun no tienes una ficha de trabajador."}
+            </div>
+            {!esAdminTotal && (
+              <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Crear mi ficha</button>
+            )}
+          </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -185,7 +217,7 @@ export default function TrabajadoresPage() {
                 <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TRABAJADOR</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CARGO / AREA</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO</th>
-                {esAdminFinanzas && <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>SUELDO BASE</th>}
+                {puedeVerSueldo && <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>SUELDO BASE</th>}
                 <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FICHA</th>
                 <th style={{ padding: "10px 20px", width: 200 }}></th>
               </tr>
@@ -213,9 +245,9 @@ export default function TrabajadoresPage() {
                     <div style={{ fontSize: 11, color: "#9ca3af" }}>{t.area || ""}</div>
                   </td>
                   <td style={{ padding: "12px" }}>
-                    <span style={{ background: t.tipo === "planilla" ? "#dbeafe" : t.tipo === "honorarios" ? "#fef3c7" : "#f0fdf4", color: t.tipo === "planilla" ? "#1e40af" : t.tipo === "honorarios" ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{t.tipo}</span>
+                    <span style={{ background: t.tipo === "planilla" ? "#dbeafe" : t.tipo === "honorarios" ? "#fef3c7" : "#f0fdf4", color: t.tipo === "planilla" ? "#1e40af" : t.tipo === "honorarios" ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{t.tipo || "planilla"}</span>
                   </td>
-                  {esAdminFinanzas && <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: "#111827" }}>S/ {Number(t.sueldo_base || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</td>}
+                  {puedeVerSueldo && <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: "#111827" }}>S/ {Number(t.sueldo_base || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</td>}
                   <td style={{ padding: "12px", textAlign: "center" }}>
                     {t.ficha_aprobada ? (
                       <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>Aprobada</span>
@@ -225,12 +257,8 @@ export default function TrabajadoresPage() {
                   </td>
                   <td style={{ padding: "12px 20px", textAlign: "right" }}>
                     <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                      {esAdmin && (
-                        <>
-                          <button onClick={() => abrirEditar(t)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
-                          <button onClick={() => { setTrabajadorSeleccionado(t.id); cargarHistorial(t.id); setShowContrato(true); cargarContratos(t.id) }} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer" }}>Historial</button>
-                        </>
-                      )}
+                      <button onClick={() => abrirEditar(t)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
+                      <button onClick={() => { setTrabajadorSeleccionado(t.id); cargarHistorial(t.id); setShowContrato(true); cargarContratos(t.id) }} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer" }}>Historial</button>
                       {esAdminRRHH && (
                         <>
                           {!t.ficha_aprobada && <button onClick={() => aprobarFicha(t.id)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Aprobar</button>}
@@ -251,7 +279,7 @@ export default function TrabajadoresPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 720, maxHeight: "92vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>{editando ? "Editar trabajador" : "Nuevo trabajador"}</h2>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>{editando ? "Editar ficha" : "Nueva ficha de trabajador"}</h2>
               <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
             </div>
             <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
@@ -303,7 +331,7 @@ export default function TrabajadoresPage() {
                   <div><label style={lbl}>Fecha ingreso</label><input style={inp} type="date" value={form.fecha_ingreso} onChange={e => setForm({ ...form, fecha_ingreso: e.target.value })} /></div>
                   <div><label style={lbl}>Sistema pension</label><select style={inp} value={form.sistema_pension} onChange={e => setForm({ ...form, sistema_pension: e.target.value })}>{PENSIONES.map(p => <option key={p}>{p}</option>)}</select></div>
                 </div>
-                {esAdminFinanzas && <div><label style={lbl}>Sueldo base</label><input style={inp} type="number" value={form.sueldo_base} onChange={e => setForm({ ...form, sueldo_base: parseFloat(e.target.value) || 0 })} /></div>}
+                {puedeVerSueldo && <div><label style={lbl}>Sueldo base</label><input style={inp} type="number" value={form.sueldo_base} onChange={e => setForm({ ...form, sueldo_base: parseFloat(e.target.value) || 0 })} /></div>}
               </div>
             )}
 
@@ -402,7 +430,7 @@ export default function TrabajadoresPage() {
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                     <span>Horas extras</span>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>Total: {historial.horas_extras.reduce((s: number, h: any) => s + (h.horas || 0), 0)}h — S/ {historial.horas_extras.reduce((s: number, h: any) => s + (h.monto_calculado || 0), 0).toFixed(2)}</span>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>Total: {historial.horas_extras.reduce((s: number, h: any) => s + (h.horas || 0), 0)}h</span>
                   </div>
                   {historial.horas_extras.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af" }}>Sin registros</div> : (
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -426,7 +454,7 @@ export default function TrabajadoresPage() {
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                     <span>Permisos</span>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>Total: {historial.permisos.length} registros</span>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>Total: {historial.permisos.length}</span>
                   </div>
                   {historial.permisos.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af" }}>Sin registros</div> : (
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -450,7 +478,7 @@ export default function TrabajadoresPage() {
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                     <span>Faltas medicas</span>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>Total: {historial.faltas_medicas.length} registros</span>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>Total: {historial.faltas_medicas.length}</span>
                   </div>
                   {historial.faltas_medicas.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af" }}>Sin registros</div> : (
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
