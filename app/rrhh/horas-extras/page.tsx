@@ -3,6 +3,8 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 
+const PROYECTO_OTRO = "__otro__"
+
 export default function HorasExtrasPage() {
   const supabase = createClient()
   const [registros, setRegistros] = useState<any[]>([])
@@ -40,19 +42,21 @@ export default function HorasExtrasPage() {
     setLoading(false)
   }
 
-  const esAdmin = perfil?.perfil === "superadmin" || perfil?.perfil === "gerente_general" || perfil?.perfil === "administrador" || perfil?.perfil === "controller"
+  const esAdmin = ["superadmin","gerente_general","administrador","controller"].includes(perfil?.perfil)
 
   async function guardar() {
     if (!form.fecha || !form.horas) { alert("Fecha y horas son obligatorios"); return }
+    if (form.proyecto_id === PROYECTO_OTRO && !form.proyecto_externo) { alert("Ingresa el nombre del proyecto"); return }
     setSaving(true)
     const trabajadorId = esAdmin ? form.trabajador_id : trabajadorPropio?.id
     if (!trabajadorId) { alert("No se encontro el trabajador. Asegurate de tener una ficha creada en RRHH."); setSaving(false); return }
     const { error } = await supabase.from("rrhh_horas_extras").insert({
-      ...form,
       trabajador_id: trabajadorId,
+      fecha: form.fecha,
       horas: parseFloat(form.horas.toString()),
-      proyecto_id: form.proyecto_id || null,
-      proyecto_externo: form.proyecto_externo || null,
+      motivo: form.motivo || null,
+      proyecto_id: form.proyecto_id && form.proyecto_id !== PROYECTO_OTRO ? form.proyecto_id : null,
+      proyecto_externo: form.proyecto_id === PROYECTO_OTRO ? form.proyecto_externo : null,
     })
     if (error) { alert("Error al guardar: " + error.message); setSaving(false); return }
     setSaving(false)
@@ -66,10 +70,12 @@ export default function HorasExtrasPage() {
     const validos = batchItems.filter(b => b.trabajador_id && b.fecha && b.horas)
     for (const b of validos) {
       await supabase.from("rrhh_horas_extras").insert({
-        ...b,
+        trabajador_id: b.trabajador_id,
+        fecha: b.fecha,
         horas: parseFloat(b.horas),
-        proyecto_id: b.proyecto_id || null,
-        proyecto_externo: b.proyecto_externo || null,
+        motivo: b.motivo || null,
+        proyecto_id: b.proyecto_id && b.proyecto_id !== PROYECTO_OTRO ? b.proyecto_id : null,
+        proyecto_externo: b.proyecto_id === PROYECTO_OTRO ? b.proyecto_externo : null,
       })
     }
     setSaving(false)
@@ -98,7 +104,6 @@ export default function HorasExtrasPage() {
   })
 
   const totalMonto = registrosFiltrados.filter(r => r.aprobado).reduce((s, r) => s + (r.monto_calculado || 0), 0)
-
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
 
@@ -113,11 +118,7 @@ export default function HorasExtrasPage() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <ImportExport modulo="rrhh_horas_extras"
-            campos={[
-              {key:"fecha",label:"Fecha",requerido:true},{key:"horas",label:"Horas",requerido:true},
-              {key:"motivo",label:"Motivo"},{key:"monto_calculado",label:"Monto calculado"},
-              {key:"aprobado",label:"Aprobado"},{key:"proyecto_externo",label:"Proyecto externo"},
-            ]}
+            campos={[{key:"fecha",label:"Fecha",requerido:true},{key:"horas",label:"Horas",requerido:true},{key:"motivo",label:"Motivo"},{key:"monto_calculado",label:"Monto calculado"},{key:"aprobado",label:"Aprobado"},{key:"proyecto_externo",label:"Proyecto externo"}]}
             datos={registrosFiltrados}
             onImportar={async (registros) => {
               let exitosos=0; const errores: string[]=[]
@@ -169,7 +170,9 @@ export default function HorasExtrasPage() {
                   <td style={{ padding: "12px", textAlign: "center", fontSize: 14, fontWeight: 700, color: "#111827" }}>{r.horas}h</td>
                   <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{r.motivo || "—"}</td>
                   <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
-                    {r.proyecto ? r.proyecto.codigo : r.proyecto_externo ? <span style={{ color: "#92400e", background: "#fef3c7", padding: "1px 6px", borderRadius: 4, fontSize: 11 }}>Ext: {r.proyecto_externo}</span> : "—"}
+                    {r.proyecto ? r.proyecto.codigo : r.proyecto_externo ? (
+                      <span style={{ color: "#92400e", background: "#fef3c7", padding: "1px 6px", borderRadius: 4, fontSize: 11 }}>Otro: {r.proyecto_externo}</span>
+                    ) : "—"}
                   </td>
                   <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: "#065f46" }}>S/ {Number(r.monto_calculado || 0).toFixed(2)}</td>
                   <td style={{ padding: "12px", textAlign: "center" }}>
@@ -217,17 +220,17 @@ export default function HorasExtrasPage() {
               </div>
               <div><label style={lbl}>Motivo</label><input style={inp} value={form.motivo} placeholder="Descripcion del trabajo" onChange={e => setForm({ ...form, motivo: e.target.value })} /></div>
               <div>
-                <label style={lbl}>Proyecto del ERP</label>
-                <select style={inp} value={form.proyecto_id} onChange={e => setForm({ ...form, proyecto_id: e.target.value, proyecto_externo: e.target.value ? "" : form.proyecto_externo })}>
-                  <option value="">Sin proyecto del ERP</option>
+                <label style={lbl}>Proyecto</label>
+                <select style={inp} value={form.proyecto_id} onChange={e => setForm({ ...form, proyecto_id: e.target.value, proyecto_externo: "" })}>
+                  <option value="">Sin proyecto</option>
                   {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} — {p.nombre}</option>)}
+                  <option value={PROYECTO_OTRO}>Otro (proyecto no registrado)</option>
                 </select>
               </div>
-              {!form.proyecto_id && (
+              {form.proyecto_id === PROYECTO_OTRO && (
                 <div>
-                  <label style={lbl}>Proyecto externo (anterior al ERP)</label>
-                  <input style={inp} value={form.proyecto_externo} placeholder="Nombre del proyecto anterior" onChange={e => setForm({ ...form, proyecto_externo: e.target.value })} />
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 3 }}>Usa este campo para proyectos que no estan registrados en el sistema</div>
+                  <label style={lbl}>Nombre del proyecto *</label>
+                  <input style={inp} value={form.proyecto_externo} placeholder="Ej: Activacion Honda 2025" onChange={e => setForm({ ...form, proyecto_externo: e.target.value })} />
                 </div>
               )}
             </div>
@@ -269,15 +272,16 @@ export default function HorasExtrasPage() {
                     <input style={inp} value={b.motivo} onChange={e => setBatchItems(prev => prev.map((x, j) => j === i ? { ...x, motivo: e.target.value } : x))} />
                   </div>
                   <div>
-                    {i === 0 && <label style={lbl}>Proyecto ERP</label>}
-                    <select style={inp} value={b.proyecto_id} onChange={e => setBatchItems(prev => prev.map((x, j) => j === i ? { ...x, proyecto_id: e.target.value, proyecto_externo: e.target.value ? "" : x.proyecto_externo } : x))}>
+                    {i === 0 && <label style={lbl}>Proyecto</label>}
+                    <select style={inp} value={b.proyecto_id} onChange={e => setBatchItems(prev => prev.map((x, j) => j === i ? { ...x, proyecto_id: e.target.value, proyecto_externo: "" } : x))}>
                       <option value="">Sin proyecto</option>
                       {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo}</option>)}
+                      <option value={PROYECTO_OTRO}>Otro</option>
                     </select>
                   </div>
                   <div>
-                    {i === 0 && <label style={lbl}>Proyecto externo</label>}
-                    <input style={inp} value={b.proyecto_externo} placeholder="Proyecto anterior al ERP" disabled={!!b.proyecto_id} onChange={e => setBatchItems(prev => prev.map((x, j) => j === i ? { ...x, proyecto_externo: e.target.value } : x))} />
+                    {i === 0 && <label style={lbl}>Nombre proyecto otro</label>}
+                    <input style={{ ...inp, background: b.proyecto_id !== PROYECTO_OTRO ? "#f9fafb" : "#fff" }} value={b.proyecto_externo} placeholder="Solo si eliges Otro" disabled={b.proyecto_id !== PROYECTO_OTRO} onChange={e => setBatchItems(prev => prev.map((x, j) => j === i ? { ...x, proyecto_externo: e.target.value } : x))} />
                   </div>
                   <button onClick={() => setBatchItems(prev => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 18, paddingBottom: 4 }}>x</button>
                 </div>

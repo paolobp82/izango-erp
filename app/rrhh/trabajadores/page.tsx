@@ -119,16 +119,7 @@ export default function TrabajadoresPage() {
     if (editando) {
       await supabase.from("rrhh_trabajadores").update(payload).eq("id", editando.id)
     } else {
-      const { error: insertError } = await supabase.from("rrhh_trabajadores").insert({
-  ...payload,
-  activo: true,
-  ficha_aprobada: false,
-  ficha_bloqueada: false,
-  user_id: userId
-})
-if (insertError) { alert("Error al guardar: " + insertError.message); setSaving(false); return }
-})
-if (insertError) { alert("Error: " + insertError.message); setSaving(false); return }
+      await supabase.from("rrhh_trabajadores").insert({
         ...payload,
         activo: true,
         ficha_aprobada: false,
