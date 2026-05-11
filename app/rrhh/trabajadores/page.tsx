@@ -126,6 +126,8 @@ export default function TrabajadoresPage() {
   ficha_bloqueada: false,
   user_id: userId
 })
+if (insertError) { alert("Error al guardar: " + insertError.message); setSaving(false); return }
+})
 if (insertError) { alert("Error: " + insertError.message); setSaving(false); return }
         ...payload,
         activo: true,
