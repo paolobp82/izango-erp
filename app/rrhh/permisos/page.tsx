@@ -22,7 +22,7 @@ export default function PermisosPage() {
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
       setPerfil(p)
-      const { data: t } = await supabase.from("rrhh_trabajadores").select("*").eq("usuario_id", user.id).single()
+      const { data: t } = await supabase.from("rrhh_trabajadores").select("*").eq("user_id", user.id).single()
       setTrabajadorPropio(t)
     }
     const [{ data: regs }, { data: trabs }] = await Promise.all([
