@@ -94,7 +94,7 @@ export default function ProveedoresPage() {
   async function abrirEditar(prov: any) {
     setEditando(prov)
     setEsCliente(prov.es_cliente || false)
-    setContactosAdicionales(prov.contactos_adicionales ? JSON.parse(prov.contactos_adicionales) : [])
+    try { setContactosAdicionales(prov.contactos_adicionales ? JSON.parse(prov.contactos_adicionales) : []) } catch { setContactosAdicionales([]) }
     setCalificacionPendiente(null)
     setComentarioPendiente("")
     setForm({
