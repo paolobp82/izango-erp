@@ -369,11 +369,6 @@ const autoSaveRef = useRef<any>(null)
   autoSaveRef.current = setInterval(async () => {
     if (saving) return
     setSaving(true)
-   const { data: dbItems } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
-const currentIds = itemsRef.current.filter(i => !String(i.id).startsWith("new_")).map(i => i.id)
-if (toDelete.length > 0) {
-  await supabase.from("cotizacion_items").delete().in("id", toDelete)
-}
 for (const item of itemsRef.current) {
   const payload = {
     cotizacion_id: cotId, orden: item.orden, descripcion: item.descripcion,
