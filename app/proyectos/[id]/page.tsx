@@ -40,6 +40,10 @@ export default function ProyectoDetallePage() {
   const [versionAprobar, setVersionAprobar] = useState("")
   const [editandoEntidad, setEditandoEntidad] = useState(false)
   const [showVersionesEliminadas, setShowVersionesEliminadas] = useState(false)
+  const [showEditar, setShowEditar] = useState(false)
+  const [clientes, setClientes] = useState<any[]>([])
+  const [productores, setProductores] = useState<any[]>([])
+  const [formEditar, setFormEditar] = useState<any>({})
 
   useEffect(() => { load() }, [id])
 
@@ -56,7 +60,6 @@ export default function ProyectoDetallePage() {
       .single()
     setProyecto(proy)
 
-    // Cotizaciones activas
     const { data: cots } = await supabase.from("cotizaciones").select("*").eq("proyecto_id", id).is("deleted_at", null).order("version")
     if (cots && cots.length > 0) {
       const hist: Record<string, any[]> = {}
@@ -72,13 +75,36 @@ export default function ProyectoDetallePage() {
     }
     setCotizaciones(cots || [])
 
-    // Cotizaciones eliminadas en últimos 2 días
     const hace2dias = new Date()
     hace2dias.setDate(hace2dias.getDate() - 2)
     const { data: elim } = await supabase.from("cotizaciones").select("*").eq("proyecto_id", id).not("deleted_at", "is", null).gte("deleted_at", hace2dias.toISOString()).order("deleted_at", { ascending: false })
     setCotizacionesEliminadas(elim || [])
-
     setLoading(false)
+  }
+
+  async function abrirEditar() {
+    const [{ data: cls }, { data: prods }] = await Promise.all([
+      supabase.from("clientes").select("id,razon_social").order("razon_social"),
+      supabase.from("perfiles").select("id,nombre,apellido").order("apellido"),
+    ])
+    setClientes(cls || [])
+    setProductores(prods || [])
+    setFormEditar({
+      nombre: proyecto?.nombre || "",
+      cliente_id: proyecto?.cliente_id || "",
+      productor_id: proyecto?.productor_id || "",
+      fecha_inicio: proyecto?.fecha_inicio || "",
+      fecha_fin_estimada: proyecto?.fecha_fin_estimada || "",
+      presupuesto_referencial: proyecto?.presupuesto_referencial || "",
+    })
+    setShowEditar(true)
+  }
+
+  async function guardarEdicion() {
+    await supabase.from("proyectos").update(formEditar).eq("id", id)
+    await registrarAccion({ accion: "editar", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Proyecto editado: " + formEditar.nombre })
+    setShowEditar(false)
+    load()
   }
 
   async function cambiarEstado(nuevoEstado: string) {
@@ -186,6 +212,7 @@ export default function ProyectoDetallePage() {
   const esEstadoFinal = ["cancelado", "rechazado"].includes(proyecto?.estado)
   const puedeAvanzar = estadoInfo.roles?.includes(perfil?.perfil) && tieneCotizacion && !esEstadoFinal
   const puedeRechazar = ["gerente_produccion", "gerente_general", "superadmin"].includes(perfil?.perfil) && !esEstadoFinal
+  const puedeEditar = ["superadmin", "gerente_general", "gerente_produccion", "administrador", "controller", "productor"].includes(perfil?.perfil)
   const cotAprobada = cotizaciones.find(c => c.estado === "aprobada_cliente") || cotizaciones.find(c => c.id === proyecto?.cotizacion_aprobada_id)
 
   const ecCot: any = {
@@ -194,6 +221,9 @@ export default function ProyectoDetallePage() {
     aprobada_cliente: { bg: "#dcfce7", color: "#15803d" },
     rechazada: { bg: "#fee2e2", color: "#991b1b" },
   }
+
+  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -233,25 +263,33 @@ export default function ProyectoDetallePage() {
             )}
           </div>
         </div>
-        <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
-          style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#fff", color: "#0F6E56", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
-          📥 Reporte PDF
-        </a>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {cotizaciones.length > 0 && (
-            <select id="copiar-version" style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
-              <option value="">Nueva vacia</option>
-              {cotizaciones.map((cot: any) => (
-                <option key={cot.id} value={cot.id}>Copiar V{cot.version}</option>
-              ))}
-            </select>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {puedeEditar && (
+            <button onClick={abrirEditar}
+              style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              ✏️ Editar
+            </button>
           )}
-          <button onClick={() => {
-            const sel = document.getElementById("copiar-version") as HTMLSelectElement
-            nuevaVersion(sel?.value || undefined)
-          }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
-            {creando ? "Creando..." : "+ Nueva proforma"}
-          </button>
+          <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
+            style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#fff", color: "#0F6E56", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            📥 Reporte PDF
+          </a>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {cotizaciones.length > 0 && (
+              <select id="copiar-version" style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
+                <option value="">Nueva vacia</option>
+                {cotizaciones.map((cot: any) => (
+                  <option key={cot.id} value={cot.id}>Copiar V{cot.version}</option>
+                ))}
+              </select>
+            )}
+            <button onClick={() => {
+              const sel = document.getElementById("copiar-version") as HTMLSelectElement
+              nuevaVersion(sel?.value || undefined)
+            }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
+              {creando ? "Creando..." : "+ Nueva proforma"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -350,7 +388,6 @@ export default function ProyectoDetallePage() {
         </div>
       </div>
 
-      {/* Versiones eliminadas recuperables */}
       {cotizacionesEliminadas.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <button onClick={() => setShowVersionesEliminadas(!showVersionesEliminadas)}
@@ -471,6 +508,55 @@ export default function ProyectoDetallePage() {
           </table>
         )}
       </div>
+
+      {showEditar && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 560 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Editar proyecto</h2>
+              <button onClick={() => setShowEditar(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>×</button>
+            </div>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>
+                <label style={lbl}>NOMBRE</label>
+                <input style={inp} value={formEditar.nombre} onChange={e => setFormEditar({ ...formEditar, nombre: e.target.value })} />
+              </div>
+              <div>
+                <label style={lbl}>CLIENTE</label>
+                <select style={inp} value={formEditar.cliente_id} onChange={e => setFormEditar({ ...formEditar, cliente_id: e.target.value })}>
+                  <option value="">Sin cliente</option>
+                  {clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>PRODUCTOR</label>
+                <select style={inp} value={formEditar.productor_id} onChange={e => setFormEditar({ ...formEditar, productor_id: e.target.value })}>
+                  <option value="">Sin productor</option>
+                  {productores.map(p => <option key={p.id} value={p.id}>{p.apellido} {p.nombre}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={lbl}>FECHA INICIO</label>
+                  <input type="date" style={inp} value={formEditar.fecha_inicio} onChange={e => setFormEditar({ ...formEditar, fecha_inicio: e.target.value })} />
+                </div>
+                <div>
+                  <label style={lbl}>FECHA FIN ESTIMADA</label>
+                  <input type="date" style={inp} value={formEditar.fecha_fin_estimada} onChange={e => setFormEditar({ ...formEditar, fecha_fin_estimada: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>PRESUPUESTO REF.</label>
+                <input type="number" style={inp} value={formEditar.presupuesto_referencial} onChange={e => setFormEditar({ ...formEditar, presupuesto_referencial: e.target.value })} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+              <button onClick={() => setShowEditar(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+              <button onClick={guardarEdicion} className="btn-primary" style={{ fontSize: 13 }}>Guardar cambios</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
