@@ -58,6 +58,43 @@ export default function ProyectosPage() {
     setEliminando(null)
     load()
   }
+  async function copiarProyecto(p: any) {
+  if (!confirm(`¿Copiar proyecto "${p.nombre}"?`)) return
+  const { data: lastProj } = await supabase.from("proyectos").select("codigo").order("codigo", { ascending: false }).limit(1).single()
+  const lastNum = lastProj?.codigo ? parseInt(lastProj.codigo.replace("IZ-", "")) : 26000
+  const nuevoCodigo = `IZ-${lastNum + 1}`
+  const { data: nuevo } = await supabase.from("proyectos").insert({
+    codigo: nuevoCodigo,
+    nombre: p.nombre + " (copia)",
+    cliente_id: p.cliente_id || null,
+    productor_id: p.productor_id || null,
+    entidad: p.entidad || "peru",
+    fecha_inicio: p.fecha_inicio || null,
+    fecha_fin_estimada: p.fecha_fin_estimada || null,
+    presupuesto_referencial: p.presupuesto_referencial || null,
+    estado: "pendiente_aprobacion",
+  }).select().single()
+  if (!nuevo) return
+  // Copiar cotizaciones
+  const { data: cots } = await supabase.from("cotizaciones").select("*").eq("proyecto_id", p.id).is("deleted_at", null)
+  for (const cot of (cots || [])) {
+    const { data: nuevaCot } = await supabase.from("cotizaciones").insert({
+      proyecto_id: nuevo.id, version: cot.version, estado: "borrador",
+      condicion_pago: cot.condicion_pago, validez_dias: cot.validez_dias,
+      fee_agencia_pct: cot.fee_agencia_pct, fee_activo: cot.fee_activo,
+      igv_pct: cot.igv_pct, descuento_pct: cot.descuento_pct || 0,
+    }).select().single()
+    if (!nuevaCot) continue
+    const { data: items } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cot.id)
+    if (items && items.length > 0) {
+      await supabase.from("cotizacion_items").insert(
+        items.map(({ id: _id, cotizacion_id: _cid, ...rest }: any) => ({ ...rest, cotizacion_id: nuevaCot.id }))
+      )
+    }
+  }
+  load()
+  router.push("/proyectos/" + nuevo.id)
+}
 
   async function recuperar(id: string) {
     await supabase.from("proyectos").update({ deleted_at: null }).eq("id", id)
@@ -170,6 +207,7 @@ export default function ProyectosPage() {
                     </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                        <button onClick={() => copiarProyecto(p)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>Copiar</button>
                         <button onClick={() => router.push("/proyectos/" + p.id)} className="btn-secondary" style={{ fontSize: 12 }}>Ver</button>
                         <button onClick={() => eliminar(p.id, p.nombre)} disabled={eliminando === p.id}
                           style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
