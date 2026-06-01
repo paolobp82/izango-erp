@@ -369,33 +369,40 @@ const autoSaveRef = useRef<any>(null)
   autoSaveRef.current = setInterval(async () => {
     if (saving) return
     setSaving(true)
-    for (const item of itemsRef.current) {
-      const payload = {
-        cotizacion_id: cotId, orden: item.orden, descripcion: item.descripcion,
-        cantidad: Number(item.cantidad)||1, fechas: Number(item.fechas)||1,
-        margen_pct: Number(item.margen_pct)||0,
-        costo_manual: item.costo_manual!==""&&item.costo_manual!==null ? Number(item.costo_manual) : null,
-        costo_almacenaje: Number(item.costo_almacenaje)||0, costo_impresion: Number(item.costo_impresion)||0,
-        costo_permisos: Number(item.costo_permisos)||0, costo_instalacion: Number(item.costo_instalacion)||0,
-        costo_performer: Number(item.costo_performer)||0, costo_alquiler: Number(item.costo_alquiler)||0,
-        costo_supervision: Number(item.costo_supervision)||0, costo_movilidad: Number(item.costo_movilidad)||0,
-        costo_otros: Number(item.costo_otros)||0, costo_unitario: item.costo_unitario||0,
-        costo_total: item.costo_total||0, precio_cliente: item.precio_cliente||0,
-        margen_monto: item.margen_monto||0, proveedor_id: item.proveedor_id||null,
-        proveedor_nombre: item.proveedor_nombre||null, centro_costo_id: item.centro_costo_id||null,
-        extras_produccion: JSON.stringify(item.extras_produccion||[]),
-        extras_alquiler: JSON.stringify(item.extras_alquiler||[]),
-        tipo: item.tipo||"item", familia_id: item.familia_id||null,
-        es_opcional: item.es_opcional||false, incluir_en_total: item.incluir_en_total!==false,
-        celda_titulo: item.celda_titulo||null, numero_item: item.numero_item||null,
-        columna_extra_valor: item.columna_extra_valor||null,
-      }
-      if (String(item.id).startsWith("new_")) {
-        await supabase.from("cotizacion_items").insert(payload)
-      } else {
-        await supabase.from("cotizacion_items").update(payload).eq("id", item.id)
-      }
-    }
+   const { data: dbItems } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
+const dbIds = (dbItems || []).map((i: any) => i.id)
+const currentIds = itemsRef.current.filter(i => !String(i.id).startsWith("new_")).map(i => i.id)
+const toDelete = dbIds.filter((dbId: string) => !currentIds.includes(dbId))
+if (toDelete.length > 0) {
+  await supabase.from("cotizacion_items").delete().in("id", toDelete)
+}
+for (const item of itemsRef.current) {
+  const payload = {
+    cotizacion_id: cotId, orden: item.orden, descripcion: item.descripcion,
+    cantidad: Number(item.cantidad)||1, fechas: Number(item.fechas)||1,
+    margen_pct: Number(item.margen_pct)||0,
+    costo_manual: item.costo_manual!==""&&item.costo_manual!==null ? Number(item.costo_manual) : null,
+    costo_almacenaje: Number(item.costo_almacenaje)||0, costo_impresion: Number(item.costo_impresion)||0,
+    costo_permisos: Number(item.costo_permisos)||0, costo_instalacion: Number(item.costo_instalacion)||0,
+    costo_performer: Number(item.costo_performer)||0, costo_alquiler: Number(item.costo_alquiler)||0,
+    costo_supervision: Number(item.costo_supervision)||0, costo_movilidad: Number(item.costo_movilidad)||0,
+    costo_otros: Number(item.costo_otros)||0, costo_unitario: item.costo_unitario||0,
+    costo_total: item.costo_total||0, precio_cliente: item.precio_cliente||0,
+    margen_monto: item.margen_monto||0, proveedor_id: item.proveedor_id||null,
+    proveedor_nombre: item.proveedor_nombre||null, centro_costo_id: item.centro_costo_id||null,
+    extras_produccion: JSON.stringify(item.extras_produccion||[]),
+    extras_alquiler: JSON.stringify(item.extras_alquiler||[]),
+    tipo: item.tipo||"item", familia_id: item.familia_id||null,
+    es_opcional: item.es_opcional||false, incluir_en_total: item.incluir_en_total!==false,
+    celda_titulo: item.celda_titulo||null, numero_item: item.numero_item||null,
+    columna_extra_valor: item.columna_extra_valor||null,
+  }
+  if (String(item.id).startsWith("new_")) {
+    await supabase.from("cotizacion_items").insert(payload)
+  } else {
+    await supabase.from("cotizacion_items").update(payload).eq("id", item.id)
+  }
+}
     setSaving(false)
     setLastSaved(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }))
   }, 60000)
