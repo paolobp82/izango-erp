@@ -27,7 +27,7 @@ function calcItem(item: any) {
     ? Number(item.costo_manual) : costoBase
   const costoTotal = costoUnitario * cantidad * fechas
   const margenPct = Number(item.margen_pct) || 0
-  const precioCliente = margenPct < 100 ? costoTotal / (1 - margenPct / 100) : costoTotal
+  const precioCliente = costoTotal * (1 + margenPct / 100)
   const margenMonto = precioCliente - costoTotal
   return { ...item, costo_base_calculado: costoBase, costo_total: costoTotal, costo_unitario: costoUnitario, precio_cliente: precioCliente, margen_monto: margenMonto }
 }
