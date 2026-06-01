@@ -601,6 +601,7 @@ useEffect(() => { itemsRef.current = items }, [items])
                 <th style={{ textAlign: "right", width: 120, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>C. Unit.</th>
                 <th style={{ textAlign: "right", width: 120, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Total S/</th>
                 <th style={{ textAlign: "center", width: 95, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Margen %</th>
+                <th style={{ textAlign: "right", width: 100, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>P. Unit. cli.</th>
                 <th style={{ textAlign: "right", width: 130, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Precio cli.</th>
                 <th style={{ textAlign: "center", width: 40, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>Opc.</th>
                 <th style={{ width: 30 }}></th>
@@ -713,13 +714,11 @@ useEffect(() => { itemsRef.current = items }, [items])
                           <span style={{ fontSize: 10, color: "#9ca3af" }}>%</span>
                         </div>
                       </td>
+                      <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 12, color: "#6b7280" }}>
+  {item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "—"}
+</td>
                       <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 13, color: item.precio_cliente > 0 ? "#0F6E56" : "#d1d5db", fontWeight: 700 }}>
-                        {item.precio_cliente > 0 ? (
-  <div>
-    <div>{fmt(item.precio_cliente)}</div>
-    {item.cantidad > 1 && <div style={{ fontSize: 10, color: "#9ca3af" }}>Unit: {fmt(item.precio_cliente / item.cantidad)}</div>}
-  </div>
-) : "—"}
+                        {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "—"}
                       </td>
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
                         <input type="checkbox" checked={item.incluir_en_total !== false} title="Incluir en total"
