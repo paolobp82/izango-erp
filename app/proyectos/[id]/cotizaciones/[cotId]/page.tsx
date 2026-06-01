@@ -726,9 +726,6 @@ useEffect(() => { itemsRef.current = items }, [items])
                         <button onClick={() => moverItem(item.id, "abajo")} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>↓</button>
                         <button onClick={() => removeItem(item.id)}
                           style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>×</button>
-<button onClick={() => moverItem(item.id, "abajo")} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>↓</button>
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>×</button>
-                      </td>
                     </tr>
                     {expandedItems[item.id] && (
                       <tr key={item.id + "_exp"}>
