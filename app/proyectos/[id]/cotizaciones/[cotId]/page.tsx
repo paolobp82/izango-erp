@@ -27,7 +27,9 @@ function calcItem(item: any) {
     ? Number(item.costo_manual) : costoBase
   const costoTotal = costoUnitario * cantidad * fechas
   const margenPct = Number(item.margen_pct) || 0
-  const precioCliente = costoTotal * (1 + margenPct / 100)
+  const precioClienteManual = item.precio_cliente_manual !== null && item.precio_cliente_manual !== undefined && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null
+  const precioCliente = precioClienteManual !== null ? precioClienteManual : costoTotal * (1 + margenPct / 100)
+  const margenCalculado = precioCliente > 0 ? ((precioCliente - costoTotal) / precioCliente) * 100 : margenPct
   const margenMonto = precioCliente - costoTotal
   return { ...item, costo_base_calculado: costoBase, costo_total: costoTotal, costo_unitario: costoUnitario, precio_cliente: precioCliente, margen_monto: margenMonto }
 }
@@ -601,6 +603,7 @@ useEffect(() => { itemsRef.current = items }, [items])
                 <th style={{ textAlign: "right", width: 120, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>C. Unit.</th>
                 <th style={{ textAlign: "right", width: 120, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Total S/</th>
                 <th style={{ textAlign: "center", width: 95, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Margen %</th>
+                <th style={{ textAlign: "right", width: 110, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#1D9E75" }}>P. Cli. Manual</th>
                 <th style={{ textAlign: "right", width: 100, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>P. Unit. cli.</th>
                 <th style={{ textAlign: "right", width: 130, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Precio cli.</th>
                 <th style={{ textAlign: "center", width: 40, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>Opc.</th>
@@ -714,9 +717,15 @@ useEffect(() => { itemsRef.current = items }, [items])
                           <span style={{ fontSize: 10, color: "#9ca3af" }}>%</span>
                         </div>
                       </td>
+                      <td style={{ padding: "6px 8px", width: 110 }}>
+                        <input type="number" style={{ ...inp, width: "100%", textAlign: "right", borderColor: item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? "#1D9E75" : "#e5e7eb" }}
+                          value={item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? item.precio_cliente_manual : ""}
+                          placeholder="Manual..."
+                          onChange={e => updateItem(item.id, "precio_cliente_manual", e.target.value === "" ? null : Number(e.target.value))} />
+                      </td>
                       <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 12, color: "#6b7280" }}>
-  {item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "—"}
-</td>
+                        {item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "—"}
+                      </td>
                       <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 13, color: item.precio_cliente > 0 ? "#0F6E56" : "#d1d5db", fontWeight: 700 }}>
                         {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "—"}
                       </td>
