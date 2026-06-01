@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams, useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
@@ -84,6 +84,8 @@ export default function CotizacionEditorPage() {
   const [centrosCostos, setCentrosCostos] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [lastSaved, setLastSaved] = useState<string>("")
+const autoSaveRef = useRef<any>(null)
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
   const [feeActivo, setFeeActivo] = useState(true)
   const [showBiblioteca, setShowBiblioteca] = useState(false)
@@ -362,6 +364,46 @@ export default function CotizacionEditorPage() {
   const inp: any = { padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", outline: "none" }
   const puedeDesbloquear = perfilActual?.perfil === "superadmin" || perfilActual?.email === "jsosa@izango.com.pe" || perfilActual?.email === "pbastianelli@izango.com.pe"
 
+  useEffect(() => {
+  if (!cotId || !id || loading) return
+  autoSaveRef.current = setInterval(async () => {
+    if (saving) return
+    setSaving(true)
+    for (const item of itemsRef.current) {
+      const payload = {
+        cotizacion_id: cotId, orden: item.orden, descripcion: item.descripcion,
+        cantidad: Number(item.cantidad)||1, fechas: Number(item.fechas)||1,
+        margen_pct: Number(item.margen_pct)||0,
+        costo_manual: item.costo_manual!==""&&item.costo_manual!==null ? Number(item.costo_manual) : null,
+        costo_almacenaje: Number(item.costo_almacenaje)||0, costo_impresion: Number(item.costo_impresion)||0,
+        costo_permisos: Number(item.costo_permisos)||0, costo_instalacion: Number(item.costo_instalacion)||0,
+        costo_performer: Number(item.costo_performer)||0, costo_alquiler: Number(item.costo_alquiler)||0,
+        costo_supervision: Number(item.costo_supervision)||0, costo_movilidad: Number(item.costo_movilidad)||0,
+        costo_otros: Number(item.costo_otros)||0, costo_unitario: item.costo_unitario||0,
+        costo_total: item.costo_total||0, precio_cliente: item.precio_cliente||0,
+        margen_monto: item.margen_monto||0, proveedor_id: item.proveedor_id||null,
+        proveedor_nombre: item.proveedor_nombre||null, centro_costo_id: item.centro_costo_id||null,
+        extras_produccion: JSON.stringify(item.extras_produccion||[]),
+        extras_alquiler: JSON.stringify(item.extras_alquiler||[]),
+        tipo: item.tipo||"item", familia_id: item.familia_id||null,
+        es_opcional: item.es_opcional||false, incluir_en_total: item.incluir_en_total!==false,
+        celda_titulo: item.celda_titulo||null, numero_item: item.numero_item||null,
+        columna_extra_valor: item.columna_extra_valor||null,
+      }
+      if (String(item.id).startsWith("new_")) {
+        await supabase.from("cotizacion_items").insert(payload)
+      } else {
+        await supabase.from("cotizacion_items").update(payload).eq("id", item.id)
+      }
+    }
+    setSaving(false)
+    setLastSaved(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }))
+  }, 60000)
+  return () => clearInterval(autoSaveRef.current)
+}, [cotId, id, loading])
+
+const itemsRef = useRef(items)
+useEffect(() => { itemsRef.current = items }, [items])
   if (!cotId) return <div style={{ color: "#dc2626", padding: 24 }}>Error: ID no encontrado.</div>
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -436,6 +478,7 @@ export default function CotizacionEditorPage() {
           <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cotId}/preview`)}
             style={{ padding: "6px 14px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
             👁 Preview
+            {lastSaved && <span style={{ fontSize: 11, color: "#9ca3af" }}>✓ Auto-guardado {lastSaved}</span>}
           </button>
           {!bloqueada && <button onClick={() => guardar()} disabled={saving} className="btn-secondary" style={{ fontSize: 12 }}>
             {saving ? "Guardando..." : "Guardar borrador"}
