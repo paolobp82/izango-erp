@@ -288,6 +288,13 @@ if (idsAEliminar.length > 0) {
   async function guardar(nuevoEstado?: string) {
     if (!cotId || !id) return
     setSaving(true)
+    const { data: dbItemsActuales } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
+    const idsEnBD = (dbItemsActuales || []).map((i: any) => String(i.id))
+    const idsEnState = items.filter(i => !String(i.id).startsWith("new_")).map(i => String(i.id))
+    const idsAEliminar = idsEnBD.filter(dbId => !idsEnState.includes(dbId))
+    if (idsAEliminar.length > 0) {
+      await supabase.from("cotizacion_items").delete().in("id", idsAEliminar)
+    }
     for (const item of items) {
       const payload = {
         cotizacion_id: cotId, orden: item.orden, descripcion: item.descripcion,
