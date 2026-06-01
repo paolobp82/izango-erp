@@ -398,10 +398,22 @@ for (const item of itemsRef.current) {
     columna_extra_valor: item.columna_extra_valor||null,
   }
   if (String(item.id).startsWith("new_")) {
-    await supabase.from("cotizacion_items").insert(payload)
+    const { data: inserted } = await supabase.from("cotizacion_items").insert(payload).select().single()
+    if (inserted) {
+      itemsRef.current = itemsRef.current.map(i => i.id === item.id ? { ...i, id: inserted.id } : i)
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, id: inserted.id } : i))
+    }
   } else {
     await supabase.from("cotizacion_items").update(payload).eq("id", item.id)
   }
+}
+// Eliminar items borrados
+const { data: dbItems } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
+const dbIds = (dbItems || []).map((i: any) => i.id)
+const currentIds = itemsRef.current.filter(i => !String(i.id).startsWith("new_")).map(i => i.id)
+const toDelete = dbIds.filter((dbId: string) => !currentIds.includes(dbId))
+if (toDelete.length > 0) {
+  await supabase.from("cotizacion_items").delete().in("id", toDelete)
 }
     setSaving(false)
     setLastSaved(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }))
