@@ -203,6 +203,18 @@ else setBloqueada(cot?.bloqueada || false)
     setItems(prev => prev.filter(i => i.id !== itemId))
   }
 
+  function moverItem(itemId: string, direccion: "arriba" | "abajo") {
+    setItems(prev => {
+      const idx = prev.findIndex(i => i.id === itemId)
+      if (idx === -1) return prev
+      const newIdx = direccion === "arriba" ? idx - 1 : idx + 1
+      if (newIdx < 0 || newIdx >= prev.length) return prev
+      const arr = [...prev]
+      ;[arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]]
+      return arr
+    })
+  }
+
   function addSubitem(itemId: string) {
     setSubitems(prev => ({
       ...prev,
@@ -711,6 +723,8 @@ useEffect(() => { itemsRef.current = items }, [items])
                       </td>
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
                         <button onClick={() => removeItem(item.id)}
+                        <button onClick={() => moverItem(item.id, "arriba")} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>↑</button>
+<button onClick={() => moverItem(item.id, "abajo")} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>↓</button>
                           style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>×</button>
                       </td>
                     </tr>
