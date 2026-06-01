@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams } from "next/navigation"
 import { pdf, Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
@@ -246,7 +246,8 @@ export default function PreviewCotizacionPage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `Proforma-${proyecto?.codigo}-V${cotizacion?.version}.pdf`
+      const nombreProyecto = (proyecto?.nombre || "").replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s-]/g, "").trim().replace(/\s+/g, "-")
+a.download = `${proyecto?.codigo}-${nombreProyecto}-V${cotizacion?.version}.pdf`
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
