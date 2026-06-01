@@ -373,6 +373,17 @@ export default function RQPage() {
                 </button>
               )}
 
+              {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (
+                <button onClick={async () => {
+                  if (!confirm("¿Eliminar este RQ permanentemente?")) return
+                  await supabase.from("requerimientos_pago").delete().eq("id", selected.id)
+                  setSelected(null)
+                  load()
+                }}
+                  style={{ padding: "8px", border: "1px solid #fee2e2", borderRadius: 8, background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>
+                  🗑 Eliminar RQ
+                </button>
+              )}
               {puedeRechazar(selected) && (
                 <button onClick={() => cambiarEstado(selected.id, "rechazado")}
                   style={{ padding: "8px", border: "1px solid #fee2e2", borderRadius: 8, background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>
