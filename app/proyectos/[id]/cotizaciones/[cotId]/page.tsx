@@ -370,7 +370,6 @@ const autoSaveRef = useRef<any>(null)
     if (saving) return
     setSaving(true)
    const { data: dbItems } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
-const dbIds = (dbItems || []).map((i: any) => i.id)
 const currentIds = itemsRef.current.filter(i => !String(i.id).startsWith("new_")).map(i => i.id)
 const toDelete = (dbIds as string[]).filter((dbId: string) => !(currentIds as string[]).includes(dbId))
 if (toDelete.length > 0) {
