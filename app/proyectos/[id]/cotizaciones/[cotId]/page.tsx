@@ -446,7 +446,7 @@ useEffect(() => { itemsRef.current = items }, [items])
         </div>
       )}
 
-      {bloqueada && (
+      {bloqueada && cotizacion?.estado === "aprobada_cliente" && (
         <div style={{ background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <span style={{ fontWeight: 700, color: "#991b1b", fontSize: 13 }}>🔒 Cotización aprobada y bloqueada</span>
