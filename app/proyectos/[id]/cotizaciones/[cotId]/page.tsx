@@ -714,7 +714,12 @@ useEffect(() => { itemsRef.current = items }, [items])
                         </div>
                       </td>
                       <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 13, color: item.precio_cliente > 0 ? "#0F6E56" : "#d1d5db", fontWeight: 700 }}>
-                        {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "—"}
+                        {item.precio_cliente > 0 ? (
+  <div>
+    <div>{fmt(item.precio_cliente)}</div>
+    {item.cantidad > 1 && <div style={{ fontSize: 10, color: "#9ca3af" }}>Unit: {fmt(item.precio_cliente / item.cantidad)}</div>}
+  </div>
+) : "—"}
                       </td>
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
                         <input type="checkbox" checked={item.incluir_en_total !== false} title="Incluir en total"
