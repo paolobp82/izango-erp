@@ -409,9 +409,9 @@ for (const item of itemsRef.current) {
 }
 // Eliminar items borrados
 const { data: dbItems } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
-const dbIds = (dbItems || []).map((i: any) => i.id)
-const currentIds = itemsRef.current.filter(i => !String(i.id).startsWith("new_")).map(i => i.id)
-const toDelete = dbIds.filter((dbId: string) => !currentIds.includes(dbId))
+const dbIds: string[] = (dbItems || []).map((i: any) => String(i.id))
+const currentIds: string[] = itemsRef.current.filter((i: any) => !String(i.id).startsWith("new_")).map((i: any) => String(i.id))
+const toDelete: string[] = dbIds.filter((dbId: string) => !currentIds.includes(dbId))
 if (toDelete.length > 0) {
   await supabase.from("cotizacion_items").delete().in("id", toDelete)
 }
