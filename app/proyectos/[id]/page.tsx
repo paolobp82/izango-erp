@@ -105,7 +105,7 @@ export default function ProyectoDetallePage() {
     await registrarAccion({ accion: "editar", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Proyecto editado: " + formEditar.nombre })
     setProyecto((prev: any) => ({ ...prev, ...formEditar }))
     setShowEditar(false)
-    load()
+    setTimeout(() => load(), 500)
   }
 
   async function cambiarEstado(nuevoEstado: string) {
