@@ -107,13 +107,16 @@ const autoSaveRef = useRef<any>(null)
       setCotizacion(cot)
       setProyecto(cot?.proyecto)
       if (cot?.fee_activo === false) setFeeActivo(false)
-      setBloqueada(cot?.bloqueada || false)
+      setBloqueada(false) // se evalúa abajo según perfil
       setDescuentoPct(cot?.descuento_pct || 0)
       if (cot?.columna_extra_titulo) setColumnaExtra({ activa: true, titulo: cot.columna_extra_titulo })
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
         setPerfilActual(p)
+const puedeBloquear = ["superadmin","gerente_general"].includes(p?.perfil)
+if (!puedeBloquear) setBloqueada(false)
+else setBloqueada(cot?.bloqueada || false)
       }
       const { data: its } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotId).order("orden")
       const parsed = (its || []).map((i: any) => {
