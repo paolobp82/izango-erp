@@ -101,7 +101,14 @@ export default function ProyectoDetallePage() {
   }
 
   async function guardarEdicion() {
-    await supabase.from("proyectos").update(formEditar).eq("id", id)
+    await supabase.from("proyectos").update({
+      nombre: formEditar.nombre,
+      cliente_id: formEditar.cliente_id || null,
+      productor_id: formEditar.productor_id || null,
+      fecha_inicio: formEditar.fecha_inicio || null,
+      fecha_fin_estimada: formEditar.fecha_fin_estimada || null,
+      presupuesto_referencial: formEditar.presupuesto_referencial ? Number(formEditar.presupuesto_referencial) : null,
+    }).eq("id", id)
     await registrarAccion({ accion: "editar", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Proyecto editado: " + formEditar.nombre })
     setProyecto((prev: any) => ({ ...prev, ...formEditar }))
     setShowEditar(false)
