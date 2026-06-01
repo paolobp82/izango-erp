@@ -41,6 +41,7 @@ export default function DashboardPage() {
 
     const [
       { data: provs },
+      { data: todosProyectos },
       { data: facturas },
       { data: liquidaciones },
       { data: rqs },
@@ -48,8 +49,8 @@ export default function DashboardPage() {
       { data: leads },
       { data: cotizaciones },
     ] = await Promise.all([
-      supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").order("created_at", { ascending: false }).limit(10),
-      supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at"),
+supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
+supabase.from("proyectos").select("id, estado").is("deleted_at", null),      supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at"),
       supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id"),
       supabase.from("requerimientos_pago").select("id, estado, monto_solicitado"),
       supabase.from("cotizaciones").select("id", { count: "exact", head: true }).gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
@@ -60,7 +61,7 @@ export default function DashboardPage() {
     setProyectos(provs || [])
 
     // Métricas base
-    const allProv = provs || []
+    const allProv = todosProyectos || []
     const activos = allProv.filter(p => ["aprobado","aprobado_produccion","en_curso"].includes(p.estado))
     const pendientes = allProv.filter(p => p.estado === "pendiente_aprobacion")
     const terminadosSinLiquidar = allProv.filter(p => p.estado === "terminado")
