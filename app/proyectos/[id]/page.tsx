@@ -103,6 +103,7 @@ export default function ProyectoDetallePage() {
   async function guardarEdicion() {
     await supabase.from("proyectos").update(formEditar).eq("id", id)
     await registrarAccion({ accion: "editar", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Proyecto editado: " + formEditar.nombre })
+    setProyecto((prev: any) => ({ ...prev, ...formEditar }))
     setShowEditar(false)
     load()
   }
