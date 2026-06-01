@@ -48,6 +48,7 @@ const s = StyleSheet.create({
   tableHeader: { flexDirection: "row", backgroundColor: DARK, padding: "7 8" },
   tableRow: { flexDirection: "row", padding: "6 8", borderBottom: "1 solid #f1f5f9" },
   tableRowAlt: { flexDirection: "row", padding: "6 8", borderBottom: "1 solid #f1f5f9", backgroundColor: LIGHT },
+  tableRowFamilia: { flexDirection: "row", padding: "7 8", backgroundColor: "#1D2040" },
   thCenter: { color: "#fff", fontWeight: "bold", fontSize: 8, textAlign: "center" },
   thLeft: { color: "#fff", fontWeight: "bold", fontSize: 8 },
   thRight: { color: GREEN, fontWeight: "bold", fontSize: 8, textAlign: "right" },
@@ -64,119 +65,130 @@ const s = StyleSheet.create({
   bankItem: { flex: 1 },
 })
 
-const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeMonto, subtotalConFee, igvPct, igvMonto, totalFinal }: any) => (
-  <Document>
-    <Page size="A4" style={s.page}>
-      {/* Header */}
-      <View style={s.header} fixed>
-        <Image src={LOGO_URL} style={s.logo} />
-        <View style={s.headerRight}>
-          <Text style={s.proformaTitle}>PROFORMA</Text>
-          <Text style={s.headerSub}>N° {proyecto?.codigo}-V{cotizacion?.version}</Text>
-          <Text style={s.headerSub}>Fecha: {today}</Text>
-          <Text style={s.headerSub}>Validez: {cotizacion?.validez_dias || 10} dias</Text>
-        </View>
-      </View>
-
-      <View style={s.body}>
-        {/* De / Para */}
-        <View style={s.row2}>
-          <View style={s.boxLeft}>
-            <Text style={s.label}>De</Text>
-            <Text style={s.bold14}>{ag.nombre}</Text>
-            <Text style={s.small}>RUC: {ag.ruc}</Text>
-            <Text style={s.small}>{ag.direccion}</Text>
-            <Text style={[s.small, { marginTop: 4 }]}>{ag.contacto} - {ag.cargo}</Text>
-            <Text style={s.small}>{ag.celular}  {ag.email}</Text>
-          </View>
-          <View style={s.box}>
-            <Text style={s.label}>Para</Text>
-            <Text style={s.bold14}>{proyecto?.cliente?.razon_social}</Text>
-            {proyecto?.cliente?.ruc ? <Text style={s.small}>RUC: {proyecto.cliente.ruc}</Text> : null}
-            {proyecto?.cliente?.direccion ? <Text style={s.small}>{proyecto.cliente.direccion}</Text> : null}
-            {proyecto?.cliente?.nombre_contacto ? <Text style={[s.small, { marginTop: 4 }]}>Attn: {proyecto.cliente.nombre_contacto}</Text> : null}
-            {proyecto?.cliente?.email_contacto ? <Text style={s.small}>{proyecto.cliente.email_contacto}</Text> : null}
-            <Text style={[s.small, { fontWeight: "bold", color: DARK, marginTop: 4 }]}>{proyecto?.nombre}</Text>
-            <Text style={s.small}>Condicion: {cotizacion?.condicion_pago}</Text>
+const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeMonto, subtotalConFee, igvPct, igvMonto, totalFinal }: any) => {
+  let itemCounter = 0
+  return (
+    <Document>
+      <Page size="A4" style={s.page}>
+        <View style={s.header} fixed>
+          <Image src={LOGO_URL} style={s.logo} />
+          <View style={s.headerRight}>
+            <Text style={s.proformaTitle}>PROFORMA</Text>
+            <Text style={s.headerSub}>N° {proyecto?.codigo}-V{cotizacion?.version}</Text>
+            <Text style={s.headerSub}>Fecha: {today}</Text>
+            <Text style={s.headerSub}>Validez: {cotizacion?.validez_dias || 10} dias</Text>
           </View>
         </View>
 
-        {/* Tabla */}
-        <View style={s.tableHeader} fixed>
-          <Text style={[s.thCenter, { width: 22 }]}>N</Text>
-          <Text style={[s.thLeft, { flex: 1 }]}>Descripcion</Text>
-          <Text style={[s.thCenter, { width: 38 }]}>Cant.</Text>
-          <Text style={[s.thCenter, { width: 38 }]}>Dias</Text>
-          <Text style={[s.thCenter, { width: 65 }]}>P. Unit.</Text>
-          <Text style={[s.thRight, { width: 65 }]}>Total</Text>
-        </View>
-        {items.map((item: any, idx: number) => (
-          <View key={item.id} style={idx % 2 === 0 ? s.tableRow : s.tableRowAlt} wrap={false}>
-            <Text style={[s.tdCenter, { width: 22 }]}>{idx + 1}</Text>
-            <Text style={[s.tdLeft, { flex: 1 }]}>{item.descripcion || "-"}</Text>
-            <Text style={[s.tdCenter, { width: 38 }]}>{item.cantidad}</Text>
-            <Text style={[s.tdCenter, { width: 38 }]}>{item.fechas}</Text>
-            <Text style={[s.tdRight, { width: 65 }]}>{item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "-"}</Text>
-            <Text style={[s.tdRightBold, { width: 65 }]}>{item.precio_cliente > 0 ? fmt(item.precio_cliente) : "-"}</Text>
+        <View style={s.body}>
+          <View style={s.row2}>
+            <View style={s.boxLeft}>
+              <Text style={s.label}>De</Text>
+              <Text style={s.bold14}>{ag.nombre}</Text>
+              <Text style={s.small}>RUC: {ag.ruc}</Text>
+              <Text style={s.small}>{ag.direccion}</Text>
+              <Text style={[s.small, { marginTop: 4 }]}>{ag.contacto} - {ag.cargo}</Text>
+              <Text style={s.small}>{ag.celular}  {ag.email}</Text>
+            </View>
+            <View style={s.box}>
+              <Text style={s.label}>Para</Text>
+              <Text style={s.bold14}>{proyecto?.cliente?.razon_social}</Text>
+              {proyecto?.cliente?.ruc ? <Text style={s.small}>RUC: {proyecto.cliente.ruc}</Text> : null}
+              {proyecto?.cliente?.direccion ? <Text style={s.small}>{proyecto.cliente.direccion}</Text> : null}
+              {proyecto?.cliente?.nombre_contacto ? <Text style={[s.small, { marginTop: 4 }]}>Attn: {proyecto.cliente.nombre_contacto}</Text> : null}
+              {proyecto?.cliente?.email_contacto ? <Text style={s.small}>{proyecto.cliente.email_contacto}</Text> : null}
+              <Text style={[s.small, { fontWeight: "bold", color: DARK, marginTop: 4 }]}>{proyecto?.nombre}</Text>
+              <Text style={s.small}>Condicion: {cotizacion?.condicion_pago}</Text>
+            </View>
           </View>
-        ))}
 
-        {/* Totales */}
-        <View style={{ alignItems: "flex-end", marginTop: 12, marginBottom: 14 }}>
-          <View style={{ width: 230 }}>
-            {feePct > 0 && (
-              <View style={s.totalRow}>
-                <Text style={{ fontSize: 9, color: GRAY }}>Fee agencia ({feePct}%)</Text>
-                <Text style={{ fontSize: 9 }}>{fmt(feeMonto)}</Text>
+          <View style={s.tableHeader} fixed>
+            <Text style={[s.thCenter, { width: 22 }]}>N</Text>
+            <Text style={[s.thLeft, { flex: 1 }]}>Descripcion</Text>
+            <Text style={[s.thCenter, { width: 38 }]}>Cant.</Text>
+            <Text style={[s.thCenter, { width: 38 }]}>Dias</Text>
+            <Text style={[s.thCenter, { width: 65 }]}>P. Unit.</Text>
+            <Text style={[s.thRight, { width: 65 }]}>Total</Text>
+          </View>
+
+          {items.map((item: any) => {
+            if (item.tipo === "celda_extra") return null
+            if (item.tipo === "familia") {
+              return (
+                <View key={item.id} style={s.tableRowFamilia} wrap={false}>
+                  <Text style={[{ flex: 1, fontSize: 9, fontWeight: "bold", color: GREEN }]}>{item.descripcion}</Text>
+                </View>
+              )
+            }
+            itemCounter++
+            const numItem = itemCounter
+            const rowStyle = numItem % 2 === 0 ? s.tableRowAlt : s.tableRow
+            return (
+              <View key={item.id} style={rowStyle} wrap={false}>
+                <Text style={[s.tdCenter, { width: 22 }]}>{numItem}</Text>
+                <Text style={[s.tdLeft, { flex: 1 }]}>{item.descripcion || "-"}</Text>
+                <Text style={[s.tdCenter, { width: 38 }]}>{item.cantidad}</Text>
+                <Text style={[s.tdCenter, { width: 38 }]}>{item.fechas}</Text>
+                <Text style={[s.tdRight, { width: 65 }]}>{item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "-"}</Text>
+                <Text style={[s.tdRightBold, { width: 65 }]}>{item.precio_cliente > 0 ? fmt(item.precio_cliente) : "-"}</Text>
               </View>
-            )}
-            <View style={s.totalRow}>
-              <Text style={{ fontSize: 9, color: GRAY }}>Subtotal antes IGV</Text>
-              <Text style={{ fontSize: 9 }}>{fmt(subtotalConFee)}</Text>
+            )
+          })}
+
+          <View style={{ alignItems: "flex-end", marginTop: 12, marginBottom: 14 }}>
+            <View style={{ width: 230 }}>
+              {feePct > 0 && (
+                <View style={s.totalRow}>
+                  <Text style={{ fontSize: 9, color: GRAY }}>Fee agencia ({feePct}%)</Text>
+                  <Text style={{ fontSize: 9 }}>{fmt(feeMonto)}</Text>
+                </View>
+              )}
+              <View style={s.totalRow}>
+                <Text style={{ fontSize: 9, color: GRAY }}>Subtotal antes IGV</Text>
+                <Text style={{ fontSize: 9 }}>{fmt(subtotalConFee)}</Text>
+              </View>
+              <View style={s.totalRow}>
+                <Text style={{ fontSize: 9, color: GRAY }}>IGV ({igvPct}%)</Text>
+                <Text style={{ fontSize: 9 }}>{fmt(igvMonto)}</Text>
+              </View>
+              <View style={s.totalFinal}>
+                <Text style={{ fontSize: 11, fontWeight: "bold", color: "#fff" }}>TOTAL</Text>
+                <Text style={{ fontSize: 14, fontWeight: "bold", color: GREEN }}>{fmt(totalFinal)}</Text>
+              </View>
             </View>
-            <View style={s.totalRow}>
-              <Text style={{ fontSize: 9, color: GRAY }}>IGV ({igvPct}%)</Text>
-              <Text style={{ fontSize: 9 }}>{fmt(igvMonto)}</Text>
+          </View>
+
+          <View style={s.bankBox}>
+            <Text style={s.label}>Datos para el pago</Text>
+            <View style={s.bankGrid}>
+              <View style={s.bankItem}>
+                <Text style={[s.small, { color: "#94a3b8" }]}>Banco</Text>
+                <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.banco} - {ag.tipo_cuenta}</Text>
+              </View>
+              <View style={s.bankItem}>
+                <Text style={[s.small, { color: "#94a3b8" }]}>N Cuenta</Text>
+                <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.numero_cuenta}</Text>
+              </View>
+              <View style={s.bankItem}>
+                <Text style={[s.small, { color: "#94a3b8" }]}>CCI</Text>
+                <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.cci}</Text>
+              </View>
             </View>
-            <View style={s.totalFinal}>
-              <Text style={{ fontSize: 11, fontWeight: "bold", color: "#fff" }}>TOTAL</Text>
-              <Text style={{ fontSize: 14, fontWeight: "bold", color: GREEN }}>{fmt(totalFinal)}</Text>
+            <View style={{ marginTop: 6 }}>
+              <Text style={[s.small, { color: "#94a3b8" }]}>Cuenta Detraccion (Banco de la Nacion)</Text>
+              <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.cuenta_detraccion}</Text>
             </View>
           </View>
         </View>
 
-        {/* Datos bancarios */}
-        <View style={s.bankBox}>
-          <Text style={s.label}>Datos para el pago</Text>
-          <View style={s.bankGrid}>
-            <View style={s.bankItem}>
-              <Text style={[s.small, { color: "#94a3b8" }]}>Banco</Text>
-              <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.banco} - {ag.tipo_cuenta}</Text>
-            </View>
-            <View style={s.bankItem}>
-              <Text style={[s.small, { color: "#94a3b8" }]}>N Cuenta</Text>
-              <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.numero_cuenta}</Text>
-            </View>
-            <View style={s.bankItem}>
-              <Text style={[s.small, { color: "#94a3b8" }]}>CCI</Text>
-              <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.cci}</Text>
-            </View>
-          </View>
-          <View style={{ marginTop: 6 }}>
-            <Text style={[s.small, { color: "#94a3b8" }]}>Cuenta Detraccion (Banco de la Nacion)</Text>
-            <Text style={{ fontSize: 9, fontWeight: "bold" }}>{ag.cuenta_detraccion}</Text>
-          </View>
+        <View style={s.footer} fixed>
+          <Text style={s.footerText}>Validez: {cotizacion?.validez_dias || 10} dias - {ag.nombre} - RUC {ag.ruc}</Text>
+          <Text style={s.footerText}>{ag.email} - {ag.celular}</Text>
         </View>
-      </View>
-
-      {/* Footer fijo en cada pagina */}
-      <View style={s.footer} fixed>
-        <Text style={s.footerText}>Validez: {cotizacion?.validez_dias || 10} dias - {ag.nombre} - RUC {ag.ruc}</Text>
-        <Text style={s.footerText}>{ag.email} - {ag.celular}</Text>
-      </View>
-    </Page>
-  </Document>
-)
+      </Page>
+    </Document>
+  )
+}
 
 export default function PreviewCotizacionPage() {
   const rawParams = useParams()
@@ -218,7 +230,8 @@ export default function PreviewCotizacionPage() {
   const ag = AGENCIA[entidad]
   const feePct = cotizacion?.fee_activo ? (cotizacion?.fee_agencia_pct || 0) : 0
   const igvPct = cotizacion?.igv_pct || 18
-  const totalPrecioCliente = items.reduce((s, i) => s + (i.precio_cliente || 0), 0)
+  const itemsActivos = items.filter(i => i.tipo !== "familia" && i.tipo !== "celda_extra" && i.incluir_en_total !== false)
+  const totalPrecioCliente = itemsActivos.reduce((s, i) => s + (i.precio_cliente || 0), 0)
   const feeMonto = totalPrecioCliente * (feePct / 100)
   const subtotalConFee = totalPrecioCliente + feeMonto
   const igvMonto = subtotalConFee * (igvPct / 100)
@@ -243,11 +256,11 @@ export default function PreviewCotizacionPage() {
     setGenerando(false)
   }
 
-  
-
   const COLOR_PRIMARY = "#03E373"
   const COLOR_DARK = "#1D2040"
   const LOGO_URL_WEB = "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
+
+  let webItemCounter = 0
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh", padding: "20px 0 40px" }}>
@@ -261,7 +274,6 @@ export default function PreviewCotizacionPage() {
             <option value="peru">Izango 360 SAC (Peru)</option>
             <option value="selva">Izango Selva 360 SAC</option>
           </select>
-          
           <button onClick={descargarPDF} disabled={generando}
             style={{ padding: "7px 16px", background: COLOR_PRIMARY, border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: generando ? 0.7 : 1 }}>
             {generando ? "Generando..." : "Descargar PDF"}
@@ -312,20 +324,34 @@ export default function PreviewCotizacionPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item, idx) => (
-                <tr key={item.id} style={{ background: idx % 2 === 0 ? "#fff" : "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
-                  <td style={{ padding: "11px 12px", textAlign: "center", fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>{idx + 1}</td>
-                  <td style={{ padding: "11px 16px", fontSize: 13, color: COLOR_DARK, fontWeight: 500 }}>{item.descripcion || "—"}</td>
-                  <td style={{ padding: "11px 10px", textAlign: "center", fontSize: 13, color: "#475569" }}>{item.cantidad}</td>
-                  <td style={{ padding: "11px 10px", textAlign: "center", fontSize: 13, color: "#475569" }}>{item.fechas}</td>
-                  <td style={{ padding: "11px 14px", textAlign: "right", fontSize: 13, color: "#475569" }}>
-                    {item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "—"}
-                  </td>
-                  <td style={{ padding: "11px 14px", textAlign: "right", fontSize: 14, fontWeight: 700, color: COLOR_DARK }}>
-                    {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "—"}
-                  </td>
-                </tr>
-              ))}
+              {items.map((item) => {
+                if (item.tipo === "celda_extra") return null
+                if (item.tipo === "familia") {
+                  return (
+                    <tr key={item.id} style={{ background: COLOR_DARK }}>
+                      <td colSpan={6} style={{ padding: "8px 16px", fontSize: 12, fontWeight: 700, color: COLOR_PRIMARY }}>
+                        {item.descripcion}
+                      </td>
+                    </tr>
+                  )
+                }
+                webItemCounter++
+                const numItem = webItemCounter
+                return (
+                  <tr key={item.id} style={{ background: numItem % 2 === 0 ? "#f8fafc" : "#fff", borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "11px 12px", textAlign: "center", fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>{numItem}</td>
+                    <td style={{ padding: "11px 16px", fontSize: 13, color: COLOR_DARK, fontWeight: 500 }}>{item.descripcion || "—"}</td>
+                    <td style={{ padding: "11px 10px", textAlign: "center", fontSize: 13, color: "#475569" }}>{item.cantidad}</td>
+                    <td style={{ padding: "11px 10px", textAlign: "center", fontSize: 13, color: "#475569" }}>{item.fechas}</td>
+                    <td style={{ padding: "11px 14px", textAlign: "right", fontSize: 13, color: "#475569" }}>
+                      {item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "—"}
+                    </td>
+                    <td style={{ padding: "11px 14px", textAlign: "right", fontSize: 14, fontWeight: 700, color: COLOR_DARK }}>
+                      {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "—"}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 28 }}>
