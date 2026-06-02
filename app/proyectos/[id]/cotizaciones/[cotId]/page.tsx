@@ -381,14 +381,6 @@ if (idsAEliminar.length > 0) {
     if (nuevoEstado) {
       router.push("/proyectos/" + id)
     } else {
-      const { data: its } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotId).order("orden")
-      const parsed = (its || []).map((i: any) => {
-        let ep: any[] = [], ea: any[] = []
-        try { ep = JSON.parse(i.extras_produccion || "[]") } catch {}
-        try { ea = JSON.parse(i.extras_alquiler || "[]") } catch {}
-        return calcItem({ ...i, extras_produccion: ep, extras_alquiler: ea })
-      })
-      setItems(parsed)
       alert("Guardado correctamente")
     }
   }
