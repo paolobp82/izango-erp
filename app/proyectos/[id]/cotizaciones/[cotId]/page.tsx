@@ -213,7 +213,7 @@ else setBloqueada(cot?.bloqueada || false)
       if (newIdx < 0 || newIdx >= prev.length) return prev
       const arr = [...prev]
       ;[arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]]
-      return arr
+      return arr.map((item, i) => ({ ...item, orden: i }))
     })
   }
 
@@ -653,7 +653,7 @@ useEffect(() => { itemsRef.current = items }, [items])
                           const arr = [...items]
                           const bloque = arr.splice(idx, bloqueSize)
                           arr.splice(idx - 1, 0, ...bloque)
-                          setItems(arr)
+                          setItems(arr.map((item: any, i: number) => ({ ...item, orden: i })))
                         }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>{"↑"}</button>
                         <button onClick={() => {
                           const idx = items.findIndex(i => i.id === item.id)
@@ -663,7 +663,7 @@ useEffect(() => { itemsRef.current = items }, [items])
                           const arr = [...items]
                           const bloque = arr.splice(idx, bloqueSize)
                           arr.splice(idx + 1, 0, ...bloque)
-                          setItems(arr)
+                          setItems(arr.map((item: any, i: number) => ({ ...item, orden: i })))
                         }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>{"↓"}</button>
                       </td>
                     </tr>
