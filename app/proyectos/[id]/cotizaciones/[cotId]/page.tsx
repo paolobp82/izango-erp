@@ -644,7 +644,31 @@ useEffect(() => { itemsRef.current = items }, [items])
                           + item
                         </button>
                       </td>
-                      <td></td>
+                      <td style={{ padding: "8px 4px", textAlign: "center" }}>
+                        <button onClick={() => {
+                          const idx = items.findIndex(i => i.id === item.id)
+                          const familiaItems = items.filter(i => i.familia_id === item.id)
+                          const bloqueSize = 1 + familiaItems.length
+                          if (idx === 0) return
+                          const arr = [...items]
+                          const bloque = arr.splice(idx, bloqueSize)
+                          const prevFamIdx = arr.slice(0, idx).map((i,j) => i.tipo === "familia" ? j : -1).filter(j => j >= 0).pop()
+                          const insertAt = prevFamIdx !== undefined ? prevFamIdx : 0
+                          arr.splice(insertAt, 0, ...bloque)
+                          setItems(arr)
+                        }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11 }}>↑</button>
+                        <button onClick={() => {
+                          const idx = items.findIndex(i => i.id === item.id)
+                          const familiaItems = items.filter(i => i.familia_id === item.id)
+                          const bloqueSize = 1 + familiaItems.length
+                          const arr = [...items]
+                          const bloque = arr.splice(idx, bloqueSize)
+                          const nextFamIdx = arr.slice(idx).findIndex(i => i.tipo === "familia")
+                          const insertAt = nextFamIdx === -1 ? arr.length : idx + nextFamIdx + 1
+                          arr.splice(insertAt, 0, ...bloque)
+                          setItems(arr)
+                        }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11 }}>↓</button>
+                      </td>
                     </tr>
                   )
                 }
