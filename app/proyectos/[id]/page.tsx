@@ -185,7 +185,8 @@ export default function ProyectoDetallePage() {
 
   async function nuevaVersion(copiarDeId?: string) {
     setCreando(true)
-    const ultimaVersion = cotizaciones.length > 0 ? Math.max(...cotizaciones.map((c: any) => c.version || 1)) : 0
+    const { data: todasCots } = await supabase.from("cotizaciones").select("version").eq("proyecto_id", id)
+const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.map((c: any) => c.version || 1)) : 0
     let condicion = "50% adelanto / 50% contra entrega"
     let validez = 10, fee_pct = 10, fee_activo = true, igv_pct = 18
     let itemsACopiar: any[] = []
