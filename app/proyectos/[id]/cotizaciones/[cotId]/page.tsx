@@ -757,8 +757,8 @@ useEffect(() => { itemsRef.current = items }, [items])
                           style={{ cursor: "pointer", width: 14, height: 14, accentColor: "#03E373" }} />
                       </td>
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
-                        <button onClick={() => moverItem(item.id, "arriba")} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>↑</button>
-                        <button onClick={() => moverItem(item.id, "abajo")} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>↓</button>
+                        <button onClick={() => moverItem(item.id, "arriba")} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>^</button>
+                        <button onClick={() => moverItem(item.id, "abajo")} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>v</button>
                         <button onClick={() => removeItem(item.id)}
                           style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>×</button>
                       </td>
