@@ -336,6 +336,7 @@ if (idsAEliminar.length > 0) {
         celda_titulo: item.celda_titulo || null,
         numero_item: item.numero_item || null,
         columna_extra_valor: item.columna_extra_valor || null,
+        precio_cliente_manual: item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null,
       }
       if (String(item.id).startsWith("new_")) {
         await supabase.from("cotizacion_items").insert(payload)
