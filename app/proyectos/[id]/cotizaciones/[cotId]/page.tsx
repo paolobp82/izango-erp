@@ -664,7 +664,7 @@ useEffect(() => { itemsRef.current = items }, [items])
   const bloque = arr.splice(idx, bloqueSize)
   arr.splice(idx + 1, 0, ...bloque)
   setItems(arr)
-}} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11 }}>↓</button>
+}} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11 }}>v</button>
                       </td>
                     </tr>
                   )
