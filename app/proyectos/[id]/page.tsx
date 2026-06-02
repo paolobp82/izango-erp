@@ -293,7 +293,8 @@ export default function ProyectoDetallePage() {
             )}
             <button onClick={() => {
               const sel = document.getElementById("copiar-version") as HTMLSelectElement
-              nuevaVersion(sel?.value || undefined)
+              const val = sel?.value
+              nuevaVersion(val && val !== "" ? val : undefined)
             }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
               {creando ? "Creando..." : "+ Nueva proforma"}
             </button>
