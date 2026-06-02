@@ -298,12 +298,6 @@ export default function ProyectoDetallePage() {
             }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
               {creando ? "Creando..." : "+ Nueva proforma"}
             </button>
-              const sel = document.getElementById("copiar-version") as HTMLSelectElement
-              const val = sel?.value
-              nuevaVersion(val && val !== "" ? val : undefined)
-            }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
-              {creando ? "Creando..." : "+ Nueva proforma"}
-            </button>
           </div>
         </div>
       </div>
