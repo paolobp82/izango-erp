@@ -39,6 +39,7 @@ export default function CajaChicaPage() {
   const [selected, setSelected] = useState<any>(null)
   const [motivoRechazo, setMotivoRechazo] = useState("")
   const [showRechazo, setShowRechazo] = useState(false)
+  const [editando, setEditando] = useState<any>(null)
 
   useEffect(() => { load() }, [])
 
@@ -66,23 +67,39 @@ export default function CajaChicaPage() {
     if (!form.concepto || !form.fecha) { alert("Concepto y fecha son obligatorios"); return }
     if (!form.monto_debe && !form.monto_haber) { alert("Ingresa al menos un monto (debe o haber)"); return }
     setSaving(true)
-    await supabase.from("caja_chica").insert({
-      concepto: form.concepto,
-      monto_debe: Number(form.monto_debe) || 0,
-      monto_haber: Number(form.monto_haber) || 0,
-      fecha: form.fecha,
-      tipo_comprobante: form.tipo_comprobante || null,
-      numero_operacion: form.numero_operacion || null,
-      proyecto_id: form.proyecto_id || null,
-      rq_id: form.rq_id || null,
-      categoria: form.categoria || null,
-      observaciones: form.observaciones || null,
-      solicitado_por: perfil?.id || null,
-      estado: "pendiente",
-      entidad: "peru",
-      fecha_apertura: form.fecha,
-      monto_inicial: 0,
-    })
+    if (editando) {
+      const { error } = await supabase.from("caja_chica").update({
+        concepto: form.concepto,
+        monto_debe: Number(form.monto_debe) || 0,
+        monto_haber: Number(form.monto_haber) || 0,
+        fecha: form.fecha,
+        tipo_comprobante: form.tipo_comprobante || null,
+        numero_operacion: form.numero_operacion || null,
+        proyecto_id: form.proyecto_id || null,
+        rq_id: form.rq_id || null,
+        categoria: form.categoria || null,
+        observaciones: form.observaciones || null,
+      }).eq("id", editando.id)
+      if (error) { alert("Error: " + error.message); setSaving(false); return }
+    } else {
+      await supabase.from("caja_chica").insert({
+        concepto: form.concepto,
+        monto_debe: Number(form.monto_debe) || 0,
+        monto_haber: Number(form.monto_haber) || 0,
+        fecha: form.fecha,
+        tipo_comprobante: form.tipo_comprobante || null,
+        numero_operacion: form.numero_operacion || null,
+        proyecto_id: form.proyecto_id || null,
+        rq_id: form.rq_id || null,
+        categoria: form.categoria || null,
+        observaciones: form.observaciones || null,
+        solicitado_por: perfil?.id || null,
+        estado: "pendiente",
+        entidad: "peru",
+        fecha_apertura: form.fecha,
+        monto_inicial: 0,
+      })
+    }
     await registrarAccion({ accion: "crear", modulo: "caja_chica", entidad_tipo: "caja_chica", descripcion: "Solicitud caja chica: " + form.concepto })
     setSaving(false)
     setShowForm(false)
@@ -226,6 +243,10 @@ export default function CajaChicaPage() {
                               <button onClick={e => { e.stopPropagation(); setSelected(r); setShowRechazo(true) }}
                                 style={{ fontSize: 11, padding: "3px 8px", background: "#fff", color: "#dc2626", border: "1px solid #fee2e2", borderRadius: 6, cursor: "pointer" }}>✕</button>
                             </>
+                          )}
+                          {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (
+                            <button onClick={e => { e.stopPropagation(); setEditando(r); setForm({ concepto: r.concepto||"", monto_debe: r.monto_debe||"", monto_haber: r.monto_haber||"", fecha: r.fecha||"", tipo_comprobante: r.tipo_comprobante||"boleta", numero_operacion: r.numero_operacion||"", proyecto_id: r.proyecto_id||"", rq_id: r.rq_id||"", categoria: r.categoria||"", observaciones: r.observaciones||"" }); setShowForm(true) }}
+                              style={{ fontSize: 11, padding: "3px 8px", background: "#fff", color: "#374151", border: "1px solid #e5e7eb", borderRadius: 6, cursor: "pointer" }}>✏️</button>
                           )}
                           {(perfil?.id === r.solicitado_por || esAprobador) && r.estado === "pendiente" && (
                             <button onClick={e => { e.stopPropagation(); eliminar(r.id) }}
