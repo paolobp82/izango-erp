@@ -252,7 +252,7 @@ else setBloqueada(cot?.bloqueada || false)
   const subtotalConDescuento = subtotalConFee - descuentoMonto
   const igvMonto = subtotalConDescuento * (igvPct / 100)
   const totalFinal = subtotalConDescuento + igvMonto
-  const margenGlobal = totalFinal > 0 ? ((totalFinal - totalCosto) / totalFinal) * 100 : 0
+  const margenGlobal = subtotalConDescuento > 0 ? ((subtotalConDescuento - totalCosto) / subtotalConDescuento) * 100 : 0
 
   async function generarRQs(cotizacionId: string, proyectoId: string) {
     const itemsConProveedor = items.filter(i => i.proveedor_id && i.costo_total > 0)
