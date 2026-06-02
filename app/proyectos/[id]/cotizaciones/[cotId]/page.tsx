@@ -245,7 +245,7 @@ else setBloqueada(cot?.bloqueada || false)
   const totalCosto = itemsActivos.reduce((s, i) => s + (i.costo_total || 0), 0)
   const totalPrecioCliente = itemsActivos.reduce((s, i) => s + (i.precio_cliente || 0), 0)
   const feePct = feeActivo ? (cotizacion?.fee_agencia_pct ?? 10) : 0
-  const igvPct = cotizacion?.igv_pct ?? 18
+  const igvPct = cotizacion?.igv_pct !== null && cotizacion?.igv_pct !== undefined ? cotizacion.igv_pct : 18
   const feeMonto = totalPrecioCliente * (feePct / 100)
   const subtotalConFee = totalPrecioCliente + feeMonto
   const descuentoMonto = subtotalConFee * ((descuentoPct || 0) / 100)

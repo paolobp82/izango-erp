@@ -229,7 +229,7 @@ export default function PreviewCotizacionPage() {
 
   const ag = AGENCIA[entidad]
   const feePct = cotizacion?.fee_activo ? (cotizacion?.fee_agencia_pct || 0) : 0
-  const igvPct = cotizacion?.igv_pct || 18
+  const igvPct = cotizacion?.igv_pct !== null && cotizacion?.igv_pct !== undefined ? cotizacion.igv_pct : 18
   const itemsActivos = items.filter(i => i.tipo !== "familia" && i.tipo !== "celda_extra" && i.incluir_en_total !== false)
   const totalPrecioCliente = itemsActivos.reduce((s, i) => s + (i.precio_cliente || 0), 0)
   const feeMonto = totalPrecioCliente * (feePct / 100)
