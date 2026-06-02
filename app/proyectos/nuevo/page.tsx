@@ -27,9 +27,9 @@ export default function NuevoProyectoPage() {
       setPerfil(p)
       setForm(f => ({ ...f, entidad: p?.entidad || "peru" }))
       await loadEntidadData(p?.entidad || "peru")
-      const { data: lastProj } = await supabase.from("proyectos").select("codigo").order("codigo", { ascending: false }).limit(1).single()
-      const lastNum = lastProj?.codigo ? parseInt(lastProj.codigo.replace("IZ-", "")) : 26000
-      setForm(f => ({ ...f, codigo: `IZ-${lastNum + 1}` }))
+      const { data: todosProj } = await supabase.from("proyectos").select("codigo")
+      const maxNum = (todosProj || []).reduce((max: number, p: any) => { const num = parseInt((p.codigo || "").replace("IZ-", "")) || 0; return num > max ? num : max }, 26000)
+      setForm(f => ({ ...f, codigo: `IZ-${maxNum + 1}` }))
     }
     load()
   }, [])
