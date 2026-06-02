@@ -80,6 +80,7 @@ export default function CajaChicaPage() {
       solicitado_por: perfil?.id || null,
       estado: "pendiente",
       entidad: "peru",
+      fecha_apertura: form.fecha,
     })
     await registrarAccion({ accion: "crear", modulo: "caja_chica", entidad_tipo: "caja_chica", descripcion: "Solicitud caja chica: " + form.concepto })
     setSaving(false)
