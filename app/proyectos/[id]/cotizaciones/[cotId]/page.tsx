@@ -654,7 +654,7 @@ useEffect(() => { itemsRef.current = items }, [items])
                           const bloque = arr.splice(idx, bloqueSize)
                           arr.splice(idx - 1, 0, ...bloque)
                           setItems(arr)
-                        }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>{"^"}</button>
+                        }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>{"↑"}</button>
                         <button onClick={() => {
                           const idx = items.findIndex(i => i.id === item.id)
                           const familiaItems = items.filter(i => i.familia_id === item.id)
@@ -664,7 +664,7 @@ useEffect(() => { itemsRef.current = items }, [items])
                           const bloque = arr.splice(idx, bloqueSize)
                           arr.splice(idx + 1, 0, ...bloque)
                           setItems(arr)
-                        }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>{"v"}</button>
+                        }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 11, padding: "2px 3px" }}>{"↓"}</button>
                       </td>
                     </tr>
                   )
