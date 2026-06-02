@@ -645,7 +645,7 @@ useEffect(() => { itemsRef.current = items }, [items])
                         </button>
                       </td>
                       <td style={{ padding: "8px 4px", textAlign: "center" }}>
-                        onClick={() => {
+                        <button onClick={() => {
   const idx = items.findIndex(i => i.id === item.id)
   const familiaItems = items.filter(i => i.familia_id === item.id)
   const bloqueSize = 1 + familiaItems.length
