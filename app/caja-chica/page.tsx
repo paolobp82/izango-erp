@@ -81,6 +81,7 @@ export default function CajaChicaPage() {
       estado: "pendiente",
       entidad: "peru",
       fecha_apertura: form.fecha,
+      monto_inicial: 0,
     })
     await registrarAccion({ accion: "crear", modulo: "caja_chica", entidad_tipo: "caja_chica", descripcion: "Solicitud caja chica: " + form.concepto })
     setSaving(false)
