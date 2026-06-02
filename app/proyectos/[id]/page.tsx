@@ -283,8 +283,7 @@ export default function ProyectoDetallePage() {
             📥 Reporte PDF
           </a>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {cotizaciones.length > 0 && (
-              <select id="copiar-version" style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
+            <select id="copiar-version" style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "#fff" >
                 <option value="">Nueva vacia</option>
                 {cotizaciones.map((cot: any) => (
                   <option key={cot.id} value={cot.id}>Copiar V{cot.version}</option>
