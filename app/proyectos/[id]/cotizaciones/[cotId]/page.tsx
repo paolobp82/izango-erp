@@ -585,7 +585,7 @@ useEffect(() => { itemsRef.current = items }, [items])
         </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
-            <thead>
+           <thead>
               <tr style={{ background: "#1D2040" }}>
                 <th style={{ width: 32, padding: "8px 4px" }}></th>
                 <th style={{ width: 30, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>#</th>
@@ -593,12 +593,12 @@ useEffect(() => { itemsRef.current = items }, [items])
                 {columnaExtra.activa && <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#93c5fd", width: 160 }}>{columnaExtra.titulo}</th>}
                 <th style={{ textAlign: "center", width: 65, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Cant.</th>
                 <th style={{ textAlign: "center", width: 65, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Días</th>
+                <th style={{ textAlign: "right", width: 100, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>P. Unit. cli.</th>
+                <th style={{ textAlign: "right", width: 110, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#1D9E75" }}>P. Cli. Manual</th>
+                <th style={{ textAlign: "right", width: 130, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Total cli.</th>
                 <th style={{ textAlign: "right", width: 120, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>C. Unit.</th>
                 <th style={{ textAlign: "right", width: 120, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Total S/</th>
                 <th style={{ textAlign: "center", width: 95, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Margen %</th>
-                <th style={{ textAlign: "right", width: 110, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#1D9E75" }}>P. Cli. Manual</th>
-                <th style={{ textAlign: "right", width: 100, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>P. Unit. cli.</th>
-                <th style={{ textAlign: "right", width: 130, padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Precio cli.</th>
                 <th style={{ textAlign: "center", width: 40, padding: "8px 4px", fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>Opc.</th>
                 <th style={{ width: 30 }}></th>
               </tr>
@@ -709,6 +709,18 @@ useEffect(() => { itemsRef.current = items }, [items])
                         <input type="number" style={{ ...inp, width: "100%", textAlign: "center" }} value={item.fechas}
                           onChange={e => updateItem(item.id, "fechas", Number(e.target.value))} />
                       </td>
+                      <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 12, color: "#6b7280" }}>
+                        {item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "—"}
+                      </td>
+                      <td style={{ padding: "6px 8px", width: 110 }}>
+                        <input type="number" style={{ ...inp, width: "100%", textAlign: "right", borderColor: item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? "#1D9E75" : "#e5e7eb" }}
+                          value={item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? item.precio_cliente_manual : ""}
+                          placeholder="Manual..."
+                          onChange={e => updateItem(item.id, "precio_cliente_manual", e.target.value === "" ? null : Number(e.target.value))} />
+                      </td>
+                      <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 13, color: item.precio_cliente > 0 ? "#0F6E56" : "#d1d5db", fontWeight: 700 }}>
+                        {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "—"}
+                      </td>
                       <td style={{ padding: "6px 12px" }}>
                         <input type="number"
                           style={{ ...inp, width: "100%", textAlign: "right",
@@ -730,18 +742,6 @@ useEffect(() => { itemsRef.current = items }, [items])
                             onChange={e => updateItem(item.id, "margen_pct", Number(e.target.value))} />
                           <span style={{ fontSize: 10, color: "#9ca3af" }}>%</span>
                         </div>
-                      </td>
-                      <td style={{ padding: "6px 8px", width: 110 }}>
-                        <input type="number" style={{ ...inp, width: "100%", textAlign: "right", borderColor: item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? "#1D9E75" : "#e5e7eb" }}
-                          value={item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? item.precio_cliente_manual : ""}
-                          placeholder="Manual..."
-                          onChange={e => updateItem(item.id, "precio_cliente_manual", e.target.value === "" ? null : Number(e.target.value))} />
-                      </td>
-                      <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 12, color: "#6b7280" }}>
-                        {item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "—"}
-                      </td>
-                      <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 13, color: item.precio_cliente > 0 ? "#0F6E56" : "#d1d5db", fontWeight: 700 }}>
-                        {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "—"}
                       </td>
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
                         <input type="checkbox" checked={item.incluir_en_total !== false} title="Incluir en total"
