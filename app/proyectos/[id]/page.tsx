@@ -291,7 +291,6 @@ export default function ProyectoDetallePage() {
                 ))}
               </select>
             )}
-            )}
             <button onClick={() => {
               const sel = document.getElementById("copiar-version") as HTMLSelectElement
               const val = sel?.value
