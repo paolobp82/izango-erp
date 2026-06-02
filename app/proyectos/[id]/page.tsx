@@ -6,7 +6,9 @@ import { useParams, useRouter } from "next/navigation"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
-  aprobado_produccion:  { label: "Aprobado Producción",  bg: "#fed7aa", color: "#9a3412", siguiente: "aprobado",            accion: "Aprobar (GG)",            roles: ["gerente_general", "superadmin"] },
+  aprobado_produccion:  { label: "Aprobado Producción",  bg: "#fed7aa", color: "#9a3412", siguiente: "aprobado_gerencia",   accion: "Aprobar (Gerencia)",      roles: ["gerente_general", "superadmin"] },
+  aprobado_gerencia:    { label: "Aprobado Gerencia",    bg: "#e0e7ff", color: "#3730a3", siguiente: "aprobado_cliente",    accion: "Aprobado por Cliente",    roles: ["gerente_general", "superadmin"] },
+  aprobado_cliente:     { label: "Aprobado Cliente",     bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Iniciar proyecto",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   aprobado:             { label: "Aprobado",              bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Iniciar proyecto",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   en_curso:             { label: "En curso",              bg: "#dcfce7", color: "#15803d", siguiente: "terminado",           accion: "Marcar terminado",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   terminado:            { label: "Terminado",             bg: "#f3f4f6", color: "#6b7280", siguiente: "liquidado",           accion: "Pasar a liquidación",     roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
@@ -16,7 +18,7 @@ const FLUJO: Record<string, any> = {
   rechazado:            { label: "Rechazado",             bg: "#fde8d8", color: "#c2410c", siguiente: null,                  accion: null,                      roles: [] },
 }
 
-const FLUJO_BREADCRUMB = ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "en_curso", "terminado", "liquidado", "facturado", "cancelado"]
+const FLUJO_BREADCRUMB = ["pendiente_aprobacion", "aprobado_produccion", "aprobado_gerencia", "aprobado_cliente", "en_curso", "terminado", "liquidado", "facturado", "cancelado"]
 
 const ENTIDADES = [
   { value: "peru", label: "Izango Peru" },
@@ -117,6 +119,9 @@ export default function ProyectoDetallePage() {
 
   async function cambiarEstado(nuevoEstado: string) {
     setCambiando(true)
+    if (nuevoEstado === "aprobado_gerencia" && versionAprobar) {
+      await supabase.from("cotizaciones").update({ bloqueada: true }).eq("id", versionAprobar)
+    }
     if (nuevoEstado === "en_curso" && versionAprobar) {
       for (const cot of cotizaciones) {
         if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
