@@ -471,7 +471,16 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               return (
                 <div key={estado} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div
+                      onClick={() => {
+                        if (!["superadmin","gerente_general"].includes(perfil?.perfil)) return
+                        if (actual) return
+                        if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
+                        if (confirm(`¿Regresar el proyecto al estado "${info.label}"? Esta acción modificará el flujo.`)) {
+                          cambiarEstado(estado)
+                        }
+                      }}
+                      style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: ["superadmin","gerente_general"].includes(perfil?.perfil) && !actual && idx < FLUJO_BREADCRUMB.indexOf(proyecto?.estado) ? "pointer" : "default" }}>
                       <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{idx + 1}</span>
                     </div>
                     <span style={{ fontSize: 11, fontWeight: actual ? 700 : 400, color: actual ? info.color : completado ? "#374151" : "#9ca3af" }}>{info.label}</span>
