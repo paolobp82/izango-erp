@@ -48,6 +48,9 @@ const precioClienteRounded = Math.round(precioCliente * 100) / 100
   const margenCalculado = precioClienteRounded > 0 ? ((precioClienteRounded - costoTotal) / precioClienteRounded) * 100 : margenPct
   const margenFinal = precioClienteManual !== null ? margenCalculado : margenPct
   return { ...item, costo_base_calculado: costoBase, costo_total: costoTotal, costo_unitario: costoUnitario, precio_cliente: precioClienteRounded, margen_monto: margenMonto, margen_pct: margenFinal }
+}
+
+function newFamilia(cotizacionId: any, orden: number) {
   return {
     id: "new_fam_" + Date.now(), cotizacion_id: cotizacionId, orden,
     tipo: "familia", descripcion: "Nueva familia", familia_id: null,
