@@ -39,6 +39,10 @@ export default function ProyectoDetallePage() {
   const [loading, setLoading] = useState(true)
   const [creando, setCreando] = useState(false)
   const [cambiando, setCambiando] = useState(false)
+  const [showPreCuadre, setShowPreCuadre] = useState(false)
+  const [preCuadreItems, setPreCuadreItems] = useState<any[]>([])
+  const [proveedores, setProveedores] = useState<any[]>([])
+  const [guardandoPreCuadre, setGuardandoPreCuadre] = useState(false)
   const [versionAprobar, setVersionAprobar] = useState("")
   const [editandoEntidad, setEditandoEntidad] = useState(false)
   const [showVersionesEliminadas, setShowVersionesEliminadas] = useState(false)
@@ -123,6 +127,19 @@ export default function ProyectoDetallePage() {
       await supabase.from("cotizaciones").update({ bloqueada: true }).eq("id", versionAprobar)
     }
     if (nuevoEstado === "en_curso" && versionAprobar) {
+      setCambiando(false)
+      const { data: its } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", versionAprobar).order("orden")
+      const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
+      setProveedores(provs || [])
+      setPreCuadreItems((its || []).filter((i: any) => i.tipo !== "celda_extra").map((i: any) => ({
+        ...i,
+        costo_final: i.costo_total || 0,
+        esNuevo: false,
+      })))
+      setShowPreCuadre(true)
+      return
+    }
+    if (nuevoEstado === "en_curso_confirmar" && versionAprobar) {
       for (const cot of cotizaciones) {
         if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
           await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", cot.id)
@@ -162,6 +179,47 @@ export default function ProyectoDetallePage() {
     load()
   }
 
+  async function confirmarPreCuadre() {
+    const sinProveedor = preCuadreItems.filter(i => i.tipo !== "familia" && !i.proveedor_id)
+    if (sinProveedor.length > 0) {
+      alert("Los siguientes items no tienen proveedor asignado:\n" + sinProveedor.map((i: any) => "• " + (i.descripcion || "Sin descripción")).join("\n"))
+      return
+    }
+    setGuardandoPreCuadre(true)
+    for (const cot of cotizaciones) {
+      if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
+        await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", cot.id)
+      }
+    }
+    await supabase.from("cotizaciones").update({ estado: "aprobada_cliente" }).eq("id", versionAprobar)
+    await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar, estado: "en_curso" }).eq("id", id)
+    const { count } = await supabase.from("requerimientos_pago").select("*", { count: "exact", head: true }).eq("proyecto_id", id)
+    let rqNum = (count || 0) + 1
+    for (const item of preCuadreItems) {
+      if (item.tipo === "familia" || !item.proveedor_id) continue
+      const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
+      await supabase.from("requerimientos_pago").insert({
+        proyecto_id: id,
+        cotizacion_item_id: item.esNuevo ? null : item.id,
+        numero_rq: "RQ-" + id.slice(0,6).toUpperCase() + "-" + String(rqNum).padStart(3, "0"),
+        estado: "pendiente_aprobacion",
+        proveedor_id: item.proveedor_id,
+        proveedor_nombre: prov?.nombre || item.proveedor_nombre || "",
+        proveedor_banco: prov?.banco || "",
+        proveedor_cuenta: prov?.numero_cuenta || "",
+        proveedor_tipo_pago: prov?.tipo_pago || null,
+        monto_solicitado: item.costo_final || 0,
+        monto_presupuestado: item.costo_total || 0,
+        descripcion: item.descripcion,
+      })
+      rqNum++
+    }
+    await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: en_curso" })
+    setShowPreCuadre(false)
+    setGuardandoPreCuadre(false)
+    setProyecto({ ...proyecto, estado: "en_curso" })
+    load()
+  }
   async function rechazar() {
     if (!confirm("¿Rechazar este proyecto?")) return
     setCambiando(true)
@@ -243,6 +301,79 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
   return (
     <div>
+      {showPreCuadre && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 900, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Pre-cuadre de costos</h2>
+                <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Confirma o ajusta los costos finales antes de generar los RQs</p>
+              </div>
+              <button onClick={() => setShowPreCuadre(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>×</button>
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16 }}>
+              <thead>
+                <tr style={{ background: "#1D2040" }}>
+                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Descripción</th>
+                  <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 130 }}>Costo Presup.</th>
+                  <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#03E373", width: 130 }}>Costo Final</th>
+                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 200 }}>Proveedor</th>
+                  <th style={{ width: 40 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {preCuadreItems.map((item: any, idx: number) => {
+                  if (item.tipo === "familia") return (
+                    <tr key={item.id} style={{ background: "#1D2040" }}>
+                      <td colSpan={5} style={{ padding: "7px 12px", fontSize: 12, fontWeight: 700, color: "#03E373" }}>{item.descripcion}</td>
+                    </tr>
+                  )
+                  const diff = (item.costo_final || 0) - (item.costo_total || 0)
+                  return (
+                    <tr key={item.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                      <td style={{ padding: "8px 12px", fontSize: 13, color: "#374151" }}>{item.descripcion || "—"}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 13, color: "#6b7280" }}>
+                        S/ {Number(item.costo_total || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td style={{ padding: "8px 12px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                          {diff !== 0 && <span style={{ fontSize: 11, color: diff > 0 ? "#dc2626" : "#15803d", fontWeight: 600 }}>{diff > 0 ? "+" : ""}{Number(diff).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>}
+                          <input type="number" value={item.costo_final} onChange={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, costo_final: Number(e.target.value) } : i))}
+                            style={{ padding: "4px 8px", border: "1px solid " + (diff !== 0 ? (diff > 0 ? "#fca5a5" : "#86efac") : "#e5e7eb"), borderRadius: 6, fontSize: 13, width: 100, textAlign: "right", fontFamily: "inherit" }} />
+                        </div>
+                      </td>
+                      <td style={{ padding: "8px 12px" }}>
+                        <select value={item.proveedor_id || ""} onChange={e => {
+                          const prov = proveedores.find((p: any) => p.id === e.target.value)
+                          setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, proveedor_id: e.target.value || null, proveedor_nombre: prov?.nombre || "" } : i))
+                        }} style={{ padding: "4px 8px", border: "1px solid " + (!item.proveedor_id ? "#fca5a5" : "#e5e7eb"), borderRadius: 6, fontSize: 12, fontFamily: "inherit", width: "100%", background: !item.proveedor_id ? "#fff5f5" : "#fff" }}>
+                          <option value="">⚠ Sin proveedor</option>
+                          {proveedores.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ padding: "8px 4px", textAlign: "center" }}>
+                        <button onClick={() => setPreCuadreItems(prev => prev.filter((i: any) => i.id !== item.id))}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>×</button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <button onClick={() => setPreCuadreItems(prev => [...prev, { id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true }])}
+              style={{ border: "1px dashed #d1d5db", borderRadius: 8, background: "none", padding: "6px 16px", fontSize: 12, color: "#6b7280", cursor: "pointer", marginBottom: 20 }}>
+              + Agregar item imprevisto
+            </button>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", borderTop: "1px solid #f3f4f6", paddingTop: 16 }}>
+              <button onClick={() => setShowPreCuadre(false)} style={{ padding: "8px 16px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer" }}>Cancelar</button>
+              <button onClick={confirmarPreCuadre} disabled={guardandoPreCuadre}
+                style={{ padding: "8px 20px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: guardandoPreCuadre ? 0.7 : 1 }}>
+                {guardandoPreCuadre ? "Generando RQs..." : "Confirmar y generar RQs"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
