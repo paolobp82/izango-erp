@@ -1,5 +1,6 @@
 "use client"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { notificarATodos } from "@/lib/notificaciones"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams, useRouter } from "next/navigation"
@@ -198,7 +199,14 @@ export default function ProyectoDetallePage() {
       }
     }
     await supabase.from("proyectos").update({ estado: nuevoEstado }).eq("id", id)
-    await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: " + nuevoEstado, datos_nuevos: { estado: nuevoEstado } })
+   await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: " + nuevoEstado, datos_nuevos: { estado: nuevoEstado } })
+    await notificarATodos({
+      titulo: `Proyecto ${proyecto?.codigo} — ${FLUJO[nuevoEstado]?.label || nuevoEstado}`,
+      mensaje: `${proyecto?.nombre} cambió a estado: ${FLUJO[nuevoEstado]?.label || nuevoEstado}`,
+      tipo: "info",
+      enlace: `/proyectos/${id}`,
+      perfiles: ["superadmin","gerente_general","gerente_produccion","productor","controller"]
+    })
     setProyecto({ ...proyecto, estado: nuevoEstado })
     setCambiando(false)
     load()
@@ -241,6 +249,13 @@ export default function ProyectoDetallePage() {
       rqNum++
     }
     await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: en_curso" })
+    await notificarATodos({
+      titulo: `Proyecto ${proyecto?.codigo} — En curso`,
+      mensaje: `${proyecto?.nombre} inició ejecución. RQs generados.`,
+      tipo: "success",
+      enlace: `/proyectos/${id}`,
+      perfiles: ["superadmin","gerente_general","gerente_produccion","controller"]
+    })
     setShowPreCuadre(false)
     setGuardandoPreCuadre(false)
     setProyecto({ ...proyecto, estado: "en_curso" })
