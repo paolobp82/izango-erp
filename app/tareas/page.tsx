@@ -233,8 +233,20 @@ export default function TareasPage() {
             <option value="mias">Asignadas a mí</option>
             <option value="creadas">Creadas por mí</option>
           </select>
+          <select style={{ ...inp, width: "auto" }} value={ordenCampo} onChange={e => setOrdenCampo(e.target.value)}>
+            <option value="fecha_limite">Ordenar: Fecha límite</option>
+            <option value="titulo">Ordenar: Título</option>
+            <option value="proyecto">Ordenar: Proyecto</option>
+            <option value="cliente">Ordenar: Cliente</option>
+            <option value="prioridad">Ordenar: Prioridad</option>
+            <option value="asignado">Ordenar: Asignado a</option>
+            <option value="estado">Ordenar: Estado</option>
+          </select>
+          <select style={{ ...inp, width: "auto" }} value={ordenDir} onChange={e => setOrdenDir(e.target.value)}>
+            <option value="asc">↑ Ascendente</option>
+            <option value="desc">↓ Descendente</option>
+          </select>
         </div>
-
         {/* Lista de tareas */}
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
           {tareasFiltradas.length === 0 ? (
