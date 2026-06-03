@@ -100,6 +100,7 @@ const autoSaveRef = useRef<any>(null)
   const [descuentoPct, setDescuentoPct] = useState(0)
   const [subitems, setSubitems] = useState<Record<string, any[]>>({})
   const [columnaExtra, setColumnaExtra] = useState<{activa: boolean, titulo: string}>({activa: false, titulo: "Dirección"})
+  const [hasBackup, setHasBackup] = useState(false)
 
   useEffect(() => {
     if (!cotId) return
@@ -474,6 +475,34 @@ useEffect(() => { itemsRef.current = items }, [items])
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {hasBackup && (
+        <div style={{ background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <span style={{ fontWeight: 700, color: "#92400e", fontSize: 13 }}>⚠️ Tienes cambios sin guardar</span>
+            <span style={{ color: "#b45309", fontSize: 12, marginLeft: 8 }}>Se encontró una sesión anterior sin guardar.</span>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => {
+              const backup = localStorage.getItem("cot_backup_" + cotId)
+              if (backup) {
+                const { items: backupItems } = JSON.parse(backup)
+                setItems(backupItems)
+                setHasBackup(false)
+                localStorage.removeItem("cot_backup_" + cotId)
+              }
+            }} style={{ padding: "6px 14px", border: "none", borderRadius: 6, background: "#d97706", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+              ↩ Recuperar cambios
+            </button>
+            <button onClick={() => {
+              localStorage.removeItem("cot_backup_" + cotId)
+              setHasBackup(false)
+            }} style={{ padding: "6px 14px", border: "1px solid #d97706", borderRadius: 6, background: "#fff", color: "#d97706", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+              Descartar
+            </button>
           </div>
         </div>
       )}
