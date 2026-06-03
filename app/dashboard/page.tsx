@@ -90,6 +90,8 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),      sup
       rqsPendientes: rqsPendientes.length, rqsPendientesMonto,
       totalFacturado, totalCobrado, porCobrar, margenPromedio,
       cotMes: cotMes||0, leadsCalientes, pipelineCRM, factMesAct, varFacturacion,
+      presupuestosPendientes: allProv.filter(p => p.estado === "pendiente_aprobacion").length,
+      presupuestosAprobados: allProv.filter(p => ["aprobado_produccion","aprobado_gerencia","aprobado_cliente","aprobado"].includes(p.estado)).length,
     })
 
     // Chart facturación por mes (últimos 6 meses)
@@ -184,6 +186,19 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),      sup
         </div>
       )}
 
+      {/* KPIs Presupuestos */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 16 }}>
+        {[
+          { label: "Presupuestos Pendientes", value: String(metricas.presupuestosPendientes||0), sub: "Esperando aprobación", border: "#f59e0b", valueColor: "#d97706" },
+          { label: "Presupuestos Aprobados", value: String(metricas.presupuestosAprobados||0), sub: "En proceso de aprobación", border: "#3b82f6", valueColor: "#1e40af" },
+        ].map((k, i) => (
+          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", borderLeft: "4px solid "+k.border }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{k.label}</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: k.valueColor }}>{k.value}</div>
+            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
       {/* KPIs Row 1 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
         {[
