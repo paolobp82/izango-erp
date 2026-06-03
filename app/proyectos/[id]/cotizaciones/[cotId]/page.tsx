@@ -29,8 +29,10 @@ function calcItem(item: any) {
   const margenPct = Number(item.margen_pct) || 0
   const precioClienteManual = item.precio_cliente_manual !== null && item.precio_cliente_manual !== undefined && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null
   const precioCliente = precioClienteManual !== null ? precioClienteManual : (margenPct < 100 ? costoTotal / (1 - margenPct / 100) : costoTotal)
-  const margenCalculado = precioCliente > 0 ? ((precioCliente - costoTotal) / precioCliente) * 100 : margenPct
   const margenMonto = precioCliente - costoTotal
+  const margenCalculado = precioCliente > 0 ? ((precioCliente - costoTotal) / precioCliente) * 100 : margenPct
+  const margenFinal = precioClienteManual !== null ? margenCalculado : margenPct
+  return { ...item, costo_base_calculado: costoBase, costo_total: costoTotal, costo_unitario: costoUnitario, precio_cliente: precioCliente, margen_monto: margenMonto, margen_pct: margenFinal }
   return { ...item, costo_base_calculado: costoBase, costo_total: costoTotal, costo_unitario: costoUnitario, precio_cliente: precioCliente, margen_monto: margenMonto }
 }
 
