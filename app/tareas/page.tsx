@@ -280,30 +280,6 @@ export default function TareasPage() {
             </table>
           )}
         </div>
-            const es = ESTADOS[t.estado] || ESTADOS.pendiente
-            const pr = PRIORIDADES[t.prioridad] || PRIORIDADES.media
-            const vencida = estaVencida(t)
-            const activa = selected?.id === t.id
-            return (
-              <div key={t.id} onClick={() => abrirDetalle(t)}
-                style={{ background: activa ? "#f0fdf4" : "#fff", border: activa ? "1.5px solid #1D9E75" : "1px solid #e5e7eb", borderRadius: 10, padding: "14px 16px", cursor: "pointer", transition: "all 0.15s" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{t.titulo}</span>
-                      {vencida && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>VENCIDA</span>}
-                    </div>
-                    {t.descripcion && <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6, lineHeight: 1.4 }}>{t.descripcion.slice(0, 100)}{t.descripcion.length > 100 ? "..." : ""}</div>}
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                      <span style={{ background: es.bg, color: es.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>{es.label}</span>
-                      <span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>{pr.label}</span>
-                      {t.proyecto && <span style={{ fontSize: 11, color: "#6b7280" }}>📁 {t.proyecto.codigo}</span>}
-                      {t.cliente && <span style={{ fontSize: 11, color: "#6b7280" }}>🏢 {t.cliente.razon_social}</span>}
-                      {t.fecha_limite && <span style={{ fontSize: 11, color: vencida ? "#991b1b" : "#6b7280" }}>📅 {t.fecha_limite}</span>}
-                    </div>
-                  </div>
-                  
-      {/* ── PANEL DERECHO (detalle) ── */}
       {selected && (
         <div style={{ width: 380, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, overflowY: "auto", flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
