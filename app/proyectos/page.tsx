@@ -27,6 +27,7 @@ export default function ProyectosPage() {
   const [loading, setLoading] = useState(true)
   const [eliminando, setEliminando] = useState<string | null>(null)
   const [showEliminados, setShowEliminados] = useState(false)
+  const [filtroEstado, setFiltroEstado] = useState("")
   const supabase = createClient()
   const router = useRouter()
 
@@ -124,6 +125,13 @@ export default function ProyectosPage() {
           </p>
         </div>
         <ImportExport modulo="proyectos" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"descripcion_requerimiento",label:"Descripcion"},{key:"presupuesto_referencial",label:"Presupuesto"},{key:"fecha_limite_cotizacion",label:"Fecha limite cotizacion"},{key:"fecha_inicio",label:"Fecha ejecucion"},{key:"fecha_fin_estimada",label:"Fecha fin estimada"}]} datos={proyectos} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proyectos").insert({...r,entidad:"peru",estado:"pendiente_aprobacion"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
+        <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}
+          style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
+          <option value="">Todos los estados</option>
+          {Object.entries(ESTADO_LABEL).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
         <button onClick={() => router.push("/proyectos/nuevo")} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proyecto</button>
       </div>
 
@@ -168,7 +176,7 @@ export default function ProyectosPage() {
               </tr>
             </thead>
             <tbody>
-              {proyectos.map((p, idx) => {
+              {proyectos.filter(p => !filtroEstado || p.estado === filtroEstado).map((p, idx) => {
                 const ec: any = {
                   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e" },
                   aprobado_produccion:  { bg: "#fed7aa", color: "#9a3412" },
