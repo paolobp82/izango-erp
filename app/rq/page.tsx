@@ -272,7 +272,9 @@ export default function RQPage() {
               <div>
                 <div style={lbl}>Proveedor</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{selected.proveedor_nombre || selected.proveedor?.nombre}</div>
-                {selected.proveedor_banco && <div style={{ fontSize: 12, color: "#6b7280" }}>{selected.proveedor_banco} · {selected.proveedor_cuenta}</div>}
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  {selected.proveedor_banco || selected.proveedor?.banco || "—"} · {selected.proveedor_cuenta || selected.proveedor?.numero_cuenta || "Sin cuenta"}
+                </div>
               </div>
               <div>
                 <div style={lbl}>Descripcion</div>
