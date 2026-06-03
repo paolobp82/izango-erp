@@ -541,7 +541,16 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         if (!["superadmin","gerente_general"].includes(perfil?.perfil)) return
                         if (actual) return
                         if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
-                        if (confirm(`¿Regresar el proyecto al estado "${info.label}"? Esta acción modificará el flujo.`)) {
+                        if (confirm(`¿Regresar el proyecto al estado "${info.label}"? Se enviará solicitud de cancelación de RQs a Controller, GG y Superadmin para autorización.`)) {
+                          const estadosAntesDeEnCurso = ["pendiente_aprobacion","aprobado_produccion","aprobado_gerencia","aprobado_cliente"]
+                          if (estadosAntesDeEnCurso.includes(estado)) {
+                            const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
+                            if (rqsPendientes && rqsPendientes.length > 0) {
+                              await fetch("/api/cancelar-rqs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proyecto_id: id, estado_nuevo: estado, solicitado_por_id: perfil?.id }) })
+                              alert(`Se envió solicitud de cancelación de ${rqsPendientes.length} RQ(s) a Controller, GG y Superadmin. El estado cambiará cuando sea aprobada.`)
+                              return
+                            }
+                          }
                           cambiarEstado(estado)
                         }
                       }}
