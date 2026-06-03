@@ -50,7 +50,7 @@ export default function DashboardPage() {
       { data: cotizaciones },
       { data: cotsProy },
     ] = await Promise.all([
-supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
+supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
 supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at"),
       supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id"),
       supabase.from("requerimientos_pago").select("id, estado, monto_solicitado"),
@@ -311,7 +311,7 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: "#f8fafc" }}>
-              {["CÓDIGO","PROYECTO","CLIENTE","PRODUCTOR","ESTADO","INICIO"].map(h => (
+              {["CÓDIGO","PROYECTO","CLIENTE","PRODUCTOR","ESTADO","MONTO","INICIO"].map(h => (
                 <th key={h} style={{ textAlign: "left", padding: "8px " + (h === "CÓDIGO" ? "20px" : "12px"), fontSize: 11, fontWeight: 600, color: "#64748B" }}>{h}</th>
               ))}
             </tr>
@@ -333,6 +333,9 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
                   <td style={{ padding: "10px 12px", fontSize: 13, color: "#475569" }}>{p.productor ? p.productor.nombre+" "+p.productor.apellido : "—"}</td>
                   <td style={{ padding: "10px 12px" }}>
                     <span style={{ background: ec.bg, color: ec.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{ec.label}</span>
+                  </td>
+                  <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#0F6E56" }}>
+                    {p.cotizacion_aprobada?.total_cliente ? fmt(p.cotizacion_aprobada.total_cliente) : "—"}
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 12, color: "#94a3b8" }}>
                     {p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE") : "—"}
