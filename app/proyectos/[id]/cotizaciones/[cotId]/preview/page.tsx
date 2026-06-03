@@ -98,7 +98,7 @@ const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeM
               {proyecto?.cliente?.nombre_contacto ? <Text style={[s.small, { marginTop: 4 }]}>Attn: {proyecto.cliente.nombre_contacto}</Text> : null}
               {proyecto?.cliente?.email_contacto ? <Text style={s.small}>{proyecto.cliente.email_contacto}</Text> : null}
               <Text style={[s.small, { fontWeight: "bold", color: DARK, marginTop: 4 }]}>{proyecto?.nombre}</Text>
-              <Text style={s.small}>Condicion: {cotizacion?.condicion_pago}</Text>
+              Condición de pago: {cotizacion?.condicion_pago}
             </View>
           </View>
 
