@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
@@ -195,7 +195,7 @@ export default function ProyectosPage() {
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280", whiteSpace: "nowrap" }}>SUBTOTAL</th>
                 <th style={{ padding: "10px 20px", width: 150 }}></th>
               </tr>
-            </thead> style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280", whiteSpace: "nowrap" }}>SUBTOTAL</th>
+            </thead>
             <tbody>
               {proyectos.filter(p => (!filtroEstado || p.estado === filtroEstado) && (!filtroEntidad || p.entidad === filtroEntidad)).map((p, idx) => {
                 const ec: any = {
