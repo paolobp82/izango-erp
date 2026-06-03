@@ -335,7 +335,7 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
                     <span style={{ background: ec.bg, color: ec.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{ec.label}</span>
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#0F6E56" }}>
-                    {p.cotizacion_aprobada?.total_cliente ? fmt(p.cotizacion_aprobada.total_cliente) : "—"}
+                    {(() => { const cots = (cotsProy || []).filter((c: any) => c.proyecto_id === p.id); const aprobada = cots.find((c: any) => c.estado === "aprobada_cliente"); const ultima = cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; const monto = aprobada?.total_cliente || ultima?.total_cliente; return monto ? fmt(monto) : "—" })()}
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 12, color: "#94a3b8" }}>
                     {p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE") : "—"}
