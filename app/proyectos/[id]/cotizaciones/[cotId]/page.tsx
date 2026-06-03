@@ -29,11 +29,7 @@ function calcItem(item: any) {
   const margenPct = Number(item.margen_pct) || 0
   const precioClienteManual = item.precio_cliente_manual !== null && item.precio_cliente_manual !== undefined && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null
   const precioCliente = precioClienteManual !== null ? precioClienteManual : (margenPct < 100 ? costoTotal / (1 - margenPct / 100) : costoTotal)
-  const margenMonto = precioCliente - costoTotal
-  const margenCalculado = precioCliente > 0 ? ((precioCliente - costoTotal) / precioCliente) * 100 : margenPct
-  const margenFinal = precioClienteManual !== null ? margenCalculado : margenPct
-  return { ...item, costo_base_calculado: costoBase, costo_total: costoTotal, costo_unitario: costoUnitario, precio_cliente: precioCliente, margen_monto: margenMonto, margen_pct: margenFinal }
-  return { ...item, costo_base_calculado: costoBase, costo_total: costoTotal, costo_unitario: costoUnitario, precio_cliente: precioCliente, margen_monto: margenMonto }
+  
 }
 
 function newItem(cotizacionId: any, orden: number, familiaId?: string) {
@@ -47,8 +43,11 @@ function newItem(cotizacionId: any, orden: number, familiaId?: string) {
     costo_otros: 0, proveedor_id: null, proveedor_nombre: "", extras_produccion: [], extras_alquiler: [],
   })
 }
-
-function newFamilia(cotizacionId: any, orden: number) {
+const precioClienteRounded = Math.round(precioCliente * 100) / 100
+  const margenMonto = Math.round((precioClienteRounded - costoTotal) * 100) / 100
+  const margenCalculado = precioClienteRounded > 0 ? ((precioClienteRounded - costoTotal) / precioClienteRounded) * 100 : margenPct
+  const margenFinal = precioClienteManual !== null ? margenCalculado : margenPct
+  return { ...item, costo_base_calculado: costoBase, costo_total: costoTotal, costo_unitario: costoUnitario, precio_cliente: precioClienteRounded, margen_monto: margenMonto, margen_pct: margenFinal }
   return {
     id: "new_fam_" + Date.now(), cotizacion_id: cotizacionId, orden,
     tipo: "familia", descripcion: "Nueva familia", familia_id: null,
