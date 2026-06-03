@@ -30,6 +30,7 @@ export default function DashboardPage() {
   const [chartEstados, setChartEstados] = useState<any[]>([])
   const [chartRQs, setChartRQs] = useState<any[]>([])
   const [topProyectos, setTopProyectos] = useState<any[]>([])
+  const [cotsProyState, setCotsProyState] = useState<any[]>([])
 
   useEffect(() => { load() }, [])
 
@@ -61,6 +62,7 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
     ])
 
     setProyectos(provs || [])
+    setCotsProyState(cotsProy || [])
 
     // Métricas base
     const allProv = todosProyectos || []
@@ -92,8 +94,8 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
       rqsPendientes: rqsPendientes.length, rqsPendientesMonto,
       totalFacturado, totalCobrado, porCobrar, margenPromedio,
       cotMes: cotMes||0, leadsCalientes, pipelineCRM, factMesAct, varFacturacion,
-      presupuestosPendientes: (() => { return allProv.filter((p: any) => p.estado === "pendiente_aprobacion").reduce((s: number, p: any) => { const cots = (cotsProy || []).filter((c: any) => c.proyecto_id === p.id); const maxCot = cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (maxCot?.total_cliente || 0) }, 0) })(),
-      presupuestosAprobados: (() => { return allProv.filter((p: any) => ["aprobado_produccion","aprobado_gerencia","aprobado_cliente","aprobado"].includes(p.estado)).reduce((s: number, p: any) => { const cots = (cotsProy || []).filter((c: any) => c.proyecto_id === p.id); const aprobada = cots.find((c: any) => c.estado === "aprobada_cliente") || cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (aprobada?.total_cliente || 0) }, 0) })(),
+      presupuestosPendientes: (() => { return allProv.filter((p: any) => p.estado === "pendiente_aprobacion").reduce((s: number, p: any) => { const cots = (cotsProyState || []).filter((c: any) => c.proyecto_id === p.id); const maxCot = cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (maxCot?.total_cliente || 0) }, 0) })(),
+      presupuestosAprobados: (() => { return allProv.filter((p: any) => ["aprobado_produccion","aprobado_gerencia","aprobado_cliente","aprobado"].includes(p.estado)).reduce((s: number, p: any) => { const cots = (cotsProyState || []).filter((c: any) => c.proyecto_id === p.id); const aprobada = cots.find((c: any) => c.estado === "aprobada_cliente") || cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (aprobada?.total_cliente || 0) }, 0) })(),
     })
 
     // Chart facturación por mes (últimos 6 meses)
@@ -335,7 +337,7 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
                     <span style={{ background: ec.bg, color: ec.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{ec.label}</span>
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#0F6E56" }}>
-                    {(() => { const cots = (cotsProy || []).filter((c: any) => c.proyecto_id === p.id); const aprobada = cots.find((c: any) => c.estado === "aprobada_cliente"); const ultima = cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; const monto = aprobada?.total_cliente || ultima?.total_cliente; return monto ? fmt(monto) : "—" })()}
+                    {(() => { const cots = (cotsProyState || []).filter((c: any) => c.proyecto_id === p.id); const aprobada = cots.find((c: any) => c.estado === "aprobada_cliente"); const ultima = cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; const monto = aprobada?.total_cliente || ultima?.total_cliente; return monto ? fmt(monto) : "—" })()}
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 12, color: "#94a3b8" }}>
                     {p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE") : "—"}
