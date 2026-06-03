@@ -16,11 +16,11 @@ const AGENCIA: any = {
   },
   selva: {
     nombre: "Izango Selva 360 S.A.C.", ruc: "20607083721",
-    direccion: "Cal. los Claveles Nro. 157, Maynas, Loreto",
+    direccion: "Cal. Los Claveles Nro. 157, San Juan Bautista, Maynas, Loreto",
     contacto: "Jose Manuel Sosa Canessa", cargo: "Director Comercial",
     celular: "987 627 997", email: "jsosa@izango.com.pe",
     banco: "BCP", tipo_cuenta: "Corriente Soles",
-    numero_cuenta: "194-9396704-0-99", cci: "002-19400939670409-994",
+    numero_cuenta: "194-9396704-0-99", cci: "002-19400939670409994",
     cuenta_detraccion: "000-14062335",
   }
 }
