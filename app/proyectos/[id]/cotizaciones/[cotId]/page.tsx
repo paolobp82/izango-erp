@@ -767,7 +767,7 @@ useEffect(() => { itemsRef.current = items }, [items])
                       <td style={{ padding: "6px 4px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 3, justifyContent: "center" }}>
                           <input type="number" min={0} max={99} step={0.1}
-                            style={{ ...inp, width: 52, textAlign: "center", fontWeight: 700,
+                            style={{ ...inp, width: 70, textAlign: "center", fontWeight: 700,
                               color: item.margen_pct >= 35 ? "#0F6E56" : item.margen_pct >= 20 ? "#ca8a04" : "#dc2626" }}
                             value={item.margen_pct}
                             onChange={e => updateItem(item.id, "margen_pct", Number(e.target.value))} />
