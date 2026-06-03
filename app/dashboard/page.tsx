@@ -10,6 +10,8 @@ const ESTADO_COLOR: Record<string, any> = {
   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e", label: "Pendiente" },
   aprobado_produccion:  { bg: "#fed7aa", color: "#9a3412", label: "Aprobado Prod." },
   aprobado:             { bg: "#dbeafe", color: "#1e40af", label: "Aprobado" },
+  aprobado_gerencia:    { bg: "#e0e7ff", color: "#3730a3", label: "Aprobado Gerencia" },
+  aprobado_cliente:     { bg: "#dcfce7", color: "#15803d", label: "Aprobado Cliente" },
   en_curso:             { bg: "#dcfce7", color: "#15803d", label: "En curso" },
   terminado:            { bg: "#f3f4f6", color: "#6b7280", label: "Terminado" },
   facturado:            { bg: "#f5f3ff", color: "#6d28d9", label: "Facturado" },
