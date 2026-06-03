@@ -710,7 +710,7 @@ useEffect(() => { itemsRef.current = items }, [items])
                           onChange={e => updateItem(item.id, "fechas", Number(e.target.value))} />
                       </td>
                       <td style={{ textAlign: "right", padding: "6px 12px", fontSize: 12, color: "#6b7280" }}>
-                        {item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "—"}
+                        {item.precio_cliente > 0 ? fmt(item.precio_cliente / ((item.cantidad || 1) * (item.fechas || 1))) : "—"}
                       </td>
                       <td style={{ padding: "6px 8px", width: 110 }}>
                         <input type="number" style={{ ...inp, width: "100%", textAlign: "right", borderColor: item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? "#1D9E75" : "#e5e7eb" }}

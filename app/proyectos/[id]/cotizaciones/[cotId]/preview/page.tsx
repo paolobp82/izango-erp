@@ -129,7 +129,7 @@ const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeM
                 <Text style={[s.tdLeft, { flex: 1 }]}>{item.descripcion || "-"}</Text>
                 <Text style={[s.tdCenter, { width: 38 }]}>{item.cantidad}</Text>
                 <Text style={[s.tdCenter, { width: 38 }]}>{item.fechas}</Text>
-                <Text style={[s.tdRight, { width: 65 }]}>{item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "-"}</Text>
+                <Text style={[s.tdRight, { width: 65 }]}>{item.precio_cliente > 0 ? fmt(item.precio_cliente / ((item.cantidad || 1) * (item.fechas || 1))) : "-"}</Text>
                 <Text style={[s.tdRightBold, { width: 65 }]}>{item.precio_cliente > 0 ? fmt(item.precio_cliente) : "-"}</Text>
               </View>
             )
