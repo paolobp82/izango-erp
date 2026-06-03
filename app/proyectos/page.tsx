@@ -179,6 +179,7 @@ export default function ProyectosPage() {
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRODUCTOR</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>V. APROBADA</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MONTO</th>
                 <th style={{ padding: "10px 20px", width: 150 }}></th>
               </tr>
             </thead>
@@ -223,6 +224,9 @@ export default function ProyectosPage() {
                           {p.cotizacion_aprobada.total_cliente > 0 && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{fmt(p.cotizacion_aprobada.total_cliente)}</div>}
                         </div>
                       ) : <span style={{ fontSize: 11, color: "#d1d5db" }}>—</span>}
+                    </td>
+                    <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#0F6E56" }}>
+                      {p.cotizacion_aprobada?.total_cliente ? fmt(p.cotizacion_aprobada.total_cliente) : "—"}
                     </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
