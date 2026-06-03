@@ -87,7 +87,7 @@ export default function NuevoProyectoPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 14 }}>
             <div>
               <label style={labelStyle}>Codigo *</label>
-              <input style={inputStyle} value={form.codigo} onChange={e => f("codigo", e.target.value)} required />
+              <input style={{ ...inputStyle, background: "#f9fafb", color: "#6b7280" }} value={form.codigo} readOnly />
             </div>
             <div>
               <label style={labelStyle}>Entidad *</label>

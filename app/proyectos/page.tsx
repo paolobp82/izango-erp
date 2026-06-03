@@ -28,6 +28,7 @@ export default function ProyectosPage() {
   const [eliminando, setEliminando] = useState<string | null>(null)
   const [showEliminados, setShowEliminados] = useState(false)
   const [filtroEstado, setFiltroEstado] = useState("")
+  const [filtroEntidad, setFiltroEntidad] = useState("")
   const supabase = createClient()
   const router = useRouter()
 
@@ -132,6 +133,12 @@ export default function ProyectosPage() {
             <option key={key} value={key}>{label}</option>
           ))}
         </select>
+        <select value={filtroEntidad} onChange={e => setFiltroEntidad(e.target.value)}
+  style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
+  <option value="">Todas las entidades</option>
+  <option value="peru">Izango Peru (IZ)</option>
+  <option value="selva">Izango Selva (SEL)</option>
+</select>
         <button onClick={() => router.push("/proyectos/nuevo")} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proyecto</button>
       </div>
 
@@ -176,7 +183,7 @@ export default function ProyectosPage() {
               </tr>
             </thead>
             <tbody>
-              {proyectos.filter(p => !filtroEstado || p.estado === filtroEstado).map((p, idx) => {
+              {proyectos.filter(p => (!filtroEstado || p.estado === filtroEstado) && (!filtroEntidad || p.entidad === filtroEntidad)).map((p, idx) => {
                 const ec: any = {
                   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e" },
                   aprobado_produccion:  { bg: "#fed7aa", color: "#9a3412" },
@@ -191,6 +198,7 @@ export default function ProyectosPage() {
                 const e = ec[p.estado] || { bg: "#f3f4f6", color: "#6b7280" }
                 const prod = p.productor ? p.productor.nombre + " " + p.productor.apellido : "—"
                 return (
+                  
                   <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                     <td style={{ padding: "12px 20px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{p.codigo}</td>
                     <td style={{ padding: "12px" }}>
