@@ -345,7 +345,7 @@ a.download = `${proyecto?.codigo}-${nombreProyecto}-V${cotizacion?.version}.pdf`
                     <td style={{ padding: "11px 10px", textAlign: "center", fontSize: 13, color: "#475569" }}>{item.cantidad}</td>
                     <td style={{ padding: "11px 10px", textAlign: "center", fontSize: 13, color: "#475569" }}>{item.fechas}</td>
                     <td style={{ padding: "11px 14px", textAlign: "right", fontSize: 13, color: "#475569" }}>
-                      {item.precio_cliente > 0 ? fmt(item.precio_cliente / (item.cantidad || 1)) : "—"}
+                      {item.precio_cliente > 0 ? fmt(item.precio_cliente / ((item.cantidad || 1) * (item.fechas || 1))) : "—"}
                     </td>
                     <td style={{ padding: "11px 14px", textAlign: "right", fontSize: 14, fontWeight: 700, color: COLOR_DARK }}>
                       {item.precio_cliente > 0 ? fmt(item.precio_cliente) : "—"}
