@@ -62,7 +62,6 @@ function newCeldaExtra(cotizacionId: any, orden: number) {
   }
 }
 
-
 function newItem(cotizacionId: any, orden: number, familiaId?: string) {
   return calcItem({
     id: "new_" + Date.now(), cotizacion_id: cotizacionId, orden,
@@ -75,18 +74,6 @@ function newItem(cotizacionId: any, orden: number, familiaId?: string) {
   })
 }
 
-function newFamilia(cotizacionId: any, orden: number) {
-  return {
-    id: "new_fam_" + Date.now(), cotizacion_id: cotizacionId, orden,
-    tipo: "familia", descripcion: "Nueva familia", familia_id: null,
-    es_opcional: false, incluir_en_total: true, celda_titulo: null, numero_item: null, columna_extra_valor: "",
-    cantidad: 1, fechas: 1, margen_pct: 0, costo_manual: null,
-    costo_almacenaje: 0, costo_impresion: 0, costo_permisos: 0, costo_instalacion: 0,
-    costo_performer: 0, costo_alquiler: 0, costo_supervision: 0, costo_movilidad: 0,
-    costo_otros: 0, proveedor_id: null, proveedor_nombre: "", extras_produccion: [], extras_alquiler: [],
-    costo_total: 0, precio_cliente: 0, margen_monto: 0, costo_base_calculado: 0, costo_unitario: 0,
-  }
-}
 export default function CotizacionEditorPage() {
   const rawParams = useParams()
   const id = rawParams?.id as string | undefined
