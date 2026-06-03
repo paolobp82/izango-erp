@@ -222,12 +222,64 @@ export default function TareasPage() {
         </div>
 
         {/* Lista de tareas */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
           {tareasFiltradas.length === 0 ? (
-            <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>
-              No hay tareas con estos filtros
-            </div>
-          ) : tareasFiltradas.map(t => {
+            <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay tareas con estos filtros</div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#1D2040" }}>
+                  <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#fff" }}>TÍTULO</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 120 }}>PROYECTO</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 150 }}>CLIENTE</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 90 }}>PRIORIDAD</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 130 }}>ASIGNADO A</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#03E373", width: 110 }}>ESTADO</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 100 }}>FECHA LÍMITE</th>
+                  <th style={{ width: 80 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {tareasFiltradas.map((t, idx) => {
+                  const es = ESTADOS[t.estado] || ESTADOS.pendiente
+                  const pr = PRIORIDADES[t.prioridad] || PRIORIDADES.media
+                  const vencida = estaVencida(t)
+                  return (
+                    <tr key={t.id} onClick={() => abrirDetalle(t)}
+                      style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === t.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
+                      <td style={{ padding: "10px 16px" }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{t.titulo}</div>
+                        {vencida && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>VENCIDA</span>}
+                      </td>
+                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>{t.proyecto?.codigo || "—"}</td>
+                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>{t.cliente?.razon_social || "—"}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        <span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>{pr.label}</span>
+                      </td>
+                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#374151", whiteSpace: "nowrap" }}>
+                        {t.asignado ? t.asignado.nombre + " " + t.asignado.apellido : "—"}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        <span style={{ background: es.bg, color: es.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>{es.label}</span>
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12, color: vencida ? "#991b1b" : "#6b7280", fontWeight: vencida ? 700 : 400, whiteSpace: "nowrap" }}>
+                        {t.fecha_limite || "—"}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <button onClick={e => { e.stopPropagation(); abrirEditar(t) }}
+                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer" }}>✏️</button>
+                          <button onClick={e => { e.stopPropagation(); eliminar(t.id) }}
+                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
             const es = ESTADOS[t.estado] || ESTADOS.pendiente
             const pr = PRIORIDADES[t.prioridad] || PRIORIDADES.media
             const vencida = estaVencida(t)
