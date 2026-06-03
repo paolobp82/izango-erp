@@ -28,7 +28,7 @@ function calcItem(item: any) {
   const costoTotal = costoUnitario * cantidad * fechas
   const margenPct = Number(item.margen_pct) || 0
   const precioClienteManual = item.precio_cliente_manual !== null && item.precio_cliente_manual !== undefined && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null
-  const precioCliente = precioClienteManual !== null ? precioClienteManual : (margenPct < 100 ? costoTotal / (1 - margenPct / 100) : costoTotal)
+  const precioCliente = precioClienteManual !== null ? precioClienteManual * cantidad * fechas : (margenPct < 100 ? costoTotal / (1 - margenPct / 100) : costoTotal)
   const precioClienteRounded = Math.round(precioCliente * 100) / 100
   const margenMonto = Math.round((precioClienteRounded - costoTotal) * 100) / 100
   const margenCalculado = precioClienteRounded > 0 ? ((precioClienteRounded - costoTotal) / precioClienteRounded) * 100 : margenPct
