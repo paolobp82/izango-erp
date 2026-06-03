@@ -202,6 +202,8 @@ export default function ProyectosPage() {
                   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e" },
                   aprobado_produccion:  { bg: "#fed7aa", color: "#9a3412" },
                   aprobado:             { bg: "#dbeafe", color: "#1e40af" },
+                  aprobado_gerencia:    { bg: "#e0e7ff", color: "#3730a3" },
+                  aprobado_cliente:     { bg: "#dcfce7", color: "#15803d" },
                   en_curso:             { bg: "#dcfce7", color: "#15803d" },
                   terminado:            { bg: "#f3f4f6", color: "#6b7280" },
                   liquidado:            { bg: "#f5f3ff", color: "#6d28d9" },
