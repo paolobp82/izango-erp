@@ -57,7 +57,7 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
       supabase.from("cotizaciones").select("id", { count: "exact", head: true }).gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
       supabase.from("crm_leads").select("estado, temperatura, presupuesto_estimado"),
       supabase.from("cotizaciones").select("proyecto_id, total_cliente, estado, proyecto:proyectos(nombre, codigo)").eq("estado", "aprobada_cliente").order("total_cliente", { ascending: false }).limit(6),
-      supabase.from("cotizaciones").select("proyecto_id, total_cliente, estado").not("deleted_at", "is", null).or("estado.eq.borrador,estado.eq.aprobada_cliente"),
+      supabase.from("cotizaciones").select("proyecto_id, total_cliente, estado").is("deleted_at", null),
     ])
 
     setProyectos(provs || [])
@@ -191,8 +191,8 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
       {/* KPIs Presupuestos */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 16 }}>
         {[
-          { label: "Presupuestos Pendientes", value: fmtShort(metricas.presupuestosPendientes||0), sub: "Esperando aprobación", border: "#f59e0b", valueColor: "#d97706" },
-          { label: "Presupuestos Aprobados", value: fmtShort(metricas.presupuestosAprobados||0), sub: "En proceso de aprobación", border: "#3b82f6", valueColor: "#1e40af" },
+          { label: "Presupuestos Pendientes", value: fmt(metricas.presupuestosPendientes||0), sub: "Esperando aprobación", border: "#f59e0b", valueColor: "#d97706" },
+          { label: "Presupuestos Aprobados", value: fmt(metricas.presupuestosAprobados||0), sub: "En proceso de aprobación", border: "#3b82f6", valueColor: "#1e40af" },
         ].map((k, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", borderLeft: "4px solid "+k.border }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{k.label}</div>
