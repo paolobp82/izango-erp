@@ -131,11 +131,36 @@ export default function ProyectoDetallePage() {
       const { data: its } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", versionAprobar).order("orden")
       const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
       setProveedores(provs || [])
-      setPreCuadreItems((its || []).filter((i: any) => i.tipo !== "celda_extra").map((i: any) => ({
-        ...i,
-        costo_final: i.costo_total || 0,
-        esNuevo: false,
-      })))
+      const itemsFiltrados = (its || []).filter((i: any) => i.tipo !== "celda_extra")
+      const itemsConSubs: any[] = []
+      for (const item of itemsFiltrados) {
+        if (item.tipo === "familia") {
+          itemsConSubs.push({ ...item, costo_final: 0, esNuevo: false })
+          continue
+        }
+        const { data: subs } = await supabase.from("cotizacion_subitems").select("*").eq("item_id", item.id).order("orden")
+        if (subs && subs.length > 0) {
+          itemsConSubs.push({ ...item, costo_final: item.costo_total || 0, esNuevo: false, _esPadre: true })
+          for (const sub of subs) {
+            itemsConSubs.push({
+              id: "sub_" + sub.id,
+              descripcion: item.descripcion + " — " + sub.descripcion,
+              costo_total: sub.monto || 0,
+              costo_final: sub.monto || 0,
+              proveedor_id: sub.proveedor_id || item.proveedor_id || null,
+              proveedor_nombre: sub.proveedor_nombre || "",
+              tipo: "subitem",
+              esNuevo: false,
+              _subitemId: sub.id,
+              tipo_pago: "contado",
+              pagos: [],
+            })
+          }
+        } else {
+          itemsConSubs.push({ ...item, costo_final: item.costo_total || 0, esNuevo: false, tipo_pago: "contado", pagos: [] })
+        }
+      }
+      setPreCuadreItems(itemsConSubs)
       setShowPreCuadre(true)
       return
     }
@@ -196,7 +221,8 @@ export default function ProyectoDetallePage() {
     const { count } = await supabase.from("requerimientos_pago").select("*", { count: "exact", head: true }).eq("proyecto_id", id)
     let rqNum = (count || 0) + 1
     for (const item of preCuadreItems) {
-      if (item.tipo === "familia" || !item.proveedor_id) continue
+      if (item.tipo === "familia" || item._esPadre) continue
+      if (!item.proveedor_id) continue
       const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
       await supabase.from("requerimientos_pago").insert({
         proyecto_id: id,
@@ -318,7 +344,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 130 }}>Costo Presup.</th>
                   <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#03E373", width: 130 }}>Costo Final</th>
                   <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 200 }}>Proveedor</th>
-                  <th style={{ width: 40 }}></th>
+                  <th style={{ textAlign: "center", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 120 }}>Tipo pago</th>
+                  <th style={{ width: 100 }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -351,9 +378,32 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                           {proveedores.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                         </select>
                       </td>
+                      <td style={{ padding: "8px 12px" }}>
+                        <select value={item.tipo_pago || "contado"} onChange={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, tipo_pago: e.target.value } : i))}
+                          style={{ padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", width: "100%" }}>
+                          <option value="contado">Contado</option>
+                          <option value="adelanto">Adelanto</option>
+                          <option value="credito">Crédito</option>
+                        </select>
+                      </td>
                       <td style={{ padding: "8px 4px", textAlign: "center" }}>
-                        <button onClick={() => setPreCuadreItems(prev => prev.filter((i: any) => i.id !== item.id))}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>×</button>
+                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                          <button onClick={() => {
+                            const mitad = Math.round((item.costo_final || 0) / 2 * 100) / 100
+                            const id1 = "div_" + Date.now() + "_1"
+                            const id2 = "div_" + Date.now() + "_2"
+                            setPreCuadreItems(prev => {
+                              const idx = prev.findIndex((i: any) => i.id === item.id)
+                              const nuevos = [
+                                { ...item, id: id1, descripcion: item.descripcion + " (50% adelanto)", costo_final: mitad, tipo_pago: "adelanto" },
+                                { ...item, id: id2, descripcion: item.descripcion + " (50% saldo)", costo_final: item.costo_final - mitad, tipo_pago: "contado" },
+                              ]
+                              return [...prev.slice(0, idx), ...nuevos, ...prev.slice(idx + 1)]
+                            })
+                          }} style={{ background: "none", border: "1px dashed #3b82f6", borderRadius: 4, cursor: "pointer", color: "#3b82f6", fontSize: 10, padding: "2px 6px", whiteSpace: "nowrap" }}>÷ Dividir</button>
+                          <button onClick={() => setPreCuadreItems(prev => prev.filter((i: any) => i.id !== item.id))}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>×</button>
+                        </div>
                       </td>
                     </tr>
                   )
