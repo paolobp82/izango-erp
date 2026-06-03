@@ -280,6 +280,7 @@ export default function TareasPage() {
             </table>
           )}
         </div>
+      </div>
       {selected && (
         <div style={{ width: 380, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, overflowY: "auto", flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
