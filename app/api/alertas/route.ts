@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     const results = await Promise.allSettled(
       destinatarios.map((email: string) =>
         resend.emails.send({
-          from: "Izango ERP <onboarding@resend.dev>",
+          from: "Izango ERP <noreply@izango.com.pe>",
           to: email,
           subject: template.subject,
           html: template.html(datos),
