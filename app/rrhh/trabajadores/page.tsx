@@ -257,6 +257,7 @@ export default function TrabajadoresPage() {
                   </td>
                   <td style={{ padding: "12px 20px", textAlign: "right" }}>
                     <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                      <button onClick={() => window.location.href = "/rrhh/trabajadores/" + t.id} className="btn-secondary" style={{ fontSize: 12 }}>Ver ficha</button>
                       <button onClick={() => abrirEditar(t)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
                       <button onClick={() => { setTrabajadorSeleccionado(t.id); cargarHistorial(t.id); setShowContrato(true); cargarContratos(t.id) }} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer" }}>Historial</button>
                       {esAdminRRHH && (
