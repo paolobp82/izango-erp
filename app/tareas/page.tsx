@@ -40,6 +40,8 @@ export default function TareasPage() {
   const [form, setForm] = useState({ ...formVacio })
   const [filtroEstado, setFiltroEstado] = useState("todos")
   const [filtroAsignado, setFiltroAsignado] = useState("todos")
+  const [ordenCampo, setOrdenCampo] = useState("fecha_limite")
+  const [ordenDir, setOrdenDir] = useState("asc")
 
   useEffect(() => { load() }, [])
 
@@ -163,6 +165,18 @@ export default function TareasPage() {
     if (filtroAsignado === "mias" && t.asignado_a !== perfil?.id) return false
     if (filtroAsignado === "creadas" && t.creado_por !== perfil?.id) return false
     return true
+  }).sort((a, b) => {
+    let valA: any = "", valB: any = ""
+    if (ordenCampo === "titulo") { valA = a.titulo || ""; valB = b.titulo || "" }
+    else if (ordenCampo === "proyecto") { valA = a.proyecto?.codigo || ""; valB = b.proyecto?.codigo || "" }
+    else if (ordenCampo === "cliente") { valA = a.cliente?.razon_social || ""; valB = b.cliente?.razon_social || "" }
+    else if (ordenCampo === "prioridad") { const ord: any = { urgente: 0, alta: 1, media: 2, baja: 3 }; valA = ord[a.prioridad] ?? 2; valB = ord[b.prioridad] ?? 2 }
+    else if (ordenCampo === "asignado") { valA = a.asignado ? a.asignado.nombre + a.asignado.apellido : ""; valB = b.asignado ? b.asignado.nombre + b.asignado.apellido : "" }
+    else if (ordenCampo === "estado") { valA = a.estado || ""; valB = b.estado || "" }
+    else if (ordenCampo === "fecha_limite") { valA = a.fecha_limite || "9999"; valB = b.fecha_limite || "9999" }
+    if (valA < valB) return ordenDir === "asc" ? -1 : 1
+    if (valA > valB) return ordenDir === "asc" ? 1 : -1
+    return 0
   })
 
   const contadores = {
@@ -421,6 +435,19 @@ export default function TareasPage() {
                     <option value="">Sin cliente</option>
                     {clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
                   </select>
+                  <select style={{ ...inp, width: "auto" }} value={ordenCampo} onChange={e => setOrdenCampo(e.target.value)}>
+            <option value="fecha_limite">Ordenar: Fecha límite</option>
+            <option value="titulo">Ordenar: Título</option>
+            <option value="proyecto">Ordenar: Proyecto</option>
+            <option value="cliente">Ordenar: Cliente</option>
+            <option value="prioridad">Ordenar: Prioridad</option>
+            <option value="asignado">Ordenar: Asignado a</option>
+            <option value="estado">Ordenar: Estado</option>
+          </select>
+          <select style={{ ...inp, width: "auto" }} value={ordenDir} onChange={e => setOrdenDir(e.target.value)}>
+            <option value="asc">↑ Ascendente</option>
+            <option value="desc">↓ Descendente</option>
+          </select>
                 </div>
               </div>
               <div>
