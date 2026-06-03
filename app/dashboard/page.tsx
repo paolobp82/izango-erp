@@ -50,7 +50,7 @@ export default function DashboardPage() {
       { data: cotizaciones },
     ] = await Promise.all([
 supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
-supabase.from("proyectos").select("id, estado").is("deleted_at", null),      supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at"),
+supabase.from("proyectos").select("id, estado, cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null),      supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at"),
       supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id"),
       supabase.from("requerimientos_pago").select("id, estado, monto_solicitado"),
       supabase.from("cotizaciones").select("id", { count: "exact", head: true }).gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
@@ -90,8 +90,8 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),      sup
       rqsPendientes: rqsPendientes.length, rqsPendientesMonto,
       totalFacturado, totalCobrado, porCobrar, margenPromedio,
       cotMes: cotMes||0, leadsCalientes, pipelineCRM, factMesAct, varFacturacion,
-      presupuestosPendientes: allProv.filter(p => p.estado === "pendiente_aprobacion").length,
-      presupuestosAprobados: allProv.filter(p => ["aprobado_produccion","aprobado_gerencia","aprobado_cliente","aprobado"].includes(p.estado)).length,
+      presupuestosPendientes: allProv.filter(p => p.estado === "pendiente_aprobacion").reduce((s: number, p: any) => s + (p.cotizacion_aprobada?.total_cliente || 0), 0),
+      presupuestosAprobados: allProv.filter(p => ["aprobado_produccion","aprobado_gerencia","aprobado_cliente","aprobado"].includes(p.estado)).reduce((s: number, p: any) => s + (p.cotizacion_aprobada?.total_cliente || 0), 0),
     })
 
     // Chart facturación por mes (últimos 6 meses)
@@ -189,8 +189,8 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),      sup
       {/* KPIs Presupuestos */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 16 }}>
         {[
-          { label: "Presupuestos Pendientes", value: String(metricas.presupuestosPendientes||0), sub: "Esperando aprobación", border: "#f59e0b", valueColor: "#d97706" },
-          { label: "Presupuestos Aprobados", value: String(metricas.presupuestosAprobados||0), sub: "En proceso de aprobación", border: "#3b82f6", valueColor: "#1e40af" },
+          { label: "Presupuestos Pendientes", value: fmtShort(metricas.presupuestosPendientes||0), sub: "Esperando aprobación", border: "#f59e0b", valueColor: "#d97706" },
+          { label: "Presupuestos Aprobados", value: fmtShort(metricas.presupuestosAprobados||0), sub: "En proceso de aprobación", border: "#3b82f6", valueColor: "#1e40af" },
         ].map((k, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", borderLeft: "4px solid "+k.border }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{k.label}</div>
