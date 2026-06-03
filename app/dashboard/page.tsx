@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import {
@@ -94,8 +94,8 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
       rqsPendientes: rqsPendientes.length, rqsPendientesMonto,
       totalFacturado, totalCobrado, porCobrar, margenPromedio,
       cotMes: cotMes||0, leadsCalientes, pipelineCRM, factMesAct, varFacturacion,
-      presupuestosPendientes: (() => { return allProv.filter((p: any) => p.estado === "pendiente_aprobacion").reduce((s: number, p: any) => { const cots = (cotsProyState || []).filter((c: any) => c.proyecto_id === p.id); const maxCot = cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (maxCot?.total_cliente || 0) }, 0) })(),
-      presupuestosAprobados: (() => { return allProv.filter((p: any) => ["aprobado_produccion","aprobado_gerencia","aprobado_cliente","aprobado"].includes(p.estado)).reduce((s: number, p: any) => { const cots = (cotsProyState || []).filter((c: any) => c.proyecto_id === p.id); const aprobada = cots.find((c: any) => c.estado === "aprobada_cliente") || cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (aprobada?.total_cliente || 0) }, 0) })(),
+      presupuestosPendientes: allProv.filter((p: any) => p.estado === "pendiente_aprobacion").reduce((s: number, p: any) => { const cots = (cotsProy || []).filter((c: any) => c.proyecto_id === p.id && c.total_cliente > 0); const maxCot = cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (maxCot?.total_cliente || 0) }, 0),
+      presupuestosAprobados: allProv.filter((p: any) => ["aprobado_produccion","aprobado_gerencia","aprobado_cliente","aprobado","en_curso","terminado","liquidado"].includes(p.estado)).reduce((s: number, p: any) => { const cots = (cotsProy || []).filter((c: any) => c.proyecto_id === p.id && c.total_cliente > 0); const aprobada = cots.find((c: any) => c.estado === "aprobada_cliente") || cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (aprobada?.total_cliente || 0) }, 0),
     })
 
     // Chart facturación por mes (últimos 6 meses)
