@@ -40,7 +40,20 @@ export default function ProyectosPage() {
       .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-    setProyectos(data || [])
+    const proyectosData = data || []
+    const proyectoIds = proyectosData.map((p: any) => p.id)
+    if (proyectoIds.length > 0) {
+      const { data: cots } = await supabase.from("cotizaciones").select("proyecto_id, total_cliente, version").is("deleted_at", null).in("proyecto_id", proyectoIds).order("version", { ascending: false })
+      const montosPorProyecto: Record<string, number> = {}
+      for (const cot of (cots || [])) {
+        if (!montosPorProyecto[cot.proyecto_id] && cot.total_cliente > 0) {
+          montosPorProyecto[cot.proyecto_id] = cot.total_cliente
+        }
+      }
+      setProyectos(proyectosData.map((p: any) => ({ ...p, _subtotal: montosPorProyecto[p.id] || 0 })))
+    } else {
+      setProyectos(proyectosData)
+    }
     const hace2dias = new Date()
     hace2dias.setDate(hace2dias.getDate() - 2)
     const { data: elim } = await supabase
@@ -226,7 +239,7 @@ export default function ProyectosPage() {
                       ) : <span style={{ fontSize: 11, color: "#d1d5db" }}>—</span>}
                     </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#0F6E56" }}>
-                      {p.cotizacion_aprobada?.total_cliente > 0 ? fmt(p.cotizacion_aprobada.total_cliente) : "—"}
+                      {p._subtotal > 0 ? fmt(p._subtotal) : "—"}
                     </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
