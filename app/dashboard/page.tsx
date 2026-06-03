@@ -48,14 +48,16 @@ export default function DashboardPage() {
       { count: cotMes },
       { data: leads },
       { data: cotizaciones },
+      { data: cotsProy },
     ] = await Promise.all([
 supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
-supabase.from("proyectos").select("id, estado, cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null),      supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at"),
+supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at"),
       supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id"),
       supabase.from("requerimientos_pago").select("id, estado, monto_solicitado"),
       supabase.from("cotizaciones").select("id", { count: "exact", head: true }).gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
       supabase.from("crm_leads").select("estado, temperatura, presupuesto_estimado"),
       supabase.from("cotizaciones").select("proyecto_id, total_cliente, estado, proyecto:proyectos(nombre, codigo)").eq("estado", "aprobada_cliente").order("total_cliente", { ascending: false }).limit(6),
+      supabase.from("cotizaciones").select("proyecto_id, total_cliente, estado").not("deleted_at", "is", null).or("estado.eq.borrador,estado.eq.aprobada_cliente"),
     ])
 
     setProyectos(provs || [])
@@ -90,8 +92,8 @@ supabase.from("proyectos").select("id, estado, cotizacion_aprobada:cotizaciones!
       rqsPendientes: rqsPendientes.length, rqsPendientesMonto,
       totalFacturado, totalCobrado, porCobrar, margenPromedio,
       cotMes: cotMes||0, leadsCalientes, pipelineCRM, factMesAct, varFacturacion,
-      presupuestosPendientes: allProv.filter(p => p.estado === "pendiente_aprobacion").reduce((s: number, p: any) => s + (p.cotizacion_aprobada?.total_cliente || 0), 0),
-      presupuestosAprobados: allProv.filter(p => ["aprobado_produccion","aprobado_gerencia","aprobado_cliente","aprobado"].includes(p.estado)).reduce((s: number, p: any) => s + (p.cotizacion_aprobada?.total_cliente || 0), 0),
+      presupuestosPendientes: (() => { return allProv.filter((p: any) => p.estado === "pendiente_aprobacion").reduce((s: number, p: any) => { const cots = (cotsProy || []).filter((c: any) => c.proyecto_id === p.id); const maxCot = cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (maxCot?.total_cliente || 0) }, 0) })(),
+      presupuestosAprobados: (() => { return allProv.filter((p: any) => ["aprobado_produccion","aprobado_gerencia","aprobado_cliente","aprobado"].includes(p.estado)).reduce((s: number, p: any) => { const cots = (cotsProy || []).filter((c: any) => c.proyecto_id === p.id); const aprobada = cots.find((c: any) => c.estado === "aprobada_cliente") || cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (aprobada?.total_cliente || 0) }, 0) })(),
     })
 
     // Chart facturación por mes (últimos 6 meses)
