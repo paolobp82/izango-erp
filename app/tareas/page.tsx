@@ -302,13 +302,7 @@ export default function TareasPage() {
                       {t.fecha_limite && <span style={{ fontSize: 11, color: vencida ? "#991b1b" : "#6b7280" }}>📅 {t.fecha_limite}</span>}
                     </div>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                    {t.asignado && (
-                      <div style={{ fontSize: 11, color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>
-                        👤 {t.asignado.nombre} {t.asignado.apellido}
-                      </div>
-                          </div>
-
+                  
       {/* ── PANEL DERECHO (detalle) ── */}
       {selected && (
         <div style={{ width: 380, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, overflowY: "auto", flexShrink: 0 }}>
