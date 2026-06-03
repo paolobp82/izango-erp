@@ -29,33 +29,6 @@ function calcItem(item: any) {
   const margenPct = Number(item.margen_pct) || 0
   const precioClienteManual = item.precio_cliente_manual !== null && item.precio_cliente_manual !== undefined && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null
   const precioCliente = precioClienteManual !== null ? precioClienteManual : (margenPct < 100 ? costoTotal / (1 - margenPct / 100) : costoTotal)
-  
-}
-
-function newItem(cotizacionId: any, orden: number, familiaId?: string) {
-  return calcItem({
-    id: "new_" + Date.now(), cotizacion_id: cotizacionId, orden,
-    descripcion: "", cantidad: 1, fechas: 1, margen_pct: 40, costo_manual: null,
-    tipo: "item", familia_id: familiaId || null, es_opcional: false, incluir_en_total: true,
-    celda_titulo: null, numero_item: null, columna_extra_valor: "",
-    costo_almacenaje: 0, costo_impresion: 0, costo_permisos: 0, costo_instalacion: 0,
-    costo_performer: 0, costo_alquiler: 0, costo_supervision: 0, costo_movilidad: 0,
-    costo_otros: 0, proveedor_id: null, proveedor_nombre: "", extras_produccion: [], extras_alquiler: [],
-  })
-}
-
-function calcItem(item: any) {
-  const costoBase = COSTOS_INTERNOS.reduce((s, c) => s + (Number(item[c.key]) || 0), 0)
-    + (item.extras_produccion || []).reduce((s: number, e: any) => s + (Number(e.monto) || 0), 0)
-    + (item.extras_alquiler || []).reduce((s: number, e: any) => s + (Number(e.monto) || 0), 0)
-  const cantidad = Number(item.cantidad) || 1
-  const fechas = Number(item.fechas) || 1
-  const costoUnitario = item.costo_manual !== null && item.costo_manual !== undefined && item.costo_manual !== ""
-    ? Number(item.costo_manual) : costoBase
-  const costoTotal = costoUnitario * cantidad * fechas
-  const margenPct = Number(item.margen_pct) || 0
-  const precioClienteManual = item.precio_cliente_manual !== null && item.precio_cliente_manual !== undefined && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null
-  const precioCliente = precioClienteManual !== null ? precioClienteManual : (margenPct < 100 ? costoTotal / (1 - margenPct / 100) : costoTotal)
   const precioClienteRounded = Math.round(precioCliente * 100) / 100
   const margenMonto = Math.round((precioClienteRounded - costoTotal) * 100) / 100
   const margenCalculado = precioClienteRounded > 0 ? ((precioClienteRounded - costoTotal) / precioClienteRounded) * 100 : margenPct
