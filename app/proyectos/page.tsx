@@ -37,7 +37,7 @@ export default function ProyectosPage() {
   async function load() {
     const { data } = await supabase
       .from("proyectos")
-      .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente), cotizaciones(version, total_cliente, estado)")
+      .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
     setProyectos(data || [])
@@ -226,12 +226,7 @@ export default function ProyectosPage() {
                       ) : <span style={{ fontSize: 11, color: "#d1d5db" }}>—</span>}
                     </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#0F6E56" }}>
-                      {(() => {
-                        const cots = (p.cotizaciones || []).filter((c: any) => c.total_cliente > 0)
-                        const monto = p.cotizacion_aprobada?.total_cliente ||
-                          cots.sort((a: any, b: any) => b.version - a.version)[0]?.total_cliente || 0
-                        return monto > 0 ? fmt(monto) : "—"
-                      })()}
+                      {p.cotizacion_aprobada?.total_cliente > 0 ? fmt(p.cotizacion_aprobada.total_cliente) : "—"}
                     </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
