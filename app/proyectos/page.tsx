@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
@@ -218,14 +218,14 @@ export default function ProyectosPage() {
                     <td style={{ padding: "12px" }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{p.nombre}</div>
                     </td>
-                    <td style={{ padding: "12px" }}>
+                    <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
                       <span style={{ fontSize: 11, background: p.entidad === "selva" ? "#fef9c3" : "#dbeafe", color: p.entidad === "selva" ? "#92400e" : "#1e40af", padding: "2px 8px", borderRadius: 99, fontWeight: 600 }}>
                         {ENTIDAD_LABEL[p.entidad] || p.entidad || "—"}
                       </span>
                     </td>
                     <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{p.cliente?.razon_social || "—"}</td>
                     <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{prod}</td>
-                    <td style={{ padding: "12px" }}>
+                    <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
                       <span style={{ background: e.bg, color: e.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
                         {ESTADO_LABEL[p.estado] || p.estado || "—"}
                       </span>
