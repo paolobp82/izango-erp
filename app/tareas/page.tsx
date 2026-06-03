@@ -307,20 +307,7 @@ export default function TareasPage() {
                       <div style={{ fontSize: 11, color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>
                         👤 {t.asignado.nombre} {t.asignado.apellido}
                       </div>
-                    )}
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={e => { e.stopPropagation(); abrirEditar(t) }}
-                        className="btn-secondary" style={{ fontSize: 11, padding: "3px 8px" }}>Editar</button>
-                      <button onClick={e => { e.stopPropagation(); eliminar(t.id) }}
-                        style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
+                          </div>
 
       {/* ── PANEL DERECHO (detalle) ── */}
       {selected && (
