@@ -537,7 +537,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                 <div key={estado} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <div
-                      onClick={() => {
+                      onClick={async () => {
                         if (!["superadmin","gerente_general"].includes(perfil?.perfil)) return
                         if (actual) return
                         if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
