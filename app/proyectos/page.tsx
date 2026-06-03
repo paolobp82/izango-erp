@@ -37,7 +37,7 @@ export default function ProyectosPage() {
   async function load() {
     const { data } = await supabase
       .from("proyectos")
-      .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente)")
+      .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente), cotizaciones(version, total_cliente, estado)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
     setProyectos(data || [])
