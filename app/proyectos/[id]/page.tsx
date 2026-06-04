@@ -235,6 +235,7 @@ export default function ProyectoDetallePage() {
       await supabase.from("requerimientos_pago").insert({
         proyecto_id: id,
         cotizacion_item_id: item.esNuevo ? null : item.id,
+        es_adicional: item.esAdicional || false,
         numero_rq: "RQ-" + id.slice(0,6).toUpperCase() + "-" + String(rqNum).padStart(3, "0"),
         estado: "pendiente_aprobacion",
         proveedor_id: item.proveedor_id,
@@ -600,6 +601,18 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             </div>
           )}
 
+          {proyecto?.estado === "en_curso" && ["superadmin","gerente_general","gerente_produccion","productor"].includes(perfil?.perfil) && (
+            <div style={{ marginTop: 12 }}>
+              <button onClick={async () => {
+                const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
+                setProveedores(provs || [])
+                setPreCuadreItems([{ id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, esAdicional: true, tipo_pago: "contado" }])
+                setShowPreCuadre(true)
+              }} style={{ padding: "8px 16px", border: "1px dashed #f59e0b", borderRadius: 8, background: "#fffbeb", color: "#92400e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                + Generar RQs adicionales
+              </button>
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             {puedeAvanzar && estadoInfo.siguiente && (
               <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando || (proyecto?.estado === "aprobado" && !versionAprobar)}
