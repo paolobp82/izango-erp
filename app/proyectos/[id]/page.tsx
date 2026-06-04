@@ -236,6 +236,7 @@ export default function ProyectoDetallePage() {
         proyecto_id: id,
         cotizacion_item_id: item.esNuevo ? null : item.id,
         es_adicional: item.esAdicional || false,
+        dias_credito: item.dias_credito || null,
         numero_rq: "RQ-" + id.slice(0,6).toUpperCase() + "-" + String(rqNum).padStart(3, "0"),
         estado: "pendiente_aprobacion",
         proveedor_id: item.proveedor_id,
@@ -400,6 +401,12 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                           <option value="contado">Contado</option>
                           <option value="adelanto">Adelanto</option>
                           <option value="credito">Crédito</option>
+                          {item.tipo_pago === "credito" && (
+                          <input type="number" min={1} placeholder="Días crédito"
+                            value={item.dias_credito || ""}
+                            onChange={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, dias_credito: Number(e.target.value) } : i))}
+                            style={{ padding: "4px 8px", border: "1px solid #bfdbfe", borderRadius: 6, fontSize: 12, fontFamily: "inherit", width: "80px", marginTop: 4 }} />
+                        )}
                         </select>
                       </td>
                       <td style={{ padding: "8px 4px", textAlign: "center" }}>
