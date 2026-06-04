@@ -22,6 +22,7 @@ const formVacio = {
   concepto: "", monto_debe: "", monto_haber: "", fecha: "",
   tipo_comprobante: "boleta", numero_operacion: "",
   proyecto_id: "", rq_id: "", categoria: "", observaciones: "",
+  destinatario: "",
 }
 
 export default function CajaChicaPage() {
@@ -78,6 +79,7 @@ export default function CajaChicaPage() {
         proyecto_id: form.proyecto_id || null,
         rq_id: form.rq_id || null,
         categoria: form.categoria || null,
+        destinatario: form.destinatario || null,
         observaciones: form.observaciones || null,
       }).eq("id", editando.id)
       if (error) { alert("Error: " + error.message); setSaving(false); return }
@@ -92,6 +94,7 @@ export default function CajaChicaPage() {
         proyecto_id: form.proyecto_id || null,
         rq_id: form.rq_id || null,
         categoria: form.categoria || null,
+        destinatario: form.destinatario || null,
         observaciones: form.observaciones || null,
         solicitado_por: perfil?.id || null,
         estado: "pendiente",
@@ -407,6 +410,10 @@ export default function CajaChicaPage() {
                   <option value="">Sin RQ</option>
                   {rqs.map(r => <option key={r.id} value={r.id}>{r.numero_rq} — {r.descripcion?.slice(0, 40) || "Sin descripción"}</option>)}
                 </select>
+              </div>
+              <div>
+                <label style={lbl}>DESTINATARIO / PARA QUIÉN</label>
+                <input style={inp} value={form.destinatario} placeholder="Ej: Maria Paula, Producción..." onChange={e => setForm({ ...form, destinatario: e.target.value })} />
               </div>
               <div>
                 <label style={lbl}>OBSERVACIONES</label>
