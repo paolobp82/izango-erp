@@ -213,7 +213,7 @@ export default function ProyectoDetallePage() {
   }
 
   async function confirmarPreCuadre() {
-    const sinProveedor = preCuadreItems.filter(i => i.tipo !== "familia" && !i.proveedor_id)
+    const sinProveedor = preCuadreItems.filter(i => i.tipo !== "familia" && !i._borrado && !i.proveedor_id)
     if (sinProveedor.length > 0) {
       alert("Los siguientes items no tienen proveedor asignado:\n" + sinProveedor.map((i: any) => "• " + (i.descripcion || "Sin descripción")).join("\n"))
       return
@@ -237,7 +237,7 @@ export default function ProyectoDetallePage() {
     })
     let rqNum = (numerosExistentes.length > 0 ? Math.max(...numerosExistentes) : 0) + 1
     for (const item of preCuadreItems) {
-      if (item.tipo === "familia" || item._esPadre) continue
+      if (item.tipo === "familia" || item._esPadre || item._borrado) continue
       if (!item.proveedor_id) continue
       const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
       const { error: rqError } = await supabase.from("requerimientos_pago").insert({
@@ -385,6 +385,17 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                     </tr>
                   )
                   const diff = (item.costo_final || 0) - (item.costo_total || 0)
+                  if (item._borrado) return (
+                    <tr key={item.id} style={{ borderBottom: "1px solid #f3f4f6", background: "#fff5f5", opacity: 0.6 }}>
+                      <td colSpan={5} style={{ padding: "8px 12px", fontSize: 12, color: "#dc2626", textDecoration: "line-through" }}>{item.descripcion || "Sin descripción"}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                        <button onClick={() => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, _borrado: false } : i))}
+                          style={{ fontSize: 11, color: "#0F6E56", background: "#f0fdf4", border: "1px solid #1D9E75", borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}>
+                          ↩ Deshacer
+                        </button>
+                      </td>
+                    </tr>
+                  )
                   return (
                     <tr key={item.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                       <td style={{ padding: "8px 12px" }}>
@@ -445,7 +456,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                               return [...prev.slice(0, idx), ...nuevos, ...prev.slice(idx + 1)]
                             })
                           }} style={{ background: "none", border: "1px dashed #3b82f6", borderRadius: 4, cursor: "pointer", color: "#3b82f6", fontSize: 10, padding: "2px 6px", whiteSpace: "nowrap" }}>÷ Dividir</button>
-                          <button onClick={() => setPreCuadreItems(prev => prev.filter((i: any) => i.id !== item.id))}
+                          <button onClick={() => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, _borrado: true } : i))}
                             style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", fontSize: 16 }}>×</button>
                         </div>
                       </td>
