@@ -29,6 +29,7 @@ export default function ProyectosPage() {
   const [showEliminados, setShowEliminados] = useState(false)
   const [filtroEstado, setFiltroEstado] = useState("")
   const [filtroEntidad, setFiltroEntidad] = useState("")
+  const [filtroProductor, setFiltroProductor] = useState("")
   const supabase = createClient()
   const router = useRouter()
 
@@ -197,7 +198,7 @@ export default function ProyectosPage() {
               </tr>
             </thead>
             <tbody>
-              {proyectos.filter(p => (!filtroEstado || p.estado === filtroEstado) && (!filtroEntidad || p.entidad === filtroEntidad)).map((p, idx) => {
+              {proyectos.filter(p => (!filtroEstado || p.estado === filtroEstado) && (!filtroEntidad || p.entidad === filtroEntidad) && (!filtroProductor || p.productor_id === filtroProductor)).map((p, idx) => {
                 const ec: any = {
                   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e" },
                   aprobado_produccion:  { bg: "#fed7aa", color: "#9a3412" },
