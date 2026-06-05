@@ -103,8 +103,6 @@ const autoSaveRef = useRef<any>(null)
   const [hasBackup, setHasBackup] = useState(false)
   const [contactosCliente, setContactosCliente] = useState<any[]>([])
   const [contactoClienteId, setContactoClienteId] = useState<string | null>(null)
-  const [contactosCliente, setContactosCliente] = useState<any[]>([])
-const [contactoClienteId, setContactoClienteId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!cotId) return
