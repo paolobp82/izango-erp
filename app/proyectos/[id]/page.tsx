@@ -220,8 +220,7 @@ export default function ProyectoDetallePage() {
     }
     setGuardandoPreCuadre(true)
     const esAdicional = proyecto?.estado === "en_curso"
-    const itemsAGenerar = preCuadreItems.filter(i => i.tipo !== "familia" && !i._esPadre && i.proveedor_id)
-    alert("Items a generar: " + itemsAGenerar.length + "\n" + itemsAGenerar.map((i: any) => i.descripcion + " | prov: " + i.proveedor_id + " | monto: " + i.costo_final).join("\n"))
+
     if (!esAdicional) {
       for (const cot of cotizaciones) {
         if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
@@ -571,15 +570,13 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         if (!["superadmin","gerente_general"].includes(perfil?.perfil)) return
                         if (actual) return
                         if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
-                        if (confirm(`¿Regresar el proyecto al estado "${info.label}"? Se enviará solicitud de cancelación de RQs a Controller, GG y Superadmin para autorización.`)) {
-                          const estadosAntesDeEnCurso = ["pendiente_aprobacion","aprobado_produccion","aprobado_gerencia","aprobado_cliente"]
-                          if (estadosAntesDeEnCurso.includes(estado)) {
-                            const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
-                            if (rqsPendientes && rqsPendientes.length > 0) {
-                              await fetch("/api/cancelar-rqs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proyecto_id: id, estado_nuevo: estado, solicitado_por_id: perfil?.id }) })
-                              alert(`Se envió solicitud de cancelación de ${rqsPendientes.length} RQ(s) a Controller, GG y Superadmin. El estado cambiará cuando sea aprobada.`)
-                              return
-                            }
+                        const estadosAntesDeEnCurso = ["pendiente_aprobacion","aprobado_produccion","aprobado_gerencia","aprobado_cliente"]
+                        const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id, estado").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
+                        const nRqs = rqsPendientes?.length || 0
+                        const msgRqs = nRqs > 0 ? `\n\n⚠️ Se cancelarán ${nRqs} RQ(s) pendientes automáticamente.` : ""
+                        if (confirm(`¿Regresar el proyecto al estado "${info.label}"?${msgRqs}`)) {
+                          if (nRqs > 0) {
+                            await supabase.from("requerimientos_pago").update({ estado: "rechazado" }).eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
                           }
                           cambiarEstado(estado)
                         }
