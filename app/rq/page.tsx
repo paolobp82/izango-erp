@@ -39,6 +39,7 @@ const [proyectos, setProyectos] = useState<any[]>([])
 const [formRQ, setFormRQ] = useState({ descripcion: "", proveedor_id: "", monto_solicitado: "", proyecto_id: "", tipo_pago: "contado", dias_credito: "" })
 const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const [fechaPago, setFechaPago] = useState("")
+  const [filtroTipoPago, setFiltroTipoPago] = useState("")
   const [datosPago, setDatosPago] = useState({
     voucher_url: "", numero_operacion: "", banco_pago: "", tipo_transferencia: "Transferencia bancaria", nota_pago: ""
   })
@@ -127,6 +128,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const filtrados = rqs.filter(r => {
     if (filtroEstado && r.estado !== filtroEstado) return false
     if (filtroProveedor && r.proveedor_id !== filtroProveedor) return false
+    if (filtroTipoPago && r.tipo_pago !== filtroTipoPago) return false
     return true
   })
 
@@ -180,8 +182,15 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
             <option value="">Todos los proveedores</option>
             {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
           </select>
-          {(filtroEstado || filtroProveedor) && (
-            <button onClick={() => { setFiltroEstado(""); setFiltroProveedor("") }}
+          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
+            value={filtroTipoPago} onChange={e => setFiltroTipoPago(e.target.value)}>
+            <option value="">Todos los tipos</option>
+            <option value="contado">Contado</option>
+            <option value="adelanto">Adelanto</option>
+            <option value="credito">Credito</option>
+          </select>
+          {(filtroEstado || filtroProveedor || filtroTipoPago) && (
+            <button onClick={() => { setFiltroEstado(""); setFiltroProveedor(""); setFiltroTipoPago("") }}
               style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
               Limpiar filtros
             </button>
@@ -201,6 +210,9 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRODUCTOR</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESCRIPCION</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MONTO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO PAGO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>F. SOLICITUD</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>F. VENCIMIENTO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
                 <th style={{ padding: "10px 20px", width: 140 }}></th>
               </tr>
@@ -236,6 +248,23 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                       {rq.descripcion || "—"}
                     </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{fmt(rq.monto_solicitado)}</td>
+                    <td style={{ padding: "12px", fontSize: 12 }}>
+                      {rq.tipo_pago ? (
+                        <span style={{ background: rq.tipo_pago === "credito" ? "#dbeafe" : rq.tipo_pago === "adelanto" ? "#fef9c3" : "#f0fdf4", color: rq.tipo_pago === "credito" ? "#1e40af" : rq.tipo_pago === "adelanto" ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+                          {rq.tipo_pago}{rq.dias_credito ? " " + rq.dias_credito + "d" : ""}
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
+                      {rq.created_at ? new Date(rq.created_at).toLocaleDateString("es-PE") : "—"}
+                    </td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>
+                      {rq.tipo_pago === "credito" && rq.dias_credito && rq.created_at
+                        ? new Date(new Date(rq.created_at).getTime() + rq.dias_credito * 86400000).toLocaleDateString("es-PE")
+                        : rq.tipo_pago === "contado" && rq.created_at
+                        ? new Date(rq.created_at).toLocaleDateString("es-PE")
+                        : "—"}
+                    </td>
                     <td style={{ padding: "12px" }}>
                       <span style={{ background: ec.bg, color: ec.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
                         {ec.label}
