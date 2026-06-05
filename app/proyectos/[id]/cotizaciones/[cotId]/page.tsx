@@ -542,7 +542,7 @@ useEffect(() => { itemsRef.current = items }, [items])
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cotId}/preview`)}
+          <button onClick={async () => { await guardar(); window.open(`/proyectos/${id}/cotizaciones/${cotId}/preview`, `_blank`) }}
             style={{ padding: "6px 14px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
             👁 Preview
             {lastSaved && <span style={{ fontSize: 11, color: "#9ca3af" }}>✓ Auto-guardado {lastSaved}</span>}
