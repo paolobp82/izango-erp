@@ -18,6 +18,18 @@ async function consultarRUC(ruc: string) {
   } catch { return null }
 }
 
+type Contacto = {
+  id?: string
+  nombre: string
+  cargo: string
+  email: string
+  telefono: string
+  activo: boolean
+  orden: number
+  isNew?: boolean
+  isDeleted?: boolean
+}
+
 export default function EditarClientePage() {
   const supabase = createClient()
   const router = useRouter()
@@ -26,12 +38,10 @@ export default function EditarClientePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [buscandoRUC, setBuscandoRUC] = useState(false)
-  const [rucEstado, setRucEstado] = useState<"ok"|"error"|null>(null)
-  const [contactosAdicionales, setContactosAdicionales] = useState<any[]>([])
+  const [rucEstado, setRucEstado] = useState<"ok" | "error" | null>(null)
+  const [contactos, setContactos] = useState<Contacto[]>([])
   const [form, setForm] = useState({
     razon_social: "", ruc: "", direccion: "",
-    nombre_contacto: "", email_contacto: "", telefono_contacto: "",
-    nombre_contacto_admin: "", email_contacto_admin: "", telefono_contacto_admin: "",
     banco_1: "", tipo_cuenta_1: "", numero_cuenta_1: "", cci_1: "",
     banco_2: "", tipo_cuenta_2: "", numero_cuenta_2: "", cci_2: "",
     cuenta_detraccion: "", tipo_pago_transferencia: "Transferencia bancaria",
@@ -47,12 +57,6 @@ export default function EditarClientePage() {
         razon_social: data.razon_social || "",
         ruc: data.ruc || "",
         direccion: data.direccion || "",
-        nombre_contacto: data.nombre_contacto || "",
-        email_contacto: data.email_contacto || "",
-        telefono_contacto: data.telefono_contacto || "",
-        nombre_contacto_admin: data.nombre_contacto_admin || "",
-        email_contacto_admin: data.email_contacto_admin || "",
-        telefono_contacto_admin: data.telefono_contacto_admin || "",
         banco_1: data.banco_1 || "",
         tipo_cuenta_1: data.tipo_cuenta_1 || "",
         numero_cuenta_1: data.numero_cuenta_1 || "",
@@ -65,39 +69,90 @@ export default function EditarClientePage() {
         tipo_pago_transferencia: data.tipo_pago_transferencia || "Transferencia bancaria",
         activo: data.activo !== false,
       })
-      try {
-        const contactos = typeof data.contactos_adicionales === "string"
-          ? JSON.parse(data.contactos_adicionales)
-          : data.contactos_adicionales || []
-        setContactosAdicionales(contactos)
-      } catch { setContactosAdicionales([]) }
+
+      // Cargar contactos desde tabla relacional
+      const { data: contactosData } = await supabase
+        .from("cliente_contactos")
+        .select("*")
+        .eq("cliente_id", id)
+        .eq("activo", true)
+        .order("orden", { ascending: true })
+      setContactos((contactosData || []).map(c => ({
+        id: c.id,
+        nombre: c.nombre || "",
+        cargo: c.cargo || "",
+        email: c.email || "",
+        telefono: c.telefono || "",
+        activo: c.activo !== false,
+        orden: c.orden || 0,
+      })))
       setLoading(false)
     }
     load()
   }, [id])
 
   function agregarContacto() {
-    setContactosAdicionales(prev => [...prev, { nombre: "", email: "", telefono: "", cargo: "" }])
+    setContactos(prev => [...prev, {
+      nombre: "", cargo: "", email: "", telefono: "",
+      activo: true, orden: prev.length, isNew: true
+    }])
   }
 
   function updateContacto(idx: number, field: string, value: string) {
-    setContactosAdicionales(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c))
+    setContactos(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c))
   }
 
   function removeContacto(idx: number) {
-    setContactosAdicionales(prev => prev.filter((_, i) => i !== idx))
+    setContactos(prev => prev.map((c, i) => {
+      if (i !== idx) return c
+      if (c.isNew) return { ...c, isDeleted: true } // se filtra al render
+      return { ...c, isDeleted: true }
+    }))
   }
 
   async function guardar() {
     if (!form.razon_social) { alert("Razon social es obligatoria"); return }
     setSaving(true)
-    const payload: any = {
+
+    // 1. Guardar datos principales del cliente
+    const { error } = await supabase.from("clientes").update({
       ...form,
-      contactos_adicionales: JSON.stringify(contactosAdicionales),
-    }
-    const { error } = await supabase.from("clientes").update(payload).eq("id", id)
+    }).eq("id", id)
     if (error) { alert("Error: " + error.message); setSaving(false); return }
-    await registrarAccion({ accion: "editar", modulo: "clientes", entidad_id: id, entidad_tipo: "cliente", descripcion: "Cliente editado: " + form.razon_social })
+
+    // 2. Sincronizar contactos
+    for (const c of contactos) {
+      if (c.isDeleted && c.id) {
+        // Soft delete
+        await supabase.from("cliente_contactos").update({ activo: false }).eq("id", c.id)
+      } else if (c.isDeleted && c.isNew) {
+        // Nunca se guardó, ignorar
+        continue
+      } else if (c.isNew) {
+        await supabase.from("cliente_contactos").insert({
+          cliente_id: id,
+          nombre: c.nombre,
+          cargo: c.cargo || null,
+          email: c.email || null,
+          telefono: c.telefono || null,
+          activo: true,
+          orden: c.orden,
+        })
+      } else if (c.id) {
+        await supabase.from("cliente_contactos").update({
+          nombre: c.nombre,
+          cargo: c.cargo || null,
+          email: c.email || null,
+          telefono: c.telefono || null,
+          orden: c.orden,
+        }).eq("id", c.id)
+      }
+    }
+
+    await registrarAccion({
+      accion: "editar", modulo: "clientes", entidad_id: id,
+      entidad_tipo: "cliente", descripcion: "Cliente editado: " + form.razon_social
+    })
     setSaving(false)
     router.push("/clientes")
   }
@@ -105,6 +160,8 @@ export default function EditarClientePage() {
   const inp: any = { padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }
   const section: any = { fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 16, marginTop: 0 }
+
+  const contactosVisibles = contactos.filter(c => !c.isDeleted)
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -119,6 +176,7 @@ export default function EditarClientePage() {
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>{form.razon_social}</h1>
       </div>
 
+      {/* Datos empresa */}
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={section}>Datos de la empresa</h2>
         <div style={{ display: "grid", gap: 16 }}>
@@ -167,73 +225,57 @@ export default function EditarClientePage() {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={section}>Contacto comercial</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <div>
-            <label style={lbl}>Nombre</label>
-            <input style={inp} value={form.nombre_contacto} placeholder="Nombre completo"
-              onChange={e => setForm({ ...form, nombre_contacto: e.target.value })} />
-          </div>
-          <div>
-            <label style={lbl}>Email</label>
-            <input style={inp} type="email" value={form.email_contacto} placeholder="correo@empresa.com"
-              onChange={e => setForm({ ...form, email_contacto: e.target.value })} />
-          </div>
-          <div>
-            <label style={lbl}>Telefono</label>
-            <input style={inp} value={form.telefono_contacto} placeholder="9xxxxxxxx"
-              onChange={e => setForm({ ...form, telefono_contacto: e.target.value })} />
-          </div>
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={section}>Contacto administracion / pagos</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <div>
-            <label style={lbl}>Nombre</label>
-            <input style={inp} value={form.nombre_contacto_admin} placeholder="Nombre completo"
-              onChange={e => setForm({ ...form, nombre_contacto_admin: e.target.value })} />
-          </div>
-          <div>
-            <label style={lbl}>Email</label>
-            <input style={inp} type="email" value={form.email_contacto_admin} placeholder="admin@empresa.com"
-              onChange={e => setForm({ ...form, email_contacto_admin: e.target.value })} />
-          </div>
-          <div>
-            <label style={lbl}>Telefono</label>
-            <input style={inp} value={form.telefono_contacto_admin} placeholder="9xxxxxxxx"
-              onChange={e => setForm({ ...form, telefono_contacto_admin: e.target.value })} />
-          </div>
-        </div>
-      </div>
-
+      {/* Contactos — tabla relacional */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h2 style={{ ...section, marginBottom: 0 }}>Contactos adicionales</h2>
+          <h2 style={{ ...section, marginBottom: 0 }}>Contactos</h2>
           <button onClick={agregarContacto}
             style={{ fontSize: 12, color: "#0F6E56", background: "none", border: "1px dashed #1D9E75", borderRadius: 6, padding: "4px 12px", cursor: "pointer" }}>
             + Agregar contacto
           </button>
         </div>
-        {contactosAdicionales.length === 0 ? (
-          <div style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "12px 0" }}>No hay contactos adicionales</div>
+        {contactosVisibles.length === 0 ? (
+          <div style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "12px 0" }}>
+            No hay contactos registrados
+          </div>
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
-            {contactosAdicionales.map((c, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: 10, alignItems: "end" }}>
-                <div><label style={lbl}>Nombre</label><input style={inp} value={c.nombre} placeholder="Nombre" onChange={e => updateContacto(i, "nombre", e.target.value)} /></div>
-                <div><label style={lbl}>Cargo</label><input style={inp} value={c.cargo} placeholder="Cargo" onChange={e => updateContacto(i, "cargo", e.target.value)} /></div>
-                <div><label style={lbl}>Email</label><input style={inp} value={c.email} placeholder="Email" onChange={e => updateContacto(i, "email", e.target.value)} /></div>
-                <div><label style={lbl}>Telefono</label><input style={inp} value={c.telefono} placeholder="Telefono" onChange={e => updateContacto(i, "telefono", e.target.value)} /></div>
-                <button onClick={() => removeContacto(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 18, paddingBottom: 6 }}>×</button>
-              </div>
-            ))}
+            {contactosVisibles.map((c, i) => {
+              const realIdx = contactos.indexOf(c)
+              return (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: 10, alignItems: "end", padding: "12px", background: "#f9fafb", borderRadius: 8 }}>
+                  <div>
+                    <label style={lbl}>Nombre</label>
+                    <input style={inp} value={c.nombre} placeholder="Nombre completo"
+                      onChange={e => updateContacto(realIdx, "nombre", e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={lbl}>Cargo</label>
+                    <input style={inp} value={c.cargo} placeholder="Ej: Gerente de marketing"
+                      onChange={e => updateContacto(realIdx, "cargo", e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={lbl}>Email</label>
+                    <input style={inp} value={c.email} placeholder="correo@empresa.com"
+                      onChange={e => updateContacto(realIdx, "email", e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={lbl}>Telefono</label>
+                    <input style={inp} value={c.telefono} placeholder="9xxxxxxxx"
+                      onChange={e => updateContacto(realIdx, "telefono", e.target.value)} />
+                  </div>
+                  <button onClick={() => removeContacto(realIdx)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 18, paddingBottom: 6 }}>
+                    ×
+                  </button>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
 
+      {/* Datos bancarios cuenta 1 */}
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={section}>Datos bancarios — Cuenta 1</h2>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
@@ -264,6 +306,7 @@ export default function EditarClientePage() {
         </div>
       </div>
 
+      {/* Datos bancarios cuenta 2 */}
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={section}>Datos bancarios — Cuenta 2 (opcional)</h2>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
@@ -294,6 +337,7 @@ export default function EditarClientePage() {
         </div>
       </div>
 
+      {/* Detraccion */}
       <div className="card" style={{ marginBottom: 24 }}>
         <h2 style={section}>Detraccion y tipo de transferencia</h2>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
