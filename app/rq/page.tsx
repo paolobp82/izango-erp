@@ -416,8 +416,6 @@ const [formRQ, setFormRQ] = useState({ descripcion: "", proveedor_id: "", monto_
             </div>
           </div>
         )}
-      </div>
-    </div>
       {showNuevoRQ && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 500 }}>
@@ -449,6 +447,8 @@ const [formRQ, setFormRQ] = useState({ descripcion: "", proveedor_id: "", monto_
             </div>
           </div>
         </div>
-      )}
+)}
+    </div>
+    </div>
   )
 }

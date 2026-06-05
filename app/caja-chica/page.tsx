@@ -249,7 +249,7 @@ export default function CajaChicaPage() {
                             </>
                           )}
                           {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (
-                            setForm({ concepto: r.concepto||"", monto_debe: r.monto_debe||"", monto_haber: r.monto_haber||"", fecha: r.fecha||"", tipo_comprobante: r.tipo_comprobante||"boleta", numero_operacion: r.numero_operacion||"", proyecto_id: r.proyecto_id||"", rq_id: r.rq_id||"", categoria: r.categoria||"", observaciones: r.observaciones||"", destinatario: r.destinatario||"" }); setShowForm(true) }}
+                            <button onClick={e => { e.stopPropagation(); setEditando(r); setForm({ concepto: r.concepto||"", monto_debe: r.monto_debe||"", monto_haber: r.monto_haber||"", fecha: r.fecha||"", tipo_comprobante: r.tipo_comprobante||"boleta", numero_operacion: r.numero_operacion||"", proyecto_id: r.proyecto_id||"", rq_id: r.rq_id||"", categoria: r.categoria||"", observaciones: r.observaciones||"", destinatario: r.destinatario||"" }); setShowForm(true) }}
                               style={{ fontSize: 11, padding: "3px 8px", background: "#fff", color: "#374151", border: "1px solid #e5e7eb", borderRadius: 6, cursor: "pointer" }}>✏️</button>
                           )}
                           {(perfil?.id === r.solicitado_por || esAprobador) && r.estado === "pendiente" && (
