@@ -633,7 +633,7 @@ useEffect(() => { itemsRef.current = items }, [items])
                 <option value="">— Sin contacto específico —</option>
                 {contactosCliente.map((c: any) => (
                   <option key={c.id} value={c.id}>
-                    {c.nombre}{c.cargo ? \ — \\ : ""}
+                    {c.nombre}{c.cargo ? " — " + c.cargo : ""}
                   </option>
                 ))}
               </select>
