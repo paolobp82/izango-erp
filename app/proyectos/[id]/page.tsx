@@ -357,7 +357,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16 }}>
               <thead>
                 <tr style={{ background: "#1D2040" }}>
-                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Descripción</th>
+                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", minWidth: 180 }}>Descripción</th>
                   <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 130 }}>Costo Presup.</th>
                   <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#03E373", width: 130 }}>Costo Final</th>
                   <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 200 }}>Proveedor</th>
@@ -375,7 +375,15 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   const diff = (item.costo_final || 0) - (item.costo_total || 0)
                   return (
                     <tr key={item.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                      <td style={{ padding: "8px 12px", fontSize: 13, color: "#374151" }}>{item.descripcion || "—"}</td>
+                      <td style={{ padding: "8px 12px" }}>
+                        {item.esNuevo ? (
+                          <input style={{ padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 13, fontFamily: "inherit", width: "100%" }}
+                            value={item.descripcion || ""} placeholder="Descripción del item..."
+                            onChange={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, descripcion: e.target.value } : i))} />
+                        ) : (
+                          <span style={{ fontSize: 13, color: "#374151" }}>{item.descripcion || "—"}</span>
+                        )}
+                      </td>
                       <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 13, color: "#6b7280" }}>
                         S/ {Number(item.costo_total || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                       </td>
