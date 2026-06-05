@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
@@ -30,7 +30,6 @@ export default function CajaChicaPage() {
   const [registros, setRegistros] = useState<any[]>([])
   const [proyectos, setProyectos] = useState<any[]>([])
   const [rqs, setRqs] = useState<any[]>([])
-  const [usuarios, setUsuarios] = useState<any[]>([])
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -41,7 +40,9 @@ export default function CajaChicaPage() {
   const [motivoRechazo, setMotivoRechazo] = useState("")
   const [showRechazo, setShowRechazo] = useState(false)
   const [showCerrarRendicion, setShowCerrarRendicion] = useState(false)
+  const [showAbrirCaja, setShowAbrirCaja] = useState(false)
   const [nombrePeriodo, setNombrePeriodo] = useState("")
+  const [montoApertura, setMontoApertura] = useState("")
   const [periodos, setPeriodos] = useState<string[]>([])
   const [filtroPeriodo, setFiltroPeriodo] = useState("actual")
   const [editando, setEditando] = useState<any>(null)
@@ -66,8 +67,6 @@ export default function CajaChicaPage() {
     setProyectos(pr || [])
     const { data: rq } = await supabase.from("requerimientos_pago").select("id, numero_rq, descripcion").order("created_at", { ascending: false }).limit(50)
     setRqs(rq || [])
-    const { data: us } = await supabase.from("perfiles").select("id, nombre, apellido").order("nombre")
-    setUsuarios(us || [])
     setLoading(false)
   }
 
@@ -145,12 +144,38 @@ export default function CajaChicaPage() {
 
   async function cerrarRendicion() {
     if (!nombrePeriodo.trim()) { alert("Ingresa un nombre para el período"); return }
-    await supabase.from("caja_chica").update({ archivada: true, periodo: nombrePeriodo }).is("archivada", null).neq("periodo", nombrePeriodo)
+    await supabase.from("caja_chica").update({ archivada: true, periodo: nombrePeriodo }).is("archivada", null).neq("archivada", true)
     await supabase.from("caja_chica").update({ archivada: true, periodo: nombrePeriodo }).eq("archivada", false)
     setShowCerrarRendicion(false)
     setNombrePeriodo("")
     load()
   }
+
+  async function abrirNuevaCaja() {
+    if (!montoApertura || Number(montoApertura) <= 0) { alert("Ingresa un monto de apertura válido"); return }
+    const hoy = new Date().toISOString().split("T")[0]
+    await supabase.from("caja_chica").insert({
+      concepto: "Apertura de caja chica",
+      monto_debe: 0,
+      monto_haber: Number(montoApertura),
+      fecha: hoy,
+      tipo_comprobante: "deposito",
+      solicitado_por: perfil?.id || null,
+      estado: "aprobado",
+      aprobado_por: perfil?.id || null,
+      aprobado_at: new Date().toISOString(),
+      entidad: "peru",
+      fecha_apertura: hoy,
+      monto_inicial: Number(montoApertura),
+      categoria: "Apertura",
+      observaciones: "Apertura de caja con monto S/ " + montoApertura,
+    })
+    await registrarAccion({ accion: "crear", modulo: "caja_chica", entidad_tipo: "caja_chica", descripcion: "Apertura de caja: S/ " + montoApertura })
+    setShowAbrirCaja(false)
+    setMontoApertura("")
+    load()
+  }
+
   async function eliminar(id: string) {
     if (!confirm("¿Eliminar este registro?")) return
     await supabase.from("caja_chica").delete().eq("id", id)
@@ -159,6 +184,7 @@ export default function CajaChicaPage() {
   }
 
   const esAprobador = perfil && ROLES_APROBADOR.includes(perfil.perfil)
+  const registroActual = registros.filter(r => !r.archivada)
 
   const registrosFiltrados = registros.filter(r => {
     if (filtroEstado !== "todos" && r.estado !== filtroEstado) return false
@@ -167,10 +193,12 @@ export default function CajaChicaPage() {
     return true
   })
 
-  const totalDebe = registros.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_debe || 0), 0)
-  const totalHaber = registros.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_haber || 0), 0)
-  const totalPendiente = registros.filter(r => r.estado === "pendiente").reduce((s, r) => s + (r.monto_debe || 0), 0)
-const saldoCaja = totalHaber - totalDebe
+  const totalDebe = registroActual.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_debe || 0), 0)
+  const totalHaber = registroActual.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_haber || 0), 0)
+  const totalPendiente = registroActual.filter(r => r.estado === "pendiente").reduce((s, r) => s + (r.monto_debe || 0), 0)
+  const saldoCaja = totalHaber - totalDebe
+  const montoInicialCaja = registroActual.find(r => r.categoria === "Apertura")?.monto_inicial || 0
+  const pctUsado = montoInicialCaja > 0 ? ((totalDebe / montoInicialCaja) * 100) : 0
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
@@ -181,25 +209,39 @@ const saldoCaja = totalHaber - totalDebe
   return (
     <div style={{ display: "flex", gap: 20, height: "calc(100vh - 80px)" }}>
 
-      {/* ── PANEL IZQUIERDO ── */}
       <div style={{ flex: 1, overflowY: "auto", paddingRight: 4 }}>
 
-        {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Caja Chica</h1>
             <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{registros.length} registros</p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (
+            {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (<>
+              <button onClick={() => setShowAbrirCaja(true)} style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#f0fdf4", color: "#0F6E56", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>💰 Abrir caja</button>
               <button onClick={() => setShowCerrarRendicion(true)} style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📦 Cerrar rendición</button>
-            )}
+            </>)}
             <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva solicitud</button>
           </div>
         </div>
 
-        {/* Resumen */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+        {/* Saldo y progreso */}
+        {montoInicialCaja > 0 && (
+          <div style={{ background: saldoCaja < montoInicialCaja * 0.2 ? "#fef9c3" : "#f0fdf4", border: "1px solid " + (saldoCaja < montoInicialCaja * 0.2 ? "#fde68a" : "#1D9E75"), borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Fondo apertura: {fmt(montoInicialCaja)}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: saldoCaja < montoInicialCaja * 0.2 ? "#92400e" : "#0F6E56" }}>
+                {saldoCaja < montoInicialCaja * 0.2 ? "⚠️ Saldo bajo — " : ""}Disponible: {fmt(saldoCaja)}
+              </span>
+            </div>
+            <div style={{ height: 8, background: "#e5e7eb", borderRadius: 99, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: pctUsado + "%", background: pctUsado > 80 ? "#dc2626" : pctUsado > 50 ? "#f59e0b" : "#03E373", borderRadius: 99, transition: "width 0.3s" }} />
+            </div>
+            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>{pctUsado.toFixed(0)}% utilizado</div>
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
           {[
             { label: "Total egresos aprobados", value: fmt(totalDebe), color: "#991b1b", bg: "#fee2e2" },
             { label: "Total ingresos aprobados", value: fmt(totalHaber), color: "#15803d", bg: "#dcfce7" },
@@ -213,7 +255,6 @@ const saldoCaja = totalHaber - totalDebe
           ))}
         </div>
 
-        {/* Filtros */}
         <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
           <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
             <option value="todos">Todos los estados</option>
@@ -226,7 +267,6 @@ const saldoCaja = totalHaber - totalDebe
           </select>
         </div>
 
-        {/* Tabla */}
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
           {registrosFiltrados.length === 0 ? (
             <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay registros</div>
@@ -291,7 +331,6 @@ const saldoCaja = totalHaber - totalDebe
                   )
                 })}
               </tbody>
-              {/* Totales */}
               <tfoot>
                 <tr style={{ background: "#f9fafb", borderTop: "2px solid #e5e7eb" }}>
                   <td colSpan={3} style={{ padding: "10px 16px", fontSize: 12, fontWeight: 700, color: "#374151" }}>TOTAL APROBADOS</td>
@@ -305,14 +344,12 @@ const saldoCaja = totalHaber - totalDebe
         </div>
       </div>
 
-      {/* ── PANEL DERECHO (detalle) ── */}
       {selected && (
         <div style={{ width: 340, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, overflowY: "auto", flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "#111827" }}>Detalle</h2>
             <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 20 }}>×</button>
           </div>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[
               { label: "Concepto", value: selected.concepto },
@@ -340,53 +377,73 @@ const saldoCaja = totalHaber - totalDebe
               </div>
             )}
           </div>
-
           {esAprobador && selected.estado === "pendiente" && (
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
               <button onClick={() => aprobar(selected.id)}
-                style={{ flex: 1, padding: "8px", background: "#0F6E56", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                Aprobar
-              </button>
+                style={{ flex: 1, padding: "8px", background: "#0F6E56", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Aprobar</button>
               <button onClick={() => setShowRechazo(true)}
-                style={{ flex: 1, padding: "8px", background: "#fff", color: "#dc2626", border: "1px solid #fee2e2", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>
-                Rechazar
-              </button>
+                style={{ flex: 1, padding: "8px", background: "#fff", color: "#dc2626", border: "1px solid #fee2e2", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Rechazar</button>
             </div>
           )}
         </div>
       )}
 
-      {/* ── MODAL RECHAZO ── */}
       {showRechazo && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: 400 }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 16px", color: "#111827" }}>Motivo de rechazo</h3>
-            <textarea
-              style={{ ...inp, minHeight: 80, resize: "vertical", marginBottom: 16 }}
+            <textarea style={{ ...inp, minHeight: 80, resize: "vertical", marginBottom: 16 }}
               placeholder="Explica el motivo del rechazo (opcional)..."
-              value={motivoRechazo}
-              onChange={e => setMotivoRechazo(e.target.value)}
-            />
+              value={motivoRechazo} onChange={e => setMotivoRechazo(e.target.value)} />
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => { setShowRechazo(false); setMotivoRechazo("") }} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
               <button onClick={() => rechazar(selected?.id)}
-                style={{ padding: "7px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                Confirmar rechazo
-              </button>
+                style={{ padding: "7px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Confirmar rechazo</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── MODAL NUEVA SOLICITUD ── */}
+      {showAbrirCaja && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 420 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 8px" }}>Abrir nueva caja chica</h2>
+            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Define el monto inicial del fondo. Se registrará como ingreso aprobado automáticamente.</p>
+            <label style={lbl}>MONTO DE APERTURA (S/)</label>
+            <input type="number" style={{ ...inp, fontSize: 18, fontWeight: 700, textAlign: "center", marginBottom: 20 }}
+              value={montoApertura} placeholder="Ej: 1000.00" autoFocus
+              onChange={e => setMontoApertura(e.target.value)} />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => { setShowAbrirCaja(false); setMontoApertura("") }} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+              <button onClick={abrirNuevaCaja} className="btn-primary" style={{ fontSize: 13 }}>Abrir caja</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCerrarRendicion && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 440 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 16px" }}>Cerrar rendición actual</h2>
+            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Los {registroActual.length} registros actuales serán archivados. Ingresa un nombre para identificar este período.</p>
+            <label style={lbl}>NOMBRE DEL PERÍODO</label>
+            <input style={inp} value={nombrePeriodo} placeholder="Ej: Junio 2026, Semana 1..."
+              onChange={e => setNombrePeriodo(e.target.value)} autoFocus />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+              <button onClick={() => setShowCerrarRendicion(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+              <button onClick={cerrarRendicion} className="btn-primary" style={{ fontSize: 13 }}>Archivar y nueva rendición</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 580, maxHeight: "92vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>Nueva solicitud de caja chica</h2>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>{editando ? "Editar registro" : "Nueva solicitud de caja chica"}</h2>
+              <button onClick={() => { setShowForm(false); setEditando(null); setForm({ ...formVacio }) }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
             </div>
-
             <div style={{ display: "grid", gap: 14 }}>
               <div>
                 <label style={lbl}>CONCEPTO *</label>
@@ -416,7 +473,7 @@ const saldoCaja = totalHaber - totalDebe
               </div>
               <div>
                 <label style={lbl}>N° OPERACIÓN / COMPROBANTE</label>
-                <input style={inp} value={form.numero_operacion} placeholder="Ej: F001-00123 o código de operación" onChange={e => setForm({ ...form, numero_operacion: e.target.value })} />
+                <input style={inp} value={form.numero_operacion} placeholder="Ej: F001-00123" onChange={e => setForm({ ...form, numero_operacion: e.target.value })} />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
@@ -450,28 +507,13 @@ const saldoCaja = totalHaber - totalDebe
                 <textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} value={form.observaciones} placeholder="Notas adicionales..." onChange={e => setForm({ ...form, observaciones: e.target.value })} />
               </div>
             </div>
-
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+              <button onClick={() => { setShowForm(false); setEditando(null); setForm({ ...formVacio }) }} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
               <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
-                {saving ? "Guardando..." : "Enviar solicitud"}
+                {saving ? "Guardando..." : editando ? "Guardar cambios" : "Enviar solicitud"}
               </button>
             </div>
           </div>
-        {showCerrarRendicion && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 440 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 16px" }}>Cerrar rendición actual</h2>
-            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Los {registros.filter(r => !r.archivada).length} registros actuales serán archivados. Ingresa un nombre para identificar este período.</p>
-            <label style={lbl}>NOMBRE DEL PERÍODO</label>
-            <input style={inp} value={nombrePeriodo} placeholder="Ej: Junio 2026, Semana 1..." onChange={e => setNombrePeriodo(e.target.value)} autoFocus />
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowCerrarRendicion(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={cerrarRendicion} className="btn-primary" style={{ fontSize: 13 }}>Archivar y nueva rendición</button>
-            </div>
-          </div>
-        </div>
-      )}
         </div>
       )}
     </div>
