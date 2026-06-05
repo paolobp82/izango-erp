@@ -153,6 +153,13 @@ export default function ProyectosPage() {
   <option value="peru">Izango Peru (IZ)</option>
   <option value="selva">Izango Selva (SEL)</option>
 </select>
+        <select value={filtroProductor} onChange={e => setFiltroProductor(e.target.value)}
+          style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
+          <option value="">Todos los productores</option>
+          {[...new Map(proyectos.filter((p: any) => p.productor).map((p: any) => [p.productor_id, p.productor])).entries()].map(([pid, prod]: any) => (
+            <option key={pid} value={pid}>{prod.nombre} {prod.apellido}</option>
+          ))}
+        </select>
         <button onClick={() => router.push("/proyectos/nuevo")} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proyecto</button>
       </div>
 
