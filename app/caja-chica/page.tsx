@@ -193,11 +193,12 @@ export default function CajaChicaPage() {
     return true
   })
 
-  const totalDebe = registroActual.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_debe || 0), 0)
-  const totalHaber = registroActual.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_haber || 0), 0)
-  const totalPendiente = registroActual.filter(r => r.estado === "pendiente").reduce((s, r) => s + (r.monto_debe || 0), 0)
+  const registrosParaTotales = registrosFiltrados
+  const totalDebe = registrosParaTotales.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_debe || 0), 0)
+  const totalHaber = registrosParaTotales.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_haber || 0), 0)
+  const totalPendiente = registrosParaTotales.filter(r => r.estado === "pendiente").reduce((s, r) => s + (r.monto_debe || 0), 0)
   const saldoCaja = totalHaber - totalDebe
-  const montoInicialCaja = registroActual.find(r => r.categoria === "Apertura")?.monto_inicial || 0
+  const montoInicialCaja = registrosParaTotales.find(r => r.categoria === "Apertura")?.monto_inicial || 0
   const pctUsado = montoInicialCaja > 0 ? ((totalDebe / montoInicialCaja) * 100) : 0
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
