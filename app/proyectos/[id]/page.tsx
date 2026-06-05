@@ -220,6 +220,8 @@ export default function ProyectoDetallePage() {
     }
     setGuardandoPreCuadre(true)
     const esAdicional = proyecto?.estado === "en_curso"
+    const itemsAGenerar = preCuadreItems.filter(i => i.tipo !== "familia" && !i._esPadre && i.proveedor_id)
+    alert("Items a generar: " + itemsAGenerar.length + "\n" + itemsAGenerar.map((i: any) => i.descripcion + " | prov: " + i.proveedor_id + " | monto: " + i.costo_final).join("\n"))
     if (!esAdicional) {
       for (const cot of cotizaciones) {
         if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
