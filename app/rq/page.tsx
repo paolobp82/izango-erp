@@ -34,6 +34,9 @@ export default function RQPage() {
   const [proveedores, setProveedores] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [perfil, setPerfil] = useState<any>(null)
+  const [showNuevoRQ, setShowNuevoRQ] = useState(false)
+const [proyectos, setProyectos] = useState<any[]>([])
+const [formRQ, setFormRQ] = useState({ descripcion: "", proveedor_id: "", monto_solicitado: "", proyecto_id: "", tipo_pago: "contado", dias_credito: "" })
   const [fechaPago, setFechaPago] = useState("")
   const [datosPago, setDatosPago] = useState({
     voucher_url: "", numero_operacion: "", banco_pago: "", tipo_transferencia: "Transferencia bancaria", nota_pago: ""
@@ -146,6 +149,13 @@ export default function RQPage() {
             {rqs.length} RQs · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}
           </p>
         </div>
+        <button onClick={async () => {
+          const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre")
+          setProveedores(provs || [])
+          const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre").is("deleted_at", null).in("estado", ["en_curso","aprobado_cliente","aprobado"]).order("codigo")
+          setProyectos(projs || [])
+          setShowNuevoRQ(true)
+        }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>
         <ImportExport modulo="requerimientos" campos={[{key:"numero_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"estado",label:"Estado"}]} datos={rqs} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
       </div>
 
@@ -408,5 +418,37 @@ export default function RQPage() {
         )}
       </div>
     </div>
+      {showNuevoRQ && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 500 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Nuevo Requerimiento de Pago</h2>
+              <button onClick={() => setShowNuevoRQ(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
+            </div>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div><label style={lbl}>PROYECTO</label><select style={inp} value={formRQ.proyecto_id} onChange={e => setFormRQ({ ...formRQ, proyecto_id: e.target.value })}><option value="">Sin proyecto</option>{proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}</select></div>
+              <div><label style={lbl}>DESCRIPCION</label><input style={inp} value={formRQ.descripcion} placeholder="Concepto del RQ..." onChange={e => setFormRQ({ ...formRQ, descripcion: e.target.value })} /></div>
+              <div><label style={lbl}>PROVEEDOR</label><select style={inp} value={formRQ.proveedor_id} onChange={e => setFormRQ({ ...formRQ, proveedor_id: e.target.value })}><option value="">Seleccionar proveedor</option>{proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>
+              <div><label style={lbl}>MONTO (S/)</label><input type="number" style={inp} value={formRQ.monto_solicitado} placeholder="0.00" onChange={e => setFormRQ({ ...formRQ, monto_solicitado: e.target.value })} /></div>
+              <div><label style={lbl}>TIPO DE PAGO</label><select style={inp} value={formRQ.tipo_pago} onChange={e => setFormRQ({ ...formRQ, tipo_pago: e.target.value })}><option value="contado">Contado</option><option value="adelanto">Adelanto</option><option value="credito">Credito</option></select></div>
+              {formRQ.tipo_pago === "credito" && (<div><label style={lbl}>DIAS DE CREDITO</label><input type="number" style={inp} value={formRQ.dias_credito} placeholder="30" onChange={e => setFormRQ({ ...formRQ, dias_credito: e.target.value })} /></div>)}
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+              <button onClick={() => setShowNuevoRQ(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+              <button onClick={async () => {
+                if (!formRQ.descripcion || !formRQ.monto_solicitado) { alert("Descripcion y monto son obligatorios"); return }
+                const prov = proveedores.find((p: any) => p.id === formRQ.proveedor_id)
+                const proyId = formRQ.proyecto_id || "MANUAL"
+                const { count } = await supabase.from("requerimientos_pago").select("*", { count: "exact", head: true }).eq("proyecto_id", proyId)
+                const rqNum = (count || 0) + 1
+                await supabase.from("requerimientos_pago").insert({ proyecto_id: formRQ.proyecto_id || null, numero_rq: "RQ-" + proyId.slice(0,6).toUpperCase() + "-" + String(rqNum).padStart(3,"0"), estado: "pendiente_aprobacion", proveedor_id: formRQ.proveedor_id || null, proveedor_nombre: prov?.nombre || "", monto_solicitado: Number(formRQ.monto_solicitado), descripcion: formRQ.descripcion, es_adicional: true })
+                setShowNuevoRQ(false)
+                setFormRQ({ descripcion: "", proveedor_id: "", monto_solicitado: "", proyecto_id: "", tipo_pago: "contado", dias_credito: "" })
+                load()
+              }} className="btn-primary" style={{ fontSize: 13 }}>Crear RQ</button>
+            </div>
+          </div>
+        </div>
+      )}
   )
 }
