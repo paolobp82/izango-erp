@@ -40,6 +40,10 @@ export default function CajaChicaPage() {
   const [selected, setSelected] = useState<any>(null)
   const [motivoRechazo, setMotivoRechazo] = useState("")
   const [showRechazo, setShowRechazo] = useState(false)
+  const [showCerrarRendicion, setShowCerrarRendicion] = useState(false)
+  const [nombrePeriodo, setNombrePeriodo] = useState("")
+  const [periodos, setPeriodos] = useState<string[]>([])
+  const [filtroPeriodo, setFiltroPeriodo] = useState("actual")
   const [editando, setEditando] = useState<any>(null)
 
   useEffect(() => { load() }, [])
@@ -56,6 +60,9 @@ export default function CajaChicaPage() {
       .order("created_at", { ascending: false })
     setRegistros(r || [])
     const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").order("nombre")
+    const { data: rAll } = await supabase.from("caja_chica").select("periodo").not("periodo", "is", null)
+    const periStr = [...new Set((rAll || []).map((r: any) => r.periodo).filter(Boolean))] as string[]
+    setPeriodos(periStr)
     setProyectos(pr || [])
     const { data: rq } = await supabase.from("requerimientos_pago").select("id, numero_rq, descripcion").order("created_at", { ascending: false }).limit(50)
     setRqs(rq || [])
@@ -136,6 +143,14 @@ export default function CajaChicaPage() {
     if (selected?.id === id) setSelected((p: any) => ({ ...p, estado: "rechazado" }))
   }
 
+  async function cerrarRendicion() {
+    if (!nombrePeriodo.trim()) { alert("Ingresa un nombre para el período"); return }
+    await supabase.from("caja_chica").update({ archivada: true, periodo: nombrePeriodo }).is("archivada", null).neq("periodo", nombrePeriodo)
+    await supabase.from("caja_chica").update({ archivada: true, periodo: nombrePeriodo }).eq("archivada", false)
+    setShowCerrarRendicion(false)
+    setNombrePeriodo("")
+    load()
+  }
   async function eliminar(id: string) {
     if (!confirm("¿Eliminar este registro?")) return
     await supabase.from("caja_chica").delete().eq("id", id)
@@ -147,6 +162,8 @@ export default function CajaChicaPage() {
 
   const registrosFiltrados = registros.filter(r => {
     if (filtroEstado !== "todos" && r.estado !== filtroEstado) return false
+    if (filtroPeriodo === "actual" && r.archivada) return false
+    if (filtroPeriodo !== "actual" && filtroPeriodo !== "todos" && r.periodo !== filtroPeriodo) return false
     return true
   })
 
@@ -173,7 +190,12 @@ const saldoCaja = totalHaber - totalDebe
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Caja Chica</h1>
             <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{registros.length} registros</p>
           </div>
-          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva solicitud</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (
+              <button onClick={() => setShowCerrarRendicion(true)} style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📦 Cerrar rendición</button>
+            )}
+            <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva solicitud</button>
+          </div>
         </div>
 
         {/* Resumen */}
@@ -196,6 +218,11 @@ const saldoCaja = totalHaber - totalDebe
           <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
             <option value="todos">Todos los estados</option>
             {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+          <select style={{ ...inp, width: "auto" }} value={filtroPeriodo} onChange={e => setFiltroPeriodo(e.target.value)}>
+            <option value="actual">Rendición actual</option>
+            {periodos.map(p => <option key={p} value={p}>{p}</option>)}
+            <option value="todos">Todos los períodos</option>
           </select>
         </div>
 
@@ -431,6 +458,20 @@ const saldoCaja = totalHaber - totalDebe
               </button>
             </div>
           </div>
+        {showCerrarRendicion && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 440 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 16px" }}>Cerrar rendición actual</h2>
+            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Los {registros.filter(r => !r.archivada).length} registros actuales serán archivados. Ingresa un nombre para identificar este período.</p>
+            <label style={lbl}>NOMBRE DEL PERÍODO</label>
+            <input style={inp} value={nombrePeriodo} placeholder="Ej: Junio 2026, Semana 1..." onChange={e => setNombrePeriodo(e.target.value)} autoFocus />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+              <button onClick={() => setShowCerrarRendicion(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+              <button onClick={cerrarRendicion} className="btn-primary" style={{ fontSize: 13 }}>Archivar y nueva rendición</button>
+            </div>
+          </div>
+        </div>
+      )}
         </div>
       )}
     </div>
