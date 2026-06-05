@@ -219,13 +219,16 @@ export default function ProyectoDetallePage() {
       return
     }
     setGuardandoPreCuadre(true)
-    for (const cot of cotizaciones) {
-      if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
-        await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", cot.id)
+    const esAdicional = proyecto?.estado === "en_curso"
+    if (!esAdicional) {
+      for (const cot of cotizaciones) {
+        if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
+          await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", cot.id)
+        }
       }
+      await supabase.from("cotizaciones").update({ estado: "aprobada_cliente" }).eq("id", versionAprobar)
+      await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar, estado: "en_curso" }).eq("id", id)
     }
-    await supabase.from("cotizaciones").update({ estado: "aprobada_cliente" }).eq("id", versionAprobar)
-    await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar, estado: "en_curso" }).eq("id", id)
     const { count } = await supabase.from("requerimientos_pago").select("*", { count: "exact", head: true }).eq("proyecto_id", id)
     let rqNum = (count || 0) + 1
     for (const item of preCuadreItems) {
@@ -235,7 +238,7 @@ export default function ProyectoDetallePage() {
       await supabase.from("requerimientos_pago").insert({
         proyecto_id: id,
         cotizacion_item_id: item.esNuevo ? null : item.id,
-        es_adicional: item.esAdicional || false,
+        es_adicional: esAdicional || item.esAdicional || false,
         dias_credito: item.dias_credito || null,
         numero_rq: "RQ-" + id.slice(0,6).toUpperCase() + "-" + String(rqNum).padStart(3, "0"),
         estado: "pendiente_aprobacion",
@@ -250,17 +253,19 @@ export default function ProyectoDetallePage() {
       })
       rqNum++
     }
-    await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: en_curso" })
-    await notificarATodos({
-      titulo: `Proyecto ${proyecto?.codigo} — En curso`,
-      mensaje: `${proyecto?.nombre} inició ejecución. RQs generados.`,
-      tipo: "success",
-      enlace: `/proyectos/${id}`,
-      perfiles: ["superadmin","gerente_general","gerente_produccion","controller"]
-    })
+    if (!esAdicional) {
+      await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: en_curso" })
+      await notificarATodos({
+        titulo: `Proyecto ${proyecto?.codigo} — En curso`,
+        mensaje: `${proyecto?.nombre} inició ejecución. RQs generados.`,
+        tipo: "success",
+        enlace: `/proyectos/${id}`,
+        perfiles: ["superadmin","gerente_general","gerente_produccion","controller"]
+      })
+      setProyecto({ ...proyecto, estado: "en_curso" })
+    }
     setShowPreCuadre(false)
     setGuardandoPreCuadre(false)
-    setProyecto({ ...proyecto, estado: "en_curso" })
     load()
   }
   async function rechazar() {
