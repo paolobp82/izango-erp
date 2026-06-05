@@ -229,8 +229,12 @@ export default function ProyectoDetallePage() {
       await supabase.from("cotizaciones").update({ estado: "aprobada_cliente" }).eq("id", versionAprobar)
       await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar, estado: "en_curso" }).eq("id", id)
     }
-    const { count } = await supabase.from("requerimientos_pago").select("*", { count: "exact", head: true }).eq("proyecto_id", id)
-    let rqNum = (count || 0) + 1
+    const { data: rqsExistentes } = await supabase.from("requerimientos_pago").select("numero_rq").eq("proyecto_id", id)
+    const numerosExistentes = (rqsExistentes || []).map((r: any) => {
+      const match = r.numero_rq?.match(/-(\d+)$/)
+      return match ? parseInt(match[1]) : 0
+    })
+    let rqNum = (numerosExistentes.length > 0 ? Math.max(...numerosExistentes) : 0) + 1
     for (const item of preCuadreItems) {
       if (item.tipo === "familia" || item._esPadre) continue
       if (!item.proveedor_id) continue
