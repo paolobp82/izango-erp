@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useEffect, useState, useRef } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams, useRouter } from "next/navigation"
@@ -101,21 +101,54 @@ const autoSaveRef = useRef<any>(null)
   const [subitems, setSubitems] = useState<Record<string, any[]>>({})
   const [columnaExtra, setColumnaExtra] = useState<{activa: boolean, titulo: string}>({activa: false, titulo: "Dirección"})
   const [hasBackup, setHasBackup] = useState(false)
+  const [contactosCliente, setContactosCliente] = useState<any[]>([])
+  const [contactoClienteId, setContactoClienteId] = useState<string | null>(null)
+  const [contactosCliente, setContactosCliente] = useState<any[]>([])
+const [contactoClienteId, setContactoClienteId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!cotId) return
     async function load() {
       const { data: cot } = await supabase
         .from("cotizaciones")
-        .select("*, proyecto:proyectos!proyecto_id(id,nombre,codigo,cliente:clientes!cliente_id(razon_social))")
+        .select("*, proyecto:proyectos!proyecto_id(id,nombre,codigo,cliente:clientes!cliente_id(id,razon_social))")
         .eq("id", cotId).single()
       setCotizacion(cot)
       setProyecto(cot?.proyecto)
       if (cot?.fee_activo === false) setFeeActivo(false)
       setBloqueada(false) // se evalúa abajo según perfil
       setDescuentoPct(cot?.descuento_pct || 0)
+      setContactoClienteId(cot?.contacto_cliente_id || null)
+      if (cot?.proyecto?.cliente?.id) {
+        const { data: ctcs } = await supabase
+          .from("cliente_contactos")
+          .select("*")
+          .eq("cliente_id", cot.proyecto.cliente.id)
+          .eq("activo", true)
+          .order("orden")
+        setContactosCliente(ctcs || [])
+      }
       if (cot?.columna_extra_titulo) setColumnaExtra({ activa: true, titulo: cot.columna_extra_titulo })
-      const { data: { user } } = await supabase.auth.getUser()
+      setContactoClienteId(cot?.contacto_cliente_id || null)
+
+// Cargar contactos del cliente
+if (cot?.proyecto?.cliente) {
+  const { data: clienteData } = await supabase
+    .from("clientes")
+    .select("id")
+    .eq("razon_social", cot.proyecto.cliente.razon_social)
+    .single()
+  if (clienteData) {
+    const { data: ctcs } = await supabase
+      .from("cliente_contactos")
+      .select("*")
+      .eq("cliente_id", clienteData.id)
+      .eq("activo", true)
+      .order("orden")
+    setContactosCliente(ctcs || [])
+  }
+}
+        const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
         setPerfilActual(p)
@@ -354,6 +387,7 @@ if (idsAEliminar.length > 0) {
       total_cliente: totalFinal, margen_pct: margenGlobal,
       condicion_pago: cotizacion?.condicion_pago, validez_dias: cotizacion?.validez_dias,
       descuento_pct: descuentoPct || 0,
+      contacto_cliente_id: contactoClienteId || null,
       columna_extra_titulo: columnaExtra.activa ? columnaExtra.titulo : null,
       ...(nuevoEstado ? { estado: nuevoEstado } : {}),
     }).eq("id", cotId)
@@ -591,6 +625,20 @@ useEffect(() => { itemsRef.current = items }, [items])
             <input type="number" min={0} max={100} style={{ ...inp, width: "100%" }} value={descuentoPct || 0}
               onChange={e => setDescuentoPct(Number(e.target.value))} />
           </div>
+          {contactosCliente.length > 0 && (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ display: "block", fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Dirigido a</label>
+              <select style={{ ...inp, width: "100%" }} value={contactoClienteId || ""}
+                onChange={e => setContactoClienteId(e.target.value || null)}>
+                <option value="">— Sin contacto específico —</option>
+                {contactosCliente.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}{c.cargo ? \ — \\ : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
       <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 0 }}>
