@@ -153,6 +153,7 @@ export default function CajaChicaPage() {
   const totalDebe = registros.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_debe || 0), 0)
   const totalHaber = registros.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_haber || 0), 0)
   const totalPendiente = registros.filter(r => r.estado === "pendiente").reduce((s, r) => s + (r.monto_debe || 0), 0)
+const saldoCaja = totalHaber - totalDebe
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
@@ -180,7 +181,8 @@ export default function CajaChicaPage() {
           {[
             { label: "Total egresos aprobados", value: fmt(totalDebe), color: "#991b1b", bg: "#fee2e2" },
             { label: "Total ingresos aprobados", value: fmt(totalHaber), color: "#15803d", bg: "#dcfce7" },
-            { label: "Pendiente aprobación", value: fmt(totalPendiente), color: "#92400e", bg: "#fef9c3" },
+            { label: "Saldo disponible", value: fmt(saldoCaja), color: saldoCaja >= 0 ? "#15803d" : "#991b1b", bg: saldoCaja >= 0 ? "#dcfce7" : "#fee2e2" },
+            { label: "Pendiente aprobacion", value: fmt(totalPendiente), color: "#92400e", bg: "#fef9c3" },
           ].map(c => (
             <div key={c.label} className="card" style={{ background: c.bg, border: "none", padding: "12px 16px" }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: c.color, textTransform: "uppercase", marginBottom: 4 }}>{c.label}</div>
