@@ -239,11 +239,12 @@ export default function ProyectoDetallePage() {
       if (item.tipo === "familia" || item._esPadre) continue
       if (!item.proveedor_id) continue
       const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
-      await supabase.from("requerimientos_pago").insert({
+      const { error: rqError } = await supabase.from("requerimientos_pago").insert({
         proyecto_id: id,
-        cotizacion_item_id: item.esNuevo ? null : item.id,
+        cotizacion_item_id: item.esNuevo ? null : String(item.id).startsWith("new_") || String(item.id).startsWith("sub_") || String(item.id).startsWith("div_") ? null : item.id,
         es_adicional: esAdicional || item.esAdicional || false,
         dias_credito: item.dias_credito || null,
+        tipo_pago: item.tipo_pago || "contado",
         numero_rq: "RQ-" + id.slice(0,6).toUpperCase() + "-" + String(rqNum).padStart(3, "0"),
         estado: "pendiente_aprobacion",
         proveedor_id: item.proveedor_id,
@@ -251,10 +252,11 @@ export default function ProyectoDetallePage() {
         proveedor_banco: prov?.banco || "",
         proveedor_cuenta: prov?.numero_cuenta || "",
         proveedor_tipo_pago: prov?.tipo_pago || null,
-        monto_solicitado: item.costo_final || 0,
-        monto_presupuestado: item.costo_total || 0,
-        descripcion: item.descripcion,
+        monto_solicitado: Number(item.costo_final) || 0,
+        monto_presupuestado: Number(item.costo_total) || 0,
+        descripcion: item.descripcion || "",
       })
+      if (rqError) { console.error("Error RQ:", rqError.message, "item:", item.descripcion); }
       rqNum++
     }
     if (!esAdicional) {
