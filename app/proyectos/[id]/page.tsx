@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { notificarATodos } from "@/lib/notificaciones"
 import { useEffect, useState } from "react"
@@ -382,7 +382,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       <td style={{ padding: "8px 12px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
                           {diff !== 0 && <span style={{ fontSize: 11, color: diff > 0 ? "#dc2626" : "#15803d", fontWeight: 600 }}>{diff > 0 ? "+" : ""}{Number(diff).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>}
-                          <input type="number" value={item.costo_final} onChange={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, costo_final: Number(e.target.value) } : i))}
+                          <input type="number" value={item.costo_final} onChange={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, costo_final: e.target.value } : i))}
+                            onBlur={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, costo_final: parseFloat(e.target.value) || 0 } : i))}
                             style={{ padding: "4px 8px", border: "1px solid " + (diff !== 0 ? (diff > 0 ? "#fca5a5" : "#86efac") : "#e5e7eb"), borderRadius: 6, fontSize: 13, width: 100, textAlign: "right", fontFamily: "inherit" }} />
                         </div>
                       </td>
@@ -396,18 +397,18 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         </select>
                       </td>
                       <td style={{ padding: "8px 12px" }}>
-                        <select value={item.tipo_pago || "contado"} onChange={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, tipo_pago: e.target.value } : i))}
-                          style={{ padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", width: "100%" }}>
-                          <option value="contado">Contado</option>
-                          <option value="adelanto">Adelanto</option>
-                          <option value="credito">Crédito</option>
-                          {item.tipo_pago === "credito" && (
-                          <input type="number" min={1} placeholder="Días crédito"
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <select value={item.tipo_pago || "contado"} onChange={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, tipo_pago: e.target.value } : i))}
+                            style={{ padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", width: "100%" }}>
+                            <option value="contado">Contado</option>
+                            <option value="adelanto">Adelanto</option>
+                            <option value="credito">Crédito</option>
+                          </select>
+                          <input type="number" min={1} placeholder="Días pago"
                             value={item.dias_credito || ""}
                             onChange={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, dias_credito: Number(e.target.value) } : i))}
-                            style={{ padding: "4px 8px", border: "1px solid #bfdbfe", borderRadius: 6, fontSize: 12, fontFamily: "inherit", width: "80px", marginTop: 4 }} />
-                        )}
-                        </select>
+                            style={{ padding: "4px 8px", border: "1px solid #bfdbfe", borderRadius: 6, fontSize: 12, fontFamily: "inherit", width: "100%" }} />
+                        </div>
                       </td>
                       <td style={{ padding: "8px 4px", textAlign: "center" }}>
                         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
