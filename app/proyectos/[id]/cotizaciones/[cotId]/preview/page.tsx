@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useEffect, useState, useRef, useCallback } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams } from "next/navigation"
@@ -65,7 +65,7 @@ const s = StyleSheet.create({
   bankItem: { flex: 1 },
 })
 
-const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeMonto, subtotalConFee, igvPct, igvMonto, totalFinal }: any) => {
+const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeMonto, subtotalConFee, igvPct, igvMonto, totalFinal, contactoCliente }: any) => {
   let itemCounter = 0
   return (
     <Document>
@@ -95,8 +95,8 @@ const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeM
               <Text style={s.bold14}>{proyecto?.cliente?.razon_social}</Text>
               {proyecto?.cliente?.ruc ? <Text style={s.small}>RUC: {proyecto.cliente.ruc}</Text> : null}
               {proyecto?.cliente?.direccion ? <Text style={s.small}>{proyecto.cliente.direccion}</Text> : null}
-              {proyecto?.cliente?.nombre_contacto ? <Text style={[s.small, { marginTop: 4 }]}>Attn: {proyecto.cliente.nombre_contacto}</Text> : null}
-              {proyecto?.cliente?.email_contacto ? <Text style={s.small}>{proyecto.cliente.email_contacto}</Text> : null}
+              {contactoCliente ? <Text style={[s.small, { marginTop: 4 }]}>Attn: {contactoCliente.nombre}{contactoCliente.cargo ? " — " + contactoCliente.cargo : ""}</Text> : (proyecto?.cliente?.nombre_contacto ? <Text style={[s.small, { marginTop: 4 }]}>Attn: {proyecto.cliente.nombre_contacto}</Text> : null)}
+              {contactoCliente ? (contactoCliente.email ? <Text style={s.small}>{contactoCliente.email}</Text> : null) : (proyecto?.cliente?.email_contacto ? <Text style={s.small}>{proyecto.cliente.email_contacto}</Text> : null)}
               <Text style={[s.small, { fontWeight: "bold", color: DARK, marginTop: 4 }]}>{proyecto?.nombre}</Text>
               Condición de pago: {cotizacion?.condicion_pago}
             </View>
@@ -201,6 +201,7 @@ export default function PreviewCotizacionPage() {
   const [loading, setLoading] = useState(true)
   const [entidad, setEntidad] = useState<"peru" | "selva">("peru")
   const [generando, setGenerando] = useState(false)
+  const [contactoCliente, setContactoCliente] = useState<any>(null)
 
   useEffect(() => {
     if (!cotId) return
@@ -217,6 +218,10 @@ export default function PreviewCotizacionPage() {
       setProyecto(cot?.proyecto)
       const { data: its } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotId).order("orden")
       setItems(its || [])
+      if (cot?.contacto_cliente_id) {
+        const { data: ctc } = await supabase.from("cliente_contactos").select("*").eq("id", cot.contacto_cliente_id).single()
+        if (ctc) setContactoCliente(ctc)
+      }
       setLoading(false)
     }
     load()
@@ -237,7 +242,7 @@ export default function PreviewCotizacionPage() {
   const igvMonto = subtotalConFee * (igvPct / 100)
   const totalFinal = subtotalConFee + igvMonto
 
-  const pdfProps = { ag, proyecto, cotizacion, items, fmt, today, feePct, feeMonto, subtotalConFee, igvPct, igvMonto, totalFinal }
+  const pdfProps = { ag, proyecto, cotizacion, items, fmt, today, feePct, feeMonto, subtotalConFee, igvPct, igvMonto, totalFinal, contactoCliente }
 
   const descargarPDF = async () => {
     setGenerando(true)
@@ -307,8 +312,14 @@ a.download = `${proyecto?.codigo}-${nombreProyecto}-V${cotizacion?.version}.pdf`
               <div style={{ fontSize: 16, fontWeight: 800, color: COLOR_DARK }}>{proyecto?.cliente?.razon_social}</div>
               {proyecto?.cliente?.ruc && <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>RUC: {proyecto.cliente.ruc}</div>}
               {proyecto?.cliente?.direccion && <div style={{ fontSize: 12, color: "#64748b" }}>{proyecto.cliente.direccion}</div>}
-              {proyecto?.cliente?.nombre_contacto && <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>Attn: {proyecto.cliente.nombre_contacto}</div>}
-              {proyecto?.cliente?.email_contacto && <div style={{ fontSize: 12, color: "#64748b" }}>✉ {proyecto.cliente.email_contacto}</div>}
+              {contactoCliente ? (<>
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>Attn: {contactoCliente.nombre}{contactoCliente.cargo ? " — " + contactoCliente.cargo : ""}</div>
+                {contactoCliente.email && <div style={{ fontSize: 12, color: "#64748b" }}>✉ {contactoCliente.email}</div>}
+                {contactoCliente.telefono && <div style={{ fontSize: 12, color: "#64748b" }}>📱 {contactoCliente.telefono}</div>}
+              </>) : (<>
+                {proyecto?.cliente?.nombre_contacto && <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>Attn: {proyecto.cliente.nombre_contacto}</div>}
+                {proyecto?.cliente?.email_contacto && <div style={{ fontSize: 12, color: "#64748b" }}>✉ {proyecto.cliente.email_contacto}</div>}
+              </>)}
               <div style={{ fontSize: 13, fontWeight: 600, color: COLOR_DARK, marginTop: 6 }}>{proyecto?.nombre}</div>
               <div style={{ fontSize: 12, color: "#64748b" }}>Condición: {cotizacion?.condicion_pago}</div>
             </div>
