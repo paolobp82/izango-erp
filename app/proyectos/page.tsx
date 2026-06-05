@@ -126,7 +126,7 @@ export default function ProyectosPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+      <div style={{ marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Proyectos</h1>
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
