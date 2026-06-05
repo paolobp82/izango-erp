@@ -149,13 +149,7 @@ const [formRQ, setFormRQ] = useState({ descripcion: "", proveedor_id: "", monto_
             {rqs.length} RQs · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}
           </p>
         </div>
-        <button onClick={async () => {
-          const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre")
-          setProveedores(provs || [])
-          const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre").is("deleted_at", null).in("estado", ["en_curso","aprobado_cliente","aprobado"]).order("codigo")
-          setProyectos(projs || [])
-          setShowNuevoRQ(true)
-        }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>
+        {["superadmin","gerente_general","gerente_produccion","controller"].includes(perfil?.perfil) && (<button onClick={async () => { const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre").is("deleted_at", null).in("estado", ["en_curso"]).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
         <ImportExport modulo="requerimientos" campos={[{key:"numero_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"estado",label:"Estado"}]} datos={rqs} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
       </div>
 
