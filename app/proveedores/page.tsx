@@ -179,9 +179,9 @@ export default function ProveedoresPage() {
   async function eliminar(id: string, nombre: string) {
     if (!confirm("Eliminar proveedor " + nombre + "?")) return
     await supabase.from("proveedores").delete().eq("id", id)
+    const { error } = await supabase.from("proveedores").delete().eq("id", id)
+    if (error) { alert("No se puede eliminar este proveedor porque tiene RQs o cotizaciones asociadas."); return }
     load()
-  }
-
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
   const section: any = { fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 14, marginTop: 0, paddingBottom: 8, borderBottom: "1px solid #f3f4f6" }
