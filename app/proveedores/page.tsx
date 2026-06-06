@@ -10,8 +10,9 @@ const TIPOS_PAGO = ["contado", "credito_30", "credito_60", "credito_90"]
 const BANCOS = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
 const TIPOS_CUENTA = ["Ahorros", "Corriente"]
 const TIPOS_TRANSFERENCIA = ["Transferencia bancaria", "Yape", "Plin", "Efectivo", "Cheque"]
+const POR_PAGINA = 50
 
-async function consultarRUC(ruc) {
+async function consultarRUC(ruc: string) {
   try {
     const res = await fetch(`/api/ruc?numero=${ruc}`)
     if (!res.ok) return null
@@ -27,13 +28,12 @@ export default function ProveedoresPage() {
   const [ratings, setRatings] = useState<Record<string, { promedio: number; total: number }>>({})
   const [loading, setLoading] = useState(true)
   const [pagina, setPagina] = useState(1)
-  const POR_PAGINA = 50
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [esCliente, setEsCliente] = useState(false)
   const [buscandoRUC, setBuscandoRUC] = useState(false)
-  const [rucEstado, setRucEstado] = useState(null)
+  const [rucEstado, setRucEstado] = useState<"ok"|"error"|null>(null)
   const [contactosAdicionales, setContactosAdicionales] = useState<any[]>([])
   const [calificacionPendiente, setCalificacionPendiente] = useState<number | null>(null)
   const [comentarioPendiente, setComentarioPendiente] = useState("")
@@ -51,6 +51,10 @@ export default function ProveedoresPage() {
     banco_2: "", tipo_cuenta_2: "", numero_cuenta_2: "", cci_2: "",
     cuenta_detraccion: "", tipo_pago_transferencia: "Transferencia bancaria",
   })
+
+  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
+  const section: any = { fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 14, marginTop: 0, paddingBottom: 8, borderBottom: "1px solid #f3f4f6" }
 
   useEffect(() => { load() }, [])
 
@@ -73,12 +77,7 @@ export default function ProveedoresPage() {
   }
 
   async function loadHistorial(proveedorId: string) {
-    const { data } = await supabase
-      .from("proveedor_calificaciones")
-      .select("*")
-      .eq("proveedor_id", proveedorId)
-      .order("created_at", { ascending: false })
-      .limit(5)
+    const { data } = await supabase.from("proveedor_calificaciones").select("*").eq("proveedor_id", proveedorId).order("created_at", { ascending: false }).limit(5)
     setHistorialCalificaciones(data || [])
   }
 
@@ -178,15 +177,14 @@ export default function ProveedoresPage() {
 
   async function eliminar(id: string, nombre: string) {
     if (!confirm("Eliminar proveedor " + nombre + "?")) return
-    await supabase.from("proveedores").delete().eq("id", id)
     const { error } = await supabase.from("proveedores").delete().eq("id", id)
-    if (error) { alert("No se puede eliminar este proveedor porque tiene RQs o cotizaciones asociadas."); return }
+    if (error) {
+      alert("No se puede eliminar este proveedor porque tiene RQs o cotizaciones asociadas.")
+      return
+    }
     load()
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
-  const section: any = { fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 14, marginTop: 0, paddingBottom: 8, borderBottom: "1px solid #f3f4f6" }
+  }
 
-  // Filtros
   const proveedoresFiltrados = proveedores.filter(p => {
     if (filtroCategoria && p.categoria !== filtroCategoria) return false
     if (filtroTipoPago && p.tipo_pago !== filtroTipoPago) return false
@@ -203,6 +201,9 @@ export default function ProveedoresPage() {
     return true
   })
 
+  const totalPaginas = Math.ceil(proveedoresFiltrados.length / POR_PAGINA)
+  const paginados = proveedoresFiltrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
   return (
@@ -216,25 +217,24 @@ export default function ProveedoresPage() {
         <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proveedor</button>
       </div>
 
-      {/* Filtros */}
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         <input style={{ ...inp, width: 200 }} placeholder="Buscar por nombre o RUC..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-        <select style={{ ...inp, width: "auto" }} value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}>
+        <select style={{ ...inp, width: "auto" }} value={filtroCategoria} onChange={e => { setFiltroCategoria(e.target.value); setPagina(1) }}>
           <option value="">Todas las categorias</option>
           {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select style={{ ...inp, width: "auto" }} value={filtroTipoPago} onChange={e => setFiltroTipoPago(e.target.value)}>
+        <select style={{ ...inp, width: "auto" }} value={filtroTipoPago} onChange={e => { setFiltroTipoPago(e.target.value); setPagina(1) }}>
           <option value="">Todos los tipos de pago</option>
           {TIPOS_PAGO.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        <select style={{ ...inp, width: "auto" }} value={filtroRating} onChange={e => setFiltroRating(e.target.value)}>
+        <select style={{ ...inp, width: "auto" }} value={filtroRating} onChange={e => { setFiltroRating(e.target.value); setPagina(1) }}>
           <option value="">Todos los ratings</option>
           <option value="4+">4+ estrellas</option>
           <option value="3+">3+ estrellas</option>
           <option value="sin">Sin calificar</option>
         </select>
         {(filtroCategoria || filtroTipoPago || filtroRating || busqueda) && (
-          <button onClick={() => { setFiltroCategoria(""); setFiltroTipoPago(""); setFiltroRating(""); setBusqueda("") }}
+          <button onClick={() => { setFiltroCategoria(""); setFiltroTipoPago(""); setFiltroRating(""); setBusqueda(""); setPagina(1) }}
             style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
             Limpiar filtros
           </button>
@@ -248,7 +248,6 @@ export default function ProveedoresPage() {
               <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>{editando ? "Editar proveedor" : "Nuevo proveedor"}</h2>
               <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
             </div>
-
             <div style={{ display: "grid", gap: 16 }}>
               <div>
                 <h3 style={section}>Datos generales</h3>
@@ -303,7 +302,6 @@ export default function ProveedoresPage() {
                   <span style={{ fontSize: 11, color: "#9ca3af" }}>(se copiara a la base de clientes)</span>
                 </label>
               </div>
-
               <div>
                 <h3 style={section}>Contacto comercial</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
@@ -313,7 +311,6 @@ export default function ProveedoresPage() {
                   <div><label style={lbl}>TELEFONO</label><input style={inp} value={form.telefono_contacto} placeholder="9xxxxxxxx" onChange={e => setForm({ ...form, telefono_contacto: e.target.value })} /></div>
                 </div>
               </div>
-
               <div>
                 <h3 style={section}>Contacto administracion / pagos</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
@@ -323,7 +320,6 @@ export default function ProveedoresPage() {
                   <div><label style={lbl}>TELEFONO</label><input style={inp} value={form.telefono_contacto_admin} placeholder="9xxxxxxxx" onChange={e => setForm({ ...form, telefono_contacto_admin: e.target.value })} /></div>
                 </div>
               </div>
-
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, paddingBottom: 8, borderBottom: "1px solid #f3f4f6" }}>
                   <h3 style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: 0 }}>Contactos adicionales</h3>
@@ -339,7 +335,6 @@ export default function ProveedoresPage() {
                   </div>
                 ))}
               </div>
-
               <div>
                 <h3 style={section}>Cuenta bancaria 1</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
@@ -349,7 +344,6 @@ export default function ProveedoresPage() {
                   <div><label style={lbl}>CCI</label><input style={inp} value={form.cuenta_interbancaria} placeholder="CCI" onChange={e => setForm({ ...form, cuenta_interbancaria: e.target.value })} /></div>
                 </div>
               </div>
-
               <div>
                 <h3 style={section}>Cuenta bancaria 2 (opcional)</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
@@ -359,7 +353,6 @@ export default function ProveedoresPage() {
                   <div><label style={lbl}>CCI</label><input style={inp} value={form.cci_2} placeholder="CCI" onChange={e => setForm({ ...form, cci_2: e.target.value })} /></div>
                 </div>
               </div>
-
               <div>
                 <h3 style={section}>Detraccion y tipo transferencia</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -367,7 +360,6 @@ export default function ProveedoresPage() {
                   <div><label style={lbl}>TIPO TRANSFERENCIA</label><select style={inp} value={form.tipo_pago_transferencia} onChange={e => setForm({ ...form, tipo_pago_transferencia: e.target.value })}>{TIPOS_TRANSFERENCIA.map(t => <option key={t}>{t}</option>)}</select></div>
                 </div>
               </div>
-
               {editando && (
                 <div>
                   <h3 style={section}>Calificacion del proveedor</h3>
@@ -377,7 +369,7 @@ export default function ProveedoresPage() {
                   </div>
                   <div style={{ background: "#f9fafb", borderRadius: 8, padding: 14, border: "1px solid #e5e7eb" }}>
                     <label style={{ ...lbl, marginBottom: 8 }}>AGREGAR CALIFICACION</label>
-                    <StarRating rating={calificacionPendiente || 0} onRate={(v) => setCalificacionPendiente(v)} size="lg" showCount={false} />
+                    <StarRating rating={calificacionPendiente || 0} onRate={(v: number) => setCalificacionPendiente(v)} size="lg" showCount={false} />
                     {calificacionPendiente && (
                       <div style={{ marginTop: 10 }}>
                         <input style={{ ...inp, marginBottom: 8 }} placeholder="Comentario opcional..." value={comentarioPendiente} onChange={e => setComentarioPendiente(e.target.value)} />
@@ -404,7 +396,6 @@ export default function ProveedoresPage() {
                 </div>
               )}
             </div>
-
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
               <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
               <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : editando ? "Actualizar" : "Crear proveedor"}</button>
@@ -417,71 +408,73 @@ export default function ProveedoresPage() {
         {proveedoresFiltrados.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay proveedores con estos filtros.</div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RUC</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CATEGORIA</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>BANCO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONTACTO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO PAGO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RATING</th>
-                <th style={{ padding: "10px 20px", width: 130 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {proveedoresFiltrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map((p, idx) => (
-                <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                  <td style={{ padding: "12px 20px" }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{p.nombre}</div>
-                    {p.es_cliente && <span style={{ fontSize: 10, color: "#1e40af", background: "#dbeafe", padding: "1px 6px", borderRadius: 99, fontWeight: 600 }}>Tb. cliente</span>}
-                  </td>
-                  <td style={{ padding: "12px", fontSize: 13, color: "#6b7280" }}>{p.ruc || "—"}</td>
-                  <td style={{ padding: "12px" }}>
-                    <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{p.categoria || "—"}</span>
-                  </td>
-                  <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{p.banco || "—"}</td>
-                  <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
-                    {p.nombre_contacto ? `${p.nombre_contacto}${p.apellido_contacto ? " " + p.apellido_contacto : ""}` : "—"}
-                  </td>
-                  <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{p.tipo_pago || "—"}</td>
-                  <td style={{ padding: "12px" }}>
-                    {ratings[p.id] ? (
-                      <StarRating rating={ratings[p.id].promedio} totalVotos={ratings[p.id].total} size="sm" showCount={true} />
-                    ) : (
-                      <span style={{ fontSize: 11, color: "#d1d5db" }}>Sin rating</span>
-                    )}
-                  </td>
-                  <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <button onClick={() => abrirEditar(p)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
-                      <button onClick={() => eliminar(p.id, p.nombre)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>Eliminar</button>
-                    </div>
-                  </td>
+          <>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#f9fafb" }}>
+                  <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RUC</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CATEGORIA</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>BANCO</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONTACTO</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO PAGO</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RATING</th>
+                  <th style={{ padding: "10px 20px", width: 130 }}></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {proveedoresFiltrados.length > POR_PAGINA && (
-              <button onClick={() => setPagina((p: number) => Math.max(1, p - 1))} disabled={pagina === 1}
-                style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === 1 ? "not-allowed" : "pointer", color: pagina === 1 ? "#d1d5db" : "#374151", fontSize: 13 }}>
-                Anterior
-              </button>
-              {Array.from({ length: Math.ceil(proveedoresFiltrados.length / POR_PAGINA) }, (_: any, i: number) => i + 1).map((n: number) => (
-                <button key={n} onClick={() => setPagina(n)}
-                  style={{ padding: "5px 10px", border: "1px solid " + (n === pagina ? "#0F6E56" : "#e5e7eb"), borderRadius: 6, background: n === pagina ? "#0F6E56" : "#fff", color: n === pagina ? "#fff" : "#374151", cursor: "pointer", fontSize: 13, fontWeight: n === pagina ? 700 : 400 }}>
-                  {n}
+              </thead>
+              <tbody>
+                {paginados.map((p, idx) => (
+                  <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                    <td style={{ padding: "12px 20px" }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{p.nombre}</div>
+                      {p.es_cliente && <span style={{ fontSize: 10, color: "#1e40af", background: "#dbeafe", padding: "1px 6px", borderRadius: 99, fontWeight: 600 }}>Tb. cliente</span>}
+                    </td>
+                    <td style={{ padding: "12px", fontSize: 13, color: "#6b7280" }}>{p.ruc || "—"}</td>
+                    <td style={{ padding: "12px" }}>
+                      <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{p.categoria || "—"}</span>
+                    </td>
+                    <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{p.banco || "—"}</td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
+                      {p.nombre_contacto ? `${p.nombre_contacto}${p.apellido_contacto ? " " + p.apellido_contacto : ""}` : "—"}
+                    </td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{p.tipo_pago || "—"}</td>
+                    <td style={{ padding: "12px" }}>
+                      {ratings[p.id] ? (
+                        <StarRating rating={ratings[p.id].promedio} totalVotos={ratings[p.id].total} size="sm" showCount={true} />
+                      ) : (
+                        <span style={{ fontSize: 11, color: "#d1d5db" }}>Sin rating</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "12px 20px", textAlign: "right" }}>
+                      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                        <button onClick={() => abrirEditar(p)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
+                        <button onClick={() => eliminar(p.id, p.nombre)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>Eliminar</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {totalPaginas > 1 && (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "16px 20px", borderTop: "1px solid #f3f4f6" }}>
+                <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
+                  style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === 1 ? "not-allowed" : "pointer", color: pagina === 1 ? "#d1d5db" : "#374151", fontSize: 13 }}>
+                  Anterior
                 </button>
-              ))}
-              <button onClick={() => setPagina((p: number) => Math.min(Math.ceil(proveedoresFiltrados.length / POR_PAGINA), p + 1))} disabled={pagina === Math.ceil(proveedoresFiltrados.length / POR_PAGINA)}
-                style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 13 }}>
-                Siguiente
-              </button>
-              <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>{proveedoresFiltrados.length} proveedores · Pág. {pagina}/{Math.ceil(proveedoresFiltrados.length / POR_PAGINA)}</span>
-            </div>
-          )}
-          </table>
+                {Array.from({ length: totalPaginas }, (_, i) => i + 1).map(n => (
+                  <button key={n} onClick={() => setPagina(n)}
+                    style={{ padding: "5px 10px", border: "1px solid " + (n === pagina ? "#0F6E56" : "#e5e7eb"), borderRadius: 6, background: n === pagina ? "#0F6E56" : "#fff", color: n === pagina ? "#fff" : "#374151", cursor: "pointer", fontSize: 13, fontWeight: n === pagina ? 700 : 400 }}>
+                    {n}
+                  </button>
+                ))}
+                <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
+                  style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 13 }}>
+                  Siguiente
+                </button>
+                <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>{proveedoresFiltrados.length} proveedores · Pág. {pagina}/{totalPaginas}</span>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
