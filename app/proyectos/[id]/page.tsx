@@ -239,7 +239,9 @@ export default function ProyectoDetallePage() {
     console.log("PRECUADRE ITEMS:", JSON.stringify(preCuadreItems.map((i:any) => ({id:i.id,desc:i.descripcion,tipo:i.tipo,prov:i.proveedor_id,borrado:i._borrado,padre:i._esPadre,final:i.costo_final}))))
     for (const item of preCuadreItems) {
       const esDividido = String(item.id).startsWith("div_")
-      if (item.tipo === "familia" || (item._esPadre && !esDividido) || item._borrado) continue
+      const tieneSubitemsActivos = preCuadreItems.some((s: any) => !s._borrado && (s.id === "sub_" + item.id || (s._subitemId && String(s.id).includes(String(item.id)))))
+      if (item.tipo === "familia" || item._borrado) continue
+      if (item._esPadre && !esDividido && tieneSubitemsActivos) continue
       if (!item.proveedor_id) continue
       const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
       const { error: rqError } = await supabase.from("requerimientos_pago").insert({
