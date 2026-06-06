@@ -236,7 +236,6 @@ export default function ProyectoDetallePage() {
       return match ? parseInt(match[1]) : 0
     })
     let rqNum = (numerosExistentes.length > 0 ? Math.max(...numerosExistentes) : 0) + 1
-    console.log("PRECUADRE ITEMS:", JSON.stringify(preCuadreItems.map((i:any) => ({id:i.id,desc:i.descripcion,tipo:i.tipo,prov:i.proveedor_id,borrado:i._borrado,padre:i._esPadre,final:i.costo_final}))))
     for (const item of preCuadreItems) {
       const esDividido = String(item.id).startsWith("div_")
       const tieneSubitemsActivos = preCuadreItems.some((s: any) => !s._borrado && (s.id === "sub_" + item.id || (s._subitemId && String(s.id).includes(String(item.id)))))
