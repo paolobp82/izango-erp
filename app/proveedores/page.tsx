@@ -462,6 +462,25 @@ export default function ProveedoresPage() {
                 </tr>
               ))}
             </tbody>
+          {proveedoresFiltrados.length > POR_PAGINA && (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "16px 20px", borderTop: "1px solid #f3f4f6" }}>
+              <button onClick={() => setPagina((p: number) => Math.max(1, p - 1))} disabled={pagina === 1}
+                style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === 1 ? "not-allowed" : "pointer", color: pagina === 1 ? "#d1d5db" : "#374151", fontSize: 13 }}>
+                Anterior
+              </button>
+              {Array.from({ length: Math.ceil(proveedoresFiltrados.length / POR_PAGINA) }, (_: any, i: number) => i + 1).map((n: number) => (
+                <button key={n} onClick={() => setPagina(n)}
+                  style={{ padding: "5px 10px", border: "1px solid " + (n === pagina ? "#0F6E56" : "#e5e7eb"), borderRadius: 6, background: n === pagina ? "#0F6E56" : "#fff", color: n === pagina ? "#fff" : "#374151", cursor: "pointer", fontSize: 13, fontWeight: n === pagina ? 700 : 400 }}>
+                  {n}
+                </button>
+              ))}
+              <button onClick={() => setPagina((p: number) => Math.min(Math.ceil(proveedoresFiltrados.length / POR_PAGINA), p + 1))} disabled={pagina === Math.ceil(proveedoresFiltrados.length / POR_PAGINA)}
+                style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 13 }}>
+                Siguiente
+              </button>
+              <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>{proveedoresFiltrados.length} proveedores · Pág. {pagina}/{Math.ceil(proveedoresFiltrados.length / POR_PAGINA)}</span>
+            </div>
+          )}
           </table>
         )}
       </div>
