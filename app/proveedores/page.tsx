@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
@@ -26,6 +26,8 @@ export default function ProveedoresPage() {
   const [proveedores, setProveedores] = useState<any[]>([])
   const [ratings, setRatings] = useState<Record<string, { promedio: number; total: number }>>({})
   const [loading, setLoading] = useState(true)
+  const [pagina, setPagina] = useState(1)
+  const POR_PAGINA = 50
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [saving, setSaving] = useState(false)
@@ -429,7 +431,7 @@ export default function ProveedoresPage() {
               </tr>
             </thead>
             <tbody>
-              {proveedoresFiltrados.map((p, idx) => (
+              {proveedoresFiltrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map((p, idx) => (
                 <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                   <td style={{ padding: "12px 20px" }}>
                     <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{p.nombre}</div>

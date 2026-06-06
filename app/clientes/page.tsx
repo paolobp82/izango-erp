@@ -3,10 +3,13 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 
+const POR_PAGINA = 50
+
 export default function ClientesPage() {
   const supabase = createClient()
   const [clientes, setClientes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [pagina, setPagina] = useState(1)
 
   useEffect(() => { load() }, [])
 
@@ -47,6 +50,9 @@ export default function ClientesPage() {
     return { exitosos, errores }
   }
 
+  const totalPaginas = Math.ceil(clientes.length / POR_PAGINA)
+  const paginados = clientes.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+
   if (loading) return <div style={{ color: "#6b7280", fontSize: 13 }}>Cargando...</div>
 
   return (
@@ -73,7 +79,7 @@ export default function ClientesPage() {
             </tr>
           </thead>
           <tbody>
-            {clientes.length > 0 ? clientes.map((c: any, idx: number) => (
+            {clientes.length > 0 ? paginados.map((c: any, idx: number) => (
               <tr key={c.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                 <td style={{ padding: "12px 20px" }}>
                   <a href={`/clientes/${c.id}`} style={{ fontWeight: 500, color: "#111827", textDecoration: "none" }}>{c.razon_social}</a>

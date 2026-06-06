@@ -44,6 +44,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     voucher_url: "", numero_operacion: "", banco_pago: "", tipo_transferencia: "Transferencia bancaria", nota_pago: ""
   })
   const [guardandoPago, setGuardandoPago] = useState(false)
+  const [pagina, setPagina] = useState(1)
+  const POR_PAGINA = 50
 
   useEffect(() => { load() }, [])
 
@@ -125,12 +127,14 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-  const filtrados = rqs.filter(r => {
+  const filtradosBase = rqs.filter(r => {
     if (filtroEstado && r.estado !== filtroEstado) return false
     if (filtroProveedor && r.proveedor_id !== filtroProveedor) return false
     if (filtroTipoPago && r.tipo_pago !== filtroTipoPago) return false
     return true
   })
+  const filtrados = filtradosBase
+  const paginados = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
 
   const totalPendiente = rqs.filter(r => r.estado === "pendiente_aprobacion").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
   const totalAprobado = rqs.filter(r => ["aprobado_produccion", "aprobado"].includes(r.estado)).reduce((s, r) => s + (r.monto_solicitado || 0), 0)
@@ -218,7 +222,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               </tr>
             </thead>
             <tbody>
-              {filtrados.map((rq, idx) => {
+              {paginados.map((rq, idx) => {
                 const ec = ESTADOS[rq.estado] || { bg: "#f3f4f6", color: "#6b7280", label: rq.estado }
                 const accion = getSiguienteAccion(rq)
                 return (

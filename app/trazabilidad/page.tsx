@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 
@@ -28,10 +28,13 @@ const ACCION_ICON: Record<string, string> = {
   pagar: "💳",
 }
 
+const POR_PAGINA = 50
+
 export default function TrazabilidadPage() {
   const supabase = createClient()
   const [registros, setRegistros] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [pagina, setPagina] = useState(1)
   const [filtroModulo, setFiltroModulo] = useState("")
   const [filtroUsuario, setFiltroUsuario] = useState("")
   const [filtroAccion, setFiltroAccion] = useState("")

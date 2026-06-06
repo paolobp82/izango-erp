@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
@@ -13,6 +13,8 @@ export default function TrabajadoresPage() {
   const supabase = createClient()
   const [trabajadores, setTrabajadores] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [pagina, setPagina] = useState(1)
+  const POR_PAGINA = 50
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [saving, setSaving] = useState(false)
@@ -223,7 +225,7 @@ export default function TrabajadoresPage() {
               </tr>
             </thead>
             <tbody>
-              {trabajadores.map((t, idx) => (
+              {trabajadores.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map((t, idx) => (
                 <tr key={t.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                   <td style={{ padding: "12px 20px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
