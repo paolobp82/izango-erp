@@ -238,7 +238,8 @@ export default function ProyectoDetallePage() {
     let rqNum = (numerosExistentes.length > 0 ? Math.max(...numerosExistentes) : 0) + 1
     console.log("PRECUADRE ITEMS:", JSON.stringify(preCuadreItems.map((i:any) => ({id:i.id,desc:i.descripcion,tipo:i.tipo,prov:i.proveedor_id,borrado:i._borrado,padre:i._esPadre,final:i.costo_final}))))
     for (const item of preCuadreItems) {
-      if (item.tipo === "familia" || item._esPadre || item._borrado) continue
+      const esDividido = String(item.id).startsWith("div_")
+      if (item.tipo === "familia" || (item._esPadre && !esDividido) || item._borrado) continue
       if (!item.proveedor_id) continue
       const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
       const { error: rqError } = await supabase.from("requerimientos_pago").insert({
@@ -451,8 +452,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                             setPreCuadreItems(prev => {
                               const idx = prev.findIndex((i: any) => i.id === item.id)
                               const nuevos = [
-                                { ...item, id: id1, descripcion: item.descripcion + " (50% adelanto)", costo_final: mitad, tipo_pago: "adelanto" },
-                                { ...item, id: id2, descripcion: item.descripcion + " (50% saldo)", costo_final: item.costo_final - mitad, tipo_pago: "contado" },
+                                { ...item, id: id1, descripcion: item.descripcion + " (50% adelanto)", costo_final: mitad, tipo_pago: "adelanto", _esPadre: false },
+                                { ...item, id: id2, descripcion: item.descripcion + " (50% saldo)", costo_final: item.costo_final - mitad, tipo_pago: "contado", _esPadre: false },
                               ]
                               return [...prev.slice(0, idx), ...nuevos, ...prev.slice(idx + 1)]
                             })
