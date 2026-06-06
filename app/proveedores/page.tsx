@@ -462,8 +462,9 @@ export default function ProveedoresPage() {
                 </tr>
               ))}
             </tbody>
+          </table>
+          </table>
           {proveedoresFiltrados.length > POR_PAGINA && (
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "16px 20px", borderTop: "1px solid #f3f4f6" }}>
               <button onClick={() => setPagina((p: number) => Math.max(1, p - 1))} disabled={pagina === 1}
                 style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === 1 ? "not-allowed" : "pointer", color: pagina === 1 ? "#d1d5db" : "#374151", fontSize: 13 }}>
                 Anterior
