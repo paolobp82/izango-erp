@@ -30,6 +30,8 @@ export default function ProyectosPage() {
   const [filtroEstado, setFiltroEstado] = useState("")
   const [filtroEntidad, setFiltroEntidad] = useState("")
   const [filtroProductor, setFiltroProductor] = useState("")
+  const [pagina, setPagina] = useState(1)
+  const POR_PAGINA = 50
   const supabase = createClient()
   const router = useRouter()
 
@@ -140,20 +142,20 @@ export default function ProyectosPage() {
           </p>
         </div>
         <ImportExport modulo="proyectos" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"descripcion_requerimiento",label:"Descripcion"},{key:"presupuesto_referencial",label:"Presupuesto"},{key:"fecha_limite_cotizacion",label:"Fecha limite cotizacion"},{key:"fecha_inicio",label:"Fecha ejecucion"},{key:"fecha_fin_estimada",label:"Fecha fin estimada"}]} datos={proyectos} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proyectos").insert({...r,entidad:"peru",estado:"pendiente_aprobacion"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
-        <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}
+        <select value={filtroEstado} onChange={e => { setFiltroEstado(e.target.value); setPagina(1) }}
           style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
           <option value="">Todos los estados</option>
           {Object.entries(ESTADO_LABEL).map(([key, label]) => (
             <option key={key} value={key}>{label}</option>
           ))}
         </select>
-        <select value={filtroEntidad} onChange={e => setFiltroEntidad(e.target.value)}
+        <select value={filtroEntidad} onChange={e => { setFiltroEntidad(e.target.value); setPagina(1) }}
   style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
   <option value="">Todas las entidades</option>
   <option value="peru">Izango Peru (IZ)</option>
   <option value="selva">Izango Selva (SEL)</option>
 </select>
-        <select value={filtroProductor} onChange={e => setFiltroProductor(e.target.value)}
+        <select value={filtroProductor} onChange={e => { setFiltroProductor(e.target.value); setPagina(1) }}
           style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
           <option value="">Todos los productores</option>
           {[...new Map(proyectos.filter((p: any) => p.productor).map((p: any) => [p.productor_id, p.productor])).entries()].map(([pid, prod]: any) => (
@@ -205,7 +207,11 @@ export default function ProyectosPage() {
               </tr>
             </thead>
             <tbody>
-              {proyectos.filter(p => (!filtroEstado || p.estado === filtroEstado) && (!filtroEntidad || p.entidad === filtroEntidad) && (!filtroProductor || p.productor_id === filtroProductor)).map((p, idx) => {
+              {(() => {
+                const filtrados = proyectos.filter(p => (!filtroEstado || p.estado === filtroEstado) && (!filtroEntidad || p.entidad === filtroEntidad) && (!filtroProductor || p.productor_id === filtroProductor))
+                const totalPaginas = Math.ceil(filtrados.length / POR_PAGINA)
+                const paginados = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+                return paginados.map((p, idx) => {
                 const ec: any = {
                   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e" },
                   aprobado_produccion:  { bg: "#fed7aa", color: "#9a3412" },
