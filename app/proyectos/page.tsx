@@ -268,7 +268,34 @@ export default function ProyectosPage() {
                       </div>
                     </td>
                   </tr>
-                )
+              })
+              })()}
+            </tbody>
+          </table>
+          {(() => {
+            const filtrados = proyectos.filter((p: any) => (!filtroEstado || p.estado === filtroEstado) && (!filtroEntidad || p.entidad === filtroEntidad) && (!filtroProductor || p.productor_id === filtroProductor))
+            const totalPaginas = Math.ceil(filtrados.length / POR_PAGINA)
+            if (totalPaginas <= 1) return null
+            return (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "16px 20px", borderTop: "1px solid #f3f4f6" }}>
+                <button onClick={() => setPagina((p: number) => Math.max(1, p - 1))} disabled={pagina === 1}
+                  style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === 1 ? "not-allowed" : "pointer", color: pagina === 1 ? "#d1d5db" : "#374151", fontSize: 13 }}>
+                  Anterior
+                </button>
+                {Array.from({ length: totalPaginas }, (_: any, i: number) => i + 1).map((n: number) => (
+                  <button key={n} onClick={() => setPagina(n)}
+                    style={{ padding: "5px 10px", border: "1px solid " + (n === pagina ? "#0F6E56" : "#e5e7eb"), borderRadius: 6, background: n === pagina ? "#0F6E56" : "#fff", color: n === pagina ? "#fff" : "#374151", cursor: "pointer", fontSize: 13, fontWeight: n === pagina ? 700 : 400 }}>
+                    {n}
+                  </button>
+                ))}
+                <button onClick={() => setPagina((p: number) => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
+                  style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === totalPaginas ? "not-allowed" : "pointer", color: pagina === totalPaginas ? "#d1d5db" : "#374151", fontSize: 13 }}>
+                  Siguiente
+                </button>
+                <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>{filtrados.length} proyectos · Pag. {pagina}/{totalPaginas}</span>
+              </div>
+            )
+          })()}
               })}
             </tbody>
           </table>
