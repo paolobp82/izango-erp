@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
@@ -18,6 +18,8 @@ export default function ProformasPage() {
   const router = useRouter()
   const [cotizaciones, setCotizaciones] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [pagina, setPagina] = useState(1)
+  const POR_PAGINA = 50
   const [filtroEstado, setFiltroEstado] = useState("")
   const [filtroCliente, setFiltroCliente] = useState("")
   const [filtroEntidad, setFiltroEntidad] = useState("")
@@ -137,7 +139,7 @@ export default function ProformasPage() {
             {filtradas.length === 0 ? (
               <tr><td colSpan={9} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay proformas</td></tr>
             ) : (
-              filtradas.map((cot, idx) => {
+              filtradas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map((cot, idx) => {
                 const ec = ESTADO_COT[cot.estado] || { bg: "#f3f4f6", color: "#6b7280", label: cot.estado }
                 const entidad = cot.proyecto?.entidad
                 return (
@@ -181,6 +183,25 @@ export default function ProformasPage() {
             )}
           </tbody>
         </table>
+        {filtradas.length > POR_PAGINA && (
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "16px 20px", borderTop: "1px solid #f3f4f6" }}>
+            <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
+              style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === 1 ? "not-allowed" : "pointer", color: pagina === 1 ? "#d1d5db" : "#374151", fontSize: 13 }}>
+              Anterior
+            </button>
+            {Array.from({ length: Math.ceil(filtradas.length / POR_PAGINA) }, (_, i) => i + 1).map(n => (
+              <button key={n} onClick={() => setPagina(n)}
+                style={{ padding: "5px 10px", border: "1px solid " + (n === pagina ? "#0F6E56" : "#e5e7eb"), borderRadius: 6, background: n === pagina ? "#0F6E56" : "#fff", color: n === pagina ? "#fff" : "#374151", cursor: "pointer", fontSize: 13, fontWeight: n === pagina ? 700 : 400 }}>
+                {n}
+              </button>
+            ))}
+            <button onClick={() => setPagina(p => Math.min(Math.ceil(filtradas.length / POR_PAGINA), p + 1))} disabled={pagina === Math.ceil(filtradas.length / POR_PAGINA)}
+              style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 13 }}>
+              Siguiente
+            </button>
+            <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>{filtradas.length} proformas · Pág. {pagina}/{Math.ceil(filtradas.length / POR_PAGINA)}</span>
+          </div>
+        )}
       </div>
     </div>
   )
