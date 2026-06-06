@@ -236,6 +236,7 @@ export default function ProyectoDetallePage() {
       return match ? parseInt(match[1]) : 0
     })
     let rqNum = (numerosExistentes.length > 0 ? Math.max(...numerosExistentes) : 0) + 1
+    console.log("PRECUADRE ITEMS:", JSON.stringify(preCuadreItems.map((i:any) => ({id:i.id,desc:i.descripcion,tipo:i.tipo,prov:i.proveedor_id,borrado:i._borrado,padre:i._esPadre,final:i.costo_final}))))
     for (const item of preCuadreItems) {
       if (item.tipo === "familia" || item._esPadre || item._borrado) continue
       if (!item.proveedor_id) continue
