@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
@@ -30,6 +30,8 @@ export default function TareasPage() {
   const [usuarios, setUsuarios] = useState<any[]>([])
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [pagina, setPagina] = useState(1)
+  const POR_PAGINA = 50
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [selected, setSelected] = useState<any>(null)
@@ -266,7 +268,7 @@ export default function TareasPage() {
                 </tr>
               </thead>
               <tbody>
-                {tareasFiltradas.map((t, idx) => {
+                {tareasFiltradas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map((t, idx) => {
                   const es = ESTADOS[t.estado] || ESTADOS.pendiente
                   const pr = PRIORIDADES[t.prioridad] || PRIORIDADES.media
                   const vencida = estaVencida(t)
