@@ -268,10 +268,10 @@ export default function ProyectosPage() {
                       </div>
                     </td>
                   </tr>
+                  </tr>
+                )
               })
               })()}
-            </tbody>
-          </table>
           {(() => {
             const filtrados = proyectos.filter((p: any) => (!filtroEstado || p.estado === filtroEstado) && (!filtroEntidad || p.entidad === filtroEntidad) && (!filtroProductor || p.productor_id === filtroProductor))
             const totalPaginas = Math.ceil(filtrados.length / POR_PAGINA)
