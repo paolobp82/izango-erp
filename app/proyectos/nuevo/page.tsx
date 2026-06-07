@@ -24,12 +24,13 @@ export default function NuevoProyectoPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+      const clienteIdParam = new URLSearchParams(window.location.search).get("cliente_id") || ""
       setPerfil(p)
-      setForm(f => ({ ...f, entidad: p?.entidad || "peru" }))
+      setForm(f => ({ ...f, entidad: p?.entidad || "peru", cliente_id: clienteIdParam }))
       await loadEntidadData(p?.entidad || "peru")
       const { data: todosProj } = await supabase.from("proyectos").select("codigo")
       const maxNum = (todosProj || []).reduce((max: number, p: any) => { const num = parseInt((p.codigo || "").replace("IZ-", "")) || 0; return num > max ? num : max }, 26000)
-      setForm(f => ({ ...f, codigo: `IZ-${maxNum + 1}` }))
+      setForm(f => ({ ...f, codigo: `IZ-${maxNum + 1}`, cliente_id: clienteIdParam || f.cliente_id }))
     }
     load()
   }, [])
