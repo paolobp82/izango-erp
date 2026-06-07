@@ -46,7 +46,6 @@ const ALL_NAV = [
   { section: "Operación", items: [
     { label: "Proyectos", href: "/proyectos" },
     { label: "Gestor", href: "/gestor" },
-    { label: "Tareas", href: "/tareas" },
   ]},
   { section: "Compras y Logística", items: [
     { label: "Proveedores", href: "/proveedores" },
