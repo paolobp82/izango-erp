@@ -50,10 +50,10 @@ export default function PerfilPage() {
     setErrorPass("")
     if (passNueva !== passConfirmar) { setErrorPass("Las contraseñas no coinciden"); setSavingPass(false); return }
     if (passNueva.length < 6) { setErrorPass("Mínimo 6 caracteres"); setSavingPass(false); return }
-    const res = await fetch("/api/admin/cambiar-password", {
+    const res = await fetch("/api/perfil/cambiar-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: perfil.id, password: passNueva })
+      body: JSON.stringify({ password: passNueva })
     })
     const data = await res.json()
     if (data.error) { setErrorPass(data.error) }
