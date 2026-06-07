@@ -354,6 +354,20 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
+  const historialCount = Object.values(historial).reduce((total, items) => total + items.length, 0)
+  const tabsProyecto360 = [
+    { label: "Resumen", href: "#tab-resumen" },
+    { label: "Cliente", href: "#tab-cliente", count: proyecto?.cliente ? 1 : 0 },
+    { label: "Proformas", href: "#tab-proformas", count: cotizaciones.length },
+    { label: "Costos / RQ", href: "#tab-costos-rq" },
+    { label: "Tareas", href: "#tab-tareas" },
+    { label: "Logística", href: "#tab-logistica" },
+    { label: "Facturación", href: "#tab-facturacion" },
+    { label: "Liquidación", href: "#tab-liquidacion" },
+    { label: "Archivos", href: "#tab-archivos" },
+    { label: "Historial", href: "#tab-historial", count: historialCount },
+  ]
+  const placeholderStyle = { padding: 16, border: "1px dashed #d1d5db", borderRadius: 10, background: "#fafafa", color: "#6b7280", fontSize: 13 }
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -576,6 +590,23 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
         </div>
       </div>
 
+      <nav className="card" style={{ marginBottom: 16, padding: "10px 12px", position: "sticky", top: 57, zIndex: 40, overflowX: "auto" }}>
+        <div style={{ display: "flex", gap: 6, minWidth: "max-content" }}>
+          {tabsProyecto360.map(tab => (
+            <a key={tab.href} href={tab.href}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, color: "#374151", textDecoration: "none", fontSize: 12, fontWeight: 600, background: "#fff", whiteSpace: "nowrap" }}>
+              {tab.label}
+              {typeof tab.count === "number" && (
+                <span style={{ minWidth: 18, height: 18, padding: "0 6px", borderRadius: 99, background: tab.count > 0 ? "#dcfce7" : "#f3f4f6", color: tab.count > 0 ? "#15803d" : "#9ca3af", fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                  {tab.count}
+                </span>
+              )}
+            </a>
+          ))}
+        </div>
+      </nav>
+
+      <section id="tab-resumen" style={{ scrollMarginTop: 120 }}>
       <div className="card" style={{ marginBottom: 24 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, alignItems: "center" }}>
           <div>
@@ -698,7 +729,21 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           </div>
         </div>
       </div>
+      </section>
 
+      <section id="tab-cliente" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Cliente</h2>
+          {proyecto?.cliente?.razon_social && <span style={{ fontSize: 12, color: "#6b7280" }}>{proyecto.cliente.razon_social}</span>}
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={placeholderStyle}>
+            Fase 1: espacio reservado para ficha resumida del cliente, contactos, datos administrativos y proyectos relacionados. La informacion principal del cliente se mantiene visible en la cabecera del proyecto.
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-proformas" style={{ scrollMarginTop: 120 }}>
       {cotizacionesEliminadas.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <button onClick={() => setShowVersionesEliminadas(!showVersionesEliminadas)}
@@ -819,6 +864,90 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           </table>
         )}
       </div>
+      </section>
+
+      <section id="tab-costos-rq" className="card" style={{ marginTop: 24, marginBottom: 24, scrollMarginTop: 120 }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Costos / RQ</h2>
+          <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Crear RQ</button>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={placeholderStyle}>
+            Fase 1: placeholder para pre-cuadre, RQs generados, RQs adicionales, montos solicitados y estados de pago. La generacion actual de RQs se mantiene en el flujo existente.
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-tareas" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Tareas</h2>
+          <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Crear tarea</button>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={placeholderStyle}>
+            Fase 1: placeholder para tareas vinculadas al proyecto, responsables, estados, fechas limite y comentarios recientes.
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-logistica" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Logística</h2>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={placeholderStyle}>
+            Fase 1: placeholder para envios de materiales, inventario, ordenes asociadas, responsables logisticos y estados de entrega.
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-facturacion" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Facturación</h2>
+          <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Emitir factura</button>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={placeholderStyle}>
+            Fase 1: placeholder para facturas asociadas al proyecto, estado de cobro, detracciones, retenciones y documentos.
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-liquidacion" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Liquidación</h2>
+          <button onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver liquidación</button>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={placeholderStyle}>
+            Fase 1: placeholder para liquidacion, costos reales, margen real, desvios y aprobaciones de cierre.
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-archivos" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Archivos</h2>
+          <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank" style={{ fontSize: 12, color: "#0F6E56", fontWeight: 600, textDecoration: "none" }}>Reporte PDF</a>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={placeholderStyle}>
+            Fase 1: placeholder para reporte PDF, previews de proforma, facturas, vouchers, sustentos y enlaces externos del proyecto.
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-historial" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Historial</h2>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>{historialCount} evento{historialCount !== 1 ? "s" : ""} de proformas</span>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={placeholderStyle}>
+            Fase 1: placeholder para trazabilidad consolidada del proyecto. Por ahora el historial visible se mantiene dentro de cada proforma.
+          </div>
+        </div>
+      </section>
 
       {showEditar && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
