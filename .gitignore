@@ -23,6 +23,13 @@
 # misc
 .DS_Store
 *.pem
+*.bak
+*.bak*
+page.tsx.bak*
+/fix-*.js
+/fix-*.ps1
+/check-*.js
+/test_current.tsx
 
 # debug
 npm-debug.log*
