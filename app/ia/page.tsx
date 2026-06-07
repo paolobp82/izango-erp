@@ -1,31 +1,37 @@
 "use client"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import { createClient } from "@/lib/supabase"
 
+type MensajeIA = { rol: "user" | "assistant"; contenido: string }
+type PerfilIA = { id: string }
+type ConversacionIA = { id: string; titulo?: string | null; updated_at: string }
+
 export default function IAPage() {
-  const supabase = createClient()
-  const [mensajes, setMensajes] = useState<any[]>([])
+  const supabase = useMemo(() => createClient(), [])
+  const [mensajes, setMensajes] = useState<MensajeIA[]>([])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
-  const [perfil, setPerfil] = useState<any>(null)
+  const [perfil, setPerfil] = useState<PerfilIA | null>(null)
   const [conversacionId, setConversacionId] = useState<string|null>(null)
-  const [conversaciones, setConversaciones] = useState<any[]>([])
+  const [conversaciones, setConversaciones] = useState<ConversacionIA[]>([])
   const [loadingHistorial, setLoadingHistorial] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { init() }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }) }, [mensajes])
 
-  async function init() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-      setPerfil(p)
-      const { data: convs } = await supabase.from("ia_conversaciones").select("*").eq("usuario_id", user.id).order("updated_at", { ascending: false }).limit(20)
-      setConversaciones(convs || [])
+  useEffect(() => {
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+        setPerfil(p)
+        const { data: convs } = await supabase.from("ia_conversaciones").select("*").eq("usuario_id", user.id).order("updated_at", { ascending: false }).limit(20)
+        setConversaciones(convs || [])
+      }
+      setLoadingHistorial(false)
     }
-    setLoadingHistorial(false)
-  }
+    init()
+  }, [supabase])
 
   async function nuevaConversacion() {
     if (!perfil) return
@@ -40,7 +46,7 @@ export default function IAPage() {
   async function cargarConversacion(id: string) {
     setConversacionId(id)
     const { data } = await supabase.from("ia_mensajes").select("*").eq("conversacion_id", id).order("created_at")
-    setMensajes((data || []).map((m: any) => ({ rol: m.rol, contenido: m.contenido })))
+    setMensajes((data || []).map((m) => ({ rol: m.rol, contenido: m.contenido })))
   }
 
   async function enviar() {
@@ -69,7 +75,7 @@ export default function IAPage() {
       const res = await fetch("/api/ia-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mensajes: nuevosMensajes, conversacion_id: convId, perfil_id: perfil.id })
+        body: JSON.stringify({ mensajes: nuevosMensajes, conversacion_id: convId })
       })
       const data = await res.json()
       if (data.respuesta) {
@@ -82,7 +88,7 @@ export default function IAPage() {
       } else {
         setMensajes(prev => [...prev, { rol: "assistant", contenido: "Error: " + (data.error || "No se pudo obtener respuesta") }])
       }
-    } catch (err) {
+    } catch {
       setMensajes(prev => [...prev, { rol: "assistant", contenido: "Error de conexión. Intenta nuevamente." }])
     }
     setLoading(false)
