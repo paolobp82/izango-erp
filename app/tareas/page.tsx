@@ -48,6 +48,7 @@ export default function TareasPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
+    const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
@@ -64,6 +65,11 @@ export default function TareasPage() {
     setClientes(cl || [])
     const { data: us } = await supabase.from("perfiles").select("id, nombre, apellido, perfil").order("nombre")
     setUsuarios(us || [])
+    if (proyectoIdParam) {
+      setEditando(null)
+      setForm({ ...formVacio, proyecto_id: proyectoIdParam })
+      setShowForm(true)
+    }
     setLoading(false)
   }
 

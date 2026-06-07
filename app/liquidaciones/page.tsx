@@ -21,6 +21,7 @@ export default function LiquidacionesPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
+    const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
@@ -31,6 +32,8 @@ export default function LiquidacionesPage() {
       .select("*, proyecto:proyectos(nombre, codigo, cliente:clientes(razon_social))")
       .order("created_at", { ascending: false })
     setLiquidaciones(liqs || [])
+    const liqProyecto = proyectoIdParam ? (liqs || []).find((liq: any) => liq.proyecto_id === proyectoIdParam) : null
+    if (liqProyecto) await abrirLiquidacion(liqProyecto)
 
     const { data: provs } = await supabase
       .from("proyectos")
