@@ -91,7 +91,7 @@ export default function ClientesPage() {
               <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONTACTO</th>
               <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>EMAIL</th>
               <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-              <th style={{ padding: "10px 20px", width: 180 }}></th>
+              <th style={{ padding: "10px 20px", width: 300 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -111,6 +111,8 @@ export default function ClientesPage() {
                 <td style={{ padding: "12px 20px", textAlign: "right" }}>
                   <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                     <button onClick={() => router.push(`/clientes/${c.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver / Editar</button>
+                    <button onClick={() => router.push(`/proyectos?cliente_id=${c.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Proyectos</button>
+                    <button onClick={() => router.push(`/proyectos/nuevo?cliente_id=${c.id}`)} className="btn-primary" style={{ fontSize: 12 }}>+ Proyecto</button>
                     <button onClick={() => eliminar(c.id, c.razon_social)} disabled={eliminando === c.id}
                       style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
                       {eliminando === c.id ? "..." : "Eliminar"}

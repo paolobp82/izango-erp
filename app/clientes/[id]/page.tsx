@@ -166,7 +166,17 @@ export default function EditarClientePage() {
           <span style={{ color: "#d1d5db" }}>/</span>
           <span style={{ fontSize: 12, color: "#4b5563" }}>Editar cliente</span>
         </div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>{form.razon_social}</h1>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>{form.razon_social}</h1>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button onClick={() => router.push(`/proyectos?cliente_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
+              Ver proyectos del cliente
+            </button>
+            <button onClick={() => router.push(`/proyectos/nuevo?cliente_id=${id}`)} className="btn-primary" style={{ fontSize: 13 }}>
+              Crear nuevo proyecto
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>

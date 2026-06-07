@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
 import ImportExport from "@/components/ImportExport"
 
@@ -32,6 +33,7 @@ const emptyForm = {
 
 export default function CRMPage() {
   const supabase = createClient()
+  const router = useRouter()
   const [leads, setLeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -44,6 +46,7 @@ export default function CRMPage() {
   const [form, setForm] = useState<any>(emptyForm)
   const [nuevaNota, setNuevaNota] = useState("")
   const [notas, setNotas] = useState<any[]>([])
+  const [clientesConvertidos, setClientesConvertidos] = useState<Record<string, { id: string; razon_social: string }>>({})
 
   useEffect(() => { load() }, [])
 
@@ -111,16 +114,17 @@ export default function CRMPage() {
   async function convertirACliente() {
     if (!selected) return
     if (!confirm("Convertir " + selected.razon_social + " a cliente?")) return
-    await supabase.from("clientes").insert({
+    const { data: cliente, error } = await supabase.from("clientes").insert({
       razon_social: selected.razon_social, ruc: selected.ruc || null, entidad: "peru",
       nombre_contacto: selected.nombre_contacto || null,
       email_contacto: selected.email_contacto || null,
       telefono_contacto: selected.telefono_contacto || null,
-    })
+    }).select("id, razon_social").single()
+    if (error || !cliente) { alert("Error creando cliente: " + (error?.message || "sin respuesta")); return }
     await supabase.from("crm_leads").update({ estado: "ganado" }).eq("id", selected.id)
     setSelected((prev: any) => ({ ...prev, estado: "ganado" }))
+    setClientesConvertidos(prev => ({ ...prev, [selected.id]: cliente }))
     load()
-    alert("Cliente creado en la base de clientes.")
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 0 })
@@ -357,6 +361,19 @@ export default function CRMPage() {
                   style={{ width: "100%", padding: "8px", background: "#0F6E56", border: "none", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                   Convertir a cliente
                 </button>
+              )}
+              {clientesConvertidos[selected.id] && (
+                <div style={{ display: "grid", gap: 8, marginTop: 12, padding: 12, border: "1px solid #bbf7d0", borderRadius: 10, background: "#f0fdf4" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>Cliente creado</div>
+                  <button onClick={() => router.push(`/clientes/${clientesConvertidos[selected.id].id}`)}
+                    className="btn-secondary" style={{ fontSize: 12, width: "100%" }}>
+                    Ver cliente
+                  </button>
+                  <button onClick={() => router.push(`/proyectos/nuevo?cliente_id=${clientesConvertidos[selected.id].id}`)}
+                    className="btn-primary" style={{ fontSize: 12, width: "100%" }}>
+                    Crear proyecto para este cliente
+                  </button>
+                </div>
               )}
             </div>
 

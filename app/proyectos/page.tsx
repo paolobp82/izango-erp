@@ -48,13 +48,18 @@ export default function ProyectosPage() {
   const [filtroEstado, setFiltroEstado] = useState("")
   const [filtroEntidad, setFiltroEntidad] = useState("")
   const [filtroProductor, setFiltroProductor] = useState("")
+  const [filtroCliente, setFiltroCliente] = useState("")
   const [pagina, setPagina] = useState(1)
   const supabase = createClient()
   const router = useRouter()
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   async function load() {
+    const clienteIdParam = new URLSearchParams(window.location.search).get("cliente_id") || ""
+    setFiltroCliente(clienteIdParam)
     const { data } = await supabase
       .from("proyectos")
       .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente)")
@@ -144,8 +149,10 @@ export default function ProyectosPage() {
   const filtrados = proyectos.filter(p =>
     (!filtroEstado || p.estado === filtroEstado) &&
     (!filtroEntidad || p.entidad === filtroEntidad) &&
-    (!filtroProductor || p.productor_id === filtroProductor)
+    (!filtroProductor || p.productor_id === filtroProductor) &&
+    (!filtroCliente || p.cliente_id === filtroCliente)
   )
+  const clienteFiltrado = filtroCliente ? proyectos.find(p => p.cliente_id === filtroCliente)?.cliente?.razon_social : ""
   const totalPaginas = Math.ceil(filtrados.length / POR_PAGINA)
   const paginados = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
 
@@ -173,6 +180,15 @@ export default function ProyectosPage() {
       </div>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        {filtroCliente && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", border: "1px solid #bbf7d0", borderRadius: 8, background: "#f0fdf4", fontSize: 12, color: "#166534", fontWeight: 600 }}>
+            Cliente: {clienteFiltrado || "seleccionado"}
+            <button onClick={() => { setFiltroCliente(""); router.push("/proyectos") }}
+              style={{ background: "none", border: "none", color: "#15803d", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>
+              ×
+            </button>
+          </div>
+        )}
         <select value={filtroEstado} onChange={e => { setFiltroEstado(e.target.value); setPagina(1) }}
           style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
           <option value="">Todos los estados</option>
@@ -193,8 +209,8 @@ export default function ProyectosPage() {
             <option key={pid} value={pid}>{prod.nombre} {prod.apellido}</option>
           ))}
         </select>
-        {(filtroEstado || filtroEntidad || filtroProductor) && (
-          <button onClick={() => { setFiltroEstado(""); setFiltroEntidad(""); setFiltroProductor(""); setPagina(1) }}
+        {(filtroEstado || filtroEntidad || filtroProductor || filtroCliente) && (
+          <button onClick={() => { setFiltroEstado(""); setFiltroEntidad(""); setFiltroProductor(""); setFiltroCliente(""); setPagina(1); router.push("/proyectos") }}
             style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
             Limpiar filtros
           </button>
