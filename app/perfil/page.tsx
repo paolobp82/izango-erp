@@ -1,10 +1,20 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import type { CSSProperties } from "react"
 import { createClient } from "@/lib/supabase"
 
+type PerfilUsuario = {
+  id: string
+  nombre?: string | null
+  apellido?: string | null
+  cargo?: string | null
+  perfil?: string | null
+  email?: string | null
+}
+
 export default function PerfilPage() {
-  const supabase = createClient()
-  const [perfil, setPerfil] = useState<any>(null)
+  const supabase = useMemo(() => createClient(), [])
+  const [perfil, setPerfil] = useState<PerfilUsuario | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState("")
@@ -19,22 +29,24 @@ export default function PerfilPage() {
   const [msgPass, setMsgPass] = useState("")
   const [errorPass, setErrorPass] = useState("")
 
-  useEffect(() => { load() }, [])
-
-  async function load() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-      setPerfil({ ...p, email: user.email })
-      setNombre(p?.nombre || "")
-      setApellido(p?.apellido || "")
-      setCargo(p?.cargo || "")
-      setEmail(user.email || "")
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+        setPerfil({ ...p, email: user.email })
+        setNombre(p?.nombre || "")
+        setApellido(p?.apellido || "")
+        setCargo(p?.cargo || "")
+        setEmail(user.email || "")
+      }
+      setLoading(false)
     }
-    setLoading(false)
-  }
+    load()
+  }, [supabase])
 
   async function guardarPerfil() {
+    if (!perfil) return
     setSaving(true)
     setMsg("")
     setError("")
@@ -61,7 +73,7 @@ export default function PerfilPage() {
     setSavingPass(false)
   }
 
-  const PERFIL_LABEL: any = {
+  const PERFIL_LABEL: Record<string, string> = {
     superadmin: "Super Administrador", gerente_general: "Gerente General",
     administrador: "Administrador", controller: "Controller",
     productor: "Productor", logistica: "Logística",
@@ -69,7 +81,7 @@ export default function PerfilPage() {
     gerente_produccion: "Gerente de Producción", gerente_finanzas: "Gerente de Finanzas",
   }
 
-  const PERFIL_COLOR: any = {
+  const PERFIL_COLOR: Record<string, { bg: string; color: string }> = {
     superadmin: { bg: "#1D2040", color: "#03E373" },
     gerente_general: { bg: "#1D2040", color: "#03E373" },
     administrador: { bg: "#dbeafe", color: "#1e40af" },
@@ -82,8 +94,8 @@ export default function PerfilPage() {
     gerente_finanzas: { bg: "#dbeafe", color: "#1e40af" },
   }
 
-  const inp: any = { padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none", boxSizing: "border-box" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }
+  const inp: CSSProperties = { padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none", boxSizing: "border-box" }
+  const lbl: CSSProperties = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 

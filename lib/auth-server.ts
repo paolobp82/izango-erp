@@ -7,6 +7,8 @@ const ADMIN_ROLES = new Set(["superadmin", "gerente_general"])
 
 export type AuthProfile = {
   id: string
+  nombre?: string | null
+  apellido?: string | null
   perfil: string
   entidad?: string | null
   activo?: boolean | null
@@ -29,7 +31,7 @@ export async function getAuthenticatedProfile(): Promise<AuthResult> {
 
   const { data: profile, error: profileError } = await supabase
     .from("perfiles")
-    .select("id, perfil, entidad, activo")
+    .select("id, nombre, apellido, perfil, entidad, activo")
     .eq("id", user.id)
     .single()
 

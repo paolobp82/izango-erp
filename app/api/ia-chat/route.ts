@@ -1,12 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase"
+import { getAuthenticatedProfile, getErrorMessage } from "@/lib/auth-server"
+import { createServerSupabase } from "@/lib/supabase-server"
 
-async function cargarContextoERP(supabase: any, perfil: any) {
+type SupabaseServer = Awaited<ReturnType<typeof createServerSupabase>>
+type PerfilIA = {
+  id: string
+  nombre?: string | null
+  apellido?: string | null
+  perfil: string
+  entidad?: string | null
+}
+type MensajeIA = {
+  rol: "user" | "assistant" | string
+  contenido: string
+}
+
+async function cargarContextoERP(supabase: SupabaseServer, perfil: PerfilIA) {
   const esAdmin = ["superadmin","gerente_general","administrador","controller"].includes(perfil.perfil)
   const esComercial = ["comercial","practicante"].includes(perfil.perfil)
   const esProductor = ["productor","gerente_produccion"].includes(perfil.perfil)
   const esLogistica = perfil.perfil === "logistica"
-  const contexto: any = {}
+  const contexto: Record<string, unknown> = {}
 
   const { data: proyectos } = await supabase.from("proyectos")
     .select("codigo,nombre,estado,fecha_inicio,fecha_fin_estimada,presupuesto_referencial,entidad,cliente:clientes(razon_social)")
@@ -110,12 +124,12 @@ async function cargarContextoERP(supabase: any, perfil: any) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { mensajes, conversacion_id, perfil_id } = await request.json()
-    const supabase = createClient()
+    const auth = await getAuthenticatedProfile()
+    if (auth.error) return auth.error
 
-    const { data: perfil } = await supabase.from("perfiles").select("*").eq("id", perfil_id).single()
-    if (!perfil) return NextResponse.json({ error: "Perfil no encontrado" }, { status: 401 })
-
+    const { mensajes, conversacion_id } = await request.json() as { mensajes: MensajeIA[]; conversacion_id?: string }
+    const supabase = auth.supabase
+    const perfil = auth.profile
     const contexto = await cargarContextoERP(supabase, perfil)
 
     const systemPrompt = `Eres el asistente de IA exclusivo del ERP Izango 360, sistema de gestion empresarial de Izango 360 SAC, una agencia BTL peruana con dos entidades: Izango Peru e Izango Selva.
@@ -154,7 +168,7 @@ CONTEXTO DEL ERP EN TIEMPO REAL:
 
 ${JSON.stringify(contexto, null, 2)}
 
-Perfil del usuario actual: ${perfil.nombre} ${perfil.apellido} — ${perfil.perfil} (${perfil.entidad === "peru" ? "Izango Peru" : "Izango Selva"})
+Perfil del usuario actual: ${perfil.nombre || ""} ${perfil.apellido || ""} — ${perfil.perfil} (${perfil.entidad === "peru" ? "Izango Peru" : "Izango Selva"})
 
 Puedes ayudar con:
 - Analisis de proyectos, margenes y rentabilidad
@@ -171,7 +185,7 @@ Si no tienes informacion suficiente para responder algo, dilo claramente.
 Se conciso pero completo. Usa listas y estructura cuando ayude a la claridad.
 Responde siempre en español.`
 
-    const historial = mensajes.slice(0, -1).map((m: any) => ({
+    const historial = mensajes.slice(0, -1).map((m) => ({
       role: m.rol === "user" ? "user" : "model",
       parts: [{ text: m.contenido }]
     }))
@@ -206,8 +220,8 @@ Responde siempre en español.`
     }
 
     return NextResponse.json({ respuesta })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error IA:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 })
   }
 }
