@@ -41,7 +41,7 @@ export default function TareasPage() {
   const [savingCom, setSavingCom] = useState(false)
   const [form, setForm] = useState({ ...formVacio })
   const [filtroEstado, setFiltroEstado] = useState("todos")
-  const [filtroAsignado, setFiltroAsignado] = useState("todos")
+  const [filtroAsignado, setFiltroAsignado] = useState("mias")
   const [ordenCampo, setOrdenCampo] = useState("fecha_limite")
   const [ordenDir, setOrdenDir] = useState("asc")
 
@@ -53,6 +53,9 @@ export default function TareasPage() {
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
       setPerfil(p)
+      setFiltroAsignado("mias")
+    } else {
+      setFiltroAsignado("todos")
     }
     const { data: t } = await supabase
       .from("tareas")
@@ -187,17 +190,23 @@ export default function TareasPage() {
     return 0
   })
 
-  const contadores = {
-    pendiente: tareas.filter(t => t.estado === "pendiente").length,
-    en_progreso: tareas.filter(t => t.estado === "en_progreso").length,
-    completada: tareas.filter(t => t.estado === "completada").length,
-  }
-
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
 
   const hoy = new Date().toISOString().split("T")[0]
   const estaVencida = (t: any) => t.fecha_limite && t.fecha_limite < hoy && t.estado !== "completada" && t.estado !== "cancelada"
+  const enProximaSemana = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+  const misTareas = perfil?.id ? tareas.filter(t => t.asignado_a === perfil.id) : tareas
+  const misPendientes = misTareas.filter(t => t.estado === "pendiente").length
+  const misEnProgreso = misTareas.filter(t => t.estado === "en_progreso").length
+  const misVencidas = misTareas.filter(estaVencida).length
+  const proximasEntregas = misTareas.filter(t =>
+    t.fecha_limite &&
+    t.fecha_limite >= hoy &&
+    t.fecha_limite <= enProximaSemana &&
+    t.estado !== "completada" &&
+    t.estado !== "cancelada"
+  ).length
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -210,18 +219,21 @@ export default function TareasPage() {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Tareas</h1>
-            <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{tareas.length} tareas en total</p>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Mi trabajo</h1>
+            <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+              {filtroAsignado === "mias" ? `${misTareas.length} tareas asignadas a mí` : `${tareas.length} tareas en total`}
+            </p>
           </div>
           <button onClick={abrirNueva} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva tarea</button>
         </div>
 
-        {/* Contadores */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+        {/* Dashboard personal */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
           {[
-            { label: "Pendientes", value: contadores.pendiente, ...ESTADOS.pendiente },
-            { label: "En progreso", value: contadores.en_progreso, ...ESTADOS.en_progreso },
-            { label: "Completadas", value: contadores.completada, ...ESTADOS.completada },
+            { label: "Mis tareas pendientes", value: misPendientes, ...ESTADOS.pendiente },
+            { label: "Mis tareas en progreso", value: misEnProgreso, ...ESTADOS.en_progreso },
+            { label: "Mis tareas vencidas", value: misVencidas, bg: "#fee2e2", color: "#991b1b" },
+            { label: "Próximas entregas", value: proximasEntregas, bg: "#f0fdf4", color: "#15803d" },
           ].map(c => (
             <div key={c.label} className="card" style={{ background: c.bg, border: "none", padding: "12px 16px" }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: c.color, textTransform: "uppercase" }}>{c.label}</div>
@@ -237,8 +249,8 @@ export default function TareasPage() {
             {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
           <select style={{ ...inp, width: "auto" }} value={filtroAsignado} onChange={e => setFiltroAsignado(e.target.value)}>
+            <option value="mias">Mi trabajo</option>
             <option value="todos">Todas las tareas</option>
-            <option value="mias">Asignadas a mí</option>
             <option value="creadas">Creadas por mí</option>
           </select>
           <select style={{ ...inp, width: "auto" }} value={ordenCampo} onChange={e => setOrdenCampo(e.target.value)}>
