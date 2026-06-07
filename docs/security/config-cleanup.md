@@ -23,21 +23,15 @@ Se eliminaron:
 
 ## Motivo
 
-`next.config.ts` contiene la configuracion PWA y el flag TypeScript de build activo. Mantener tambien `next.config.js` creaba ambiguedad y duplicaba `typescript.ignoreBuildErrors`.
+`next.config.ts` contiene la configuracion PWA consolidada. Mantener tambien `next.config.js` creaba ambiguedad y duplicaba configuracion TypeScript.
 
 `postcss.config.js` usa `tailwindcss` y `autoprefixer`, que corresponde al setup actual con `tailwindcss` 3.x. `postcss.config.mjs` apuntaba a `@tailwindcss/postcss`, que corresponde a Tailwind 4.x y duplicaba la configuracion.
 
 ## Flags peligrosos revisados
 
-Actualmente sigue activo:
-
-```ts
-typescript: { ignoreBuildErrors: true },
-```
-
 `eslint.ignoreDuringBuilds` fue retirado porque Next.js 16 ya no soporta la configuracion `eslint` dentro de `next.config`. ESLint debe ejecutarse con `npm run lint`, `npx eslint ...` o CI.
 
-`typescript.ignoreBuildErrors` no se retiro en esta tarea porque el repo tiene deuda global de tipos y el objetivo explicito fue no arreglar todo el lint global todavia.
+`typescript.ignoreBuildErrors` fue retirado posteriormente en la tarea 6, despues de corregir los errores reales reportados por `tsc --noEmit`.
 
 ## Plan para reactivar validacion gradualmente
 
@@ -51,9 +45,9 @@ typescript: { ignoreBuildErrors: true },
 4. Corregir hooks/dependencias y `any` en modulos de alto trafico.
 5. Cambiar CI para ejecutar lint focalizado obligatorio.
 6. Cuando `npx eslint app/api lib middleware.ts` pase limpio, hacer obligatorio ese lint focalizado en CI.
-7. Cuando `tsc --noEmit` pase en `app/api`, `lib` y componentes compartidos, quitar `typescript.ignoreBuildErrors`.
+7. Mantener `npx tsc --noEmit --pretty false` como check obligatorio para evitar regresiones TypeScript.
 8. Finalmente habilitar `npm run lint` global como requisito de merge.
 
 ## Riesgo pendiente
 
-Mientras `typescript.ignoreBuildErrors` siga activo, `next build` puede pasar aunque existan errores de TypeScript. ESLint ya no esta integrado al build por config de Next 16, asi que debe quedar visible como check separado de CI.
+ESLint ya no esta integrado al build por config de Next 16, asi que debe quedar visible como check separado de CI.

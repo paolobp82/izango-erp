@@ -99,7 +99,8 @@ export default function PerfilPage() {
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
-  const pc = PERFIL_COLOR[perfil?.perfil] || { bg: "#f3f4f6", color: "#374151" }
+  const perfilKey = perfil?.perfil || ""
+  const pc = PERFIL_COLOR[perfilKey] || { bg: "#f3f4f6", color: "#374151" }
 
   return (
     <div style={{ maxWidth: 600, margin: "0 auto" }}>
@@ -119,7 +120,7 @@ export default function PerfilPage() {
           <div style={{ fontSize: 12, color: "#9ca3af" }}>{email}</div>
           <div style={{ marginTop: 6 }}>
             <span style={{ background: pc.bg, color: pc.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
-              {PERFIL_LABEL[perfil?.perfil] || perfil?.perfil}
+              {PERFIL_LABEL[perfilKey] || perfilKey}
             </span>
           </div>
         </div>

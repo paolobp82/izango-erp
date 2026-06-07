@@ -49,6 +49,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </div>
   )
 
+  if (!perfil) return null
+
   return (
     <div style={{display:"flex",minHeight:"100vh"}}>
       <Sidebar perfil={perfil} />

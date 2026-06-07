@@ -65,7 +65,7 @@ export default function IAPage() {
       }
     }
 
-    const nuevoMensaje = { rol: "user", contenido: input }
+    const nuevoMensaje: MensajeIA = { rol: "user", contenido: input }
     const nuevosMensajes = [...mensajes, nuevoMensaje]
     setMensajes(nuevosMensajes)
     setInput("")

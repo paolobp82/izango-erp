@@ -116,7 +116,7 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
         </div>
         <div style={{minWidth:0}}>
           <div style={{fontSize:13,fontWeight:700,color:"#111827"}}>Izango 360 SAC</div>
-          <div style={{fontSize:11,color:"#9ca3af"}}>{ENTIDAD[perfil.entidad]}</div>
+          <div style={{fontSize:11,color:"#9ca3af"}}>{ENTIDAD[perfil.entidad || ""] || ""}</div>
         </div>
       </a>
       <nav style={{flex:1,overflowY:"auto",padding:"16px 12px"}}>
