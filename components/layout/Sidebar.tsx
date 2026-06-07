@@ -31,56 +31,57 @@ const ACCESO: Record<string, string[]> = {
 }
 
 const ALL_NAV = [
-  { section: "Principal", items: [
+  { section: "Inicio", items: [
     { label: "Dashboard", href: "/dashboard" },
-    { label: "Proyectos", href: "/proyectos" },
+    { label: "Mi trabajo", href: "/tareas" },
     { label: "Calendario", href: "/calendario" },
-    { label: "Gestor de proyectos", href: "/gestor" },
-    { label: "Tareas", href: "/tareas" },
-    { label: "Clientes", href: "/clientes" },
-    { label: "CRM", href: "/crm" },
+    { label: "Alertas", href: "/alertas" },
   ]},
   { section: "Comercial", items: [
-    { label: "Proformas", href: "/proformas" },
-    { label: "Proveedores", href: "/proveedores" },
+    { label: "CRM", href: "/crm" },
+    { label: "Clientes", href: "/clientes" },
+    { label: "Cotizaciones y Proformas", href: "/proformas" },
     { label: "Biblioteca", href: "/biblioteca" },
   ]},
-  { section: "Finanzas", items: [
-    { label: "Req. de pago", href: "/rq" },
-    { label: "Facturacion", href: "/facturacion" },
-    { label: "Liquidaciones", href: "/liquidaciones" },
-    { label: "Conciliacion", href: "/conciliacion" },
-    { label: "Flujo de caja", href: "/flujo-caja" },
-    { label: "Centro de costos", href: "/centro-costos" },
-    { label: "Caja chica", href: "/caja-chica" },
-    { label: "Gastos oficina", href: "/gastos-oficina" },
-    { label: "Prestamos", href: "/prestamos" },
+  { section: "Operación", items: [
+    { label: "Proyectos", href: "/proyectos" },
+    { label: "Gestor", href: "/gestor" },
+    { label: "Tareas", href: "/tareas" },
   ]},
-  { section: "Operaciones", items: [
+  { section: "Compras y Logística", items: [
+    { label: "Proveedores", href: "/proveedores" },
+    { label: "Requerimientos de Pago", href: "/rq" },
     { label: "Inventario", href: "/inventario" },
-    { label: "Ordenes", href: "/inventario/ordenes" },
-    { label: "Ubicaciones", href: "/inventario/ubicaciones" },
-    { label: "Envios materiales", href: "/envios-materiales" },
+    { label: "Órdenes", href: "/inventario/ordenes" },
+    { label: "Envíos de Materiales", href: "/envios-materiales" },
   ]},
-  { section: "IA", items: [
-    { label: "Asistente IA", href: "/ia" },
+  { section: "Finanzas", items: [
+    { label: "Facturación", href: "/facturacion" },
+    { label: "Liquidaciones", href: "/liquidaciones" },
+    { label: "Caja Chica", href: "/caja-chica" },
+    { label: "Flujo de Caja", href: "/flujo-caja" },
+    { label: "Conciliación", href: "/conciliacion" },
+    { label: "Centros de Costo", href: "/centro-costos" },
   ]},
-  { section: "RRHH", items: [
+  { section: "Personas", items: [
     { label: "Trabajadores", href: "/rrhh/trabajadores" },
     { label: "Planilla", href: "/rrhh/planilla" },
-    { label: "Horas extras", href: "/rrhh/horas-extras" },
+    { label: "Solicitudes", href: "/rrhh/permisos#solicitudes" },
+    { label: "Horas Extras", href: "/rrhh/horas-extras" },
     { label: "Vacaciones", href: "/rrhh/vacaciones" },
     { label: "Permisos", href: "/rrhh/permisos" },
-    { label: "Faltas medicas", href: "/rrhh/faltas-medicas" },
+    { label: "Faltas Médicas", href: "/rrhh/faltas-medicas" },
   ]},
-  { section: "Administracion", items: [
-    { label: "Reporteria", href: "/reporteria" },
+  { section: "Analítica", items: [
+    { label: "Analítica y Reportes", href: "/reporteria" },
     { label: "Trazabilidad", href: "/trazabilidad" },
-    { label: "Alertas", href: "/alertas" },
+  ]},
+  { section: "Administración", items: [
     { label: "Usuarios", href: "/admin/usuarios" },
   ]},
-  { section: "Mi cuenta", items: [
-    { label: "Mi perfil", href: "/perfil" },
+  { section: "Cuenta", items: [
+    { label: "Mi Perfil", href: "/perfil" },
+    { label: "Asistente IA", href: "/ia" },
   ]},
 ]
 
@@ -124,7 +125,7 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
           <div key={s.section} style={{marginBottom:16}}>
             <div style={{fontSize:10,fontWeight:500,color:"#9ca3af",textTransform:"uppercase",letterSpacing:"0.07em",padding:"0 8px",marginBottom:4}}>{s.section}</div>
             {s.items.map(item => (
-              <a key={item.href} href={item.href}
+              <a key={`${s.section}-${item.label}-${item.href}`} href={item.href}
                 className={`sidebar-item${pathname === item.href || (item.href !== "/inventario" && pathname.startsWith(item.href)) ? " active" : ""}`}>
                 {item.label}
               </a>
