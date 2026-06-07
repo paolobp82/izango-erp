@@ -34,6 +34,7 @@ export default function FacturacionPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
+    const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
     const { data: facts } = await supabase
       .from("facturas")
       .select("*, proyecto:proyectos(nombre, codigo, cliente:clientes(razon_social))")
@@ -41,6 +42,10 @@ export default function FacturacionPage() {
     setFacturas(facts || [])
     const { data: provs } = await supabase.from("proyectos").select("id, nombre, codigo").order("created_at", { ascending: false })
     setProyectos(provs || [])
+    if (proyectoIdParam) {
+      setForm(prev => ({ ...prev, proyecto_id: proyectoIdParam }))
+      setShowForm(true)
+    }
     setLoading(false)
   }
 

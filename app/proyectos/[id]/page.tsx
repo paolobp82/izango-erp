@@ -547,6 +547,35 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
         </div>
       </div>
 
+      <div className="card" style={{ marginBottom: 24, padding: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>Acciones del proyecto</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => {
+            const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
+            const val = sel?.value
+            nuevaVersion(val && val !== "" ? val : undefined)
+          }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
+            {creando ? "Creando..." : "Crear proforma / cotización"}
+          </button>
+          <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
+            Crear RQ
+          </button>
+          <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
+            Crear tarea
+          </button>
+          <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
+            Emitir factura
+          </button>
+          <button onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
+            Ver liquidación
+          </button>
+          <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
+            style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+            Ver documentos
+          </a>
+        </div>
+      </div>
+
       <div className="card" style={{ marginBottom: 24 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, alignItems: "center" }}>
           <div>

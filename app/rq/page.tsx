@@ -50,6 +50,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   useEffect(() => { load() }, [])
 
   async function load() {
+    const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
@@ -64,6 +65,15 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     if (provIds.length > 0) {
       const { data: provs } = await supabase.from("proveedores").select("id, nombre").in("id", provIds)
       setProveedores(provs || [])
+    }
+    if (proyectoIdParam) {
+      const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre")
+      setProveedores(provs || [])
+      setProveedoresTodos(provs || [])
+      const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre").is("deleted_at", null).order("codigo")
+      setProyectos(projs || [])
+      setFormRQ(prev => ({ ...prev, proyecto_id: proyectoIdParam }))
+      setShowNuevoRQ(true)
     }
     setLoading(false)
   }
