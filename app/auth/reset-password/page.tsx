@@ -1,5 +1,6 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useState } from "react"
+import type { CSSProperties } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 
@@ -31,7 +32,7 @@ export default function ResetPasswordPage() {
     setLoading(false)
   }
 
-  const inp: any = { width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
+  const inp: CSSProperties = { width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #1D2040 0%, #0a0d1a 100%)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>

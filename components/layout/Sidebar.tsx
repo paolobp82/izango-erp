@@ -84,12 +84,19 @@ const ALL_NAV = [
   ]},
 ]
 
-export default function Sidebar({ perfil }: { perfil: any }) {
+type SidebarProfile = {
+  nombre?: string | null
+  apellido?: string | null
+  perfil: string
+  entidad?: string | null
+}
+
+export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
-  async function logout() { await supabase.auth.signOut(); router.push("/auth/login") }
-  const initials = `${perfil.nombre[0]}${perfil.apellido[0]}`.toUpperCase()
+  async function logout() { await supabase.auth.signOut(); router.push("/login") }
+  const initials = `${perfil.nombre?.[0] || ""}${perfil.apellido?.[0] || ""}`.toUpperCase()
 
   const acceso = ACCESO[perfil.perfil] || []
   const esAdmin = acceso.includes("*")
