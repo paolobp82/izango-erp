@@ -541,23 +541,6 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#fff", color: "#0F6E56", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
             📥 Reporte PDF
           </a>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {cotizaciones.length > 0 && (
-              <select id="copiar-version" style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
-                <option value="">Nueva vacia</option>
-                {cotizaciones.map((cot: any) => (
-                  <option key={cot.id} value={cot.id}>Copiar V{cot.version}</option>
-                ))}
-              </select>
-            )}
-            <button onClick={() => {
-              const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
-              const val = sel?.value
-              nuevaVersion(val && val !== "" ? val : undefined)
-            }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
-              {creando ? "Creando..." : "+ Nueva proforma"}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -744,6 +727,43 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       </section>
 
       <section id="tab-proformas" style={{ scrollMarginTop: 120 }}>
+      <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Proformas</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Proformas / cotizaciones</h2>
+            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
+              Administra versiones, estados, previews y recuperacion de proformas del proyecto.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ background: "#f3f4f6", color: "#374151", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+              {cotizaciones.length} version{cotizaciones.length !== 1 ? "es" : ""}
+            </span>
+            {cotizacionesEliminadas.length > 0 && (
+              <span style={{ background: "#fee2e2", color: "#991b1b", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+                {cotizacionesEliminadas.length} recuperable{cotizacionesEliminadas.length !== 1 ? "s" : ""}
+              </span>
+            )}
+            {cotizaciones.length > 0 && (
+              <select id="copiar-version" style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
+                <option value="">Nueva vacía</option>
+                {cotizaciones.map((cot: any) => (
+                  <option key={cot.id} value={cot.id}>Copiar V{cot.version}</option>
+                ))}
+              </select>
+            )}
+            <button onClick={() => {
+              const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
+              const val = sel?.value
+              nuevaVersion(val && val !== "" ? val : undefined)
+            }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
+              {creando ? "Creando..." : "+ Crear proforma"}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {cotizacionesEliminadas.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <button onClick={() => setShowVersionesEliminadas(!showVersionesEliminadas)}
@@ -775,7 +795,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Proformas</h2>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Versiones</h2>
           <span style={{ fontSize: 12, color: "#9ca3af" }}>{cotizaciones.length} version{cotizaciones.length !== 1 ? "es" : ""}</span>
         </div>
         {cotizaciones.length === 0 ? (
