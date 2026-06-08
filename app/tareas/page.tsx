@@ -42,6 +42,7 @@ export default function TareasPage() {
   const [form, setForm] = useState({ ...formVacio })
   const [filtroEstado, setFiltroEstado] = useState("todos")
   const [filtroAsignado, setFiltroAsignado] = useState("mias")
+  const [responsableId, setResponsableId] = useState("")
   const [ordenCampo, setOrdenCampo] = useState("fecha_limite")
   const [ordenDir, setOrdenDir] = useState("asc")
 
@@ -174,6 +175,7 @@ export default function TareasPage() {
   const tareasFiltradas = tareas.filter(t => {
     if (filtroEstado !== "todos" && t.estado !== filtroEstado) return false
     if (filtroAsignado === "mias" && t.asignado_a !== perfil?.id) return false
+    if (filtroAsignado === "responsable" && t.asignado_a !== responsableId) return false
     if (filtroAsignado === "creadas" && t.creado_por !== perfil?.id) return false
     return true
   }).sort((a, b) => {
@@ -196,7 +198,17 @@ export default function TareasPage() {
   const hoy = new Date().toISOString().split("T")[0]
   const estaVencida = (t: any) => t.fecha_limite && t.fecha_limite < hoy && t.estado !== "completada" && t.estado !== "cancelada"
   const enProximaSemana = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+  const rolesGerenciales = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager"]
+  const puedeVerEquipo = rolesGerenciales.includes(perfil?.perfil)
   const misTareas = perfil?.id ? tareas.filter(t => t.asignado_a === perfil.id) : tareas
+  const responsableSeleccionado = usuarios.find(u => u.id === responsableId)
+  const nombreResponsable = responsableSeleccionado ? `${responsableSeleccionado.nombre} ${responsableSeleccionado.apellido}` : "responsable"
+  const subtituloTrabajo =
+    filtroAsignado === "mias"
+      ? `${misTareas.length} tareas asignadas a mí`
+      : filtroAsignado === "responsable"
+        ? `${tareasFiltradas.length} tareas de ${nombreResponsable}`
+        : `${tareasFiltradas.length} tareas del equipo`
   const misPendientes = misTareas.filter(t => t.estado === "pendiente").length
   const misEnProgreso = misTareas.filter(t => t.estado === "en_progreso").length
   const misVencidas = misTareas.filter(estaVencida).length
@@ -221,7 +233,7 @@ export default function TareasPage() {
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Mi trabajo</h1>
             <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-              {filtroAsignado === "mias" ? `${misTareas.length} tareas asignadas a mí` : `${tareas.length} tareas en total`}
+              {subtituloTrabajo}
             </p>
           </div>
           <button onClick={abrirNueva} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva tarea</button>
@@ -248,11 +260,20 @@ export default function TareasPage() {
             <option value="todos">Todos los estados</option>
             {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
-          <select style={{ ...inp, width: "auto" }} value={filtroAsignado} onChange={e => setFiltroAsignado(e.target.value)}>
+          <select style={{ ...inp, width: "auto" }} value={filtroAsignado} onChange={e => {
+            setFiltroAsignado(e.target.value)
+            if (e.target.value !== "responsable") setResponsableId("")
+          }}>
             <option value="mias">Mi trabajo</option>
-            <option value="todos">Todas las tareas</option>
-            <option value="creadas">Creadas por mí</option>
+            {puedeVerEquipo && <option value="todos">Todas las tareas</option>}
+            {puedeVerEquipo && <option value="responsable">Por responsable</option>}
           </select>
+          {puedeVerEquipo && filtroAsignado === "responsable" && (
+            <select style={{ ...inp, width: "auto" }} value={responsableId} onChange={e => setResponsableId(e.target.value)}>
+              <option value="">Seleccionar responsable</option>
+              {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
+            </select>
+          )}
           <select style={{ ...inp, width: "auto" }} value={ordenCampo} onChange={e => setOrdenCampo(e.target.value)}>
             <option value="fecha_limite">Ordenar: Fecha límite</option>
             <option value="titulo">Ordenar: Título</option>
