@@ -8,6 +8,8 @@ create table if not exists public.audiovisual_requerimientos (
   fecha_entrega_solicitada date,
   fecha_devolucion_audiovisual date,
   piezas text[] not null default '{}',
+  pieza_otros_descripcion text,
+  brief text,
   prioridad text not null default 'media' check (prioridad in ('alta', 'media', 'baja')),
   avance integer not null default 10 check (avance between 10 and 100 and avance % 10 = 0),
   referencia_url text,

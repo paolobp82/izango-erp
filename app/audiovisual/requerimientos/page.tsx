@@ -32,6 +32,8 @@ const formVacio = {
   fecha_entrega_solicitada: "",
   fecha_devolucion_audiovisual: "",
   piezas: [] as string[],
+  pieza_otros_descripcion: "",
+  brief: "",
   prioridad: "media",
   avance: "10",
   referencia_url: "",
@@ -147,6 +149,8 @@ export default function AudiovisualRequerimientosPage() {
       fecha_entrega_solicitada: req.fecha_entrega_solicitada || "",
       fecha_devolucion_audiovisual: req.fecha_devolucion_audiovisual || "",
       piezas: req.piezas || [],
+      pieza_otros_descripcion: req.pieza_otros_descripcion || "",
+      brief: req.brief || "",
       prioridad: req.prioridad || "media",
       avance: String(req.avance || 10),
       referencia_url: req.referencia_url || "",
@@ -168,6 +172,7 @@ export default function AudiovisualRequerimientosPage() {
     setForm(prev => ({
       ...prev,
       piezas: prev.piezas.includes(pieza) ? prev.piezas.filter(p => p !== pieza) : [...prev.piezas, pieza],
+      pieza_otros_descripcion: pieza === "Otros" && prev.piezas.includes(pieza) ? "" : prev.pieza_otros_descripcion,
     }))
   }
 
@@ -209,6 +214,7 @@ export default function AudiovisualRequerimientosPage() {
     if (!form.proyecto_id) { alert("Selecciona un proyecto"); return }
     if (!form.fecha_entrega_solicitada) { alert("La fecha solicitada por produccion es obligatoria"); return }
     if (form.piezas.length === 0) { alert("Selecciona al menos una pieza necesaria"); return }
+    if (form.piezas.includes("Otros") && !form.pieza_otros_descripcion.trim()) { alert("Describe la pieza requerida en Otros"); return }
     setSaving(true)
     const payload = {
       proyecto_id: form.proyecto_id,
@@ -219,6 +225,8 @@ export default function AudiovisualRequerimientosPage() {
       fecha_entrega_solicitada: form.fecha_entrega_solicitada || null,
       fecha_devolucion_audiovisual: form.fecha_devolucion_audiovisual || null,
       piezas: form.piezas,
+      pieza_otros_descripcion: form.piezas.includes("Otros") ? form.pieza_otros_descripcion.trim() : null,
+      brief: form.brief || null,
       prioridad: form.prioridad,
       avance: Number(form.avance) || 10,
       referencia_url: form.referencia_url || null,
@@ -266,6 +274,7 @@ export default function AudiovisualRequerimientosPage() {
 
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
+  const puedeDefinirDevolucion = editando && ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager", "audiovisual"].includes(perfil?.perfil)
   const hoy = new Date().toISOString().split("T")[0]
   const vencidos = requerimientos.filter(r => r.fecha_entrega_solicitada && r.fecha_entrega_solicitada < hoy && !["completado", "cancelado"].includes(r.estado)).length
   const enCurso = requerimientos.filter(r => r.estado === "en_progreso" || r.estado === "en_revision").length
@@ -366,6 +375,7 @@ export default function AudiovisualRequerimientosPage() {
               { label: "Entrega solicitada", value: selected.fecha_entrega_solicitada || "-" },
               { label: "Devolucion audiovisual", value: selected.fecha_devolucion_audiovisual || "-" },
               { label: "Piezas", value: (selected.piezas || []).join(", ") || "-" },
+              { label: "Otros", value: selected.pieza_otros_descripcion || "-" },
               { label: "Avance", value: `${selected.avance || 10}%` },
             ].map(r => (
               <div key={r.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, gap: 10 }}>
@@ -381,6 +391,13 @@ export default function AudiovisualRequerimientosPage() {
               {selected.referencia_url && <a href={selected.referencia_url} target="_blank" style={{ display: "block", fontSize: 12, color: "#0F6E56", marginBottom: 6 }}>Referencia / documento</a>}
               {selected.documento_url && <a href={selected.documento_url} target="_blank" style={{ display: "block", fontSize: 12, color: "#0F6E56", marginBottom: 6 }}>Archivo adjunto</a>}
               {selected.artes_url && <a href={selected.artes_url} target="_blank" style={{ display: "block", fontSize: 12, color: "#0F6E56" }}>Artes relacionados</a>}
+            </div>
+          )}
+
+          {selected.brief && (
+            <div style={{ marginBottom: 16, padding: 12, background: "#f9fafb", borderRadius: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6 }}>INDICACIONES / BRIEF</div>
+              <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{selected.brief}</div>
             </div>
           )}
 
@@ -459,10 +476,12 @@ export default function AudiovisualRequerimientosPage() {
                   <label style={lbl}>FECHA DE ENTREGA SOLICITADA *</label>
                   <input style={inp} type="date" value={form.fecha_entrega_solicitada} onChange={e => setForm({ ...form, fecha_entrega_solicitada: e.target.value })} />
                 </div>
-                <div>
-                  <label style={lbl}>FECHA DE DEVOLUCION AUDIOVISUAL</label>
-                  <input style={inp} type="date" value={form.fecha_devolucion_audiovisual} onChange={e => setForm({ ...form, fecha_devolucion_audiovisual: e.target.value })} />
-                </div>
+                {puedeDefinirDevolucion && (
+                  <div>
+                    <label style={lbl}>FECHA DE DEVOLUCION AUDIOVISUAL</label>
+                    <input style={inp} type="date" value={form.fecha_devolucion_audiovisual} onChange={e => setForm({ ...form, fecha_devolucion_audiovisual: e.target.value })} />
+                  </div>
+                )}
               </div>
 
               <div>
@@ -475,6 +494,18 @@ export default function AudiovisualRequerimientosPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {form.piezas.includes("Otros") && (
+                <div>
+                  <label style={lbl}>DESCRIBE LA PIEZA REQUERIDA *</label>
+                  <input style={inp} value={form.pieza_otros_descripcion} placeholder="Ej. animacion especial, formato no estandar, pieza experimental..." onChange={e => setForm({ ...form, pieza_otros_descripcion: e.target.value })} />
+                </div>
+              )}
+
+              <div>
+                <label style={lbl}>INDICACIONES / BRIEF DEL REQUERIMIENTO</label>
+                <textarea style={{ ...inp, minHeight: 110, resize: "vertical" }} value={form.brief} placeholder="Detalle dinamica, estilo, referencias, formatos, restricciones, duracion, entregables o cualquier indicacion relevante." onChange={e => setForm({ ...form, brief: e.target.value })} />
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
