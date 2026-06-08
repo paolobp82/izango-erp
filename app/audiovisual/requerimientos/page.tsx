@@ -211,19 +211,19 @@ export default function AudiovisualRequerimientosPage() {
   }
 
   async function guardar() {
+    const esEdicion = Boolean(editando?.id)
     if (!form.proyecto_id) { alert("Selecciona un proyecto"); return }
     if (!form.fecha_entrega_solicitada) { alert("La fecha solicitada por produccion es obligatoria"); return }
     if (form.piezas.length === 0) { alert("Selecciona al menos una pieza necesaria"); return }
     if (form.piezas.includes("Otros") && !form.pieza_otros_descripcion.trim()) { alert("Describe la pieza requerida en Otros"); return }
     setSaving(true)
-    const payload = {
+    const payload: any = {
       proyecto_id: form.proyecto_id,
       cotizacion_id: form.cotizacion_id || null,
       ubicacion: form.ubicacion || null,
       productor_id: form.productor_id || null,
       responsable_audiovisual_id: form.responsable_audiovisual_id || null,
       fecha_entrega_solicitada: form.fecha_entrega_solicitada || null,
-      fecha_devolucion_audiovisual: form.fecha_devolucion_audiovisual || null,
       piezas: form.piezas,
       pieza_otros_descripcion: form.piezas.includes("Otros") ? form.pieza_otros_descripcion.trim() : null,
       brief: form.brief || null,
@@ -236,8 +236,11 @@ export default function AudiovisualRequerimientosPage() {
       creado_por: perfil?.id || null,
       updated_at: new Date().toISOString(),
     }
+    if (esEdicion && puedeDefinirDevolucion) {
+      payload.fecha_devolucion_audiovisual = form.fecha_devolucion_audiovisual || null
+    }
 
-    if (editando) {
+    if (esEdicion) {
       const { error } = await supabase.from("audiovisual_requerimientos").update(payload).eq("id", editando.id)
       if (error) { alert("Error: " + error.message); setSaving(false); return }
       await registrarAccion({ accion: "editar", modulo: "audiovisual", entidad_tipo: "requerimiento_audiovisual", entidad_id: editando.id, descripcion: "Requerimiento audiovisual editado" })
@@ -274,7 +277,8 @@ export default function AudiovisualRequerimientosPage() {
 
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
-  const puedeDefinirDevolucion = editando && ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager", "audiovisual"].includes(perfil?.perfil)
+  const esEdicionFormulario = Boolean(editando?.id)
+  const puedeDefinirDevolucion = esEdicionFormulario && ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager", "audiovisual"].includes(perfil?.perfil)
   const hoy = new Date().toISOString().split("T")[0]
   const vencidos = requerimientos.filter(r => r.fecha_entrega_solicitada && r.fecha_entrega_solicitada < hoy && !["completado", "cancelado"].includes(r.estado)).length
   const enCurso = requerimientos.filter(r => r.estado === "en_progreso" || r.estado === "en_revision").length
@@ -427,7 +431,7 @@ export default function AudiovisualRequerimientosPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 760, maxHeight: "92vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>{editando ? "Editar requerimiento audiovisual" : "Nuevo requerimiento audiovisual"}</h2>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>{esEdicionFormulario ? "Editar requerimiento audiovisual" : "Nuevo requerimiento audiovisual"}</h2>
               <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>x</button>
             </div>
 
@@ -552,7 +556,7 @@ export default function AudiovisualRequerimientosPage() {
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22, paddingTop: 16, borderTop: "1px solid #f3f4f6" }}>
               <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving || uploading} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : editando ? "Guardar cambios" : "Crear y alertar audiovisual"}</button>
+              <button onClick={guardar} disabled={saving || uploading} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : esEdicionFormulario ? "Guardar cambios" : "Crear y alertar audiovisual"}</button>
             </div>
           </div>
         </div>
