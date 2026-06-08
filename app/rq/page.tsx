@@ -58,7 +58,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     }
     const { data } = await supabase
       .from("requerimientos_pago")
-      .select("*, proyecto:proyectos(nombre, codigo, productor:perfiles!productor_id(nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
+      .select("*, proyecto:proyectos(id, nombre, codigo, productor:perfiles!productor_id(nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
       .order("created_at", { ascending: false })
     setRqs(data || [])
     const provIds = [...new Set((data || []).map((r: any) => r.proveedor_id).filter(Boolean))]
@@ -251,8 +251,17 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                     }}>
                     <td style={{ padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#0F6E56" }}>{rq.numero_rq}</td>
                     <td style={{ padding: "12px" }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{rq.proyecto?.codigo}</div>
-                      <div style={{ fontSize: 11, color: "#9ca3af" }}>{rq.proyecto?.nombre}</div>
+                      {rq.proyecto_id ? (
+                        <a href={`/proyectos/${rq.proyecto_id}`} onClick={e => e.stopPropagation()} style={{ textDecoration: "none", display: "inline-block" }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#0F6E56" }}>{rq.proyecto?.codigo}</div>
+                          <div style={{ fontSize: 11, color: "#6b7280" }}>{rq.proyecto?.nombre}</div>
+                        </a>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>—</div>
+                          <div style={{ fontSize: 11, color: "#9ca3af" }}>Sin proyecto</div>
+                        </>
+                      )}
                     </td>
                     <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{rq.proveedor_nombre || rq.proveedor?.nombre || "—"}</td>
                     <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>
@@ -315,7 +324,13 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
             <div style={{ display: "grid", gap: 12 }}>
               <div>
                 <div style={lbl}>Proyecto</div>
-                <div style={{ fontSize: 13, color: "#374151" }}>{selected.proyecto?.codigo} — {selected.proyecto?.nombre}</div>
+                {selected.proyecto_id ? (
+                  <a href={`/proyectos/${selected.proyecto_id}`} style={{ fontSize: 13, color: "#0F6E56", fontWeight: 600, textDecoration: "none" }}>
+                    {selected.proyecto?.codigo} — {selected.proyecto?.nombre}
+                  </a>
+                ) : (
+                  <div style={{ fontSize: 13, color: "#374151" }}>Sin proyecto</div>
+                )}
               </div>
               <div>
                 <div style={lbl}>Proveedor</div>
