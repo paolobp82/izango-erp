@@ -475,17 +475,9 @@ export default function AudiovisualRequerimientosPage() {
                 </select>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>FECHA DE ENTREGA SOLICITADA *</label>
-                  <input style={inp} type="date" value={form.fecha_entrega_solicitada} onChange={e => setForm({ ...form, fecha_entrega_solicitada: e.target.value })} />
-                </div>
-                {puedeDefinirDevolucion && (
-                  <div>
-                    <label style={lbl}>FECHA DE DEVOLUCION AUDIOVISUAL</label>
-                    <input style={inp} type="date" value={form.fecha_devolucion_audiovisual} onChange={e => setForm({ ...form, fecha_devolucion_audiovisual: e.target.value })} />
-                  </div>
-                )}
+              <div>
+                <label style={lbl}>FECHA DE ENTREGA SOLICITADA *</label>
+                <input style={inp} type="date" value={form.fecha_entrega_solicitada} onChange={e => setForm({ ...form, fecha_entrega_solicitada: e.target.value })} />
               </div>
 
               <div>
@@ -511,6 +503,16 @@ export default function AudiovisualRequerimientosPage() {
                 <label style={lbl}>INDICACIONES / BRIEF DEL REQUERIMIENTO</label>
                 <textarea style={{ ...inp, minHeight: 110, resize: "vertical" }} value={form.brief} placeholder="Detalle dinamica, estilo, referencias, formatos, restricciones, duracion, entregables o cualquier indicacion relevante." onChange={e => setForm({ ...form, brief: e.target.value })} />
               </div>
+
+              {puedeDefinirDevolucion && (
+                <div style={{ padding: 12, border: "1px solid #bfdbfe", borderRadius: 8, background: "#eff6ff" }}>
+                  <label style={{ ...lbl, color: "#1e40af" }}>FECHA DE DEVOLUCION AUDIOVISUAL</label>
+                  <input style={inp} type="date" value={form.fecha_devolucion_audiovisual} onChange={e => setForm({ ...form, fecha_devolucion_audiovisual: e.target.value })} />
+                  <div style={{ fontSize: 11, color: "#1e40af", marginTop: 6 }}>
+                    Este campo solo aparece al editar un requerimiento asumido por audiovisual o roles autorizados.
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div>
