@@ -62,7 +62,7 @@ export default function ProyectoDetallePage() {
     }
     const { data: proy } = await supabase
       .from("proyectos")
-      .select("*, cliente:clientes(razon_social, ruc), productor:perfiles!productor_id(nombre, apellido)")
+      .select("*, cliente:clientes(razon_social, ruc, direccion, nombre_contacto, email_contacto, telefono_contacto), productor:perfiles!productor_id(nombre, apellido)")
       .eq("id", id)
       .single()
     setProyecto(proy)
@@ -347,6 +347,12 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const entidadLabel = ENTIDADES.find(e => e.value === proyecto?.entidad)?.label || proyecto?.entidad || "Sin entidad"
   const productorNombre = proyecto?.productor ? `${proyecto.productor.nombre} ${proyecto.productor.apellido}` : "Sin productor"
   const montoAprobado = cotAprobada?.total_cliente || 0
+  const clienteProyecto = proyecto?.cliente || {}
+  const clienteId = proyecto?.cliente_id
+  const clienteNombre = clienteProyecto.razon_social || "Sin cliente"
+  const clienteContacto = clienteProyecto.nombre_contacto || "Sin contacto principal"
+  const clienteEmail = clienteProyecto.email_contacto || "Sin correo"
+  const clienteTelefono = clienteProyecto.telefono_contacto || "Sin telefono"
   const resumenAlertas = [
     !tieneCotizacion ? { label: "Sin proforma", detalle: "Crea una proforma para continuar el flujo comercial." } : null,
     tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
@@ -755,13 +761,67 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       </section>
 
       <section id="tab-cliente" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Cliente</h2>
-          {proyecto?.cliente?.razon_social && <span style={{ fontSize: 12, color: "#6b7280" }}>{proyecto.cliente.razon_social}</span>}
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Cliente</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>{clienteNombre}</h2>
+            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
+              Contexto comercial y datos principales del cliente asociados a este proyecto.
+            </p>
+          </div>
+          {clienteId && (
+            <span style={{ background: "#f3f4f6", color: "#374151", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+              1 proyecto en esta vista
+            </span>
+          )}
         </div>
         <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: espacio reservado para ficha resumida del cliente, contactos, datos administrativos y proyectos relacionados. La informacion principal del cliente se mantiene visible en la cabecera del proyecto.
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(260px, 0.8fr)", gap: 16 }}>
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fff" }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Ficha rapida</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Razon social</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteNombre}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Nombre comercial</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.nombre_comercial || "No disponible en esta vista"}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>RUC</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.ruc || "-"}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Direccion principal</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.direccion || "Sin direccion"}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Contacto principal</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteContacto}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Correo</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteEmail}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Telefono</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteTelefono}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Responsable comercial</span><div style={{ fontSize: 13, color: "#374151" }}>{productorNombre}</div></div>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fff" }}>
+                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Acciones del cliente</h3>
+                <div style={{ display: "grid", gap: 8 }}>
+                  <button onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
+                    Ver ficha completa
+                  </button>
+                  <button onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
+                    Editar cliente
+                  </button>
+                  <button onClick={() => clienteId && router.push(`/proyectos?cliente_id=${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
+                    Ver proyectos del cliente
+                  </button>
+                  <button onClick={() => clienteId && router.push(`/proyectos/nuevo?cliente_id=${clienteId}`)} disabled={!clienteId} className="btn-primary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
+                    Crear nuevo proyecto
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fafafa" }}>
+                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 10px" }}>Proyectos relacionados</h3>
+                <div style={{ padding: "10px 12px", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{proyecto?.codigo || "Proyecto actual"}</div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{proyecto?.nombre || "-"}</div>
+                  <div style={{ fontSize: 11, color: estadoInfo.color, fontWeight: 700, marginTop: 6 }}>{estadoInfo.label}</div>
+                </div>
+                <p style={{ fontSize: 12, color: "#9ca3af", margin: "10px 0 0" }}>
+                  El listado completo se mantiene en Proyectos para evitar consultas adicionales en este tab.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
