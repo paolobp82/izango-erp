@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { useRouter } from "next/navigation"
 
 const ESTADOS: Record<string, any> = {
   pendiente:    { label: "Pendiente",    bg: "#fef9c3", color: "#92400e" },
@@ -24,6 +25,7 @@ const formVacio = {
 
 export default function TareasPage() {
   const supabase = createClient()
+  const router = useRouter()
   const [tareas, setTareas] = useState<any[]>([])
   const [proyectos, setProyectos] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
@@ -236,7 +238,10 @@ export default function TareasPage() {
               {subtituloTrabajo}
             </p>
           </div>
-          <button onClick={abrirNueva} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva tarea</button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={() => router.push("/audiovisual/requerimientos")} className="btn-secondary" style={{ fontSize: 13 }}>Req. audiovisual</button>
+            <button onClick={abrirNueva} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva tarea</button>
+          </div>
         </div>
 
         {/* Dashboard personal */}
