@@ -166,6 +166,12 @@ export default function ProyectoDetallePage() {
       return
     }
     if (nuevoEstado === "en_curso_confirmar" && versionAprobar) {
+      const cotSeleccionada = cotizaciones.find(cot => cot.id === versionAprobar)
+      if (cotSeleccionada?.estado !== "aprobada_cliente" && !puedeAprobarCliente) {
+        alert("La proforma debe estar aprobada por cliente antes de iniciar el proyecto")
+        setCambiando(false)
+        return
+      }
       for (const cot of cotizaciones) {
         if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
           await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", cot.id)
@@ -222,6 +228,12 @@ export default function ProyectoDetallePage() {
     const esAdicional = proyecto?.estado === "en_curso"
 
     if (!esAdicional) {
+      const cotSeleccionada = cotizaciones.find(cot => cot.id === versionAprobar)
+      if (cotSeleccionada?.estado !== "aprobada_cliente" && !puedeAprobarCliente) {
+        alert("La proforma debe estar aprobada por cliente antes de iniciar el proyecto")
+        setGuardandoPreCuadre(false)
+        return
+      }
       for (const cot of cotizaciones) {
         if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
           await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", cot.id)
@@ -343,6 +355,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const puedeAvanzar = estadoInfo.roles?.includes(perfil?.perfil) && !esEstadoFinal
   const puedeRechazar = ["gerente_produccion", "gerente_general", "superadmin"].includes(perfil?.perfil) && !esEstadoFinal
   const puedeEditar = ["superadmin", "gerente_general", "gerente_produccion", "administrador", "controller", "productor"].includes(perfil?.perfil)
+  const puedeAprobarCliente = ["superadmin", "gerente_general"].includes(perfil?.perfil)
   const cotAprobada = cotizaciones.find(c => c.estado === "aprobada_cliente") || cotizaciones.find(c => c.id === proyecto?.cotizacion_aprobada_id)
   const entidadLabel = ENTIDADES.find(e => e.value === proyecto?.entidad)?.label || proyecto?.entidad || "Sin entidad"
   const productorNombre = proyecto?.productor ? `${proyecto.productor.nombre} ${proyecto.productor.apellido}` : "Sin productor"
@@ -932,12 +945,20 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       </div>
                     </td>
                     <td style={{ padding: "12px" }}>
-                      <select value={cot.estado || "borrador"} onChange={async ev => { await supabase.from("cotizaciones").update({ estado: ev.target.value }).eq("id", cot.id); load() }}
+                      <select value={cot.estado || "borrador"} onChange={async ev => {
+                        const nuevoEstado = ev.target.value
+                        if (nuevoEstado === "aprobada_cliente" && !puedeAprobarCliente) {
+                          alert("No tienes permisos para marcar aprobado por cliente")
+                          return
+                        }
+                        await supabase.from("cotizaciones").update({ estado: nuevoEstado }).eq("id", cot.id)
+                        load()
+                      }}
                         style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "1px solid " + e.color, background: e.bg, color: e.color, cursor: "pointer", fontFamily: "inherit", outline: "none" }}>
                         <option value="borrador">Borrador</option>
                         <option value="enviada_cliente">Enviada</option>
                         <option value="pendiente">Pendiente</option>
-                        <option value="aprobada_cliente">Aprobada</option>
+                        {(puedeAprobarCliente || cot.estado === "aprobada_cliente") && <option value="aprobada_cliente">Aprobada</option>}
                         <option value="rechazada">Rechazada</option>
                       </select>
                     </td>

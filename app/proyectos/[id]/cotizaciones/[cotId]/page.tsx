@@ -6,6 +6,8 @@ import { registrarAccion } from "@/lib/trazabilidad"
 import { registrarHistorial } from "@/lib/historial"
 import { enviarAlerta } from "@/lib/alertas"
 
+const ROLES_APRUEBAN_CLIENTE = ["superadmin", "gerente_general"]
+
 const COSTOS_INTERNOS = [
   { key: "costo_almacenaje", label: "Almacenaje" },
   { key: "costo_impresion", label: "Impresión" },
@@ -338,6 +340,10 @@ if (idsAEliminar.length > 0) {
 
   async function guardar(nuevoEstado?: string) {
     if (!cotId || !id) return
+    if (nuevoEstado === "aprobada_cliente" && !puedeAprobarCliente) {
+      alert("No tienes permisos para marcar aprobado por cliente")
+      return
+    }
     setSaving(true)
     const { data: dbItemsActuales } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
     const idsEnBD = (dbItemsActuales || []).map((i: any) => String(i.id))
@@ -422,6 +428,7 @@ if (idsAEliminar.length > 0) {
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const inp: any = { padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", outline: "none" }
   const puedeDesbloquear = perfilActual?.perfil === "superadmin" || perfilActual?.email === "jsosa@izango.com.pe" || perfilActual?.email === "pbastianelli@izango.com.pe"
+  const puedeAprobarCliente = ROLES_APRUEBAN_CLIENTE.includes(perfilActual?.perfil)
 
   useEffect(() => {
   if (!cotId || !id || loading) return
@@ -576,14 +583,14 @@ useEffect(() => { itemsRef.current = items }, [items])
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button onClick={async () => { await guardar(); window.open(`/proyectos/${id}/cotizaciones/${cotId}/preview`, `_blank`) }}
             style={{ padding: "6px 14px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-            👁 Preview
+            Descargar PDF
             {lastSaved && <span style={{ fontSize: 11, color: "#9ca3af" }}>✓ Auto-guardado {lastSaved}</span>}
           </button>
           {!bloqueada && <button onClick={() => guardar()} disabled={saving} className="btn-secondary" style={{ fontSize: 12 }}>
             {saving ? "Guardando..." : "Guardar borrador"}
           </button>}
-          {!bloqueada && <button onClick={() => guardar("aprobada_cliente")} disabled={saving} className="btn-primary" style={{ fontSize: 12 }}>
-            Enviar al cliente
+          {!bloqueada && puedeAprobarCliente && <button onClick={() => guardar("aprobada_cliente")} disabled={saving} className="btn-primary" style={{ fontSize: 12 }}>
+            Marcar aprobado cliente
           </button>}
         </div>
       </div>
