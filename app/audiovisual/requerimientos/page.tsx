@@ -28,6 +28,7 @@ const formVacio = {
   cotizacion_id: "",
   ubicacion: "",
   productor_id: "",
+  responsable_audiovisual_id: "",
   fecha_entrega_solicitada: "",
   fecha_devolucion_audiovisual: "",
   piezas: [] as string[],
@@ -60,6 +61,7 @@ export default function AudiovisualRequerimientosPage() {
 
   async function load() {
     const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
+    const requerimientoIdParam = new URLSearchParams(window.location.search).get("requerimiento_id") || ""
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
@@ -68,7 +70,7 @@ export default function AudiovisualRequerimientosPage() {
 
     const { data: reqs } = await supabase
       .from("audiovisual_requerimientos")
-      .select("*, proyecto:proyectos(id,nombre,codigo), cotizacion:cotizaciones(id,version,total_cliente), productor:perfiles!productor_id(nombre,apellido), creador:perfiles!creado_por(nombre,apellido)")
+      .select("*, proyecto:proyectos(id,nombre,codigo), cotizacion:cotizaciones(id,version,total_cliente), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido), creador:perfiles!creado_por(nombre,apellido)")
       .order("created_at", { ascending: false })
     setRequerimientos(reqs || [])
 
@@ -81,7 +83,10 @@ export default function AudiovisualRequerimientosPage() {
     const { data: prods } = await supabase.from("perfiles").select("id,nombre,apellido,perfil").eq("activo", true).order("nombre")
     setProductores(prods || [])
 
-    if (proyectoIdParam) {
+    if (requerimientoIdParam) {
+      const reqParam = (reqs || []).find((r: any) => r.id === requerimientoIdParam)
+      if (reqParam) await abrirDetalle(reqParam)
+    } else if (proyectoIdParam) {
       const proyectoParam = (proys || []).find((p: any) => p.id === proyectoIdParam)
       setEditando(null)
       setForm({
@@ -138,6 +143,7 @@ export default function AudiovisualRequerimientosPage() {
       cotizacion_id: req.cotizacion_id || "",
       ubicacion: req.ubicacion || "",
       productor_id: req.productor_id || "",
+      responsable_audiovisual_id: req.responsable_audiovisual_id || "",
       fecha_entrega_solicitada: req.fecha_entrega_solicitada || "",
       fecha_devolucion_audiovisual: req.fecha_devolucion_audiovisual || "",
       piezas: req.piezas || [],
@@ -209,6 +215,7 @@ export default function AudiovisualRequerimientosPage() {
       cotizacion_id: form.cotizacion_id || null,
       ubicacion: form.ubicacion || null,
       productor_id: form.productor_id || null,
+      responsable_audiovisual_id: form.responsable_audiovisual_id || null,
       fecha_entrega_solicitada: form.fecha_entrega_solicitada || null,
       fecha_devolucion_audiovisual: form.fecha_devolucion_audiovisual || null,
       piezas: form.piezas,
@@ -354,6 +361,7 @@ export default function AudiovisualRequerimientosPage() {
             {[
               { label: "Cotizacion", value: selected.cotizacion ? `V${selected.cotizacion.version}` : "-" },
               { label: "Productor", value: selected.productor ? `${selected.productor.nombre} ${selected.productor.apellido}` : "-" },
+              { label: "Responsable audiovisual", value: selected.responsable ? `${selected.responsable.nombre} ${selected.responsable.apellido}` : "-" },
               { label: "Ubicacion", value: selected.ubicacion || "-" },
               { label: "Entrega solicitada", value: selected.fecha_entrega_solicitada || "-" },
               { label: "Devolucion audiovisual", value: selected.fecha_devolucion_audiovisual || "-" },
@@ -384,7 +392,7 @@ export default function AudiovisualRequerimientosPage() {
                 <div key={c.id} style={{ background: "#f9fafb", borderRadius: 8, padding: "8px 10px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>{c.usuario?.nombre} {c.usuario?.apellido}</span>
-                    <span style={{ fontSize: 10, color: "#9ca3af" }}>{new Date(c.created_at).toLocaleDateString("es-PE")}</span>
+                    <span style={{ fontSize: 10, color: "#9ca3af" }}>{new Date(c.created_at).toLocaleString("es-PE")}</span>
                   </div>
                   <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>{c.comentario}</div>
                 </div>
@@ -436,6 +444,14 @@ export default function AudiovisualRequerimientosPage() {
                     {productores.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label style={lbl}>RESPONSABLE AUDIOVISUAL</label>
+                <select style={inp} value={form.responsable_audiovisual_id} onChange={e => setForm({ ...form, responsable_audiovisual_id: e.target.value })}>
+                  <option value="">Sin responsable asignado</option>
+                  {productores.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
+                </select>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
