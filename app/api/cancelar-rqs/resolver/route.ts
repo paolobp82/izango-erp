@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { Resend } from "resend"
 import { createAdminClient, getErrorMessage } from "@/lib/auth-server"
 import { escapeAttribute, escapeHtml as h, htmlPage } from "@/lib/html"
+import { sendEmailBatch } from "@/lib/email"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const BASE_URL = "https://izango-erp.vercel.app"
 const APPROVERS = ["administracion@izango.com.pe", "jsosa@izango.com.pe", "pbastianelli@izango.com.pe"]
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,}$/
@@ -88,16 +87,12 @@ export async function GET(request: NextRequest) {
       </div>
     </div>`
 
-    await Promise.allSettled(
-      APPROVERS.map((email) =>
-        resend.emails.send({
-          from: "Izango ERP <noreply@izango.com.pe>",
-          to: email,
-          subject: `Registro: RQs cancelados - ${proyecto?.codigo || "Proyecto"}`,
-          html: htmlEmail,
-        })
-      )
-    )
+    await sendEmailBatch({
+      to: APPROVERS,
+      subject: `Registro: RQs cancelados - ${proyecto?.codigo || "Proyecto"}`,
+      html: htmlEmail,
+      context: "cancelar-rqs:resolver",
+    })
 
     return new NextResponse(resultPage("Cancelacion aprobada", "Los RQs han sido cancelados.", solicitud.proyecto_id), { headers: htmlHeaders })
   } catch (error: unknown) {

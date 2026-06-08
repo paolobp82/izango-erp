@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { Resend } from "resend"
 import { getAuthenticatedProfile, getErrorMessage } from "@/lib/auth-server"
 import { canRequestRqCancellation } from "@/lib/report-auth"
 import { escapeAttribute, escapeHtml as h } from "@/lib/html"
+import { sendEmailBatch } from "@/lib/email"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const BASE_URL = "https://izango-erp.vercel.app"
 const APPROVERS = ["administracion@izango.com.pe", "jsosa@izango.com.pe", "pbastianelli@izango.com.pe"]
 
@@ -82,19 +81,16 @@ export async function POST(request: NextRequest) {
       </div>
     </div>`
 
-    await Promise.allSettled(
-      APPROVERS.map((email) =>
-        resend.emails.send({
-          from: "Izango ERP <noreply@izango.com.pe>",
-          to: email,
-          subject: `[ACCION REQUERIDA] Cancelacion de ${rqsPendientes.length} RQ(s) - ${proyecto.codigo || "Proyecto"}`,
-          html,
-        })
-      )
-    )
+    const emailResult = await sendEmailBatch({
+      to: APPROVERS,
+      subject: `[ACCION REQUERIDA] Cancelacion de ${rqsPendientes.length} RQ(s) - ${proyecto.codigo || "Proyecto"}`,
+      html,
+      context: "cancelar-rqs:solicitud",
+    })
 
-    return NextResponse.json({ ok: true, solicitud_id: solicitud.id, rqs_afectados: rqsPendientes.length })
+    return NextResponse.json({ ok: true, solicitud_id: solicitud.id, rqs_afectados: rqsPendientes.length, email: emailResult })
   } catch (error: unknown) {
+    console.error("Error solicitando cancelacion de RQs:", error)
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 })
   }
 }

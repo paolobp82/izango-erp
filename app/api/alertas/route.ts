@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { Resend } from "resend"
 import { getAuthenticatedProfile, getErrorMessage } from "@/lib/auth-server"
 import { escapeAttribute, escapeHtml as h } from "@/lib/html"
+import { sanitizeRecipients, sendEmailBatch } from "@/lib/email"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const APP_URL = "https://izango-erp.vercel.app"
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type AlertData = Record<string, unknown>
 type AlertTemplate = { subject: string; html: (data: AlertData) => string }
@@ -116,27 +114,24 @@ export async function POST(request: NextRequest) {
     const template = tipo ? templates[tipo] : null
     if (!template) return NextResponse.json({ error: "Tipo de alerta no reconocido" }, { status: 400 })
 
-    const safeRecipients = (destinatarios || []).filter((email) => EMAIL_RE.test(email)).slice(0, 25)
+    const safeRecipients = sanitizeRecipients(destinatarios || [])
     if (safeRecipients.length === 0) {
       return NextResponse.json({ error: "No hay destinatarios validos" }, { status: 400 })
     }
 
     const html = template.html(datos || {})
-    const results = await Promise.allSettled(
-      safeRecipients.map((email) =>
-        resend.emails.send({
-          from: "Izango ERP <noreply@izango.com.pe>",
-          to: email,
-          subject: template.subject,
-          html,
-        })
-      )
-    )
+    const result = await sendEmailBatch({
+      to: safeRecipients,
+      subject: template.subject,
+      html,
+      context: `alertas:${tipo}`,
+    })
 
     return NextResponse.json({
-      enviados: results.filter((r) => r.status === "fulfilled").length,
-      fallidos: results.filter((r) => r.status === "rejected").length,
-      total: safeRecipients.length,
+      enviados: result.sent,
+      fallidos: result.failed,
+      total: result.total,
+      errores: result.failures,
     })
   } catch (error: unknown) {
     console.error("Error enviando alertas:", error)
