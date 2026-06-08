@@ -48,7 +48,13 @@ export async function sendEmailBatch({
   const recipients = sanitizeRecipients(to)
   if (recipients.length === 0) {
     console.warn(`[email:${context}] No hay destinatarios validos`)
-    return { sent: 0, failed: 0, total: 0, failures: [] as Array<{ email: string; error: string }> }
+    return {
+      sent: 0,
+      failed: 0,
+      total: 0,
+      failures: [] as Array<{ email: string; error: string }>,
+      deliveries: [] as Array<{ email: string; from: string; subject: string; messageId: string | null; status: string; error?: string }>,
+    }
   }
 
   const resend = new Resend(process.env.RESEND_API_KEY)
@@ -64,24 +70,45 @@ export async function sendEmailBatch({
     )
   )
 
-  const failures = results
-    .map((result, index) => ({ result, email: recipients[index] }))
-    .filter(({ result }) => result.status === "rejected")
-    .map(({ result, email }) => ({
-      email,
-      error: result.status === "rejected" ? getEmailErrorMessage(result.reason) : "",
+  const deliveries = results.map((result, index) => {
+    const email = recipients[index]
+    if (result.status === "rejected") {
+      return { email, from, subject, messageId: null, status: "rejected", error: getEmailErrorMessage(result.reason) }
+    }
+
+    const value = result.value as { data?: { id?: string | null } | null; error?: unknown }
+    if (value.error) {
+      return { email, from, subject, messageId: null, status: "error", error: getEmailErrorMessage(value.error) }
+    }
+
+    return { email, from, subject, messageId: value.data?.id || null, status: value.data?.id ? "accepted" : "unknown" }
+  })
+
+  const failures = deliveries
+    .filter((delivery) => delivery.status === "rejected" || delivery.status === "error")
+    .map((delivery) => ({
+      email: delivery.email,
+      error: delivery.error || "Error enviando correo",
     }))
 
   if (failures.length > 0) {
     console.error(`[email:${context}] Fallaron ${failures.length}/${recipients.length} envios`, failures)
   } else {
-    console.info(`[email:${context}] Enviados ${recipients.length}/${recipients.length} desde ${from}`)
+    console.info(
+      `[email:${context}] Enviados ${recipients.length}/${recipients.length} desde ${from}`,
+      deliveries.map((delivery) => ({
+        email: delivery.email,
+        messageId: delivery.messageId,
+        status: delivery.status,
+      }))
+    )
   }
 
   return {
-    sent: results.filter((result) => result.status === "fulfilled").length,
+    sent: deliveries.filter((delivery) => delivery.status === "accepted").length,
     failed: failures.length,
     total: recipients.length,
     failures,
+    deliveries,
   }
 }

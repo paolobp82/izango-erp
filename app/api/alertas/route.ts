@@ -6,7 +6,7 @@ import { sanitizeRecipients, sendEmailBatch } from "@/lib/email"
 const APP_URL = "https://izango-erp.vercel.app"
 
 type AlertData = Record<string, unknown>
-type AlertTemplate = { subject: string; html: (data: AlertData) => string }
+type AlertTemplate = { subject: string | ((data: AlertData) => string); html: (data: AlertData) => string }
 
 function money(value: unknown) {
   return Number(value || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })
@@ -14,6 +14,16 @@ function money(value: unknown) {
 
 function projectLink(id: unknown) {
   return `${APP_URL}/proyectos/${encodeURIComponent(String(id || ""))}`
+}
+
+function label(value: unknown, fallback = "") {
+  const text = String(value || "").trim()
+  return text || fallback
+}
+
+function subjectWithContext(title: string, data: AlertData, contextKeys: string[]) {
+  const context = contextKeys.map((key) => label(data[key])).find(Boolean)
+  return context ? `${title} [${context}] - Izango ERP` : `${title} - Izango ERP`
 }
 
 function card(title: string, body: string, color = "#03E373") {
@@ -28,7 +38,7 @@ function card(title: string, body: string, color = "#03E373") {
 
 const templates: Record<string, AlertTemplate> = {
   proyecto_creado: {
-    subject: "Nuevo proyecto creado - Izango ERP",
+    subject: (d) => subjectWithContext("Nuevo proyecto creado", d, ["codigo", "nombre"]),
     html: (d) => card("Nuevo proyecto creado", `
       <p style="color:#374151;font-size:14px">Se ha creado un nuevo proyecto en Izango ERP:</p>
       <div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">
@@ -41,7 +51,7 @@ const templates: Record<string, AlertTemplate> = {
     `),
   },
   rq_pendiente: {
-    subject: "RQ pendiente de aprobacion - Izango ERP",
+    subject: (d) => subjectWithContext("RQ pendiente de aprobacion", d, ["numero_rq", "proyecto"]),
     html: (d) => card("RQ pendiente de aprobacion", `
       <p style="color:#374151;font-size:14px">Hay un requerimiento de pago pendiente de aprobacion:</p>
       <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:16px;margin:16px 0">
@@ -54,7 +64,7 @@ const templates: Record<string, AlertTemplate> = {
     `, "#f59e0b"),
   },
   proyecto_facturacion: {
-    subject: "Proyecto listo para facturar - Izango ERP",
+    subject: (d) => subjectWithContext("Proyecto listo para facturar", d, ["codigo", "nombre"]),
     html: (d) => card("Proyecto listo para facturar", `
       <p style="color:#374151;font-size:14px">Un proyecto ha pasado a estado de facturacion:</p>
       <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:16px;margin:16px 0">
@@ -66,7 +76,7 @@ const templates: Record<string, AlertTemplate> = {
     `, "#8b5cf6"),
   },
   proyecto_liquidado: {
-    subject: "Proyecto liquidado - Izango ERP",
+    subject: (d) => subjectWithContext("Proyecto liquidado", d, ["codigo", "nombre"]),
     html: (d) => card("Proyecto liquidado", `
       <p style="color:#374151;font-size:14px">Un proyecto ha sido liquidado exitosamente:</p>
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
@@ -78,7 +88,12 @@ const templates: Record<string, AlertTemplate> = {
     `, "#059669"),
   },
   cotizacion_aprobada: {
-    subject: "Cotizacion aprobada por cliente - Izango ERP",
+    subject: (d) => {
+      const codigo = label(d.codigo || d.nombre)
+      const version = label(d.version)
+      const context = [codigo, version ? `V${version}` : ""].filter(Boolean).join(" ")
+      return context ? `Cotizacion aprobada por cliente [${context}] - Izango ERP` : "Cotizacion aprobada por cliente - Izango ERP"
+    },
     html: (d) => card("Cotizacion aprobada", `
       <p style="color:#374151;font-size:14px">Una cotizacion ha sido aprobada por el cliente:</p>
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
@@ -90,7 +105,7 @@ const templates: Record<string, AlertTemplate> = {
     `),
   },
   audiovisual_requerimiento_creado: {
-    subject: "Nuevo requerimiento audiovisual - Izango ERP",
+    subject: (d) => subjectWithContext("Nuevo requerimiento audiovisual", d, ["codigo", "proyecto"]),
     html: (d) => card("Nuevo requerimiento audiovisual", `
       <p style="color:#374151;font-size:14px">Produccion ha solicitado un nuevo trabajo al area audiovisual:</p>
       <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:16px 0">
@@ -119,10 +134,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No hay destinatarios validos" }, { status: 400 })
     }
 
-    const html = template.html(datos || {})
+    const safeData = datos || {}
+    const subject = typeof template.subject === "function" ? template.subject(safeData) : template.subject
+    const html = template.html(safeData)
     const result = await sendEmailBatch({
       to: safeRecipients,
-      subject: template.subject,
+      subject,
       html,
       context: `alertas:${tipo}`,
     })
@@ -132,6 +149,7 @@ export async function POST(request: NextRequest) {
       fallidos: result.failed,
       total: result.total,
       errores: result.failures,
+      entregas: result.deliveries,
     })
   } catch (error: unknown) {
     console.error("Error enviando alertas:", error)
