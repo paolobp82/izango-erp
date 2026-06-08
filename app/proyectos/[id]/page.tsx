@@ -26,6 +26,15 @@ const ENTIDADES = [
   { value: "selva", label: "Izango Selva" },
 ]
 
+const ESTADOS_RQ: Record<string, any> = {
+  pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e", label: "Pendiente" },
+  aprobado_produccion: { bg: "#fed7aa", color: "#9a3412", label: "Aprobado Produccion" },
+  aprobado: { bg: "#dcfce7", color: "#15803d", label: "Aprobado GG" },
+  programado: { bg: "#dbeafe", color: "#1e40af", label: "Programado" },
+  pagado: { bg: "#f0fdf4", color: "#166534", label: "Pagado" },
+  rechazado: { bg: "#fee2e2", color: "#991b1b", label: "Rechazado" },
+}
+
 export default function ProyectoDetallePage() {
   const params = useParams()
   const router = useRouter()
@@ -36,6 +45,7 @@ export default function ProyectoDetallePage() {
   const [cotizaciones, setCotizaciones] = useState<any[]>([])
   const [cotizacionesEliminadas, setCotizacionesEliminadas] = useState<any[]>([])
   const [historial, setHistorial] = useState<Record<string, any[]>>({})
+  const [rqsProyecto, setRqsProyecto] = useState<any[]>([])
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [creando, setCreando] = useState(false)
@@ -81,6 +91,13 @@ export default function ProyectoDetallePage() {
       else setVersionAprobar(cots[cots.length - 1]?.id || "")
     }
     setCotizaciones(cots || [])
+
+    const { data: rqs } = await supabase
+      .from("requerimientos_pago")
+      .select("id,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,created_at")
+      .eq("proyecto_id", id)
+      .order("created_at", { ascending: false })
+    setRqsProyecto(rqs || [])
 
     const hace2dias = new Date()
     hace2dias.setDate(hace2dias.getDate() - 2)
@@ -366,6 +383,11 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const clienteContacto = clienteProyecto.nombre_contacto || "Sin contacto principal"
   const clienteEmail = clienteProyecto.email_contacto || "Sin correo"
   const clienteTelefono = clienteProyecto.telefono_contacto || "Sin telefono"
+  const rqsActivos = rqsProyecto.filter(rq => rq.estado !== "rechazado")
+  const rqsPendientes = rqsProyecto.filter(rq => ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "programado"].includes(rq.estado))
+  const rqsPagados = rqsProyecto.filter(rq => rq.estado === "pagado")
+  const totalRqs = rqsActivos.reduce((sum, rq) => sum + Number(rq.monto_solicitado || 0), 0)
+  const totalRqsPendientes = rqsPendientes.reduce((sum, rq) => sum + Number(rq.monto_solicitado || 0), 0)
   const resumenAlertas = [
     !tieneCotizacion ? { label: "Sin proforma", detalle: "Crea una proforma para continuar el flujo comercial." } : null,
     tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
@@ -387,7 +409,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     { label: "Resumen", href: "#tab-resumen" },
     { label: "Cliente", href: "#tab-cliente", count: proyecto?.cliente ? 1 : 0 },
     { label: "Proformas", href: "#tab-proformas", count: cotizaciones.length },
-    { label: "Costos / RQ", href: "#tab-costos-rq" },
+    { label: "Costos / RQ", href: "#tab-costos-rq", count: rqsProyecto.length },
     { label: "Tareas", href: "#tab-tareas" },
     { label: "Logística", href: "#tab-logistica" },
     { label: "Facturación", href: "#tab-facturacion" },
@@ -1040,9 +1062,13 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Usa el flujo actual de proveedores y costos.</div>
             </div>
             <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>RQs adicionales</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#0F6E56" }}>Manual</div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Permite agregar costos fuera de la version aprobada.</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>RQs del proyecto</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: rqsProyecto.length ? "#0F6E56" : "#9ca3af" }}>
+                {rqsProyecto.length}
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                {rqsProyecto.length ? `${fmt(totalRqs)} activos` : "Sin requerimientos vinculados"}
+              </div>
             </div>
           </div>
 
@@ -1069,8 +1095,56 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             </div>
           </div>
 
-          <div style={placeholderStyle}>
-            La generacion de RQs desde la version aprobada sigue ocurriendo con el flujo actual de aprobacion/inicio del proyecto. El listado global completo de RQs no se integra todavia para evitar consultas nuevas pesadas.
+          <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>RQs relacionados al proyecto</div>
+                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                  {rqsProyecto.length} RQs · {rqsPendientes.length} pendientes · {rqsPagados.length} pagados · {fmt(totalRqsPendientes)} por gestionar
+                </div>
+              </div>
+              <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver en módulo RQ</button>
+            </div>
+            {rqsProyecto.length === 0 ? (
+              <div style={{ padding: 20, color: "#9ca3af", fontSize: 13, textAlign: "center" }}>
+                Este proyecto todavia no tiene requerimientos de pago vinculados.
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#f9fafb" }}>
+                      <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>RQ</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ESTADO</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>DESCRIPCION</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PROVEEDOR</th>
+                      <th style={{ textAlign: "right", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>MONTO</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rqsProyecto.map((rq, idx) => {
+                      const estado = ESTADOS_RQ[rq.estado] || { bg: "#f3f4f6", color: "#6b7280", label: rq.estado || "Sin estado" }
+                      return (
+                        <tr key={rq.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                          <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 800, color: "#0F6E56", whiteSpace: "nowrap" }}>
+                            {rq.numero_rq || "—"}
+                            {rq.es_adicional && <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600 }}>Adicional</div>}
+                          </td>
+                          <td style={{ padding: "12px" }}>
+                            <span style={{ background: estado.bg, color: estado.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                              {estado.label}
+                            </span>
+                          </td>
+                          <td style={{ padding: "12px", fontSize: 12, color: "#374151", minWidth: 220 }}>{rq.descripcion || "—"}</td>
+                          <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", minWidth: 160 }}>{rq.proveedor_nombre || "—"}</td>
+                          <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 800, color: "#0F6E56", textAlign: "right", whiteSpace: "nowrap" }}>{fmt(rq.monto_solicitado)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </section>
