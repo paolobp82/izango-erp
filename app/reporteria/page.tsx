@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { rqCodigo } from "@/lib/rq-code"
 
 const MODULOS = [
   { key: "proyectos",     label: "Proyectos",       icon: "📁" },
@@ -51,7 +52,7 @@ const CAMPOS: Record<string, { key: string; label: string; tipo?: string }[]> = 
     { key: "cerrada", label: "Cerrada" },
   ],
   rqs: [
-    { key: "numero_rq", label: "N° RQ" },
+    { key: "codigo_rq", label: "N° RQ" },
     { key: "proyecto", label: "Proyecto" },
     { key: "descripcion", label: "Descripción" },
     { key: "proveedor_nombre", label: "Proveedor" },
@@ -195,7 +196,7 @@ export default function ReporteriaPage() {
       if (filtros.fechaDesde) q = q.gte("fecha_vencimiento", filtros.fechaDesde)
       if (filtros.fechaHasta) q = q.lte("fecha_vencimiento", filtros.fechaHasta)
       const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).map(r => ({ ...r, proyecto: r.proyecto ? r.proyecto.codigo + " — " + r.proyecto.nombre : "—" }))
+      data = (r || []).map(r => ({ ...r, codigo_rq: rqCodigo(r), proyecto: r.proyecto ? r.proyecto.codigo + " — " + r.proyecto.nombre : "—" }))
     } else if (moduloActivo === "caja_chica") {
       let q = supabase.from("caja_chica").select("*, proyecto:proyectos(nombre, codigo), solicitante:perfiles!solicitado_por(nombre, apellido)")
       if (filtros.estado) q = q.eq("estado", filtros.estado)

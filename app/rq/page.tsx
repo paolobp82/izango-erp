@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import ImportExport from "@/components/ImportExport"
 import { enviarAlerta } from "@/lib/alertas"
+import { rqCodigo } from "@/lib/rq-code"
 
 const ESTADOS: Record<string, any> = {
   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e",  label: "Pendiente aprobacion" },
@@ -37,16 +38,6 @@ const FORM_RQ_VACIO = {
   numero_operacion: "",
   banco_pago: "",
   tipo_transferencia: "Transferencia bancaria",
-}
-
-function getNextRqNumber(rqs: any[], date = new Date()) {
-  const year = date.getFullYear()
-  const max = rqs.reduce((currentMax, rq) => {
-    const match = String(rq.numero_rq || "").match(new RegExp(`^RQ-${year}-(\\d{5})$`))
-    const value = match ? Number(match[1]) : 0
-    return value > currentMax ? value : currentMax
-  }, 0)
-  return `RQ-${year}-${String(max + 1).padStart(5, "0")}`
 }
 
 export default function RQPage() {
@@ -207,7 +198,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       alert("No se pudo editar el RQ. Puede que ya este pagado o cerrado.")
       return
     }
-    await registrarAccion({ accion: "editar", modulo: "rq", entidad_id: selected.id, entidad_tipo: "rq", descripcion: "RQ editado: " + selected.numero_rq, datos_nuevos: updates })
+    await registrarAccion({ accion: "editar", modulo: "rq", entidad_id: selected.id, entidad_tipo: "rq", descripcion: "RQ editado: " + rqCodigo(selected), datos_nuevos: updates })
     setSelected((prev: any) => prev ? { ...prev, ...updates, proveedor: prov ? { ...(prev.proveedor || {}), nombre: prov.nombre } : prev.proveedor } : prev)
     setShowEditarRQ(false)
     load()
@@ -261,7 +252,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
           </p>
         </div>
         {["superadmin","gerente_general","gerente_produccion","controller"].includes(perfil?.perfil) && (<button onClick={async () => { const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre").is("deleted_at", null).in("estado", ["en_curso"]).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
-        <ImportExport modulo="requerimientos" campos={[{key:"numero_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"estado",label:"Estado"}]} datos={rqs} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
+        <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
@@ -348,7 +339,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                         nota_pago: rq.nota_pago || "",
                       })
                     }}>
-                    <td style={{ padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#0F6E56" }}>{rq.numero_rq}</td>
+                    <td style={{ padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#0F6E56" }}>{rqCodigo(rq)}</td>
                     <td style={{ padding: "12px" }}>
                       {rq.proyecto_id ? (
                         <a href={`/proyectos/${rq.proyecto_id}`} onClick={e => e.stopPropagation()} style={{ textDecoration: "none", display: "inline-block" }}>
@@ -416,7 +407,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
         {selected && (
           <div className="card" style={{ position: "sticky", top: 20, alignSelf: "start" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{selected.numero_rq}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{rqCodigo(selected)}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 {puedeEditarRQ(selected) && (
                   <button onClick={() => abrirEditarRQ(selected)} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
@@ -586,7 +577,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <div>
                 <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Editar RQ</h2>
-                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>{selected.numero_rq}</div>
+                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>{rqCodigo(selected)}</div>
               </div>
               <button onClick={() => setShowEditarRQ(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
             </div>
@@ -636,8 +627,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               <button onClick={async () => {
                 if (!formRQ.descripcion || !formRQ.monto_solicitado) { alert("Descripcion y monto son obligatorios"); return }
                 const prov = proveedoresTodos.find((p: any) => p.id === formRQ.proveedor_id)
-                const numeroRq = getNextRqNumber(rqs)
-                await supabase.from("requerimientos_pago").insert({ proyecto_id: formRQ.proyecto_id || null, numero_rq: numeroRq, estado: "pendiente_aprobacion", proveedor_id: formRQ.proveedor_id || null, proveedor_nombre: prov?.nombre || "", monto_solicitado: Number(formRQ.monto_solicitado), descripcion: formRQ.descripcion, tipo_pago: formRQ.tipo_pago, dias_credito: formRQ.dias_credito ? Number(formRQ.dias_credito) : null, es_adicional: true })
+                await supabase.from("requerimientos_pago").insert({ proyecto_id: formRQ.proyecto_id || null, estado: "pendiente_aprobacion", proveedor_id: formRQ.proveedor_id || null, proveedor_nombre: prov?.nombre || "", monto_solicitado: Number(formRQ.monto_solicitado), descripcion: formRQ.descripcion, tipo_pago: formRQ.tipo_pago, dias_credito: formRQ.dias_credito ? Number(formRQ.dias_credito) : null, es_adicional: true })
                 setShowNuevoRQ(false)
                 setFormRQ(FORM_RQ_VACIO)
                 load()

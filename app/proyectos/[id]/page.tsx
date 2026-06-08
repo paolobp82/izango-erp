@@ -4,6 +4,7 @@ import { notificarATodos } from "@/lib/notificaciones"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams, useRouter } from "next/navigation"
+import { rqCodigo } from "@/lib/rq-code"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
@@ -33,15 +34,6 @@ const ESTADOS_RQ: Record<string, any> = {
   programado: { bg: "#dbeafe", color: "#1e40af", label: "Programado" },
   pagado: { bg: "#f0fdf4", color: "#166534", label: "Pagado" },
   rechazado: { bg: "#fee2e2", color: "#991b1b", label: "Rechazado" },
-}
-
-function nextRqSequence(existing: any[], year: number) {
-  const max = existing.reduce((currentMax, rq) => {
-    const match = String(rq.numero_rq || "").match(new RegExp(`^RQ-${year}-(\\d{5})$`))
-    const value = match ? Number(match[1]) : 0
-    return value > currentMax ? value : currentMax
-  }, 0)
-  return max + 1
 }
 
 export default function ProyectoDetallePage() {
@@ -103,7 +95,7 @@ export default function ProyectoDetallePage() {
 
     const { data: rqs } = await supabase
       .from("requerimientos_pago")
-      .select("id,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,created_at")
+      .select("id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,created_at")
       .eq("proyecto_id", id)
       .order("created_at", { ascending: false })
     setRqsProyecto(rqs || [])
@@ -268,9 +260,6 @@ export default function ProyectoDetallePage() {
       await supabase.from("cotizaciones").update({ estado: "aprobada_cliente" }).eq("id", versionAprobar)
       await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar, estado: "en_curso" }).eq("id", id)
     }
-    const rqYear = new Date().getFullYear()
-    const { data: rqsExistentes } = await supabase.from("requerimientos_pago").select("numero_rq").ilike("numero_rq", `RQ-${rqYear}-%`)
-    let rqNum = nextRqSequence(rqsExistentes || [], rqYear)
     for (const item of preCuadreItems) {
       const esDividido = String(item.id).startsWith("div_")
       const tieneSubitemsActivos = preCuadreItems.some((s: any) => !s._borrado && (s.id === "sub_" + item.id || (s._subitemId && String(s.id).includes(String(item.id)))))
@@ -284,7 +273,6 @@ export default function ProyectoDetallePage() {
         es_adicional: esAdicional || item.esAdicional || false,
         dias_credito: item.dias_credito || null,
         tipo_pago: item.tipo_pago || "contado",
-        numero_rq: `RQ-${rqYear}-${String(rqNum).padStart(5, "0")}`,
         estado: "pendiente_aprobacion",
         proveedor_id: item.proveedor_id,
         proveedor_nombre: prov?.nombre || item.proveedor_nombre || "",
@@ -296,7 +284,6 @@ export default function ProyectoDetallePage() {
         descripcion: item.descripcion || "",
       })
       if (rqError) { console.error("Error RQ:", rqError.message, "item:", item.descripcion); }
-      rqNum++
     }
     if (!esAdicional) {
       await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: en_curso" })
@@ -1135,7 +1122,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       return (
                         <tr key={rq.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                           <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 800, color: "#0F6E56", whiteSpace: "nowrap" }}>
-                            {rq.numero_rq || "—"}
+                            {rqCodigo(rq)}
                             {rq.es_adicional && <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600 }}>Adicional</div>}
                           </td>
                           <td style={{ padding: "12px" }}>

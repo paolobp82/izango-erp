@@ -3,12 +3,13 @@ import { getAuthenticatedProfile, getErrorMessage } from "@/lib/auth-server"
 import { canRequestRqCancellation } from "@/lib/report-auth"
 import { escapeAttribute, escapeHtml as h } from "@/lib/html"
 import { sendEmailBatch } from "@/lib/email"
+import { rqCodigo } from "@/lib/rq-code"
 
 const BASE_URL = "https://izango-erp.vercel.app"
 const APPROVERS = ["administracion@izango.com.pe", "jsosa@izango.com.pe", "pbastianelli@izango.com.pe"]
 
 type Project = { id: string; codigo?: string | null; nombre?: string | null; estado?: string | null; productor_id?: string | null; comercial_id?: string | null }
-type Rq = { numero_rq?: string | null; descripcion?: string | null; monto_solicitado?: number | null; proveedor_nombre?: string | null }
+type Rq = { codigo_rq?: string | null; numero_rq?: string | null; descripcion?: string | null; monto_solicitado?: number | null; proveedor_nombre?: string | null }
 
 function money(value: unknown) {
   return Number(value || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     const { data: rqsPendientes } = await supabase
       .from("requerimientos_pago")
-      .select("numero_rq, descripcion, monto_solicitado, proveedor_nombre")
+      .select("codigo_rq, numero_rq, descripcion, monto_solicitado, proveedor_nombre")
       .eq("proyecto_id", proyecto_id)
       .in("estado", ["pendiente_aprobacion", "aprobado_produccion"])
       .returns<Rq[]>()
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
     const urlRechazar = `${BASE_URL}/api/cancelar-rqs/resolver?token=${encodeURIComponent(solicitud.token)}&accion=rechazar`
     const totalMonto = rqsPendientes.reduce((sum, rq) => sum + Number(rq.monto_solicitado || 0), 0)
     const listaRQs = rqsPendientes.map((rq) => `<tr>
-      <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${h(rq.numero_rq || "—")}</td>
+      <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${h(rqCodigo(rq))}</td>
       <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${h(rq.descripcion || "—")}</td>
       <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${h(rq.proveedor_nombre || "—")}</td>
       <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;text-align:right;font-weight:700;color:#dc2626">S/ ${h(money(rq.monto_solicitado))}</td>
