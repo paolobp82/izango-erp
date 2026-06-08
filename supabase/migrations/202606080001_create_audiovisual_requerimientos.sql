@@ -4,6 +4,7 @@ create table if not exists public.audiovisual_requerimientos (
   cotizacion_id uuid references public.cotizaciones(id) on delete set null,
   ubicacion text,
   productor_id uuid references public.perfiles(id) on delete set null,
+  responsable_audiovisual_id uuid references public.perfiles(id) on delete set null,
   fecha_entrega_solicitada date,
   fecha_devolucion_audiovisual date,
   piezas text[] not null default '{}',
@@ -29,6 +30,7 @@ create table if not exists public.audiovisual_requerimiento_comentarios (
 create index if not exists idx_audiovisual_req_proyecto on public.audiovisual_requerimientos(proyecto_id);
 create index if not exists idx_audiovisual_req_cotizacion on public.audiovisual_requerimientos(cotizacion_id);
 create index if not exists idx_audiovisual_req_productor on public.audiovisual_requerimientos(productor_id);
+create index if not exists idx_audiovisual_req_responsable on public.audiovisual_requerimientos(responsable_audiovisual_id);
 create index if not exists idx_audiovisual_req_estado on public.audiovisual_requerimientos(estado);
 create index if not exists idx_audiovisual_req_entrega on public.audiovisual_requerimientos(fecha_entrega_solicitada);
 create index if not exists idx_audiovisual_req_comentarios_req on public.audiovisual_requerimiento_comentarios(requerimiento_id, created_at);

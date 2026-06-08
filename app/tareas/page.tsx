@@ -18,6 +18,14 @@ const PRIORIDADES: Record<string, any> = {
   urgente: { label: "Urgente", bg: "#fee2e2", color: "#991b1b" },
 }
 
+const AV_ESTADOS: Record<string, any> = {
+  pendiente: { label: "Pendiente", bg: "#fef9c3", color: "#92400e" },
+  en_progreso: { label: "En progreso", bg: "#dbeafe", color: "#1e40af" },
+  en_revision: { label: "En revision", bg: "#f5f3ff", color: "#6d28d9" },
+  completado: { label: "Completado", bg: "#dcfce7", color: "#15803d" },
+  cancelado: { label: "Cancelado", bg: "#fee2e2", color: "#991b1b" },
+}
+
 const formVacio = {
   titulo: "", descripcion: "", estado: "pendiente", prioridad: "media",
   proyecto_id: "", cliente_id: "", asignado_a: "", fecha_limite: "",
@@ -27,6 +35,7 @@ export default function TareasPage() {
   const supabase = createClient()
   const router = useRouter()
   const [tareas, setTareas] = useState<any[]>([])
+  const [audiovisuales, setAudiovisuales] = useState<any[]>([])
   const [proyectos, setProyectos] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [usuarios, setUsuarios] = useState<any[]>([])
@@ -47,6 +56,12 @@ export default function TareasPage() {
   const [responsableId, setResponsableId] = useState("")
   const [ordenCampo, setOrdenCampo] = useState("fecha_limite")
   const [ordenDir, setOrdenDir] = useState("asc")
+  const [avResponsableId, setAvResponsableId] = useState("")
+  const [avProyectoId, setAvProyectoId] = useState("")
+  const [avPrioridad, setAvPrioridad] = useState("todos")
+  const [avAvance, setAvAvance] = useState("todos")
+  const [avEstado, setAvEstado] = useState("activos")
+  const [avFecha, setAvFecha] = useState("")
 
   useEffect(() => { load() }, [])
 
@@ -65,6 +80,11 @@ export default function TareasPage() {
       .select("*, proyecto:proyectos(nombre, codigo), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido)")
       .order("created_at", { ascending: false })
     setTareas(t || [])
+    const { data: av } = await supabase
+      .from("audiovisual_requerimientos")
+      .select("*, proyecto:proyectos(id,nombre,codigo), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido)")
+      .order("fecha_entrega_solicitada", { ascending: true })
+    setAudiovisuales(av || [])
     const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").order("nombre")
     setProyectos(pr || [])
     const { data: cl } = await supabase.from("clientes").select("id, razon_social").order("razon_social")
@@ -202,6 +222,22 @@ export default function TareasPage() {
   const enProximaSemana = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
   const rolesGerenciales = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager"]
   const puedeVerEquipo = rolesGerenciales.includes(perfil?.perfil)
+  const puedeFiltrarAudiovisual = puedeVerEquipo || perfil?.perfil === "productor"
+  const audiovisualesFiltrados = audiovisuales.filter(r => {
+    if (!puedeVerEquipo && perfil?.perfil === "productor" && r.productor_id !== perfil?.id) return false
+    if (!puedeVerEquipo && perfil?.perfil !== "productor") {
+      if (r.responsable_audiovisual_id !== perfil?.id && r.productor_id !== perfil?.id) return false
+      if (["completado", "cancelado"].includes(r.estado)) return false
+    }
+    if (puedeFiltrarAudiovisual && avResponsableId && r.responsable_audiovisual_id !== avResponsableId) return false
+    if (puedeFiltrarAudiovisual && avProyectoId && r.proyecto_id !== avProyectoId) return false
+    if (puedeFiltrarAudiovisual && avPrioridad !== "todos" && r.prioridad !== avPrioridad) return false
+    if (puedeFiltrarAudiovisual && avAvance !== "todos" && String(r.avance) !== avAvance) return false
+    if (puedeFiltrarAudiovisual && avEstado === "activos" && ["completado", "cancelado"].includes(r.estado)) return false
+    if (puedeFiltrarAudiovisual && avEstado !== "activos" && avEstado !== "todos" && r.estado !== avEstado) return false
+    if (puedeFiltrarAudiovisual && avFecha && r.fecha_entrega_solicitada !== avFecha) return false
+    return true
+  })
   const misTareas = perfil?.id ? tareas.filter(t => t.asignado_a === perfil.id) : tareas
   const responsableSeleccionado = usuarios.find(u => u.id === responsableId)
   const nombreResponsable = responsableSeleccionado ? `${responsableSeleccionado.nombre} ${responsableSeleccionado.apellido}` : "responsable"
@@ -221,6 +257,7 @@ export default function TareasPage() {
     t.estado !== "completada" &&
     t.estado !== "cancelada"
   ).length
+  const audiovisualesPendientes = audiovisualesFiltrados.filter(r => !["completado", "cancelado"].includes(r.estado)).length
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -257,6 +294,85 @@ export default function TareasPage() {
               <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>{c.value}</div>
             </div>
           ))}
+        </div>
+
+        <div className="card" style={{ marginBottom: 20, padding: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+            <div>
+              <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "#111827" }}>Pendientes audiovisuales</h2>
+              <p style={{ fontSize: 12, color: "#6b7280", margin: "3px 0 0" }}>
+                {audiovisualesPendientes} requerimiento{audiovisualesPendientes !== 1 ? "s" : ""} operativo{audiovisualesPendientes !== 1 ? "s" : ""}
+              </p>
+            </div>
+            <button onClick={() => router.push("/audiovisual/requerimientos")} className="btn-secondary" style={{ fontSize: 12 }}>Abrir modulo</button>
+          </div>
+
+          {puedeFiltrarAudiovisual && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <select style={{ ...inp, width: "auto" }} value={avResponsableId} onChange={e => setAvResponsableId(e.target.value)}>
+                <option value="">Todos los responsables</option>
+                {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
+              </select>
+              <select style={{ ...inp, width: "auto" }} value={avProyectoId} onChange={e => setAvProyectoId(e.target.value)}>
+                <option value="">Todos los proyectos</option>
+                {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}
+              </select>
+              <select style={{ ...inp, width: "auto" }} value={avPrioridad} onChange={e => setAvPrioridad(e.target.value)}>
+                <option value="todos">Todas las prioridades</option>
+                <option value="alta">Alta</option>
+                <option value="media">Media</option>
+                <option value="baja">Baja</option>
+              </select>
+              <select style={{ ...inp, width: "auto" }} value={avAvance} onChange={e => setAvAvance(e.target.value)}>
+                <option value="todos">Todos los avances</option>
+                {[10,20,30,40,50,60,70,80,90,100].map(n => <option key={n} value={n}>{n}%</option>)}
+              </select>
+              <select style={{ ...inp, width: "auto" }} value={avEstado} onChange={e => setAvEstado(e.target.value)}>
+                <option value="activos">Activos</option>
+                <option value="todos">Todos los estados</option>
+                {Object.entries(AV_ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+              <input style={{ ...inp, width: "auto" }} type="date" value={avFecha} onChange={e => setAvFecha(e.target.value)} />
+            </div>
+          )}
+
+          {audiovisualesFiltrados.length === 0 ? (
+            <div style={{ padding: "18px 12px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No hay requerimientos audiovisuales pendientes para estos filtros</div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#f9fafb" }}>
+                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>PROYECTO</th>
+                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>PRIORIDAD</th>
+                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>AVANCE</th>
+                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>RESPONSABLE</th>
+                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>ENTREGA</th>
+                  <th style={{ width: 90 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {audiovisualesFiltrados.slice(0, 8).map(r => {
+                  const pr = PRIORIDADES[r.prioridad] || PRIORIDADES.media
+                  const es = AV_ESTADOS[r.estado] || AV_ESTADOS.pendiente
+                  return (
+                    <tr key={r.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "9px 10px" }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>{r.proyecto?.codigo || "-"}</div>
+                        <div style={{ fontSize: 12, color: "#6b7280" }}>{r.proyecto?.nombre || "-"}</div>
+                      </td>
+                      <td style={{ padding: "9px 10px", textAlign: "center" }}><span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{pr.label}</span></td>
+                      <td style={{ padding: "9px 10px", textAlign: "center", fontSize: 12, fontWeight: 700, color: es.color }}>{r.avance || 10}%</td>
+                      <td style={{ padding: "9px 10px", fontSize: 12, color: "#374151" }}>{r.responsable ? `${r.responsable.nombre} ${r.responsable.apellido}` : "Sin responsable"}</td>
+                      <td style={{ padding: "9px 10px", textAlign: "center", fontSize: 12, color: "#6b7280" }}>{r.fecha_entrega_solicitada || "-"}</td>
+                      <td style={{ padding: "9px 10px", textAlign: "right" }}>
+                        <button onClick={() => router.push(`/audiovisual/requerimientos?requerimiento_id=${r.id}`)} className="btn-secondary" style={{ fontSize: 11 }}>Abrir</button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Filtros */}
