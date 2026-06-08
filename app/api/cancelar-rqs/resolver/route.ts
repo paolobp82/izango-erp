@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getErrorMessage } from "@/lib/auth-server"
 import { escapeAttribute, escapeHtml as h, htmlPage } from "@/lib/html"
 import { sendEmailBatch } from "@/lib/email"
+import { rqCodigo } from "@/lib/rq-code"
 
 const BASE_URL = "https://izango-erp.vercel.app"
 const APPROVERS = ["administracion@izango.com.pe", "jsosa@izango.com.pe", "pbastianelli@izango.com.pe"]
@@ -9,7 +10,7 @@ const TOKEN_RE = /^[A-Za-z0-9_-]{16,}$/
 
 type Solicitud = { id: string; token: string; proyecto_id: string; estado: string; estado_nuevo?: string | null }
 type Project = { codigo?: string | null; nombre?: string | null }
-type Rq = { numero_rq?: string | null; descripcion?: string | null; monto_solicitado?: number | null; proveedor_nombre?: string | null }
+type Rq = { codigo_rq?: string | null; numero_rq?: string | null; descripcion?: string | null; monto_solicitado?: number | null; proveedor_nombre?: string | null }
 
 const htmlHeaders = { "Content-Type": "text/html; charset=utf-8" }
 
@@ -63,14 +64,14 @@ export async function GET(request: NextRequest) {
 
     const { data: rqsCancelados } = await supabase
       .from("requerimientos_pago")
-      .select("numero_rq,descripcion,monto_solicitado,proveedor_nombre")
+      .select("codigo_rq,numero_rq,descripcion,monto_solicitado,proveedor_nombre")
       .eq("proyecto_id", solicitud.proyecto_id)
       .eq("motivo_rechazo", "Cancelado por regreso de estado del proyecto")
       .returns<Rq[]>()
 
     const totalMonto = (rqsCancelados || []).reduce((sum, rq) => sum + Number(rq.monto_solicitado || 0), 0)
     const rows = (rqsCancelados || []).map((rq) => `<tr>
-      <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${h(rq.numero_rq || "—")}</td>
+      <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${h(rqCodigo(rq))}</td>
       <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${h(rq.descripcion || "—")}</td>
       <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${h(rq.proveedor_nombre || "—")}</td>
       <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;text-align:right;font-weight:700">S/ ${h(money(rq.monto_solicitado))}</td>

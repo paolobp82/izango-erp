@@ -17,15 +17,6 @@ const COSTOS_INTERNOS = [
   { key: "costo_movilidad", label: "Movilidad" },
 ]
 
-function nextRqSequence(existing: any[], year: number) {
-  const max = existing.reduce((currentMax, rq) => {
-    const match = String(rq.numero_rq || "").match(new RegExp(`^RQ-${year}-(\\d{5})$`))
-    const value = match ? Number(match[1]) : 0
-    return value > currentMax ? value : currentMax
-  }, 0)
-  return max + 1
-}
-
 function calcItem(item: any) {
   const costoBase = COSTOS_INTERNOS.reduce((s, c) => s + (Number(item[c.key]) || 0), 0)
     + (item.extras_produccion || []).reduce((s: number, e: any) => s + (Number(e.monto) || 0), 0)
@@ -299,15 +290,11 @@ else setBloqueada(cot?.bloqueada || false)
 
   async function generarRQs(cotizacionId: string, proyectoId: string) {
     const itemsConProveedor = items.filter(i => i.proveedor_id && i.costo_total > 0)
-    const rqYear = new Date().getFullYear()
-    const { data: rqsExistentes } = await supabase.from("requerimientos_pago").select("numero_rq").ilike("numero_rq", `RQ-${rqYear}-%`)
-    let rqNum = nextRqSequence(rqsExistentes || [], rqYear)
     for (const item of itemsConProveedor) {
       const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
       await supabase.from("requerimientos_pago").insert({
         proyecto_id: proyectoId,
         cotizacion_item_id: String(item.id).startsWith("new_") ? null : item.id,
-        numero_rq: `RQ-${rqYear}-${String(rqNum).padStart(5, "0")}`,
         estado: "pendiente_aprobacion",
         proveedor_id: item.proveedor_id,
         proveedor_nombre: prov?.nombre || item.proveedor_nombre || "",
@@ -317,7 +304,6 @@ else setBloqueada(cot?.bloqueada || false)
         monto_solicitado: item.costo_total,
         descripcion: item.descripcion,
       })
-      rqNum++
     }
     // Eliminar items borrados de BD
 const { data: dbItemsActuales } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
@@ -334,14 +320,12 @@ if (idsAEliminar.length > 0) {
         const prov = proveedores.find((p: any) => p.id === sub.proveedor_id)
         await supabase.from("requerimientos_pago").insert({
           proyecto_id: proyectoId,
-          numero_rq: `RQ-${rqYear}-${String(rqNum).padStart(5, "0")}`,
           estado: "pendiente_aprobacion",
           proveedor_id: sub.proveedor_id,
           proveedor_nombre: prov?.nombre || sub.proveedor_nombre || "",
           monto_solicitado: sub.monto,
           descripcion: item.descripcion + " — " + sub.descripcion,
         })
-        rqNum++
       }
     }
   }

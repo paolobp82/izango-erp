@@ -51,7 +51,7 @@ async function cargarContextoERP(supabase: SupabaseServer, perfil: PerfilIA) {
 
   if (esAdmin || perfil.perfil === "gerente_finanzas" || perfil.perfil === "controller") {
     const { data: rqs } = await supabase.from("requerimientos_pago")
-      .select("numero_rq,descripcion,monto_solicitado,estado,proveedor_nombre,proyecto:proyectos(codigo)")
+      .select("codigo_rq,numero_rq,descripcion,monto_solicitado,estado,proveedor_nombre,proyecto:proyectos(codigo)")
       .in("estado", ["pendiente_aprobacion","aprobado_produccion"]).limit(20)
     contexto.rqs_pendientes = rqs || []
 

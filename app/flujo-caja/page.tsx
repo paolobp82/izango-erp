@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from "recharts"
+import { rqCodigo } from "@/lib/rq-code"
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
 
@@ -257,7 +258,7 @@ export default function FlujoCajaPage() {
                   <tbody>
                     {rqsPendientes.map((r, idx) => (
                       <tr key={r.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                        <td style={{ padding: "8px 16px", fontSize: 11, fontFamily: "monospace", color: "#374151" }}>{r.numero_rq || "—"}</td>
+                        <td style={{ padding: "8px 16px", fontSize: 11, fontFamily: "monospace", color: "#374151" }}>{rqCodigo(r)}</td>
                         <td style={{ padding: "8px 8px", fontSize: 11, color: "#6b7280" }}>{r.proveedor_nombre || "—"}</td>
                         <td style={{ padding: "8px 16px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#dc2626" }}>{fmtFull(r.monto_solicitado || 0)}</td>
                         <td style={{ padding: "8px 8px" }}>

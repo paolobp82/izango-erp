@@ -51,11 +51,11 @@ const templates: Record<string, AlertTemplate> = {
     `),
   },
   rq_pendiente: {
-    subject: (d) => subjectWithContext("RQ pendiente de aprobacion", d, ["numero_rq", "proyecto"]),
+    subject: (d) => subjectWithContext("RQ pendiente de aprobacion", { ...d, codigo_rq: d.codigo_rq || d.numero_rq }, ["codigo_rq", "proyecto"]),
     html: (d) => card("RQ pendiente de aprobacion", `
       <p style="color:#374151;font-size:14px">Hay un requerimiento de pago pendiente de aprobacion:</p>
       <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:16px;margin:16px 0">
-        <p><strong>RQ:</strong> ${h(d.numero_rq)}</p>
+        <p><strong>RQ:</strong> ${h(d.codigo_rq || d.numero_rq)}</p>
         <p><strong>Proyecto:</strong> ${h(d.proyecto)}</p>
         <p><strong>Proveedor:</strong> ${h(d.proveedor)}</p>
         <p><strong>Monto:</strong> S/ ${h(money(d.monto))}</p>

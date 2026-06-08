@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { rqCodigo } from "@/lib/rq-code"
 
 const ESTADOS: Record<string, any> = {
   pendiente: { label: "Pendiente", bg: "#fef9c3", color: "#92400e" },
@@ -65,7 +66,7 @@ export default function CajaChicaPage() {
     const periStr = [...new Set((rAll || []).map((r: any) => r.periodo).filter(Boolean))] as string[]
     setPeriodos(periStr)
     setProyectos(pr || [])
-    const { data: rq } = await supabase.from("requerimientos_pago").select("id, numero_rq, descripcion").order("created_at", { ascending: false }).limit(50)
+    const { data: rq } = await supabase.from("requerimientos_pago").select("id, codigo_rq, numero_rq, descripcion").order("created_at", { ascending: false }).limit(50)
     setRqs(rq || [])
     setLoading(false)
   }
@@ -496,7 +497,7 @@ export default function CajaChicaPage() {
                 <label style={lbl}>RQ RELACIONADO (opcional)</label>
                 <select style={inp} value={form.rq_id} onChange={e => setForm({ ...form, rq_id: e.target.value })}>
                   <option value="">Sin RQ</option>
-                  {rqs.map(r => <option key={r.id} value={r.id}>{r.numero_rq} — {r.descripcion?.slice(0, 40) || "Sin descripción"}</option>)}
+                  {rqs.map(r => <option key={r.id} value={r.id}>{rqCodigo(r)} — {r.descripcion?.slice(0, 40) || "Sin descripción"}</option>)}
                 </select>
               </div>
               <div>
