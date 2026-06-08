@@ -6,6 +6,7 @@ export type TipoAlerta =
   | "proyecto_facturacion"
   | "proyecto_liquidado"
   | "cotizacion_aprobada"
+  | "audiovisual_requerimiento_creado"
 
 const CAMPO_ALERTA: Record<TipoAlerta, string> = {
   proyecto_creado: "proyecto_creado",
@@ -13,6 +14,7 @@ const CAMPO_ALERTA: Record<TipoAlerta, string> = {
   proyecto_facturacion: "proyecto_facturacion",
   proyecto_liquidado: "proyecto_liquidado",
   cotizacion_aprobada: "cotizacion_aprobada",
+  audiovisual_requerimiento_creado: "proyecto_creado",
 }
 
 export async function enviarAlerta(tipo: TipoAlerta, datos: any) {

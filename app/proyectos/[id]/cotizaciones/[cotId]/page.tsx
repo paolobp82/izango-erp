@@ -410,7 +410,7 @@ if (idsAEliminar.length > 0) {
       setBloqueada(true)
       const { data: cotData } = await supabase.from("cotizaciones").select("proyecto_id").eq("id", cotId).single()
       await registrarHistorial({ cotizacion_id: cotId!, accion: "aprobada_cliente", estado_anterior: "borrador", estado_nuevo: "aprobada_cliente", descripcion: "Aprobada. Total: " + fmt(totalFinal) })
-      await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, version: cotizacion?.version, total: totalFinal, proyecto_id: id })
+      await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, codigo: proyecto?.codigo, version: cotizacion?.version, total: totalFinal, proyecto_id: id })
     }
     if (nuevoEstado) {
       router.push("/proyectos/" + id)
