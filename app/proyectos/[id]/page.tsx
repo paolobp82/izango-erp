@@ -35,6 +35,15 @@ const ESTADOS_RQ: Record<string, any> = {
   rechazado: { bg: "#fee2e2", color: "#991b1b", label: "Rechazado" },
 }
 
+function nextRqSequence(existing: any[], year: number) {
+  const max = existing.reduce((currentMax, rq) => {
+    const match = String(rq.numero_rq || "").match(new RegExp(`^RQ-${year}-(\\d{5})$`))
+    const value = match ? Number(match[1]) : 0
+    return value > currentMax ? value : currentMax
+  }, 0)
+  return max + 1
+}
+
 export default function ProyectoDetallePage() {
   const params = useParams()
   const router = useRouter()
@@ -259,12 +268,9 @@ export default function ProyectoDetallePage() {
       await supabase.from("cotizaciones").update({ estado: "aprobada_cliente" }).eq("id", versionAprobar)
       await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar, estado: "en_curso" }).eq("id", id)
     }
-    const { data: rqsExistentes } = await supabase.from("requerimientos_pago").select("numero_rq").eq("proyecto_id", id)
-    const numerosExistentes = (rqsExistentes || []).map((r: any) => {
-      const match = r.numero_rq?.match(/-(\d+)$/)
-      return match ? parseInt(match[1]) : 0
-    })
-    let rqNum = (numerosExistentes.length > 0 ? Math.max(...numerosExistentes) : 0) + 1
+    const rqYear = new Date().getFullYear()
+    const { data: rqsExistentes } = await supabase.from("requerimientos_pago").select("numero_rq").ilike("numero_rq", `RQ-${rqYear}-%`)
+    let rqNum = nextRqSequence(rqsExistentes || [], rqYear)
     for (const item of preCuadreItems) {
       const esDividido = String(item.id).startsWith("div_")
       const tieneSubitemsActivos = preCuadreItems.some((s: any) => !s._borrado && (s.id === "sub_" + item.id || (s._subitemId && String(s.id).includes(String(item.id)))))
@@ -278,7 +284,7 @@ export default function ProyectoDetallePage() {
         es_adicional: esAdicional || item.esAdicional || false,
         dias_credito: item.dias_credito || null,
         tipo_pago: item.tipo_pago || "contado",
-        numero_rq: "RQ-" + id.slice(0,6).toUpperCase() + "-" + String(rqNum).padStart(3, "0"),
+        numero_rq: `RQ-${rqYear}-${String(rqNum).padStart(5, "0")}`,
         estado: "pendiente_aprobacion",
         proveedor_id: item.proveedor_id,
         proveedor_nombre: prov?.nombre || item.proveedor_nombre || "",
@@ -1118,7 +1124,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ESTADO</th>
                       <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>DESCRIPCION</th>
                       <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PROVEEDOR</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>FECHA</th>
                       <th style={{ textAlign: "right", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>MONTO</th>
+                      <th style={{ padding: "10px 16px" }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1137,7 +1145,11 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                           </td>
                           <td style={{ padding: "12px", fontSize: 12, color: "#374151", minWidth: 220 }}>{rq.descripcion || "—"}</td>
                           <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", minWidth: 160 }}>{rq.proveedor_nombre || "—"}</td>
+                          <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>{rq.created_at ? new Date(rq.created_at).toLocaleDateString("es-PE") : "—"}</td>
                           <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 800, color: "#0F6E56", textAlign: "right", whiteSpace: "nowrap" }}>{fmt(rq.monto_solicitado)}</td>
+                          <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                            <button onClick={() => router.push(`/rq?proyecto_id=${id}&view=list`)} className="btn-secondary" style={{ fontSize: 11 }}>Ver detalle</button>
+                          </td>
                         </tr>
                       )
                     })}

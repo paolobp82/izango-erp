@@ -24,6 +24,30 @@ const FLUJO = [
 
 const BANCOS_PAGO = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
 const TIPOS_TRANSFERENCIA = ["Transferencia bancaria", "Yape", "Plin", "Efectivo", "Cheque"]
+const FORM_RQ_VACIO = {
+  descripcion: "",
+  proveedor_id: "",
+  monto_solicitado: "",
+  proyecto_id: "",
+  tipo_pago: "contado",
+  dias_credito: "",
+  fecha_pago: "",
+  voucher_url: "",
+  nota_pago: "",
+  numero_operacion: "",
+  banco_pago: "",
+  tipo_transferencia: "Transferencia bancaria",
+}
+
+function getNextRqNumber(rqs: any[], date = new Date()) {
+  const year = date.getFullYear()
+  const max = rqs.reduce((currentMax, rq) => {
+    const match = String(rq.numero_rq || "").match(new RegExp(`^RQ-${year}-(\\d{5})$`))
+    const value = match ? Number(match[1]) : 0
+    return value > currentMax ? value : currentMax
+  }, 0)
+  return `RQ-${year}-${String(max + 1).padStart(5, "0")}`
+}
 
 export default function RQPage() {
   const supabase = createClient()
@@ -31,13 +55,16 @@ export default function RQPage() {
   const [loading, setLoading] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState("")
   const [filtroProveedor, setFiltroProveedor] = useState("")
+  const [filtroProyecto, setFiltroProyecto] = useState("")
   const [proveedores, setProveedores] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [perfil, setPerfil] = useState<any>(null)
   const [showNuevoRQ, setShowNuevoRQ] = useState(false)
 const [proyectos, setProyectos] = useState<any[]>([])
-const [formRQ, setFormRQ] = useState({ descripcion: "", proveedor_id: "", monto_solicitado: "", proyecto_id: "", tipo_pago: "contado", dias_credito: "" })
+const [formRQ, setFormRQ] = useState(FORM_RQ_VACIO)
 const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
+  const [showEditarRQ, setShowEditarRQ] = useState(false)
+  const [formEditarRQ, setFormEditarRQ] = useState(FORM_RQ_VACIO)
   const [fechaPago, setFechaPago] = useState("")
   const [filtroTipoPago, setFiltroTipoPago] = useState("")
   const [datosPago, setDatosPago] = useState({
@@ -51,6 +78,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   async function load() {
     const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
+    const viewParam = new URLSearchParams(window.location.search).get("view") || ""
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
@@ -61,19 +89,19 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       .select("*, proyecto:proyectos(id, nombre, codigo, productor:perfiles!productor_id(nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
       .order("created_at", { ascending: false })
     setRqs(data || [])
+    const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre").is("deleted_at", null).order("codigo")
+    setProyectos(projs || [])
+    const { data: provsTodos } = await supabase.from("proveedores").select("id, nombre").order("nombre")
+    setProveedoresTodos(provsTodos || [])
     const provIds = [...new Set((data || []).map((r: any) => r.proveedor_id).filter(Boolean))]
     if (provIds.length > 0) {
       const { data: provs } = await supabase.from("proveedores").select("id, nombre").in("id", provIds)
       setProveedores(provs || [])
     }
     if (proyectoIdParam) {
-      const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre")
-      setProveedores(provs || [])
-      setProveedoresTodos(provs || [])
-      const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre").is("deleted_at", null).order("codigo")
-      setProyectos(projs || [])
+      setFiltroProyecto(proyectoIdParam)
       setFormRQ(prev => ({ ...prev, proyecto_id: proyectoIdParam }))
-      setShowNuevoRQ(true)
+      setShowNuevoRQ(viewParam !== "list")
     }
     setLoading(false)
   }
@@ -121,6 +149,70 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     load()
   }
 
+  function puedeEditarRQ(rq: any) {
+    if (!rq) return false
+    if (["pagado", "cerrado"].includes(rq.estado)) return false
+    return ["superadmin", "gerente_general", "gerente_produccion", "controller", "productor"].includes(perfil?.perfil)
+  }
+
+  function abrirEditarRQ(rq: any) {
+    if (!puedeEditarRQ(rq)) return
+    setFormEditarRQ({
+      descripcion: rq.descripcion || "",
+      proveedor_id: rq.proveedor_id || "",
+      monto_solicitado: rq.monto_solicitado ? String(rq.monto_solicitado) : "",
+      proyecto_id: rq.proyecto_id || "",
+      tipo_pago: rq.tipo_pago || "contado",
+      dias_credito: rq.dias_credito ? String(rq.dias_credito) : "",
+      fecha_pago: rq.fecha_pago || "",
+      voucher_url: rq.voucher_url || "",
+      nota_pago: rq.nota_pago || "",
+      numero_operacion: rq.numero_operacion || "",
+      banco_pago: rq.banco_pago || "",
+      tipo_transferencia: rq.tipo_transferencia || "Transferencia bancaria",
+    })
+    setShowEditarRQ(true)
+  }
+
+  async function guardarEdicionRQ() {
+    if (!selected || !puedeEditarRQ(selected)) return
+    if (!formEditarRQ.descripcion || !formEditarRQ.monto_solicitado) {
+      alert("Descripcion y monto son obligatorios")
+      return
+    }
+    const prov = proveedoresTodos.find((p: any) => p.id === formEditarRQ.proveedor_id)
+    const updates = {
+      proyecto_id: formEditarRQ.proyecto_id || null,
+      descripcion: formEditarRQ.descripcion,
+      proveedor_id: formEditarRQ.proveedor_id || null,
+      proveedor_nombre: prov?.nombre || "",
+      monto_solicitado: Number(formEditarRQ.monto_solicitado),
+      tipo_pago: formEditarRQ.tipo_pago,
+      dias_credito: formEditarRQ.dias_credito ? Number(formEditarRQ.dias_credito) : null,
+      fecha_pago: formEditarRQ.fecha_pago || null,
+      voucher_url: formEditarRQ.voucher_url || null,
+      nota_pago: formEditarRQ.nota_pago || null,
+      numero_operacion: formEditarRQ.numero_operacion || null,
+      banco_pago: formEditarRQ.banco_pago || null,
+      tipo_transferencia: formEditarRQ.tipo_transferencia || null,
+    }
+    const { data: updated, error } = await supabase
+      .from("requerimientos_pago")
+      .update(updates)
+      .eq("id", selected.id)
+      .not("estado", "in", "(pagado,cerrado)")
+      .select("id")
+      .maybeSingle()
+    if (error || !updated) {
+      alert("No se pudo editar el RQ. Puede que ya este pagado o cerrado.")
+      return
+    }
+    await registrarAccion({ accion: "editar", modulo: "rq", entidad_id: selected.id, entidad_tipo: "rq", descripcion: "RQ editado: " + selected.numero_rq, datos_nuevos: updates })
+    setSelected((prev: any) => prev ? { ...prev, ...updates, proveedor: prov ? { ...(prev.proveedor || {}), nombre: prov.nombre } : prev.proveedor } : prev)
+    setShowEditarRQ(false)
+    load()
+  }
+
   function getSiguienteAccion(rq: any) {
     const rol = perfil?.perfil
     const paso = FLUJO.find(f => f.estado === rq.estado)
@@ -140,6 +232,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const filtradosBase = rqs.filter(r => {
     if (filtroEstado && r.estado !== filtroEstado) return false
     if (filtroProveedor && r.proveedor_id !== filtroProveedor) return false
+    if (filtroProyecto && r.proyecto_id !== filtroProyecto) return false
     if (filtroTipoPago && r.tipo_pago !== filtroTipoPago) return false
     return true
   })
@@ -155,6 +248,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const lbl: any = { fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3, display: "block" }
 
   const puedeEditarPago = ["controller", "superadmin"].includes(perfil?.perfil)
+  const selectedBloqueado = selected ? ["pagado", "cerrado"].includes(selected.estado) : false
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
   return (
@@ -203,8 +297,13 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
             <option value="adelanto">Adelanto</option>
             <option value="credito">Credito</option>
           </select>
-          {(filtroEstado || filtroProveedor || filtroTipoPago) && (
-            <button onClick={() => { setFiltroEstado(""); setFiltroProveedor(""); setFiltroTipoPago("") }}
+          {filtroProyecto && (
+            <span style={{ fontSize: 12, color: "#0F6E56", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 99, padding: "4px 10px", fontWeight: 700 }}>
+              Proyecto filtrado
+            </span>
+          )}
+          {(filtroEstado || filtroProveedor || filtroTipoPago || filtroProyecto) && (
+            <button onClick={() => { setFiltroEstado(""); setFiltroProveedor(""); setFiltroTipoPago(""); setFiltroProyecto("") }}
               style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
               Limpiar filtros
             </button>
@@ -318,8 +417,20 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
           <div className="card" style={{ position: "sticky", top: 20, alignSelf: "start" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{selected.numero_rq}</div>
-              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 18 }}>x</button>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {puedeEditarRQ(selected) && (
+                  <button onClick={() => abrirEditarRQ(selected)} style={{ fontSize: 11, padding: "4px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
+                    Editar RQ
+                  </button>
+                )}
+                <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 18 }}>x</button>
+              </div>
             </div>
+            {["pagado", "cerrado"].includes(selected.estado) && (
+              <div style={{ padding: "8px 10px", border: "1px solid #bbf7d0", borderRadius: 8, background: "#f0fdf4", color: "#166534", fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
+                RQ pagado/cerrado: la edicion esta bloqueada.
+              </div>
+            )}
 
             <div style={{ display: "grid", gap: 12 }}>
               <div>
@@ -381,35 +492,35 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                   <div style={{ display: "grid", gap: 8 }}>
                     <div>
                       <label style={lbl}>N operacion / referencia</label>
-                      <input style={inp} value={datosPago.numero_operacion} placeholder="Ej: 123456789" onChange={e => setDatosPago({ ...datosPago, numero_operacion: e.target.value })} readOnly={!puedeEditarPago} />
+                      <input style={inp} value={datosPago.numero_operacion} placeholder="Ej: 123456789" onChange={e => setDatosPago({ ...datosPago, numero_operacion: e.target.value })} readOnly={!puedeEditarPago || selectedBloqueado} />
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                       <div>
                         <label style={lbl}>Banco origen</label>
-                        <select style={inp} value={datosPago.banco_pago} onChange={e => setDatosPago({ ...datosPago, banco_pago: e.target.value })} disabled={false}>
+                        <select style={inp} value={datosPago.banco_pago} onChange={e => setDatosPago({ ...datosPago, banco_pago: e.target.value })} disabled={!puedeEditarPago || selectedBloqueado}>
                           <option value="">Seleccionar</option>
                           {BANCOS_PAGO.map(b => <option key={b}>{b}</option>)}
                         </select>
                       </div>
                       <div>
                         <label style={lbl}>Tipo transferencia</label>
-                        <select style={inp} value={datosPago.tipo_transferencia} onChange={e => setDatosPago({ ...datosPago, tipo_transferencia: e.target.value })} disabled={false}>
+                        <select style={inp} value={datosPago.tipo_transferencia} onChange={e => setDatosPago({ ...datosPago, tipo_transferencia: e.target.value })} disabled={!puedeEditarPago || selectedBloqueado}>
                           {TIPOS_TRANSFERENCIA.map(t => <option key={t}>{t}</option>)}
                         </select>
                       </div>
                     </div>
                     <div>
                       <label style={lbl}>Link voucher (Google Drive)</label>
-                      <input style={inp} value={datosPago.voucher_url} placeholder="https://drive.google.com/..." onChange={e => setDatosPago({ ...datosPago, voucher_url: e.target.value })} readOnly={!puedeEditarPago} />
+                      <input style={inp} value={datosPago.voucher_url} placeholder="https://drive.google.com/..." onChange={e => setDatosPago({ ...datosPago, voucher_url: e.target.value })} readOnly={!puedeEditarPago || selectedBloqueado} />
                       {datosPago.voucher_url && (
                         <a href={datosPago.voucher_url} target="_blank" style={{ fontSize: 11, color: "#1e40af", display: "inline-block", marginTop: 3 }}>Ver voucher →</a>
                       )}
                     </div>
                     <div>
                       <label style={lbl}>Nota de pago</label>
-                      <input style={inp} value={datosPago.nota_pago} placeholder="Observaciones opcionales..." onChange={e => setDatosPago({ ...datosPago, nota_pago: e.target.value })} readOnly={!puedeEditarPago} />
+                      <input style={inp} value={datosPago.nota_pago} placeholder="Observaciones opcionales..." onChange={e => setDatosPago({ ...datosPago, nota_pago: e.target.value })} readOnly={!puedeEditarPago || selectedBloqueado} />
                     </div>
-                    {puedeEditarPago && (
+                    {puedeEditarPago && !selectedBloqueado && (
                       <button onClick={guardarDatosPago} disabled={guardandoPago}
                         style={{ fontSize: 12, padding: "6px", border: "none", borderRadius: 6, background: "#1D9E75", color: "#fff", cursor: "pointer", fontWeight: 600 }}>
                         {guardandoPago ? "Guardando..." : "Guardar datos operacion"}
@@ -469,6 +580,42 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
             </div>
           </div>
         )}
+      {showEditarRQ && selected && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 520 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Editar RQ</h2>
+                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>{selected.numero_rq}</div>
+              </div>
+              <button onClick={() => setShowEditarRQ(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
+            </div>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div><label style={lbl}>PROYECTO</label><select style={inp} value={formEditarRQ.proyecto_id} onChange={e => setFormEditarRQ({ ...formEditarRQ, proyecto_id: e.target.value })}><option value="">Sin proyecto</option>{proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}</select></div>
+              <div><label style={lbl}>CONCEPTO</label><input style={inp} value={formEditarRQ.descripcion} placeholder="Concepto del RQ..." onChange={e => setFormEditarRQ({ ...formEditarRQ, descripcion: e.target.value })} /></div>
+              <div><label style={lbl}>PROVEEDOR</label><select style={inp} value={formEditarRQ.proveedor_id} onChange={e => setFormEditarRQ({ ...formEditarRQ, proveedor_id: e.target.value })}><option value="">Seleccionar proveedor</option>{proveedoresTodos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><label style={lbl}>MONTO (S/)</label><input type="number" style={inp} value={formEditarRQ.monto_solicitado} placeholder="0.00" onChange={e => setFormEditarRQ({ ...formEditarRQ, monto_solicitado: e.target.value })} /></div>
+                <div><label style={lbl}>FECHA REQUERIDA</label><input type="date" style={inp} value={formEditarRQ.fecha_pago} onChange={e => setFormEditarRQ({ ...formEditarRQ, fecha_pago: e.target.value })} /></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><label style={lbl}>TIPO DE PAGO</label><select style={inp} value={formEditarRQ.tipo_pago} onChange={e => setFormEditarRQ({ ...formEditarRQ, tipo_pago: e.target.value })}><option value="contado">Contado</option><option value="adelanto">Adelanto</option><option value="credito">Credito</option></select></div>
+                <div><label style={lbl}>DIAS DE PAGO</label><input type="number" style={inp} value={formEditarRQ.dias_credito} placeholder="Ej: 30" onChange={e => setFormEditarRQ({ ...formEditarRQ, dias_credito: e.target.value })} /></div>
+              </div>
+              <div><label style={lbl}>SUSTENTO / LINK</label><input style={inp} value={formEditarRQ.voucher_url} placeholder="https://..." onChange={e => setFormEditarRQ({ ...formEditarRQ, voucher_url: e.target.value })} /></div>
+              <div><label style={lbl}>OBSERVACIONES</label><textarea style={{ ...inp, resize: "vertical" }} rows={3} value={formEditarRQ.nota_pago} placeholder="Observaciones internas..." onChange={e => setFormEditarRQ({ ...formEditarRQ, nota_pago: e.target.value })} /></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><label style={lbl}>N OPERACION</label><input style={inp} value={formEditarRQ.numero_operacion} placeholder="Opcional" onChange={e => setFormEditarRQ({ ...formEditarRQ, numero_operacion: e.target.value })} /></div>
+                <div><label style={lbl}>BANCO</label><select style={inp} value={formEditarRQ.banco_pago} onChange={e => setFormEditarRQ({ ...formEditarRQ, banco_pago: e.target.value })}><option value="">Seleccionar</option>{BANCOS_PAGO.map(b => <option key={b}>{b}</option>)}</select></div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+              <button onClick={() => setShowEditarRQ(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+              <button onClick={guardarEdicionRQ} className="btn-primary" style={{ fontSize: 13 }}>Guardar cambios</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showNuevoRQ && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 500 }}>
@@ -488,13 +635,11 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               <button onClick={() => setShowNuevoRQ(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
               <button onClick={async () => {
                 if (!formRQ.descripcion || !formRQ.monto_solicitado) { alert("Descripcion y monto son obligatorios"); return }
-                const prov = proveedores.find((p: any) => p.id === formRQ.proveedor_id)
-                const proyId = formRQ.proyecto_id || "MANUAL"
-                const { count } = await supabase.from("requerimientos_pago").select("*", { count: "exact", head: true }).eq("proyecto_id", proyId)
-                const rqNum = (count || 0) + 1
-                await supabase.from("requerimientos_pago").insert({ proyecto_id: formRQ.proyecto_id || null, numero_rq: "RQ-" + proyId.slice(0,6).toUpperCase() + "-" + String(rqNum).padStart(3,"0"), estado: "pendiente_aprobacion", proveedor_id: formRQ.proveedor_id || null, proveedor_nombre: prov?.nombre || "", monto_solicitado: Number(formRQ.monto_solicitado), descripcion: formRQ.descripcion, tipo_pago: formRQ.tipo_pago, dias_credito: formRQ.dias_credito ? Number(formRQ.dias_credito) : null, es_adicional: true })
+                const prov = proveedoresTodos.find((p: any) => p.id === formRQ.proveedor_id)
+                const numeroRq = getNextRqNumber(rqs)
+                await supabase.from("requerimientos_pago").insert({ proyecto_id: formRQ.proyecto_id || null, numero_rq: numeroRq, estado: "pendiente_aprobacion", proveedor_id: formRQ.proveedor_id || null, proveedor_nombre: prov?.nombre || "", monto_solicitado: Number(formRQ.monto_solicitado), descripcion: formRQ.descripcion, tipo_pago: formRQ.tipo_pago, dias_credito: formRQ.dias_credito ? Number(formRQ.dias_credito) : null, es_adicional: true })
                 setShowNuevoRQ(false)
-                setFormRQ({ descripcion: "", proveedor_id: "", monto_solicitado: "", proyecto_id: "", tipo_pago: "contado", dias_credito: "" })
+                setFormRQ(FORM_RQ_VACIO)
                 load()
               }} className="btn-primary" style={{ fontSize: 13 }}>Crear RQ</button>
             </div>
