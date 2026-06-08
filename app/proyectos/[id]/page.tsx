@@ -684,18 +684,6 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             </div>
           )}
 
-          {proyecto?.estado === "en_curso" && ["superadmin","gerente_general","gerente_produccion","productor"].includes(perfil?.perfil) && (
-            <div style={{ marginTop: 12 }}>
-              <button onClick={async () => {
-                const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
-                setProveedores(provs || [])
-                setPreCuadreItems([{ id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, esAdicional: true, tipo_pago: "contado" }])
-                setShowPreCuadre(true)
-              }} style={{ padding: "8px 16px", border: "1px dashed #f59e0b", borderRadius: 8, background: "#fffbeb", color: "#92400e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                + Generar RQs adicionales
-              </button>
-            </div>
-          )}
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             {puedeAvanzar && estadoInfo.siguiente && (
               <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando || (proyecto?.estado === "aprobado" && !versionAprobar)}
@@ -887,13 +875,66 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       </section>
 
       <section id="tab-costos-rq" className="card" style={{ marginTop: 24, marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Costos / RQ</h2>
-          <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Crear RQ</button>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Costos / RQ</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Costos y requerimientos de pago</h2>
+            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
+              Ordena pre-cuadre, proveedores y RQs del proyecto sin cambiar la logica actual.
+            </p>
+          </div>
+          <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Crear RQ manual</button>
         </div>
-        <div style={{ padding: 20 }}>
+        <div style={{ padding: 20, display: "grid", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>Version aprobada</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: cotAprobada ? "#15803d" : "#9ca3af" }}>
+                {cotAprobada ? `V${cotAprobada.version}` : "Pendiente"}
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                {cotAprobada?.total_cliente ? fmt(cotAprobada.total_cliente) : "Se define desde Proformas / aprobación"}
+              </div>
+            </div>
+            <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>Pre-cuadre</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: proyecto?.estado === "en_curso" ? "#92400e" : "#9ca3af" }}>
+                {proyecto?.estado === "en_curso" ? "Disponible" : "Segun estado"}
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Usa el flujo actual de proveedores y costos.</div>
+            </div>
+            <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>RQs adicionales</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#0F6E56" }}>Manual</div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Permite agregar costos fuera de la version aprobada.</div>
+            </div>
+          </div>
+
+          <div style={{ padding: 16, border: "1px solid #fcd34d", borderRadius: 10, background: "#fffbeb" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#92400e", marginBottom: 4 }}>Pre-cuadre y RQs adicionales</div>
+                <div style={{ fontSize: 12, color: "#92400e" }}>
+                  Mantiene el flujo actual: selecciona proveedores, costos finales y genera requerimientos de pago adicionales.
+                </div>
+              </div>
+              {proyecto?.estado === "en_curso" && ["superadmin","gerente_general","gerente_produccion","productor"].includes(perfil?.perfil) ? (
+                <button onClick={async () => {
+                  const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
+                  setProveedores(provs || [])
+                  setPreCuadreItems([{ id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, esAdicional: true, tipo_pago: "contado" }])
+                  setShowPreCuadre(true)
+                }} style={{ padding: "8px 16px", border: "1px dashed #f59e0b", borderRadius: 8, background: "#fff", color: "#92400e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  + Generar RQs adicionales
+                </button>
+              ) : (
+                <span style={{ fontSize: 12, color: "#92400e", fontWeight: 600 }}>Disponible cuando el proyecto este en curso y el rol lo permita</span>
+              )}
+            </div>
+          </div>
+
           <div style={placeholderStyle}>
-            Fase 1: placeholder para pre-cuadre, RQs generados, RQs adicionales, montos solicitados y estados de pago. La generacion actual de RQs se mantiene en el flujo existente.
+            La generacion de RQs desde la version aprobada sigue ocurriendo con el flujo actual de aprobacion/inicio del proyecto. El listado global completo de RQs no se integra todavia para evitar consultas nuevas pesadas.
           </div>
         </div>
       </section>
