@@ -91,6 +91,20 @@ const templates: Record<string, AlertTemplate> = {
       <a href="${escapeAttribute(projectLink(d.proyecto_id))}" style="background:#03E373;color:#1D2040;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Ver proyecto</a>
     `),
   },
+  audiovisual_requerimiento_creado: {
+    subject: "Nuevo requerimiento audiovisual - Izango ERP",
+    html: (d) => card("Nuevo requerimiento audiovisual", `
+      <p style="color:#374151;font-size:14px">Produccion ha solicitado un nuevo trabajo al area audiovisual:</p>
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:16px 0">
+        <p><strong>Proyecto:</strong> ${h(d.proyecto)}</p>
+        <p><strong>Productor:</strong> ${h(d.productor)}</p>
+        <p><strong>Prioridad:</strong> ${h(d.prioridad)}</p>
+        <p><strong>Entrega solicitada:</strong> ${h(d.fecha_entrega_solicitada)}</p>
+        <p><strong>Piezas:</strong> ${h(d.piezas)}</p>
+      </div>
+      <a href="${APP_URL}/audiovisual/requerimientos" style="background:#1D2040;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Ver requerimientos</a>
+    `, "#1D2040"),
+  },
 }
 
 export async function POST(request: NextRequest) {

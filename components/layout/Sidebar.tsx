@@ -20,11 +20,11 @@ const PERFIL: Record<string,string> = {
 const ACCESO: Record<string, string[]> = {
   superadmin: ["*"],
   gerente_general: ["*"],
-  administrador: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/proveedores","/biblioteca","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/inventario","/envios-materiales","/rrhh","/ia","/trazabilidad","/alertas","/admin","/perfil","/tareas","/reporteria"],
+  administrador: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/proveedores","/biblioteca","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/inventario","/envios-materiales","/audiovisual","/rrhh","/ia","/trazabilidad","/alertas","/admin","/perfil","/tareas","/reporteria"],
   controller: ["/dashboard","/proyectos","/calendario","/clientes","/proformas","/proveedores","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/inventario","/envios-materiales","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas","/reporteria"],
-  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/proformas","/proveedores","/biblioteca","/rq","/liquidaciones","/caja-chica","/inventario","/envios-materiales","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas"],
+  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/proformas","/proveedores","/biblioteca","/rq","/liquidaciones","/caja-chica","/inventario","/envios-materiales","/audiovisual","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas"],
   gerente_finanzas: ["/dashboard","/proyectos","/clientes","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/clientes","/ia","/alertas","/perfil","/tareas","/reporteria"],
-  productor: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/proformas","/proveedores","/biblioteca","/rq","/liquidaciones","/caja-chica","/envios-materiales","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
+  productor: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/proformas","/proveedores","/biblioteca","/rq","/liquidaciones","/caja-chica","/envios-materiales","/audiovisual","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
   logistica: ["/dashboard","/calendario","/clientes","/inventario","/envios-materiales","/rq","/caja-chica","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
   comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
   practicante: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/crm","/proformas","/biblioteca","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
@@ -46,6 +46,7 @@ const ALL_NAV = [
   { section: "Operación", items: [
     { label: "Proyectos", href: "/proyectos" },
     { label: "Gestor", href: "/gestor" },
+    { label: "Req. Audiovisuales", href: "/audiovisual/requerimientos" },
   ]},
   { section: "Compras y Logística", items: [
     { label: "Proveedores", href: "/proveedores" },

@@ -575,6 +575,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
             Crear tarea
           </button>
+          <button onClick={() => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
+            Solicitar audiovisual
+          </button>
           <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
             Emitir factura
           </button>
@@ -1054,7 +1057,10 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       <section id="tab-tareas" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
         <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Tareas</h2>
-          <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Crear tarea</button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Crear tarea</button>
+            <button onClick={() => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Solicitar audiovisual</button>
+          </div>
         </div>
         <div style={{ padding: 20 }}>
           <div style={placeholderStyle}>
