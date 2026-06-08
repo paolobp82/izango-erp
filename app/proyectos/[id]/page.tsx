@@ -62,7 +62,7 @@ export default function ProyectoDetallePage() {
     }
     const { data: proy } = await supabase
       .from("proyectos")
-      .select("*, cliente:clientes(razon_social, ruc), productor:perfiles!productor_id(nombre, apellido)")
+      .select("*, cliente:clientes(razon_social, ruc, direccion, nombre_contacto, email_contacto, telefono_contacto), productor:perfiles!productor_id(nombre, apellido)")
       .eq("id", id)
       .single()
     setProyecto(proy)
@@ -344,6 +344,21 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const puedeRechazar = ["gerente_produccion", "gerente_general", "superadmin"].includes(perfil?.perfil) && !esEstadoFinal
   const puedeEditar = ["superadmin", "gerente_general", "gerente_produccion", "administrador", "controller", "productor"].includes(perfil?.perfil)
   const cotAprobada = cotizaciones.find(c => c.estado === "aprobada_cliente") || cotizaciones.find(c => c.id === proyecto?.cotizacion_aprobada_id)
+  const entidadLabel = ENTIDADES.find(e => e.value === proyecto?.entidad)?.label || proyecto?.entidad || "Sin entidad"
+  const productorNombre = proyecto?.productor ? `${proyecto.productor.nombre} ${proyecto.productor.apellido}` : "Sin productor"
+  const montoAprobado = cotAprobada?.total_cliente || 0
+  const clienteProyecto = proyecto?.cliente || {}
+  const clienteId = proyecto?.cliente_id
+  const clienteNombre = clienteProyecto.razon_social || "Sin cliente"
+  const clienteContacto = clienteProyecto.nombre_contacto || "Sin contacto principal"
+  const clienteEmail = clienteProyecto.email_contacto || "Sin correo"
+  const clienteTelefono = clienteProyecto.telefono_contacto || "Sin telefono"
+  const resumenAlertas = [
+    !tieneCotizacion ? { label: "Sin proforma", detalle: "Crea una proforma para continuar el flujo comercial." } : null,
+    tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
+    ["aprobado", "aprobado_cliente"].includes(proyecto?.estado) && cotAprobada ? { label: "Pendiente de RQ", detalle: "Al iniciar el proyecto se mantiene el flujo actual de pre-cuadre y generacion de RQs." } : null,
+    proyecto?.estado === "terminado" ? { label: "Pendiente de liquidacion", detalle: "El proyecto esta terminado y debe pasar por liquidacion." } : null,
+  ].filter(Boolean) as any[]
 
   const ecCot: any = {
     borrador: { bg: "#fef9c3", color: "#92400e" },
@@ -590,126 +605,223 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       </nav>
 
       <section id="tab-resumen" style={{ scrollMarginTop: 120 }}>
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>Estado</div>
-            <span style={{ background: estadoInfo.bg, color: estadoInfo.color, padding: "4px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+        <div className="card" style={{ marginBottom: 24, padding: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Resumen</div>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Resumen ejecutivo</h2>
+              <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
+                Vista rapida del proyecto, estado, economia base y alertas operativas.
+              </p>
+            </div>
+            <span style={{ background: estadoInfo.bg, color: estadoInfo.color, padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
               {estadoInfo.label}
             </span>
           </div>
-          <div>
-            <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>Fecha inicio</div>
-            <div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.fecha_inicio || "—"}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>Fecha fin estimada</div>
-            <div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.fecha_fin_estimada || "—"}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>Presupuesto ref.</div>
-            <div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.presupuesto_referencial ? fmt(proyecto.presupuesto_referencial) : "—"}</div>
-          </div>
-        </div>
 
-        <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #f3f4f6" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {FLUJO_BREADCRUMB.map((estado, idx) => {
-              const info = FLUJO[estado]
-              const idxActual = FLUJO_BREADCRUMB.indexOf(proyecto?.estado)
-              const completado = idx <= idxActual
-              const actual = estado === proyecto?.estado
-              return (
-                <div key={estado} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div
-                      onClick={async () => {
-                        if (!["superadmin","gerente_general"].includes(perfil?.perfil)) return
-                        if (actual) return
-                        if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
-                        const estadosAntesDeEnCurso = ["pendiente_aprobacion","aprobado_produccion","aprobado_gerencia","aprobado_cliente"]
-                        const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id, estado").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
-                        const nRqs = rqsPendientes?.length || 0
-                        const msgRqs = nRqs > 0 ? `\n\n⚠️ Se cancelarán ${nRqs} RQ(s) pendientes automáticamente.` : ""
-                        if (confirm(`¿Regresar el proyecto al estado "${info.label}"?${msgRqs}`)) {
-                          if (nRqs > 0) {
-                            await supabase.from("requerimientos_pago").update({ estado: "rechazado" }).eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
-                          }
-                          cambiarEstado(estado)
-                        }
-                      }}
-                      style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: ["superadmin","gerente_general"].includes(perfil?.perfil) && !actual && idx < FLUJO_BREADCRUMB.indexOf(proyecto?.estado) ? "pointer" : "default" }}>
-                      <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{idx + 1}</span>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: actual ? 700 : 400, color: actual ? info.color : completado ? "#374151" : "#9ca3af" }}>{info.label}</span>
-                  </div>
-                  {idx < FLUJO_BREADCRUMB.length - 1 && <span style={{ color: "#d1d5db", fontSize: 14 }}>→</span>}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 16 }}>
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fff" }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Datos base del proyecto</h3>
+              <div style={{ display: "grid", gap: 8 }}>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Codigo</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.codigo || "-"}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Nombre</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.nombre || "-"}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Cliente</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.cliente?.razon_social || "Sin cliente"}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Productor</span><div style={{ fontSize: 13, color: "#374151" }}>{productorNombre}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Entidad</span><div style={{ fontSize: 13, color: "#374151" }}>{entidadLabel}</div></div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Inicio</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.fecha_inicio || "-"}</div></div>
+                  <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Fin estimado</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.fecha_fin_estimada || "-"}</div></div>
                 </div>
-              )
-            })}
+              </div>
+            </div>
+
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fff" }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Estado del proyecto</h3>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                {FLUJO_BREADCRUMB.map((estado, idx) => {
+                  const info = FLUJO[estado]
+                  const idxActual = FLUJO_BREADCRUMB.indexOf(proyecto?.estado)
+                  const completado = idx <= idxActual
+                  const actual = estado === proyecto?.estado
+                  return (
+                    <div key={estado} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div
+                        onClick={async () => {
+                          if (!["superadmin","gerente_general"].includes(perfil?.perfil)) return
+                          if (actual) return
+                          if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
+                          const estadosAntesDeEnCurso = ["pendiente_aprobacion","aprobado_produccion","aprobado_gerencia","aprobado_cliente"]
+                          const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id, estado").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
+                          const nRqs = rqsPendientes?.length || 0
+                          const msgRqs = nRqs > 0 ? `\n\n⚠️ Se cancelarán ${nRqs} RQ(s) pendientes automáticamente.` : ""
+                          if (confirm(`¿Regresar el proyecto al estado "${info.label}"?${msgRqs}`)) {
+                            if (nRqs > 0) {
+                              await supabase.from("requerimientos_pago").update({ estado: "rechazado" }).eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
+                            }
+                            cambiarEstado(estado)
+                          }
+                        }}
+                        style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: ["superadmin","gerente_general"].includes(perfil?.perfil) && !actual && idx < FLUJO_BREADCRUMB.indexOf(proyecto?.estado) ? "pointer" : "default" }}>
+                        <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{idx + 1}</span>
+                      </div>
+                      {actual && <span style={{ fontSize: 11, fontWeight: 700, color: info.color }}>{info.label}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
+                <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Siguiente accion disponible</div>
+                <div style={{ fontSize: 13, color: "#374151", marginBottom: 10 }}>
+                  {puedeAvanzar && estadoInfo.accion ? estadoInfo.accion : esEstadoFinal ? "Sin acciones pendientes" : "Sin accion disponible para tu rol"}
+                </div>
+
+                {proyecto?.estado === "rechazado" && (
+                  <div style={{ marginBottom: 10, padding: "8px 12px", background: "#fde8d8", border: "1px solid #fdba74", borderRadius: 8, fontSize: 12, color: "#c2410c", fontWeight: 600 }}>
+                    Este proyecto fue rechazado y no puede avanzar.
+                  </div>
+                )}
+
+                {puedeAvanzar && proyecto?.estado === "aprobado" && cotizaciones.length > 0 && (
+                  <div style={{ marginBottom: 10, padding: "12px 14px", background: "#f0fdf4", border: "1px solid #1D9E75", borderRadius: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#0F6E56", marginBottom: 8 }}>
+                      Selecciona la version aprobada por el cliente
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {cotizaciones.map((cot: any) => (
+                        <button key={cot.id} type="button" onClick={() => setVersionAprobar(cot.id)}
+                          style={{
+                            padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: versionAprobar === cot.id ? 700 : 400,
+                            border: versionAprobar === cot.id ? "2px solid #0F6E56" : "1px solid #e5e7eb",
+                            background: versionAprobar === cot.id ? "#dcfce7" : "#fff",
+                            color: versionAprobar === cot.id ? "#15803d" : "#374151", cursor: "pointer",
+                          }}>
+                          V{cot.version}
+                          {cot.total_cliente > 0 && <span style={{ marginLeft: 6, fontSize: 11, color: versionAprobar === cot.id ? "#15803d" : "#9ca3af" }}>{fmt(cot.total_cliente)}</span>}
+                          {cot.estado === "aprobada_cliente" && <span style={{ marginLeft: 4, fontSize: 10 }}>✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {puedeAvanzar && estadoInfo.siguiente && (
+                    <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando || (proyecto?.estado === "aprobado" && !versionAprobar)}
+                      style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado" && !versionAprobar) ? 0.5 : 1 }}>
+                      {cambiando ? "..." : estadoInfo.accion}
+                    </button>
+                  )}
+                  {puedeRechazar && (
+                    <button onClick={rechazar} disabled={cambiando}
+                      style={{ padding: "8px 16px", border: "1px solid #fde8d8", borderRadius: 8, background: "#fff", color: "#c2410c", cursor: "pointer", fontSize: 13 }}>
+                      Rechazar proyecto
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fff" }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Informacion economica basica</h3>
+              <div style={{ display: "grid", gap: 10 }}>
+                <div>
+                  <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Presupuesto referencial</span>
+                  <div style={{ fontSize: 18, color: "#111827", fontWeight: 700 }}>{proyecto?.presupuesto_referencial ? fmt(proyecto.presupuesto_referencial) : "-"}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Version aprobada</span>
+                  <div style={{ fontSize: 13, color: "#374151" }}>{cotAprobada ? `V${cotAprobada.version}` : "Sin version aprobada"}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Monto aprobado</span>
+                  <div style={{ fontSize: 13, color: "#374151" }}>{montoAprobado ? fmt(montoAprobado) : "-"}</div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {proyecto?.estado === "rechazado" && (
-            <div style={{ marginTop: 12, padding: "8px 12px", background: "#fde8d8", border: "1px solid #fdba74", borderRadius: 8, fontSize: 12, color: "#c2410c", fontWeight: 600 }}>
-              Este proyecto fue rechazado y no puede avanzar.
+          <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fafafa" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: resumenAlertas.length > 0 ? 10 : 0 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>Alertas simples</h3>
+              {resumenAlertas.length === 0 && <span style={{ fontSize: 12, color: "#15803d", fontWeight: 700 }}>Sin alertas operativas</span>}
             </div>
-          )}
-
-          {!tieneCotizacion && proyecto?.estado === "pendiente_aprobacion" && (
-            <div style={{ marginTop: 12, padding: "8px 12px", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 8, fontSize: 12, color: "#92400e" }}>
-              Debes crear al menos una proforma antes de poder aprobar este proyecto.
-            </div>
-          )}
-
-          {puedeAvanzar && proyecto?.estado === "aprobado" && cotizaciones.length > 0 && (
-            <div style={{ marginTop: 12, padding: "12px 16px", background: "#f0fdf4", border: "1px solid #1D9E75", borderRadius: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#0F6E56", marginBottom: 8 }}>
-                ✓ Selecciona la version aprobada por el cliente
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {cotizaciones.map((cot: any) => (
-                  <button key={cot.id} type="button" onClick={() => setVersionAprobar(cot.id)}
-                    style={{
-                      padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: versionAprobar === cot.id ? 700 : 400,
-                      border: versionAprobar === cot.id ? "2px solid #0F6E56" : "1px solid #e5e7eb",
-                      background: versionAprobar === cot.id ? "#dcfce7" : "#fff",
-                      color: versionAprobar === cot.id ? "#15803d" : "#374151", cursor: "pointer",
-                    }}>
-                    V{cot.version}
-                    {cot.total_cliente > 0 && <span style={{ marginLeft: 6, fontSize: 11, color: versionAprobar === cot.id ? "#15803d" : "#9ca3af" }}>{fmt(cot.total_cliente)}</span>}
-                    {cot.estado === "aprobada_cliente" && <span style={{ marginLeft: 4, fontSize: 10 }}>✓</span>}
-                  </button>
+            {resumenAlertas.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+                {resumenAlertas.map((alerta: any) => (
+                  <div key={alerta.label} style={{ padding: "10px 12px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#9a3412", marginBottom: 3 }}>{alerta.label}</div>
+                    <div style={{ fontSize: 12, color: "#7c2d12" }}>{alerta.detalle}</div>
+                  </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            {puedeAvanzar && estadoInfo.siguiente && (
-              <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando || (proyecto?.estado === "aprobado" && !versionAprobar)}
-                style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado" && !versionAprobar) ? 0.5 : 1 }}>
-                {cambiando ? "..." : estadoInfo.accion}
-              </button>
-            )}
-            {puedeRechazar && (
-              <button onClick={rechazar} disabled={cambiando}
-                style={{ padding: "8px 16px", border: "1px solid #fde8d8", borderRadius: 8, background: "#fff", color: "#c2410c", cursor: "pointer", fontSize: 13 }}>
-                Rechazar proyecto
-              </button>
             )}
           </div>
         </div>
-      </div>
       </section>
 
       <section id="tab-cliente" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Cliente</h2>
-          {proyecto?.cliente?.razon_social && <span style={{ fontSize: 12, color: "#6b7280" }}>{proyecto.cliente.razon_social}</span>}
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Cliente</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>{clienteNombre}</h2>
+            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
+              Contexto comercial y datos principales del cliente asociados a este proyecto.
+            </p>
+          </div>
+          {clienteId && (
+            <span style={{ background: "#f3f4f6", color: "#374151", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+              1 proyecto en esta vista
+            </span>
+          )}
         </div>
         <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: espacio reservado para ficha resumida del cliente, contactos, datos administrativos y proyectos relacionados. La informacion principal del cliente se mantiene visible en la cabecera del proyecto.
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(260px, 0.8fr)", gap: 16 }}>
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fff" }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Ficha rapida</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Razon social</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteNombre}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Nombre comercial</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.nombre_comercial || "No disponible en esta vista"}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>RUC</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.ruc || "-"}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Direccion principal</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.direccion || "Sin direccion"}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Contacto principal</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteContacto}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Correo</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteEmail}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Telefono</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteTelefono}</div></div>
+                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Responsable comercial</span><div style={{ fontSize: 13, color: "#374151" }}>{productorNombre}</div></div>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fff" }}>
+                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Acciones del cliente</h3>
+                <div style={{ display: "grid", gap: 8 }}>
+                  <button onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
+                    Ver ficha completa
+                  </button>
+                  <button onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
+                    Editar cliente
+                  </button>
+                  <button onClick={() => clienteId && router.push(`/proyectos?cliente_id=${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
+                    Ver proyectos del cliente
+                  </button>
+                  <button onClick={() => clienteId && router.push(`/proyectos/nuevo?cliente_id=${clienteId}`)} disabled={!clienteId} className="btn-primary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
+                    Crear nuevo proyecto
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fafafa" }}>
+                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 10px" }}>Proyectos relacionados</h3>
+                <div style={{ padding: "10px 12px", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{proyecto?.codigo || "Proyecto actual"}</div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{proyecto?.nombre || "-"}</div>
+                  <div style={{ fontSize: 11, color: estadoInfo.color, fontWeight: 700, marginTop: 6 }}>{estadoInfo.label}</div>
+                </div>
+                <p style={{ fontSize: 12, color: "#9ca3af", margin: "10px 0 0" }}>
+                  El listado completo se mantiene en Proyectos para evitar consultas adicionales en este tab.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
