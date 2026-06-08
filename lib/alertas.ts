@@ -29,11 +29,15 @@ export async function enviarAlerta(tipo: TipoAlerta, datos: any) {
     const destinatarios = configs.map(c => c.email).filter(Boolean)
     if (destinatarios.length === 0) return
 
-    await fetch("/api/alertas", {
+    const res = await fetch("/api/alertas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tipo, destinatarios, datos }),
     })
+    const payload = await res.json().catch(() => null)
+    if (!res.ok || payload?.fallidos > 0) {
+      console.error("Error enviando alerta:", payload || res.statusText)
+    }
   } catch (e) {
     console.error("Error enviando alerta:", e)
   }
