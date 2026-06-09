@@ -8,6 +8,7 @@ const TIPOS: Record<string, { icon: string, color: string }> = {
   cliente:     { icon: "🏢", color: "#15803d" },
   proveedor:   { icon: "🔧", color: "#9a3412" },
   cotizacion:  { icon: "📄", color: "#6d28d9" },
+  item_cotizacion: { icon: "🔎", color: "#0f766e" },
   factura:     { icon: "🧾", color: "#166534" },
   lead:        { icon: "🎯", color: "#d97706" },
 }
@@ -45,12 +46,18 @@ export default function BusquedaGlobal() {
       { data: proveedores },
       { data: facturas },
       { data: leads },
+      { data: itemsCotizacion },
     ] = await Promise.all([
       supabase.from("proyectos").select("id, nombre, codigo, estado").or(`nombre.ilike.${like},codigo.ilike.${like}`).limit(4),
       supabase.from("clientes").select("id, razon_social, ruc").or(`razon_social.ilike.${like},ruc.ilike.${like}`).limit(4),
       supabase.from("proveedores").select("id, nombre, ruc").or(`nombre.ilike.${like},ruc.ilike.${like}`).limit(3),
       supabase.from("facturas").select("id, numero_factura, estado").ilike("numero_factura", like).limit(3),
       supabase.from("crm_leads").select("id, razon_social, estado").ilike("razon_social", like).limit(3),
+      supabase
+        .from("cotizacion_items")
+        .select("id,descripcion,created_at,cotizacion:cotizaciones(id,version,estado,proyecto_id,proyecto:proyectos(id,codigo,nombre,cliente:clientes(razon_social)))")
+        .ilike("descripcion", like)
+        .limit(6),
     ])
 
     const res: any[] = [
@@ -59,6 +66,16 @@ export default function BusquedaGlobal() {
       ...(proveedores || []).map(p => ({ tipo: "proveedor", titulo: p.nombre, subtitulo: p.ruc || "Sin RUC", href: "/proveedores" })),
       ...(facturas || []).map(f => ({ tipo: "factura", titulo: f.numero_factura, subtitulo: "Estado: " + f.estado, href: "/facturacion" })),
       ...(leads || []).map(l => ({ tipo: "lead", titulo: l.razon_social, subtitulo: "CRM · " + l.estado, href: "/crm" })),
+      ...(itemsCotizacion || []).map((item: any) => {
+        const cot = item.cotizacion
+        const proy = cot?.proyecto
+        return {
+          tipo: "item_cotizacion",
+          titulo: item.descripcion,
+          subtitulo: `${proy?.codigo || "Proyecto"} · ${proy?.nombre || "Sin proyecto"} · Proforma V${cot?.version || "?"}`,
+          href: cot?.proyecto_id && cot?.id ? `/proyectos/${cot.proyecto_id}/cotizaciones/${cot.id}` : "/buscar-items",
+        }
+      }),
     ]
 
     setResultados(res)
@@ -81,7 +98,7 @@ export default function BusquedaGlobal() {
           value={query}
           onChange={e => setQuery(e.target.value)}
           onFocus={() => resultados.length > 0 && setOpen(true)}
-          placeholder="Buscar proyectos, clientes, facturas..."
+          placeholder="Buscar proyectos, clientes, ítems..."
           style={{ width: "100%", padding: "8px 12px 8px 32px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", background: "#f9fafb", boxSizing: "border-box" }}
         />
         {loading && <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#9ca3af" }}>...</span>}

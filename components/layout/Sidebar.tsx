@@ -21,15 +21,15 @@ const PERFIL: Record<string,string> = {
 const ACCESO: Record<string, string[]> = {
   superadmin: ["*"],
   gerente_general: ["*"],
-  administrador: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/proveedores","/biblioteca","/biblioteca-medios","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/inventario","/envios-materiales","/audiovisual","/rrhh","/ia","/trazabilidad","/alertas","/admin","/perfil","/tareas","/reporteria"],
-  controller: ["/dashboard","/proyectos","/calendario","/clientes","/proformas","/proveedores","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/inventario","/envios-materiales","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas","/reporteria"],
-  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/proformas","/proveedores","/biblioteca","/biblioteca-medios","/rq","/liquidaciones","/caja-chica","/inventario","/envios-materiales","/audiovisual","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas"],
+  administrador: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/buscar-items","/proveedores","/biblioteca","/biblioteca-medios","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/inventario","/envios-materiales","/audiovisual","/rrhh","/ia","/trazabilidad","/alertas","/admin","/perfil","/tareas","/reporteria"],
+  controller: ["/dashboard","/proyectos","/calendario","/clientes","/proformas","/buscar-items","/proveedores","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/inventario","/envios-materiales","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas","/reporteria"],
+  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/proformas","/buscar-items","/proveedores","/biblioteca","/biblioteca-medios","/rq","/liquidaciones","/caja-chica","/inventario","/envios-materiales","/audiovisual","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas"],
   gerente_finanzas: ["/dashboard","/proyectos","/clientes","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/clientes","/ia","/alertas","/perfil","/tareas","/reporteria"],
-  productor: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/proformas","/proveedores","/biblioteca","/biblioteca-medios","/rq","/liquidaciones","/caja-chica","/envios-materiales","/audiovisual","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
+  productor: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/proformas","/buscar-items","/proveedores","/biblioteca","/biblioteca-medios","/rq","/liquidaciones","/caja-chica","/envios-materiales","/audiovisual","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
   audiovisual: ["/dashboard","/tareas","/audiovisual","/biblioteca-medios","/perfil"],
   logistica: ["/dashboard","/calendario","/clientes","/inventario","/envios-materiales","/rq","/caja-chica","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
-  comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/biblioteca-medios","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
-  practicante: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/crm","/proformas","/biblioteca","/biblioteca-medios","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
+  comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/buscar-items","/biblioteca-medios","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
+  practicante: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/crm","/proformas","/buscar-items","/biblioteca","/biblioteca-medios","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
 }
 
 const ALL_NAV = [
@@ -43,6 +43,7 @@ const ALL_NAV = [
     { label: "CRM", href: "/crm" },
     { label: "Clientes", href: "/clientes" },
     { label: "Cotizaciones y Proformas", href: "/proformas" },
+    { label: "Buscar ítems cotizados", href: "/buscar-items" },
     { label: "Biblioteca", href: "/biblioteca" },
     { label: "Biblioteca de Medios", href: "/biblioteca-medios" },
   ]},
