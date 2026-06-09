@@ -51,6 +51,7 @@ export default function RQPage() {
   const [filtroEstado, setFiltroEstado] = useState("")
   const [filtroProveedor, setFiltroProveedor] = useState("")
   const [filtroProyecto, setFiltroProyecto] = useState("")
+  const [incluirProyectosEliminados, setIncluirProyectosEliminados] = useState(false)
   const [proveedores, setProveedores] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [perfil, setPerfil] = useState<any>(null)
@@ -85,7 +86,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     }
     const { data } = await supabase
       .from("requerimientos_pago")
-      .select("*, proyecto:proyectos(id, nombre, codigo, productor:perfiles!productor_id(id, nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
+      .select("*, proyecto:proyectos(id, nombre, codigo, deleted_at, productor:perfiles!productor_id(id, nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
       .order("created_at", { ascending: false })
     const loadedRqs = data || []
     setRqs(loadedRqs)
@@ -120,8 +121,13 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   }
 
   async function cambiarEstado(id: string, estado: string, extra?: any) {
+    const rqActual = rqs.find(r => r.id === id)
+    if (rqPerteneceAProyectoEliminado(rqActual)) {
+      alert("Este RQ pertenece a un proyecto eliminado y no puede procesarse.")
+      return
+    }
     if (estado === "pagado") {
-      const rq = rqs.find(r => r.id === id)
+      const rq = rqActual
       if (rq?.proyecto_id) {
         const otrosRqs = rqs.filter(r => r.proyecto_id === rq.proyecto_id && r.id !== id)
         const todosPagados = otrosRqs.every(r => r.estado === "pagado")
@@ -150,6 +156,10 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   async function guardarDatosPago() {
     if (!selected) return
+    if (rqPerteneceAProyectoEliminado(selected)) {
+      alert("Este RQ pertenece a un proyecto eliminado y no puede procesarse.")
+      return
+    }
     if (!puedeEditarPago) {
       alert("Solo Controller o Superadmin pueden editar los datos de pago.")
       return
@@ -178,6 +188,10 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     if (!perfil?.id || !rq) return false
     if (rq.solicitado_por === perfil.id) return true
     return Boolean(!rq.solicitado_por && rq.proyecto?.productor?.id === perfil.id)
+  }
+
+  function rqPerteneceAProyectoEliminado(rq: any) {
+    return Boolean(rq?.proyecto_id && (!rq.proyecto || rq.proyecto?.deleted_at))
   }
 
   function puedeEditarRQ(rq: any) {
@@ -341,6 +355,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   }
 
   function getSiguienteAccion(rq: any) {
+    if (rqPerteneceAProyectoEliminado(rq)) return null
     const rol = perfil?.perfil
     const paso = FLUJO.find(f => f.estado === rq.estado)
     if (!paso || !paso.siguiente) return null
@@ -349,6 +364,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   }
 
   function puedeRechazar(rq: any) {
+    if (rqPerteneceAProyectoEliminado(rq)) return false
     const rol = perfil?.perfil
     if (rq.estado === "pagado" || rq.estado === "rechazado") return false
     return ["gerente_produccion", "gerente_general", "controller", "superadmin"].includes(rol)
@@ -357,7 +373,9 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const detalleIgv = (rq: any) => rqIgvDetalle(rq)
 
-  const filtradosBase = rqs.filter(r => {
+  const rqsVistaActiva = incluirProyectosEliminados ? rqs : rqs.filter(r => !rqPerteneceAProyectoEliminado(r))
+  const rqsProyectosEliminados = rqs.filter(r => rqPerteneceAProyectoEliminado(r))
+  const filtradosBase = rqsVistaActiva.filter(r => {
     if (filtroEstado && r.estado !== filtroEstado) return false
     if (filtroProveedor && r.proveedor_id !== filtroProveedor) return false
     if (filtroProyecto) {
@@ -372,10 +390,10 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const filtrados = filtradosBase
   const paginados = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
 
-  const totalPendiente = rqs.filter(r => r.estado === "pendiente_aprobacion").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
-  const totalAprobado = rqs.filter(r => ["aprobado_produccion", "aprobado"].includes(r.estado)).reduce((s, r) => s + (r.monto_solicitado || 0), 0)
-  const totalProgramado = rqs.filter(r => r.estado === "programado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
-  const totalPagado = rqs.filter(r => r.estado === "pagado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalPendiente = rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalAprobado = rqsVistaActiva.filter(r => ["aprobado_produccion", "aprobado"].includes(r.estado)).reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalProgramado = rqsVistaActiva.filter(r => r.estado === "programado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalPagado = rqsVistaActiva.filter(r => r.estado === "pagado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
 
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3, display: "block" }
@@ -389,7 +407,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Requerimientos de pago</h1>
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-            {rqs.length} RQs · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}
+            {rqsVistaActiva.length} RQs activos{rqsProyectosEliminados.length ? ` · ${rqsProyectosEliminados.length} en proyectos eliminados` : ""} · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}
           </p>
         </div>
         {["superadmin","gerente_general","gerente_produccion","controller"].includes(perfil?.perfil) && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado").is("deleted_at", null).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
@@ -398,10 +416,10 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         {[
-          { label: "Pendientes", value: fmt(totalPendiente), color: "#92400e", bg: "#fef9c3", count: rqs.filter(r => r.estado === "pendiente_aprobacion").length },
-          { label: "En aprobacion", value: fmt(totalAprobado), color: "#9a3412", bg: "#fed7aa", count: rqs.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length },
-          { label: "Programados", value: fmt(totalProgramado), color: "#1e40af", bg: "#dbeafe", count: rqs.filter(r => r.estado === "programado").length },
-          { label: "Pagados", value: fmt(totalPagado), color: "#166534", bg: "#f0fdf4", count: rqs.filter(r => r.estado === "pagado").length },
+          { label: "Pendientes", value: fmt(totalPendiente), color: "#92400e", bg: "#fef9c3", count: rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").length },
+          { label: "En aprobacion", value: fmt(totalAprobado), color: "#9a3412", bg: "#fed7aa", count: rqsVistaActiva.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length },
+          { label: "Programados", value: fmt(totalProgramado), color: "#1e40af", bg: "#dbeafe", count: rqsVistaActiva.filter(r => r.estado === "programado").length },
+          { label: "Pagados", value: fmt(totalPagado), color: "#166534", bg: "#f0fdf4", count: rqsVistaActiva.filter(r => r.estado === "pagado").length },
         ].map(t => (
           <div key={t.label} className="card" style={{ background: t.bg, border: "none" }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: t.color, textTransform: "uppercase", marginBottom: 4 }}>{t.label} ({t.count})</div>
@@ -434,8 +452,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               Proyecto filtrado
             </span>
           )}
-          {(filtroEstado || filtroProveedor || filtroTipoPago || filtroProyecto) && (
-            <button onClick={() => { setFiltroEstado(""); setFiltroProveedor(""); setFiltroTipoPago(""); setFiltroProyecto("") }}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280", fontWeight: 600 }}>
+            <input type="checkbox" checked={incluirProyectosEliminados} onChange={e => setIncluirProyectosEliminados(e.target.checked)} />
+            Incluir proyectos eliminados
+          </label>
+          {(filtroEstado || filtroProveedor || filtroTipoPago || filtroProyecto || incluirProyectosEliminados) && (
+            <button onClick={() => { setFiltroEstado(""); setFiltroProveedor(""); setFiltroTipoPago(""); setFiltroProyecto(""); setIncluirProyectosEliminados(false) }}
               style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
               Limpiar filtros
             </button>
@@ -468,6 +490,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 const ec = ESTADOS[rq.estado] || { bg: "#f3f4f6", color: "#6b7280", label: rq.estado }
                 const accion = getSiguienteAccion(rq)
                 const igv = detalleIgv(rq)
+                const proyectoEliminado = rqPerteneceAProyectoEliminado(rq)
                 return (
                   <tr key={rq.id}
                     style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === rq.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}
@@ -484,7 +507,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                     }}>
                     <td style={{ padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#0F6E56" }}>{rqCodigo(rq)}</td>
                     <td style={{ padding: "12px" }}>
-                      {rq.proyecto_id ? (
+                      {proyectoEliminado ? (
+                        <>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>{rq.proyecto?.codigo || "Proyecto eliminado"}</div>
+                          <div style={{ fontSize: 11, color: "#b91c1c" }}>{rq.proyecto?.nombre || "No disponible"} · Proyecto eliminado</div>
+                        </>
+                      ) : rq.proyecto_id ? (
                         <a href={`/proyectos/${rq.proyecto_id}`} onClick={e => e.stopPropagation()} style={{ textDecoration: "none", display: "inline-block" }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: "#0F6E56" }}>{rq.proyecto?.codigo}</div>
                           <div style={{ fontSize: 11, color: "#6b7280" }}>{rq.proyecto?.nombre}</div>
@@ -536,6 +564,9 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                       {rq.estado === "pagado" && rq.numero_operacion && (
                         <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>Op: {rq.numero_operacion}</div>
                       )}
+                      {proyectoEliminado && (
+                        <div style={{ fontSize: 10, color: "#991b1b", marginTop: 3, fontWeight: 700 }}>Proyecto eliminado</div>
+                      )}
                     </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
@@ -581,11 +612,21 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 {mensajeEdicionRQ(selected)}
               </div>
             )}
+            {rqPerteneceAProyectoEliminado(selected) && (
+              <div style={{ padding: "8px 10px", border: "1px solid #fecaca", borderRadius: 8, background: "#fef2f2", color: "#991b1b", fontSize: 12, fontWeight: 700, marginBottom: 12 }}>
+                Este RQ pertenece a un proyecto eliminado y no puede procesarse.
+              </div>
+            )}
 
             <div style={{ display: "grid", gap: 12 }}>
               <div>
                 <div style={lbl}>Proyecto</div>
-                {selected.proyecto_id ? (
+                {rqPerteneceAProyectoEliminado(selected) ? (
+                  <div>
+                    <div style={{ fontSize: 13, color: "#991b1b", fontWeight: 700 }}>{selected.proyecto?.codigo || "Proyecto eliminado"} — {selected.proyecto?.nombre || "No disponible"}</div>
+                    <div style={{ fontSize: 11, color: "#b91c1c", marginTop: 3 }}>Visible solo como historial.</div>
+                  </div>
+                ) : selected.proyecto_id ? (
                   <a href={`/proyectos/${selected.proyecto_id}`} style={{ fontSize: 13, color: "#0F6E56", fontWeight: 600, textDecoration: "none" }}>
                     {selected.proyecto?.codigo} — {selected.proyecto?.nombre}
                   </a>
@@ -650,35 +691,35 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                   <div style={{ display: "grid", gap: 8 }}>
                     <div>
                       <label style={lbl}>N operacion / referencia</label>
-                      <input style={inp} value={datosPago.numero_operacion} placeholder="Ej: 123456789" onChange={e => setDatosPago({ ...datosPago, numero_operacion: e.target.value })} readOnly={!puedeEditarPago} />
+                      <input style={inp} value={datosPago.numero_operacion} placeholder="Ej: 123456789" onChange={e => setDatosPago({ ...datosPago, numero_operacion: e.target.value })} readOnly={!puedeEditarPago || rqPerteneceAProyectoEliminado(selected)} />
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                       <div>
                         <label style={lbl}>Banco origen</label>
-                        <select style={inp} value={datosPago.banco_pago} onChange={e => setDatosPago({ ...datosPago, banco_pago: e.target.value })} disabled={!puedeEditarPago}>
+                        <select style={inp} value={datosPago.banco_pago} onChange={e => setDatosPago({ ...datosPago, banco_pago: e.target.value })} disabled={!puedeEditarPago || rqPerteneceAProyectoEliminado(selected)}>
                           <option value="">Seleccionar</option>
                           {BANCOS_PAGO.map(b => <option key={b}>{b}</option>)}
                         </select>
                       </div>
                       <div>
                         <label style={lbl}>Tipo transferencia</label>
-                        <select style={inp} value={datosPago.tipo_transferencia} onChange={e => setDatosPago({ ...datosPago, tipo_transferencia: e.target.value })} disabled={!puedeEditarPago}>
+                        <select style={inp} value={datosPago.tipo_transferencia} onChange={e => setDatosPago({ ...datosPago, tipo_transferencia: e.target.value })} disabled={!puedeEditarPago || rqPerteneceAProyectoEliminado(selected)}>
                           {TIPOS_TRANSFERENCIA.map(t => <option key={t}>{t}</option>)}
                         </select>
                       </div>
                     </div>
                     <div>
                       <label style={lbl}>Link voucher (Google Drive)</label>
-                      <input style={inp} value={datosPago.voucher_url} placeholder="https://drive.google.com/..." onChange={e => setDatosPago({ ...datosPago, voucher_url: e.target.value })} readOnly={!puedeEditarPago} />
+                      <input style={inp} value={datosPago.voucher_url} placeholder="https://drive.google.com/..." onChange={e => setDatosPago({ ...datosPago, voucher_url: e.target.value })} readOnly={!puedeEditarPago || rqPerteneceAProyectoEliminado(selected)} />
                       {datosPago.voucher_url && (
                         <a href={datosPago.voucher_url} target="_blank" style={{ fontSize: 11, color: "#1e40af", display: "inline-block", marginTop: 3 }}>Ver voucher →</a>
                       )}
                     </div>
                     <div>
                       <label style={lbl}>Nota de pago</label>
-                      <input style={inp} value={datosPago.nota_pago} placeholder="Observaciones opcionales..." onChange={e => setDatosPago({ ...datosPago, nota_pago: e.target.value })} readOnly={!puedeEditarPago} />
+                      <input style={inp} value={datosPago.nota_pago} placeholder="Observaciones opcionales..." onChange={e => setDatosPago({ ...datosPago, nota_pago: e.target.value })} readOnly={!puedeEditarPago || rqPerteneceAProyectoEliminado(selected)} />
                     </div>
-                    {puedeEditarPago && (
+                    {puedeEditarPago && !rqPerteneceAProyectoEliminado(selected) && (
                       <button onClick={guardarDatosPago} disabled={guardandoPago}
                         style={{ fontSize: 12, padding: "6px", border: "none", borderRadius: 6, background: "#1D9E75", color: "#fff", cursor: "pointer", fontWeight: 600 }}>
                         {guardandoPago ? "Guardando..." : "Guardar datos operacion"}
@@ -728,6 +769,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               {!getSiguienteAccion(selected) && selected.estado !== "pagado" && selected.estado !== "rechazado" && (
                 <div style={{ padding: "8px 12px", background: "#f9fafb", borderRadius: 8, fontSize: 12, color: "#9ca3af", textAlign: "center" }}>
                   {(() => {
+                    if (rqPerteneceAProyectoEliminado(selected)) return "Este RQ pertenece a un proyecto eliminado y no puede procesarse."
                     const paso = FLUJO.find(f => f.estado === selected.estado)
                     if (!paso) return "Estado final"
                     const rolLabel: Record<string, string> = { gerente_produccion: "Gerente de Produccion", gerente_general: "Gerente General", controller: "Controller" }
