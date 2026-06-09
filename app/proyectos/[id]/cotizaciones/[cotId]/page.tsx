@@ -305,9 +305,10 @@ else setBloqueada(cot?.bloqueada || false)
 
   async function generarRQs(cotizacionId: string, proyectoId: string) {
     const itemsConProveedor = items.filter(i => i.proveedor_id && i.costo_total > 0)
+    const rqsAInsertar: any[] = []
     for (const item of itemsConProveedor) {
       const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
-      await supabase.from("requerimientos_pago").insert({
+      rqsAInsertar.push({
         proyecto_id: proyectoId,
         cotizacion_item_id: String(item.id).startsWith("new_") ? null : item.id,
         estado: "pendiente_aprobacion",
@@ -334,15 +335,20 @@ if (idsAEliminar.length > 0) {
       for (const sub of subs) {
         if (!sub.proveedor_id || !sub.monto) continue
         const prov = proveedores.find((p: any) => p.id === sub.proveedor_id)
-        await supabase.from("requerimientos_pago").insert({
+        rqsAInsertar.push({
           proyecto_id: proyectoId,
           estado: "pendiente_aprobacion",
           proveedor_id: sub.proveedor_id,
           proveedor_nombre: prov?.nombre || sub.proveedor_nombre || "",
           monto_solicitado: sub.monto,
           descripcion: item.descripcion + " — " + sub.descripcion,
+          solicitado_por: perfilActual?.id || null,
         })
       }
+    }
+    if (rqsAInsertar.length > 0) {
+      const { error } = await supabase.from("requerimientos_pago").insert(rqsAInsertar)
+      if (error) throw error
     }
   }
 

@@ -294,6 +294,17 @@ export default function ProyectoDetallePage() {
     load()
   }
 
+  function mensajeErrorRQ(error: any) {
+    const mensaje = String(error?.message || "")
+    if (mensaje.includes("solicitado_por")) {
+      return "No se pudieron crear los RQs porque falta aplicar la migracion de solicitado_por en Supabase o refrescar el schema cache."
+    }
+    if (mensaje.includes("codigo_rq") || mensaje.includes("rq_codigo")) {
+      return "No se pudieron crear los RQs porque fallo la generacion del codigo correlativo RQ."
+    }
+    return mensaje || "No se pudieron crear los RQs. Revisa los datos e intenta nuevamente."
+  }
+
   async function confirmarPreCuadre() {
     const sinProveedor = preCuadreItems.filter(i => i.tipo !== "familia" && !i._borrado && !i.proveedor_id)
     if (sinProveedor.length > 0) {
@@ -310,8 +321,8 @@ export default function ProyectoDetallePage() {
         setGuardandoPreCuadre(false)
         return
       }
-      await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar, estado: "en_curso" }).eq("id", id)
     }
+    const rqsAInsertar: any[] = []
     for (const item of preCuadreItems) {
       const esDividido = String(item.id).startsWith("div_")
       const tieneSubitemsActivos = preCuadreItems.some((s: any) => !s._borrado && (s.id === "sub_" + item.id || (s._subitemId && String(s.id).includes(String(item.id)))))
@@ -319,7 +330,7 @@ export default function ProyectoDetallePage() {
       if (item._esPadre && !esDividido && tieneSubitemsActivos) continue
       if (!item.proveedor_id) continue
       const prov = proveedores.find((p: any) => p.id === item.proveedor_id)
-      const { error: rqError } = await supabase.from("requerimientos_pago").insert({
+      rqsAInsertar.push({
         proyecto_id: id,
         cotizacion_item_id: item.esNuevo ? null : String(item.id).startsWith("new_") || String(item.id).startsWith("sub_") || String(item.id).startsWith("div_") ? null : item.id,
         es_adicional: esAdicional || item.esAdicional || false,
@@ -336,7 +347,23 @@ export default function ProyectoDetallePage() {
         descripcion: item.descripcion || "",
         solicitado_por: perfil?.id || null,
       })
-      if (rqError) { console.error("Error RQ:", rqError.message, "item:", item.descripcion); }
+    }
+    if (rqsAInsertar.length > 0) {
+      const { error: rqError } = await supabase.from("requerimientos_pago").insert(rqsAInsertar)
+      if (rqError) {
+        console.error("Error creando RQs:", rqError)
+        alert(mensajeErrorRQ(rqError))
+        setGuardandoPreCuadre(false)
+        return
+      }
+    }
+    if (!esAdicional) {
+      const { error: proyectoError } = await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar, estado: "en_curso" }).eq("id", id)
+      if (proyectoError) {
+        alert("Los RQs fueron creados, pero no se pudo actualizar el proyecto a En curso: " + proyectoError.message)
+        setGuardandoPreCuadre(false)
+        return
+      }
     }
     if (!esAdicional) {
       await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: en_curso" })
