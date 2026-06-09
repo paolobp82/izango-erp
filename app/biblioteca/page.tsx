@@ -53,12 +53,24 @@ export default function BibliotecaPage() {
   const [categorias, setCategorias] = useState<string[]>([])
   const [nuevaCategoria, setNuevaCategoria] = useState("")
   const [showNuevaCategoria, setShowNuevaCategoria] = useState(false)
+  const [loadError, setLoadError] = useState("")
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data } = await supabase.from("items_biblioteca").select("*, proveedor:proveedores(nombre)").eq("activo", true).order("descripcion")
-    setItems(data || [])
+    setLoadError("")
+    const { data, error } = await supabase
+      .from("items_biblioteca")
+      .select("*, proveedor:proveedores(nombre)")
+      .or("activo.eq.true,activo.is.null")
+      .order("descripcion")
+    if (error) {
+      console.error("Error cargando Biblioteca de items:", error)
+      setLoadError(error.message || "No se pudo cargar la Biblioteca de items.")
+      setItems([])
+    } else {
+      setItems(data || [])
+    }
     // Extraer categorias unicas de los items
     const cats = Array.from(new Set((data || []).map((i: any) => i.categoria).filter(Boolean))) as string[]
     setCategorias(cats)
@@ -171,6 +183,12 @@ export default function BibliotecaPage() {
           <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo item</button>
         </div>
       </div>
+
+      {loadError && (
+        <div style={{ padding: 12, border: "1px solid #fecaca", background: "#fef2f2", color: "#991b1b", borderRadius: 8, fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
+          No se pudo cargar la Biblioteca de items: {loadError}
+        </div>
+      )}
 
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
