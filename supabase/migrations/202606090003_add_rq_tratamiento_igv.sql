@@ -1,12 +1,30 @@
 alter table public.requerimientos_pago
   add column if not exists tratamiento_igv text;
 
-update public.requerimientos_pago
-set tratamiento_igv = case
-  when incluye_igv = false then 'mas_igv'
-  else 'incluye_igv'
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'requerimientos_pago'
+      and column_name = 'incluye_igv'
+  ) then
+    execute $sql$
+      update public.requerimientos_pago
+      set tratamiento_igv = case
+        when incluye_igv = false then 'mas_igv'
+        else 'incluye_igv'
+      end
+      where tratamiento_igv is null
+    $sql$;
+  else
+    update public.requerimientos_pago
+    set tratamiento_igv = 'incluye_igv'
+    where tratamiento_igv is null;
+  end if;
 end
-where tratamiento_igv is null;
+$$;
 
 alter table public.requerimientos_pago
   alter column tratamiento_igv set default 'incluye_igv';
