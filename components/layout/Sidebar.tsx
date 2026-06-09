@@ -103,6 +103,7 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
   const supabase = createClient()
   async function logout() { await supabase.auth.signOut(); router.push("/login") }
   const initials = `${perfil.nombre?.[0] || ""}${perfil.apellido?.[0] || ""}`.toUpperCase()
+  const isActiveRoute = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href + "/"))
 
   const acceso = ACCESO[perfil.perfil] || []
   const esAdmin = acceso.includes("*")
@@ -131,7 +132,7 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
             <div style={{fontSize:10,fontWeight:500,color:"#9ca3af",textTransform:"uppercase",letterSpacing:"0.07em",padding:"0 8px",marginBottom:4}}>{s.section}</div>
             {s.items.map(item => (
               <a key={`${s.section}-${item.label}-${item.href}`} href={item.href}
-                className={`sidebar-item${pathname === item.href || (item.href !== "/inventario" && pathname.startsWith(item.href)) ? " active" : ""}`}>
+                className={`sidebar-item${isActiveRoute(item.href) ? " active" : ""}`}>
                 {item.label}
               </a>
             ))}
