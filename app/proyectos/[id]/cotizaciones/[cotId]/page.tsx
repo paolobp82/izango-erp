@@ -300,7 +300,7 @@ else setBloqueada(cot?.bloqueada || false)
   const subtotalConDescuento = subtotalConFee - descuentoMonto
   const igvMonto = subtotalConDescuento * (igvPct / 100)
   const totalFinal = subtotalConDescuento + igvMonto
-  const margenGlobalMonto = totalFinal - totalCosto
+  const margenGlobalMonto = subtotalConDescuento - totalCosto
   const margenGlobal = subtotalConDescuento > 0 ? ((subtotalConDescuento - totalCosto) / subtotalConDescuento) * 100 : 0
 
   async function generarRQs(cotizacionId: string, proyectoId: string) {
@@ -1209,7 +1209,7 @@ useEffect(() => { itemsRef.current = items }, [items])
           ...(descuentoPct > 0 ? [{ label: `Descuento (${descuentoPct}%)`, value: "- " + fmt(descuentoMonto), color: "#dc2626", size: 18 }] : []),
           { label: `IGV (${igvPct}%)`, value: fmt(igvMonto), color: "#374151", size: 18 },
           { label: "TOTAL CLIENTE", value: fmt(totalFinal), color: "#04342C", size: 24 },
-          { label: "MARGEN GLOBAL", value: fmt(margenGlobalMonto), subvalue: margenGlobal.toFixed(1) + "%", color: margenGlobal >= 35 ? "#0F6E56" : margenGlobal >= 20 ? "#ca8a04" : "#dc2626", size: 22 },
+          { label: "MARGEN GLOBAL", value: fmt(margenGlobalMonto), subvalue: margenGlobal.toFixed(2) + "%", color: margenGlobal >= 35 ? "#0F6E56" : margenGlobal >= 20 ? "#ca8a04" : "#dc2626", size: 22 },
         ].map((t, i, arr) => (
           <div key={t.label} style={{ display: "flex", flexDirection: "column", gap: 2, paddingRight: 24, marginRight: 24, borderRight: i < arr.length - 1 ? "1px solid #a7f3d0" : "none" }}>
             <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "#085041" }}>{t.label}</div>
