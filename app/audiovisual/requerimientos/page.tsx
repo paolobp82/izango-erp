@@ -23,6 +23,8 @@ const AUDIOVISUAL_EMAILS = [
   "gveliz@izango.com.pe",
 ]
 const ROLES_GERENCIA = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager"]
+const ROLES_ELIMINACION = ["superadmin", "gerente_general", "gerente_produccion", "project_manager"]
+const ROLES_ELIMINACION_FINALIZADO = ["superadmin", "gerente_general"]
 const ESTADOS_FINALIZADOS = ["completado", "cancelado"]
 const ESTADOS_PEDIDO_EDITABLE = ["pendiente", "en_progreso"]
 
@@ -63,6 +65,9 @@ export default function AudiovisualRequerimientosPage() {
   const [cancelando, setCancelando] = useState<any>(null)
   const [motivoCancelacion, setMotivoCancelacion] = useState("")
   const [savingCancelacion, setSavingCancelacion] = useState(false)
+  const [showEliminar, setShowEliminar] = useState(false)
+  const [eliminando, setEliminando] = useState<any>(null)
+  const [savingEliminacion, setSavingEliminacion] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [form, setForm] = useState({ ...formVacio })
 
@@ -304,33 +309,61 @@ export default function AudiovisualRequerimientosPage() {
 
   async function confirmarCancelar() {
     if (!cancelando) return
-    const eliminacionDirecta = puedeEliminarFisicamente(cancelando)
-    if (!eliminacionDirecta && !motivoCancelacion.trim()) {
+    if (!motivoCancelacion.trim()) {
       alert("Indica el motivo de cancelacion")
       return
     }
     setSavingCancelacion(true)
-    if (eliminacionDirecta) {
-      const { error } = await supabase.from("audiovisual_requerimientos").delete().eq("id", cancelando.id)
-      if (error) { alert("Error: " + error.message); setSavingCancelacion(false); return }
-      await registrarAccion({ accion: "eliminar", modulo: "audiovisual", entidad_tipo: "requerimiento_audiovisual", entidad_id: cancelando.id, descripcion: "Requerimiento audiovisual eliminado sin avance ni comentarios" })
-      setSelected(null)
-    } else {
-      const payload = {
-        estado: "cancelado",
-        cancelado_motivo: motivoCancelacion.trim(),
-        cancelado_por: perfil?.id || null,
-        cancelado_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-      const { error } = await supabase.from("audiovisual_requerimientos").update(payload).eq("id", cancelando.id)
-      if (error) { alert("Error: " + error.message); setSavingCancelacion(false); return }
-      await registrarAccion({ accion: "cancelar", modulo: "audiovisual", entidad_tipo: "requerimiento_audiovisual", entidad_id: cancelando.id, descripcion: `Requerimiento audiovisual cancelado: ${motivoCancelacion.trim()}` })
-      setSelected((prev: any) => prev?.id === cancelando.id ? { ...prev, ...payload } : prev)
+    const payload = {
+      estado: "cancelado",
+      cancelado_motivo: motivoCancelacion.trim(),
+      cancelado_por: perfil?.id || null,
+      cancelado_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
+    const { error } = await supabase.from("audiovisual_requerimientos").update(payload).eq("id", cancelando.id)
+    if (error) { alert("Error: " + error.message); setSavingCancelacion(false); return }
+    await registrarAccion({ accion: "cancelar", modulo: "audiovisual", entidad_tipo: "requerimiento_audiovisual", entidad_id: cancelando.id, descripcion: `Requerimiento audiovisual cancelado: ${motivoCancelacion.trim()}` })
+    setSelected((prev: any) => prev?.id === cancelando.id ? { ...prev, ...payload } : prev)
     setSavingCancelacion(false)
     setShowCancelar(false)
     setCancelando(null)
+    await load()
+  }
+
+  function abrirEliminar(req: any) {
+    if (!puedeEliminar(req)) {
+      alert("No tienes permiso para eliminar este requerimiento")
+      return
+    }
+    setEliminando(req)
+    setShowEliminar(true)
+  }
+
+  async function confirmarEliminar() {
+    if (!eliminando) return
+    if (!puedeEliminar(eliminando)) {
+      alert("No tienes permiso para eliminar este requerimiento")
+      return
+    }
+    setSavingEliminacion(true)
+    const { error: comError } = await supabase
+      .from("audiovisual_requerimiento_comentarios")
+      .delete()
+      .eq("requerimiento_id", eliminando.id)
+    if (comError) { alert("Error eliminando comentarios: " + comError.message); setSavingEliminacion(false); return }
+
+    const { error } = await supabase.from("audiovisual_requerimientos").delete().eq("id", eliminando.id)
+    if (error) { alert("Error: " + error.message); setSavingEliminacion(false); return }
+
+    await registrarAccion({ accion: "eliminar", modulo: "audiovisual", entidad_tipo: "requerimiento_audiovisual", entidad_id: eliminando.id, descripcion: "Requerimiento audiovisual eliminado permanentemente" })
+    setRequerimientos(prev => prev.filter(r => r.id !== eliminando.id))
+    if (selected?.id === eliminando.id) setSelected(null)
+    setComentarios([])
+    setSavingEliminacion(false)
+    setShowEliminar(false)
+    setEliminando(null)
+    alert("Requerimiento eliminado")
     await load()
   }
 
@@ -379,8 +412,10 @@ export default function AudiovisualRequerimientosPage() {
     if (!req || ESTADOS_FINALIZADOS.includes(req.estado)) return false
     return puedeEditarTodo(req) || esProductorDelPedido(req) || esResponsableAudiovisual(req) || esAudiovisual
   }
-  function puedeEliminarFisicamente(req: any) {
-    return Boolean(req && req.estado === "pendiente" && Number(req.avance || 10) <= 10 && comentarios.length === 0)
+  function puedeEliminar(req: any) {
+    if (!req || !perfil?.id) return false
+    if (req.estado === "completado") return ROLES_ELIMINACION_FINALIZADO.includes(perfil.perfil)
+    return req.creado_por === perfil.id || ROLES_ELIMINACION.includes(perfil.perfil)
   }
   const puedeEditarPedidoFormulario = !esEdicionFormulario || puedeEditarPedido(editando)
   const puedeEditarAvanceFormulario = esEdicionFormulario && puedeEditarAvance(editando)
@@ -449,9 +484,14 @@ export default function AudiovisualRequerimientosPage() {
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12, color: vencido ? "#991b1b" : "#6b7280", fontWeight: vencido ? 700 : 400 }}>{r.fecha_entrega_solicitada || "-"}</td>
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                        {puedeAbrirEdicion(r) && (
-                          <button onClick={e => { e.stopPropagation(); abrirEditar(r) }} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer" }}>Editar</button>
-                        )}
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          {puedeAbrirEdicion(r) && (
+                            <button onClick={e => { e.stopPropagation(); abrirEditar(r) }} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer" }}>Editar</button>
+                          )}
+                          {puedeEliminar(r) && (
+                            <button onClick={e => { e.stopPropagation(); abrirEliminar(r) }} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#991b1b", cursor: "pointer" }}>Eliminar</button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -475,6 +515,9 @@ export default function AudiovisualRequerimientosPage() {
               )}
               {puedeCancelar(selected) && (
                 <button onClick={() => abrirCancelar(selected)} style={{ fontSize: 11, padding: "6px 10px", border: "1px solid #fecaca", borderRadius: 7, background: "#fff", color: "#991b1b", cursor: "pointer" }}>Cancelar</button>
+              )}
+              {puedeEliminar(selected) && (
+                <button onClick={() => abrirEliminar(selected)} style={{ fontSize: 11, padding: "6px 10px", border: "none", borderRadius: 7, background: "#dc2626", color: "#fff", cursor: "pointer" }}>Eliminar</button>
               )}
               <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 20 }}>x</button>
             </div>
@@ -691,25 +734,19 @@ export default function AudiovisualRequerimientosPage() {
       {showCancelar && cancelando && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 460 }}>
-            <h2 style={{ fontSize: 17, fontWeight: 700, margin: "0 0 8px", color: "#111827" }}>
-              {puedeEliminarFisicamente(cancelando) ? "Eliminar requerimiento" : "Cancelar requerimiento"}
-            </h2>
+            <h2 style={{ fontSize: 17, fontWeight: 700, margin: "0 0 8px", color: "#111827" }}>Cancelar requerimiento</h2>
             <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.5, margin: "0 0 16px" }}>
-              {puedeEliminarFisicamente(cancelando)
-                ? "Este requerimiento no tiene comentarios ni avance operativo. Se eliminara fisicamente."
-                : "El requerimiento quedara marcado como cancelado y conservara comentarios e historial."}
+              El requerimiento quedara marcado como cancelado y conservara comentarios e historial.
             </p>
-            {!puedeEliminarFisicamente(cancelando) && (
-              <div>
-                <label style={lbl}>MOTIVO DE CANCELACION *</label>
-                <textarea
-                  style={{ ...inp, minHeight: 90, resize: "vertical" }}
-                  value={motivoCancelacion}
-                  placeholder="Indica por que se cancela el requerimiento"
-                  onChange={e => setMotivoCancelacion(e.target.value)}
-                />
-              </div>
-            )}
+            <div>
+              <label style={lbl}>MOTIVO DE CANCELACION *</label>
+              <textarea
+                style={{ ...inp, minHeight: 90, resize: "vertical" }}
+                value={motivoCancelacion}
+                placeholder="Indica por que se cancela el requerimiento"
+                onChange={e => setMotivoCancelacion(e.target.value)}
+              />
+            </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
               <button onClick={() => { setShowCancelar(false); setCancelando(null) }} className="btn-secondary" style={{ fontSize: 13 }}>Volver</button>
               <button
@@ -717,7 +754,31 @@ export default function AudiovisualRequerimientosPage() {
                 disabled={savingCancelacion}
                 style={{ fontSize: 13, padding: "8px 14px", border: "none", borderRadius: 7, background: "#dc2626", color: "#fff", cursor: savingCancelacion ? "not-allowed" : "pointer", opacity: savingCancelacion ? 0.7 : 1 }}
               >
-                {savingCancelacion ? "Procesando..." : puedeEliminarFisicamente(cancelando) ? "Eliminar" : "Cancelar requerimiento"}
+                {savingCancelacion ? "Procesando..." : "Cancelar requerimiento"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEliminar && eliminando && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 460 }}>
+            <h2 style={{ fontSize: 17, fontWeight: 700, margin: "0 0 8px", color: "#111827" }}>Eliminar requerimiento</h2>
+            <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.5, margin: "0 0 16px" }}>
+              Esta accion eliminara permanentemente el requerimiento audiovisual y sus comentarios asociados. Deseas continuar?
+            </p>
+            <div style={{ padding: 12, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, color: "#991b1b", fontSize: 12, lineHeight: 1.5 }}>
+              No se eliminaran archivos externos de Drive o Supabase Storage en esta fase; solo se eliminaran las referencias del requerimiento.
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+              <button onClick={() => { setShowEliminar(false); setEliminando(null) }} className="btn-secondary" style={{ fontSize: 13 }}>Volver</button>
+              <button
+                onClick={confirmarEliminar}
+                disabled={savingEliminacion}
+                style={{ fontSize: 13, padding: "8px 14px", border: "none", borderRadius: 7, background: "#dc2626", color: "#fff", cursor: savingEliminacion ? "not-allowed" : "pointer", opacity: savingEliminacion ? 0.7 : 1 }}
+              >
+                {savingEliminacion ? "Eliminando..." : "Eliminar permanentemente"}
               </button>
             </div>
           </div>
