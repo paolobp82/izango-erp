@@ -96,12 +96,26 @@ export default function ProyectoDetallePage() {
     }
     setCotizaciones(cots || [])
 
-    const { data: rqs } = await supabase
+    const rqSelect = "id,proyecto_id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,tratamiento_igv,incluye_igv,created_at"
+    const { data: rqsPorId } = await supabase
       .from("requerimientos_pago")
-      .select("id,proyecto_id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,tratamiento_igv,incluye_igv,created_at")
+      .select(rqSelect)
       .eq("proyecto_id", id)
       .order("created_at", { ascending: false })
-    setRqsProyecto(rqs || [])
+    let rqsVinculados = rqsPorId || []
+    if (proy?.codigo) {
+      const { data: rqsPorCodigo } = await supabase
+        .from("requerimientos_pago")
+        .select(`${rqSelect}, proyecto:proyectos!inner(id,codigo,nombre)`)
+        .eq("proyecto.codigo", proy.codigo)
+        .order("created_at", { ascending: false })
+      if (rqsPorCodigo && rqsPorCodigo.length > 0) {
+        const porId = new Map<string, any>()
+        ;[...rqsVinculados, ...rqsPorCodigo].forEach((rq: any) => porId.set(rq.id, rq))
+        rqsVinculados = Array.from(porId.values()).sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      }
+    }
+    setRqsProyecto(rqsVinculados)
 
     const hace2dias = new Date()
     hace2dias.setDate(hace2dias.getDate() - 2)

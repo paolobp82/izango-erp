@@ -352,7 +352,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const filtradosBase = rqs.filter(r => {
     if (filtroEstado && r.estado !== filtroEstado) return false
     if (filtroProveedor && r.proveedor_id !== filtroProveedor) return false
-    if (filtroProyecto && r.proyecto_id !== filtroProyecto) return false
+    if (filtroProyecto) {
+      const proyectoFiltro = proyectos.find((p: any) => p.id === filtroProyecto)
+      const coincideId = r.proyecto_id === filtroProyecto
+      const coincideCodigo = Boolean(proyectoFiltro?.codigo && r.proyecto?.codigo === proyectoFiltro.codigo)
+      if (!coincideId && !coincideCodigo) return false
+    }
     if (filtroTipoPago && r.tipo_pago !== filtroTipoPago) return false
     return true
   })
