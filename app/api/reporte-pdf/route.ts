@@ -3,6 +3,7 @@ import { getAuthenticatedProfile, getErrorMessage } from "@/lib/auth-server"
 import { canAccessProjectReport } from "@/lib/report-auth"
 import { escapeHtml as h } from "@/lib/html"
 import { rqCodigo } from "@/lib/rq-code"
+import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 
 type Project = {
   id: string
@@ -25,7 +26,7 @@ type Cotizacion = {
   cotizacion_items?: Array<{ descripcion?: string | null; costo_total?: number | null; margen_pct?: number | null; precio_cliente?: number | null }>
 }
 
-type Rq = { codigo_rq?: string | null; numero_rq?: string | null; descripcion?: string | null; proveedor_nombre?: string | null; monto_solicitado?: number | null; estado?: string | null }
+type Rq = { codigo_rq?: string | null; numero_rq?: string | null; descripcion?: string | null; proveedor_nombre?: string | null; monto_solicitado?: number | null; estado?: string | null; tratamiento_igv?: string | null; incluye_igv?: boolean | null }
 type Liquidacion = { margen_real_pct?: number | null; costo_presupuestado?: number | null; costo_real?: number | null; desvio_costo?: number | null; margen_presupuestado_pct?: number | null; desvio_margen_pp?: number | null; cerrada?: boolean | null }
 type Factura = { numero_factura?: string | null; subtotal?: number | null; igv?: number | null; estado?: string | null; fecha_emision?: string | null }
 
@@ -54,14 +55,14 @@ export async function GET(request: NextRequest) {
 
     const [{ data: cotizaciones }, { data: rqs }, { data: liquidacion }, { data: facturas }] = await Promise.all([
       supabase.from("cotizaciones").select("*, cotizacion_items(*)").eq("proyecto_id", proyectoId).order("version").returns<Cotizacion[]>(),
-      supabase.from("requerimientos_pago").select("codigo_rq,numero_rq,descripcion,proveedor_nombre,monto_solicitado,estado").eq("proyecto_id", proyectoId).order("created_at").returns<Rq[]>(),
+      supabase.from("requerimientos_pago").select("codigo_rq,numero_rq,descripcion,proveedor_nombre,monto_solicitado,estado,tratamiento_igv,incluye_igv").eq("proyecto_id", proyectoId).order("created_at").returns<Rq[]>(),
       supabase.from("liquidaciones").select("costo_presupuestado,costo_real,desvio_costo,margen_presupuestado_pct,margen_real_pct,desvio_margen_pp,cerrada").eq("proyecto_id", proyectoId).maybeSingle<Liquidacion>(),
       supabase.from("facturas").select("numero_factura,subtotal,igv,estado,fecha_emision").eq("proyecto_id", proyectoId).returns<Factura[]>(),
     ])
 
     const cotAprobada = cotizaciones?.find((c) => c.estado === "aprobada_cliente") || cotizaciones?.[cotizaciones.length - 1]
     const items = cotAprobada?.cotizacion_items || []
-    const totalRQs = (rqs || []).reduce((sum, rq) => sum + Number(rq.monto_solicitado || 0), 0)
+    const totalRQs = (rqs || []).reduce((sum, rq) => sum + rqIgvDetalle(rq).total, 0)
     const totalFacturado = (facturas || []).reduce((sum, f) => sum + Number(f.subtotal || 0) + Number(f.igv || 0), 0)
     const fmt = (n: unknown) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     const pct = (n: unknown) => Number(n || 0).toFixed(1) + "%"
@@ -75,13 +76,19 @@ export async function GET(request: NextRequest) {
       <td class="right strong">${h(fmt(item.precio_cliente))}</td>
     </tr>`).join("")
 
-    const rqRows = (rqs || []).map((rq) => `<tr>
-      <td>${h(rqCodigo(rq))}</td>
-      <td>${h(rq.descripcion || "—")}</td>
-      <td>${h(rq.proveedor_nombre || "—")}</td>
-      <td class="right strong">${h(fmt(rq.monto_solicitado))}</td>
-      <td>${h(rq.estado || "—")}</td>
-    </tr>`).join("")
+    const rqRows = (rqs || []).map((rq) => {
+      const igv = rqIgvDetalle(rq)
+      return `<tr>
+        <td>${h(rqCodigo(rq))}</td>
+        <td>${h(rq.descripcion || "—")}</td>
+        <td>${h(rq.proveedor_nombre || "—")}</td>
+        <td>${h(rqTratamientoIgvLabel(rq))}</td>
+        <td class="right">${h(fmt(igv.subtotal))}</td>
+        <td class="right">${h(fmt(igv.igv))}</td>
+        <td class="right strong">${h(fmt(igv.total))}</td>
+        <td>${h(rq.estado || "—")}</td>
+      </tr>`
+    }).join("")
 
     const facturaRows = (facturas || []).map((factura) => `<tr>
       <td>${h(factura.numero_factura || "—")}</td>
@@ -118,7 +125,7 @@ export async function GET(request: NextRequest) {
           <div class="box"><div class="label">Total facturado</div><div class="value">${h(fmt(totalFacturado))}</div></div>
         </div></div>
         ${cotAprobada ? `<div class="section"><div class="title">Cotizacion aprobada V${h(cotAprobada.version || "—")}</div><table><thead><tr><th>#</th><th>Descripcion</th><th class="right">Costo</th><th class="right">Margen</th><th class="right">Precio</th></tr></thead><tbody>${itemRows}</tbody></table></div>` : ""}
-        ${(rqs || []).length ? `<div class="section"><div class="title">Requerimientos de pago</div><table><thead><tr><th>RQ</th><th>Descripcion</th><th>Proveedor</th><th class="right">Monto</th><th>Estado</th></tr></thead><tbody>${rqRows}</tbody></table><p class="right strong">Total RQs: ${h(fmt(totalRQs))}</p></div>` : ""}
+        ${(rqs || []).length ? `<div class="section"><div class="title">Requerimientos de pago</div><table><thead><tr><th>RQ</th><th>Descripcion</th><th>Proveedor</th><th>Tratamiento IGV</th><th class="right">Subtotal</th><th class="right">IGV</th><th class="right">Total</th><th>Estado</th></tr></thead><tbody>${rqRows}</tbody></table><p class="right strong">Total RQs: ${h(fmt(totalRQs))}</p></div>` : ""}
         ${liquidacion ? `<div class="section"><div class="title">Liquidacion ${liquidacion.cerrada ? "cerrada" : "abierta"}</div><div class="grid">
           <div class="box"><div class="label">Costo presupuestado</div><div class="value">${h(fmt(liquidacion.costo_presupuestado))}</div></div>
           <div class="box"><div class="label">Costo real</div><div class="value">${h(fmt(liquidacion.costo_real))}</div></div>
