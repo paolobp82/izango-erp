@@ -136,7 +136,18 @@ export default function BibliotecaPage() {
   const todasCategorias = Array.from(new Set([...CENTROS_COSTOS_DEFAULT, ...categorias])).sort()
   const filtrados = items.filter(i => {
     if (filtroCategoria && i.categoria !== filtroCategoria) return false
-    if (busqueda && !i.descripcion?.toLowerCase().includes(busqueda.toLowerCase()) && !i.categoria?.toLowerCase().includes(busqueda.toLowerCase())) return false
+    if (busqueda) {
+      const q = busqueda.toLowerCase()
+      const coincide = [
+        i.descripcion,
+        i.categoria,
+        i.origen_proyecto_nombre,
+        i.origen_proyecto_codigo,
+        i.proveedor?.nombre,
+        i.proveedor_nombre,
+      ].some(valor => String(valor || "").toLowerCase().includes(q))
+      if (!coincide) return false
+    }
     return true
   })
   const categoriasItems = Array.from(new Set(items.map(i => i.categoria).filter(Boolean))) as string[]
@@ -334,6 +345,12 @@ export default function BibliotecaPage() {
                   <td style={{ padding: "12px 20px" }}>
                     <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{item.descripcion}</div>
                     {item.notas && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{item.notas}</div>}
+                    {item.origen_cotizacion_id && (
+                      <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                        Origen: {item.origen_proyecto_codigo ? item.origen_proyecto_codigo + " - " : ""}{item.origen_proyecto_nombre || "Proyecto"}
+                        {item.origen_cotizacion_version ? ` · Proforma v${item.origen_cotizacion_version}` : ""}
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: "12px" }}>
                     {item.categoria && <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{item.categoria}</span>}
