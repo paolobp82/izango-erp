@@ -61,6 +61,7 @@ const ALL_NAV = [
     { label: "Facturación", href: "/facturacion" },
     { label: "Liquidaciones", href: "/liquidaciones" },
     { label: "Caja Chica", href: "/caja-chica" },
+    { label: "Gastos de Oficina", href: "/gastos-oficina" },
     { label: "Flujo de Caja", href: "/flujo-caja" },
     { label: "Conciliación", href: "/conciliacion" },
     { label: "Centros de Costo", href: "/centro-costos" },
