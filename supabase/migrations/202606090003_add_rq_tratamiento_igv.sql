@@ -10,12 +10,14 @@ begin
       and table_name = 'requerimientos_pago'
       and column_name = 'incluye_igv'
   ) then
-    update public.requerimientos_pago
-    set tratamiento_igv = case
-      when incluye_igv = false then 'mas_igv'
-      else 'incluye_igv'
-    end
-    where tratamiento_igv is null;
+    execute $sql$
+      update public.requerimientos_pago
+      set tratamiento_igv = case
+        when incluye_igv = false then 'mas_igv'
+        else 'incluye_igv'
+      end
+      where tratamiento_igv is null
+    $sql$;
   else
     update public.requerimientos_pago
     set tratamiento_igv = 'incluye_igv'
