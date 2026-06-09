@@ -364,7 +364,12 @@ export default function AudiovisualRequerimientosPage() {
               <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "#111827" }}>{selected.proyecto?.codigo || "Requerimiento"}</h2>
               <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{selected.proyecto?.nombre}</div>
             </div>
-            <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 20 }}>x</button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {puedeGestionarAudiovisual && (
+                <button onClick={() => abrirEditar(selected)} className="btn-secondary" style={{ fontSize: 11 }}>Actualizar avance</button>
+              )}
+              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 20 }}>x</button>
+            </div>
           </div>
 
           <div style={{ marginBottom: 14 }}>
