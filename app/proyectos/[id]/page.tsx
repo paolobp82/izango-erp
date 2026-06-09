@@ -96,25 +96,28 @@ export default function ProyectoDetallePage() {
     }
     setCotizaciones(cots || [])
 
-    const rqSelect = "id,proyecto_id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,tratamiento_igv,incluye_igv,created_at"
-    const { data: rqsPorId } = await supabase
+    const rqSelect = "id,proyecto_id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,tratamiento_igv,created_at"
+    const { data: rqsPorId, error: rqsPorIdError } = await supabase
       .from("requerimientos_pago")
       .select(rqSelect)
       .eq("proyecto_id", id)
       .order("created_at", { ascending: false })
+    if (rqsPorIdError) console.error("Error cargando RQs por proyecto_id:", rqsPorIdError.message)
     let rqsVinculados = rqsPorId || []
     if (proy?.codigo) {
-      const { data: proyectosMismoCodigo } = await supabase
+      const { data: proyectosMismoCodigo, error: proyectosMismoCodigoError } = await supabase
         .from("proyectos")
         .select("id")
         .eq("codigo", proy.codigo)
+      if (proyectosMismoCodigoError) console.error("Error cargando proyectos por codigo:", proyectosMismoCodigoError.message)
       const idsMismoCodigo = [...new Set([id, ...(proyectosMismoCodigo || []).map((p: any) => p.id)].filter(Boolean))]
       if (idsMismoCodigo.length > 0) {
-        const { data: rqsPorCodigo } = await supabase
+        const { data: rqsPorCodigo, error: rqsPorCodigoError } = await supabase
           .from("requerimientos_pago")
           .select(rqSelect)
           .in("proyecto_id", idsMismoCodigo)
           .order("created_at", { ascending: false })
+        if (rqsPorCodigoError) console.error("Error cargando RQs por codigo de proyecto:", rqsPorCodigoError.message)
         if (rqsPorCodigo && rqsPorCodigo.length > 0) {
           const porId = new Map<string, any>()
           ;[...rqsVinculados, ...rqsPorCodigo].forEach((rq: any) => porId.set(rq.id, rq))
