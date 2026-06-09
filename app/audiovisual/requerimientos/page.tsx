@@ -22,6 +22,9 @@ const AUDIOVISUAL_EMAILS = [
   "aestupinan@izango.com.pe",
   "gveliz@izango.com.pe",
 ]
+const ROLES_GERENCIA = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager"]
+const ESTADOS_FINALIZADOS = ["completado", "cancelado"]
+const ESTADOS_PEDIDO_EDITABLE = ["pendiente", "en_progreso"]
 
 const formVacio = {
   proyecto_id: "",
@@ -56,6 +59,10 @@ export default function AudiovisualRequerimientosPage() {
   const [editando, setEditando] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [savingCom, setSavingCom] = useState(false)
+  const [showCancelar, setShowCancelar] = useState(false)
+  const [cancelando, setCancelando] = useState<any>(null)
+  const [motivoCancelacion, setMotivoCancelacion] = useState("")
+  const [savingCancelacion, setSavingCancelacion] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [form, setForm] = useState({ ...formVacio })
 
@@ -139,6 +146,10 @@ export default function AudiovisualRequerimientosPage() {
   }
 
   async function abrirEditar(req: any) {
+    if (!puedeAbrirEdicion(req)) {
+      alert("No tienes permiso para editar este requerimiento en su estado actual")
+      return
+    }
     setEditando(req)
     setForm({
       proyecto_id: req.proyecto_id || "",
@@ -169,6 +180,7 @@ export default function AudiovisualRequerimientosPage() {
   }
 
   function togglePieza(pieza: string) {
+    if (!puedeEditarPedidoFormulario) return
     setForm(prev => ({
       ...prev,
       piezas: prev.piezas.includes(pieza) ? prev.piezas.filter(p => p !== pieza) : [...prev.piezas, pieza],
@@ -177,6 +189,7 @@ export default function AudiovisualRequerimientosPage() {
   }
 
   async function uploadDocumento(file: File) {
+    if (!puedeEditarPedidoFormulario) return
     setUploading(true)
     const path = `audiovisual/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "-")}`
     const { error } = await supabase.storage.from("assets").upload(path, file, { upsert: true })
@@ -212,32 +225,46 @@ export default function AudiovisualRequerimientosPage() {
 
   async function guardar() {
     const esEdicion = Boolean(editando?.id)
-    if (!form.proyecto_id) { alert("Selecciona un proyecto"); return }
-    if (!form.fecha_entrega_solicitada) { alert("La fecha solicitada por produccion es obligatoria"); return }
-    if (form.piezas.length === 0) { alert("Selecciona al menos una pieza necesaria"); return }
-    if (form.piezas.includes("Otros") && !form.pieza_otros_descripcion.trim()) { alert("Describe la pieza requerida en Otros"); return }
-    setSaving(true)
-    const payload: any = {
-      proyecto_id: form.proyecto_id,
-      cotizacion_id: form.cotizacion_id || null,
-      ubicacion: form.ubicacion || null,
-      productor_id: form.productor_id || null,
-      responsable_audiovisual_id: form.responsable_audiovisual_id || null,
-      fecha_entrega_solicitada: form.fecha_entrega_solicitada || null,
-      piezas: form.piezas,
-      pieza_otros_descripcion: form.piezas.includes("Otros") ? form.pieza_otros_descripcion.trim() : null,
-      brief: form.brief || null,
-      prioridad: form.prioridad,
-      referencia_url: form.referencia_url || null,
-      documento_url: form.documento_url || null,
-      artes_url: form.artes_url || null,
-      creado_por: perfil?.id || null,
-      updated_at: new Date().toISOString(),
+    if (esEdicion && !puedeAbrirEdicion(editando)) { alert("No tienes permiso para editar este requerimiento"); return }
+    if (esEdicion && ESTADOS_FINALIZADOS.includes(editando.estado) && !puedeEditarTodo(editando)) {
+      alert("Este requerimiento ya esta cerrado y solo gerencia puede modificarlo")
+      return
     }
-    if (esEdicion && puedeGestionarAvance) {
+    if (!esEdicion || puedeEditarPedidoFormulario) {
+      if (!form.proyecto_id) { alert("Selecciona un proyecto"); return }
+      if (!form.fecha_entrega_solicitada) { alert("La fecha solicitada por produccion es obligatoria"); return }
+      if (form.piezas.length === 0) { alert("Selecciona al menos una pieza necesaria"); return }
+      if (form.piezas.includes("Otros") && !form.pieza_otros_descripcion.trim()) { alert("Describe la pieza requerida en Otros"); return }
+    }
+    setSaving(true)
+    const payload: any = { updated_at: new Date().toISOString() }
+
+    if (!esEdicion || puedeEditarPedidoFormulario) {
+      Object.assign(payload, {
+        proyecto_id: form.proyecto_id,
+        cotizacion_id: form.cotizacion_id || null,
+        ubicacion: form.ubicacion || null,
+        productor_id: form.productor_id || null,
+        fecha_entrega_solicitada: form.fecha_entrega_solicitada || null,
+        piezas: form.piezas,
+        pieza_otros_descripcion: form.piezas.includes("Otros") ? form.pieza_otros_descripcion.trim() : null,
+        brief: form.brief || null,
+        prioridad: form.prioridad,
+        referencia_url: form.referencia_url || null,
+        documento_url: form.documento_url || null,
+      })
+    }
+    if (!esEdicion) {
+      payload.responsable_audiovisual_id = form.responsable_audiovisual_id || null
+      payload.artes_url = form.artes_url || null
+      payload.creado_por = perfil?.id || null
+    }
+    if (esEdicion && puedeEditarAvanceFormulario) {
+      payload.responsable_audiovisual_id = form.responsable_audiovisual_id || null
       payload.avance = Number(form.avance) || 10
       payload.estado = form.estado
       payload.fecha_devolucion_audiovisual = form.fecha_devolucion_audiovisual || null
+      payload.artes_url = form.artes_url || null
     } else if (!esEdicion) {
       payload.avance = 10
       payload.estado = "pendiente"
@@ -265,6 +292,48 @@ export default function AudiovisualRequerimientosPage() {
     if (selected?.id === req.id) setSelected((prev: any) => ({ ...prev, ...payload }))
   }
 
+  function abrirCancelar(req: any) {
+    if (!puedeCancelar(req)) {
+      alert("No tienes permiso para cancelar este requerimiento")
+      return
+    }
+    setCancelando(req)
+    setMotivoCancelacion("")
+    setShowCancelar(true)
+  }
+
+  async function confirmarCancelar() {
+    if (!cancelando) return
+    const eliminacionDirecta = puedeEliminarFisicamente(cancelando)
+    if (!eliminacionDirecta && !motivoCancelacion.trim()) {
+      alert("Indica el motivo de cancelacion")
+      return
+    }
+    setSavingCancelacion(true)
+    if (eliminacionDirecta) {
+      const { error } = await supabase.from("audiovisual_requerimientos").delete().eq("id", cancelando.id)
+      if (error) { alert("Error: " + error.message); setSavingCancelacion(false); return }
+      await registrarAccion({ accion: "eliminar", modulo: "audiovisual", entidad_tipo: "requerimiento_audiovisual", entidad_id: cancelando.id, descripcion: "Requerimiento audiovisual eliminado sin avance ni comentarios" })
+      setSelected(null)
+    } else {
+      const payload = {
+        estado: "cancelado",
+        cancelado_motivo: motivoCancelacion.trim(),
+        cancelado_por: perfil?.id || null,
+        cancelado_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      const { error } = await supabase.from("audiovisual_requerimientos").update(payload).eq("id", cancelando.id)
+      if (error) { alert("Error: " + error.message); setSavingCancelacion(false); return }
+      await registrarAccion({ accion: "cancelar", modulo: "audiovisual", entidad_tipo: "requerimiento_audiovisual", entidad_id: cancelando.id, descripcion: `Requerimiento audiovisual cancelado: ${motivoCancelacion.trim()}` })
+      setSelected((prev: any) => prev?.id === cancelando.id ? { ...prev, ...payload } : prev)
+    }
+    setSavingCancelacion(false)
+    setShowCancelar(false)
+    setCancelando(null)
+    await load()
+  }
+
   async function agregarComentario() {
     if (!nuevoComentario.trim() || !selected) return
     setSavingCom(true)
@@ -281,8 +350,42 @@ export default function AudiovisualRequerimientosPage() {
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
   const esEdicionFormulario = Boolean(editando?.id)
-  const puedeGestionarAudiovisual = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager", "audiovisual"].includes(perfil?.perfil)
-  const puedeGestionarAvance = esEdicionFormulario && puedeGestionarAudiovisual
+  const esGerencia = ROLES_GERENCIA.includes(perfil?.perfil)
+  const esAudiovisual = perfil?.perfil === "audiovisual"
+  function puedeEditarTodo(req: any) {
+    return Boolean(req && esGerencia)
+  }
+  function esProductorDelPedido(req: any) {
+    return Boolean(req && perfil?.id && (req.creado_por === perfil.id || req.productor_id === perfil.id))
+  }
+  function esResponsableAudiovisual(req: any) {
+    return Boolean(req && perfil?.id && req.responsable_audiovisual_id === perfil.id)
+  }
+  function puedeEditarPedido(req: any) {
+    if (!req) return false
+    if (puedeEditarTodo(req)) return true
+    return esProductorDelPedido(req) && ESTADOS_PEDIDO_EDITABLE.includes(req.estado)
+  }
+  function puedeEditarAvance(req: any) {
+    if (!req) return false
+    if (puedeEditarTodo(req)) return true
+    if (ESTADOS_FINALIZADOS.includes(req.estado)) return false
+    return esAudiovisual || esResponsableAudiovisual(req)
+  }
+  function puedeAbrirEdicion(req: any) {
+    return puedeEditarPedido(req) || puedeEditarAvance(req)
+  }
+  function puedeCancelar(req: any) {
+    if (!req || ESTADOS_FINALIZADOS.includes(req.estado)) return false
+    return puedeEditarTodo(req) || esProductorDelPedido(req) || esResponsableAudiovisual(req) || esAudiovisual
+  }
+  function puedeEliminarFisicamente(req: any) {
+    return Boolean(req && req.estado === "pendiente" && Number(req.avance || 10) <= 10 && comentarios.length === 0)
+  }
+  const puedeEditarPedidoFormulario = !esEdicionFormulario || puedeEditarPedido(editando)
+  const puedeEditarAvanceFormulario = esEdicionFormulario && puedeEditarAvance(editando)
+  const camposPedidoDeshabilitados = esEdicionFormulario && !puedeEditarPedidoFormulario
+  const camposAvanceDeshabilitados = esEdicionFormulario && !puedeEditarAvanceFormulario
   const hoy = new Date().toISOString().split("T")[0]
   const vencidos = requerimientos.filter(r => r.fecha_entrega_solicitada && r.fecha_entrega_solicitada < hoy && !["completado", "cancelado"].includes(r.estado)).length
   const enCurso = requerimientos.filter(r => r.estado === "en_progreso" || r.estado === "en_revision").length
@@ -346,7 +449,9 @@ export default function AudiovisualRequerimientosPage() {
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12, color: vencido ? "#991b1b" : "#6b7280", fontWeight: vencido ? 700 : 400 }}>{r.fecha_entrega_solicitada || "-"}</td>
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                        <button onClick={e => { e.stopPropagation(); abrirEditar(r) }} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer" }}>Editar</button>
+                        {puedeAbrirEdicion(r) && (
+                          <button onClick={e => { e.stopPropagation(); abrirEditar(r) }} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer" }}>Editar</button>
+                        )}
                       </td>
                     </tr>
                   )
@@ -365,8 +470,11 @@ export default function AudiovisualRequerimientosPage() {
               <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{selected.proyecto?.nombre}</div>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {puedeGestionarAudiovisual && (
-                <button onClick={() => abrirEditar(selected)} className="btn-secondary" style={{ fontSize: 11 }}>Actualizar avance</button>
+              {puedeAbrirEdicion(selected) && (
+                <button onClick={() => abrirEditar(selected)} className="btn-secondary" style={{ fontSize: 11 }}>Editar</button>
+              )}
+              {puedeCancelar(selected) && (
+                <button onClick={() => abrirCancelar(selected)} style={{ fontSize: 11, padding: "6px 10px", border: "1px solid #fecaca", borderRadius: 7, background: "#fff", color: "#991b1b", cursor: "pointer" }}>Cancelar</button>
               )}
               <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 20 }}>x</button>
             </div>
@@ -392,6 +500,7 @@ export default function AudiovisualRequerimientosPage() {
               { label: "Devolucion audiovisual", value: selected.fecha_devolucion_audiovisual || "-" },
               { label: "Piezas", value: (selected.piezas || []).join(", ") || "-" },
               { label: "Otros", value: selected.pieza_otros_descripcion || "-" },
+              { label: "Motivo cancelacion", value: selected.cancelado_motivo || "-" },
             ].map(r => (
               <div key={r.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, gap: 10 }}>
                 <span style={{ color: "#9ca3af", fontWeight: 600 }}>{r.label}</span>
@@ -450,14 +559,14 @@ export default function AudiovisualRequerimientosPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>PROYECTO *</label>
-                  <select style={inp} value={form.proyecto_id} onChange={e => handleProyectoChange(e.target.value)}>
+                  <select style={inp} value={form.proyecto_id} onChange={e => handleProyectoChange(e.target.value)} disabled={camposPedidoDeshabilitados}>
                     <option value="">Seleccionar proyecto</option>
                     {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={lbl}>COTIZACION / PROFORMA</label>
-                  <select style={inp} value={form.cotizacion_id} onChange={e => setForm({ ...form, cotizacion_id: e.target.value })}>
+                  <select style={inp} value={form.cotizacion_id} onChange={e => setForm({ ...form, cotizacion_id: e.target.value })} disabled={camposPedidoDeshabilitados}>
                     <option value="">Sin proforma especifica</option>
                     {cotizaciones.map(c => <option key={c.id} value={c.id}>V{c.version} - {c.estado}</option>)}
                   </select>
@@ -467,11 +576,11 @@ export default function AudiovisualRequerimientosPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>UBICACION DEL PROYECTO</label>
-                  <input style={inp} value={form.ubicacion} placeholder="Sede, ciudad, venue o referencia" onChange={e => setForm({ ...form, ubicacion: e.target.value })} />
+                  <input style={inp} value={form.ubicacion} placeholder="Sede, ciudad, venue o referencia" onChange={e => setForm({ ...form, ubicacion: e.target.value })} disabled={camposPedidoDeshabilitados} />
                 </div>
                 <div>
                   <label style={lbl}>PRODUCTOR A CARGO</label>
-                  <select style={inp} value={form.productor_id} onChange={e => setForm({ ...form, productor_id: e.target.value })}>
+                  <select style={inp} value={form.productor_id} onChange={e => setForm({ ...form, productor_id: e.target.value })} disabled={camposPedidoDeshabilitados}>
                     <option value="">Sin productor</option>
                     {productores.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
                   </select>
@@ -480,7 +589,7 @@ export default function AudiovisualRequerimientosPage() {
 
               <div>
                 <label style={lbl}>RESPONSABLE AUDIOVISUAL</label>
-                <select style={inp} value={form.responsable_audiovisual_id} onChange={e => setForm({ ...form, responsable_audiovisual_id: e.target.value })}>
+                <select style={inp} value={form.responsable_audiovisual_id} onChange={e => setForm({ ...form, responsable_audiovisual_id: e.target.value })} disabled={esEdicionFormulario ? camposAvanceDeshabilitados : camposPedidoDeshabilitados}>
                   <option value="">Sin responsable asignado</option>
                   {productores.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
                 </select>
@@ -488,15 +597,15 @@ export default function AudiovisualRequerimientosPage() {
 
               <div>
                 <label style={lbl}>FECHA DE ENTREGA SOLICITADA *</label>
-                <input style={inp} type="date" value={form.fecha_entrega_solicitada} onChange={e => setForm({ ...form, fecha_entrega_solicitada: e.target.value })} />
+                <input style={inp} type="date" value={form.fecha_entrega_solicitada} onChange={e => setForm({ ...form, fecha_entrega_solicitada: e.target.value })} disabled={camposPedidoDeshabilitados} />
               </div>
 
               <div>
                 <label style={lbl}>PIEZAS NECESARIAS *</label>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {PIEZAS.map(pieza => (
-                    <button key={pieza} type="button" onClick={() => togglePieza(pieza)}
-                      style={{ padding: "6px 10px", borderRadius: 99, border: form.piezas.includes(pieza) ? "2px solid #0F6E56" : "1px solid #e5e7eb", background: form.piezas.includes(pieza) ? "#dcfce7" : "#fff", color: form.piezas.includes(pieza) ? "#15803d" : "#374151", fontSize: 12, fontWeight: form.piezas.includes(pieza) ? 700 : 500, cursor: "pointer" }}>
+                    <button key={pieza} type="button" onClick={() => togglePieza(pieza)} disabled={camposPedidoDeshabilitados}
+                      style={{ padding: "6px 10px", borderRadius: 99, border: form.piezas.includes(pieza) ? "2px solid #0F6E56" : "1px solid #e5e7eb", background: form.piezas.includes(pieza) ? "#dcfce7" : "#fff", color: form.piezas.includes(pieza) ? "#15803d" : "#374151", fontSize: 12, fontWeight: form.piezas.includes(pieza) ? 700 : 500, cursor: camposPedidoDeshabilitados ? "not-allowed" : "pointer", opacity: camposPedidoDeshabilitados ? 0.7 : 1 }}>
                       {pieza}
                     </button>
                   ))}
@@ -506,16 +615,16 @@ export default function AudiovisualRequerimientosPage() {
               {form.piezas.includes("Otros") && (
                 <div>
                   <label style={lbl}>DESCRIBE LA PIEZA REQUERIDA *</label>
-                  <input style={inp} value={form.pieza_otros_descripcion} placeholder="Ej. animacion especial, formato no estandar, pieza experimental..." onChange={e => setForm({ ...form, pieza_otros_descripcion: e.target.value })} />
+                  <input style={inp} value={form.pieza_otros_descripcion} placeholder="Ej. animacion especial, formato no estandar, pieza experimental..." onChange={e => setForm({ ...form, pieza_otros_descripcion: e.target.value })} disabled={camposPedidoDeshabilitados} />
                 </div>
               )}
 
               <div>
                 <label style={lbl}>INDICACIONES / BRIEF DEL REQUERIMIENTO</label>
-                <textarea style={{ ...inp, minHeight: 110, resize: "vertical" }} value={form.brief} placeholder="Detalle dinamica, estilo, referencias, formatos, restricciones, duracion, entregables o cualquier indicacion relevante." onChange={e => setForm({ ...form, brief: e.target.value })} />
+                <textarea style={{ ...inp, minHeight: 110, resize: "vertical" }} value={form.brief} placeholder="Detalle dinamica, estilo, referencias, formatos, restricciones, duracion, entregables o cualquier indicacion relevante." onChange={e => setForm({ ...form, brief: e.target.value })} disabled={camposPedidoDeshabilitados} />
               </div>
 
-              {puedeGestionarAvance && (
+              {puedeEditarAvanceFormulario && (
                 <div style={{ padding: 12, border: "1px solid #bfdbfe", borderRadius: 8, background: "#eff6ff" }}>
                   <label style={{ ...lbl, color: "#1e40af" }}>FECHA DE DEVOLUCION AUDIOVISUAL</label>
                   <input style={inp} type="date" value={form.fecha_devolucion_audiovisual} onChange={e => setForm({ ...form, fecha_devolucion_audiovisual: e.target.value })} />
@@ -525,16 +634,16 @@ export default function AudiovisualRequerimientosPage() {
                 </div>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: puedeGestionarAvance ? "1fr 1fr 1fr" : "1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: puedeEditarAvanceFormulario ? "1fr 1fr 1fr" : "1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>PRIORIDAD</label>
-                  <select style={inp} value={form.prioridad} onChange={e => setForm({ ...form, prioridad: e.target.value })}>
+                  <select style={inp} value={form.prioridad} onChange={e => setForm({ ...form, prioridad: e.target.value })} disabled={camposPedidoDeshabilitados}>
                     <option value="alta">Alta</option>
                     <option value="media">Media</option>
                     <option value="baja">Baja</option>
                   </select>
                 </div>
-                {puedeGestionarAvance && (
+                {puedeEditarAvanceFormulario && (
                   <>
                     <div>
                       <label style={lbl}>AVANCE AUDIOVISUAL</label>
@@ -555,17 +664,17 @@ export default function AudiovisualRequerimientosPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>REFERENCIAS / DOCUMENTOS (LINK)</label>
-                  <input style={inp} value={form.referencia_url} placeholder="https://..." onChange={e => setForm({ ...form, referencia_url: e.target.value })} />
+                  <input style={inp} value={form.referencia_url} placeholder="https://..." onChange={e => setForm({ ...form, referencia_url: e.target.value })} disabled={camposPedidoDeshabilitados} />
                 </div>
                 <div>
                   <label style={lbl}>ARTES RELACIONADOS</label>
-                  <input style={inp} value={form.artes_url} placeholder="https://..." onChange={e => setForm({ ...form, artes_url: e.target.value })} />
+                  <input style={inp} value={form.artes_url} placeholder="https://..." onChange={e => setForm({ ...form, artes_url: e.target.value })} disabled={esEdicionFormulario ? camposAvanceDeshabilitados : camposPedidoDeshabilitados} />
                 </div>
               </div>
 
               <div>
                 <label style={lbl}>ADJUNTAR ARCHIVO</label>
-                <input style={inp} type="file" onChange={e => e.target.files?.[0] && uploadDocumento(e.target.files[0])} />
+                <input style={inp} type="file" onChange={e => e.target.files?.[0] && uploadDocumento(e.target.files[0])} disabled={camposPedidoDeshabilitados} />
                 {uploading && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>Subiendo archivo...</div>}
                 {form.documento_url && <a href={form.documento_url} target="_blank" style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: "#0F6E56" }}>Archivo adjunto cargado</a>}
               </div>
@@ -574,6 +683,42 @@ export default function AudiovisualRequerimientosPage() {
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22, paddingTop: 16, borderTop: "1px solid #f3f4f6" }}>
               <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
               <button onClick={guardar} disabled={saving || uploading} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : esEdicionFormulario ? "Guardar cambios" : "Crear y alertar audiovisual"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCancelar && cancelando && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 460 }}>
+            <h2 style={{ fontSize: 17, fontWeight: 700, margin: "0 0 8px", color: "#111827" }}>
+              {puedeEliminarFisicamente(cancelando) ? "Eliminar requerimiento" : "Cancelar requerimiento"}
+            </h2>
+            <p style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.5, margin: "0 0 16px" }}>
+              {puedeEliminarFisicamente(cancelando)
+                ? "Este requerimiento no tiene comentarios ni avance operativo. Se eliminara fisicamente."
+                : "El requerimiento quedara marcado como cancelado y conservara comentarios e historial."}
+            </p>
+            {!puedeEliminarFisicamente(cancelando) && (
+              <div>
+                <label style={lbl}>MOTIVO DE CANCELACION *</label>
+                <textarea
+                  style={{ ...inp, minHeight: 90, resize: "vertical" }}
+                  value={motivoCancelacion}
+                  placeholder="Indica por que se cancela el requerimiento"
+                  onChange={e => setMotivoCancelacion(e.target.value)}
+                />
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+              <button onClick={() => { setShowCancelar(false); setCancelando(null) }} className="btn-secondary" style={{ fontSize: 13 }}>Volver</button>
+              <button
+                onClick={confirmarCancelar}
+                disabled={savingCancelacion}
+                style={{ fontSize: 13, padding: "8px 14px", border: "none", borderRadius: 7, background: "#dc2626", color: "#fff", cursor: savingCancelacion ? "not-allowed" : "pointer", opacity: savingCancelacion ? 0.7 : 1 }}
+              >
+                {savingCancelacion ? "Procesando..." : puedeEliminarFisicamente(cancelando) ? "Eliminar" : "Cancelar requerimiento"}
+              </button>
             </div>
           </div>
         </div>
