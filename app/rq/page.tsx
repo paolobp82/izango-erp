@@ -27,7 +27,7 @@ const FLUJO = [
 const BANCOS_PAGO = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
 const TIPOS_TRANSFERENCIA = ["Transferencia bancaria", "Yape", "Plin", "Efectivo", "Cheque"]
 const ESTADOS_BLOQUEADOS_EDICION = ["pagado", "cerrado", "cancelado"]
-const ROLES_EDICION_TOTAL_RQ = ["superadmin", "controller", "gerente_general"]
+const ROLES_EDICION_TOTAL_RQ = ["superadmin", "controller"]
 const FORM_RQ_VACIO = {
   descripcion: "",
   proveedor_id: "",
@@ -85,7 +85,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     }
     const { data } = await supabase
       .from("requerimientos_pago")
-      .select("*, proyecto:proyectos(id, nombre, codigo, productor:perfiles!productor_id(nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
+      .select("*, proyecto:proyectos(id, nombre, codigo, productor:perfiles!productor_id(id, nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
       .order("created_at", { ascending: false })
     const loadedRqs = data || []
     setRqs(loadedRqs)
@@ -150,31 +150,49 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   async function guardarDatosPago() {
     if (!selected) return
-    setGuardandoPago(true)
-    await supabase.from("requerimientos_pago").update({
+    if (!puedeEditarPago) {
+      alert("Solo Controller o Superadmin pueden editar los datos de pago.")
+      return
+    }
+    const updates = {
       voucher_url: datosPago.voucher_url || null,
       numero_operacion: datosPago.numero_operacion || null,
       banco_pago: datosPago.banco_pago || null,
       tipo_transferencia: datosPago.tipo_transferencia || null,
       nota_pago: datosPago.nota_pago || null,
-    }).eq("id", selected.id)
+    }
+    setGuardandoPago(true)
+    const { error } = await supabase.from("requerimientos_pago").update(updates).eq("id", selected.id)
+    if (error) {
+      alert("No se pudieron guardar los datos de pago. Intenta nuevamente.")
+      setGuardandoPago(false)
+      return
+    }
+    await registrarAccion({ accion: "editar_datos_pago", modulo: "rq", entidad_id: selected.id, entidad_tipo: "rq", descripcion: "Datos de pago editados: " + rqCodigo(selected), datos_nuevos: updates })
+    setSelected((prev: any) => prev ? { ...prev, ...updates } : prev)
     setGuardandoPago(false)
     load()
+  }
+
+  function esCreadorRQ(rq: any) {
+    if (!perfil?.id || !rq) return false
+    if (rq.solicitado_por === perfil.id) return true
+    return Boolean(!rq.solicitado_por && rq.proyecto?.productor?.id === perfil.id)
   }
 
   function puedeEditarRQ(rq: any) {
     if (!rq) return false
     if (ROLES_EDICION_TOTAL_RQ.includes(perfil?.perfil)) return true
     if (ESTADOS_BLOQUEADOS_EDICION.includes(rq.estado)) return false
-    return Boolean(perfil?.id && rq.solicitado_por === perfil.id && !rq.editado_por_creador)
+    return esCreadorRQ(rq) && !rq.editado_por_creador
   }
 
   function mensajeEdicionRQ(rq: any) {
     if (!rq) return "Selecciona un RQ para editar."
     if (ROLES_EDICION_TOTAL_RQ.includes(perfil?.perfil)) return ""
-    if (perfil?.id && rq.solicitado_por === perfil.id && rq.editado_por_creador) return "Ya utilizaste tu edición correctiva. Solicita apoyo al Controller o Superadmin."
+    if (esCreadorRQ(rq) && rq.editado_por_creador) return "Ya utilizaste tu edición correctiva. Solicita apoyo al Controller o Superadmin."
     if (ESTADOS_BLOQUEADOS_EDICION.includes(rq.estado)) return "Este RQ no se puede editar porque esta pagado, cerrado o cancelado."
-    if (perfil?.id && rq.solicitado_por === perfil.id) return "Puedes editar este RQ una sola vez antes de que quede pagado, cerrado o cancelado."
+    if (esCreadorRQ(rq)) return "Puedes editar este RQ una sola vez antes de que quede pagado, cerrado o cancelado."
     return "Tu rol no tiene permiso para editar este RQ."
   }
 
@@ -229,10 +247,11 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       updates.proyecto_id = formEditarRQ.proyecto_id || null
     }
     const editorTotal = ROLES_EDICION_TOTAL_RQ.includes(perfil?.perfil)
-    const edicionCorrectivaCreador = Boolean(perfil?.id && selected.solicitado_por === perfil.id && !selected.editado_por_creador && !editorTotal)
+    const edicionCorrectivaCreador = Boolean(esCreadorRQ(selected) && !selected.editado_por_creador && !editorTotal)
     if (edicionCorrectivaCreador) {
       updates.editado_por_creador = true
       updates.fecha_primera_edicion = new Date().toISOString()
+      if (!selected.solicitado_por) updates.solicitado_por = perfil.id
     }
     let query = supabase
       .from("requerimientos_pago")
@@ -240,9 +259,10 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       .eq("id", selected.id)
     if (!editorTotal) {
       query = query
-        .eq("solicitado_por", perfil?.id)
         .eq("editado_por_creador", false)
         .not("estado", "in", "(pagado,cerrado,cancelado)")
+      if (selected.solicitado_por) query = query.eq("solicitado_por", perfil?.id)
+      else query = query.is("solicitado_por", null)
     }
     const { data: updated, error } = await query
       .select("id,editado_por_creador,fecha_primera_edicion")
@@ -251,7 +271,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       alert(editorTotal ? "No se pudo editar el RQ. Revisa los datos e intenta nuevamente." : "Ya utilizaste tu edición correctiva. Solicita apoyo al Controller o Superadmin.")
       return
     }
-    await registrarAccion({ accion: "editar", modulo: "rq", entidad_id: selected.id, entidad_tipo: "rq", descripcion: "RQ editado: " + rqCodigo(selected), datos_nuevos: updates })
+    await registrarAccion({ accion: edicionCorrectivaCreador ? "editar_correctivo_creador" : "editar", modulo: "rq", entidad_id: selected.id, entidad_tipo: "rq", descripcion: (edicionCorrectivaCreador ? "Edicion correctiva del creador: " : "RQ editado: ") + rqCodigo(selected), datos_nuevos: updates })
     setSelected((prev: any) => prev ? { ...prev, ...updates, ...updated, proveedor: prov ? { ...(prev.proveedor || {}), nombre: prov.nombre } : prev.proveedor } : prev)
     setShowEditarRQ(false)
     load()
@@ -348,7 +368,6 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const lbl: any = { fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3, display: "block" }
 
   const puedeEditarPago = ["controller", "superadmin"].includes(perfil?.perfil)
-  const selectedBloqueado = selected ? ESTADOS_BLOQUEADOS_EDICION.includes(selected.estado) : false
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
   return (
@@ -618,35 +637,35 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                   <div style={{ display: "grid", gap: 8 }}>
                     <div>
                       <label style={lbl}>N operacion / referencia</label>
-                      <input style={inp} value={datosPago.numero_operacion} placeholder="Ej: 123456789" onChange={e => setDatosPago({ ...datosPago, numero_operacion: e.target.value })} readOnly={!puedeEditarPago || selectedBloqueado} />
+                      <input style={inp} value={datosPago.numero_operacion} placeholder="Ej: 123456789" onChange={e => setDatosPago({ ...datosPago, numero_operacion: e.target.value })} readOnly={!puedeEditarPago} />
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                       <div>
                         <label style={lbl}>Banco origen</label>
-                        <select style={inp} value={datosPago.banco_pago} onChange={e => setDatosPago({ ...datosPago, banco_pago: e.target.value })} disabled={!puedeEditarPago || selectedBloqueado}>
+                        <select style={inp} value={datosPago.banco_pago} onChange={e => setDatosPago({ ...datosPago, banco_pago: e.target.value })} disabled={!puedeEditarPago}>
                           <option value="">Seleccionar</option>
                           {BANCOS_PAGO.map(b => <option key={b}>{b}</option>)}
                         </select>
                       </div>
                       <div>
                         <label style={lbl}>Tipo transferencia</label>
-                        <select style={inp} value={datosPago.tipo_transferencia} onChange={e => setDatosPago({ ...datosPago, tipo_transferencia: e.target.value })} disabled={!puedeEditarPago || selectedBloqueado}>
+                        <select style={inp} value={datosPago.tipo_transferencia} onChange={e => setDatosPago({ ...datosPago, tipo_transferencia: e.target.value })} disabled={!puedeEditarPago}>
                           {TIPOS_TRANSFERENCIA.map(t => <option key={t}>{t}</option>)}
                         </select>
                       </div>
                     </div>
                     <div>
                       <label style={lbl}>Link voucher (Google Drive)</label>
-                      <input style={inp} value={datosPago.voucher_url} placeholder="https://drive.google.com/..." onChange={e => setDatosPago({ ...datosPago, voucher_url: e.target.value })} readOnly={!puedeEditarPago || selectedBloqueado} />
+                      <input style={inp} value={datosPago.voucher_url} placeholder="https://drive.google.com/..." onChange={e => setDatosPago({ ...datosPago, voucher_url: e.target.value })} readOnly={!puedeEditarPago} />
                       {datosPago.voucher_url && (
                         <a href={datosPago.voucher_url} target="_blank" style={{ fontSize: 11, color: "#1e40af", display: "inline-block", marginTop: 3 }}>Ver voucher →</a>
                       )}
                     </div>
                     <div>
                       <label style={lbl}>Nota de pago</label>
-                      <input style={inp} value={datosPago.nota_pago} placeholder="Observaciones opcionales..." onChange={e => setDatosPago({ ...datosPago, nota_pago: e.target.value })} readOnly={!puedeEditarPago || selectedBloqueado} />
+                      <input style={inp} value={datosPago.nota_pago} placeholder="Observaciones opcionales..." onChange={e => setDatosPago({ ...datosPago, nota_pago: e.target.value })} readOnly={!puedeEditarPago} />
                     </div>
-                    {puedeEditarPago && !selectedBloqueado && (
+                    {puedeEditarPago && (
                       <button onClick={guardarDatosPago} disabled={guardandoPago}
                         style={{ fontSize: 12, padding: "6px", border: "none", borderRadius: 6, background: "#1D9E75", color: "#fff", cursor: "pointer", fontWeight: 600 }}>
                         {guardandoPago ? "Guardando..." : "Guardar datos operacion"}
