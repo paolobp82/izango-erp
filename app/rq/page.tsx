@@ -25,6 +25,7 @@ const FLUJO = [
 
 const BANCOS_PAGO = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
 const TIPOS_TRANSFERENCIA = ["Transferencia bancaria", "Yape", "Plin", "Efectivo", "Cheque"]
+const ESTADOS_BLOQUEADOS_EDICION = ["pagado", "cerrado", "cancelado"]
 const FORM_RQ_VACIO = {
   descripcion: "",
   proveedor_id: "",
@@ -143,8 +144,19 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   function puedeEditarRQ(rq: any) {
     if (!rq) return false
-    if (["pagado", "cerrado"].includes(rq.estado)) return false
+    if (ESTADOS_BLOQUEADOS_EDICION.includes(rq.estado)) return false
     return ["superadmin", "gerente_general", "gerente_produccion", "controller", "productor"].includes(perfil?.perfil)
+  }
+
+  function mensajeEdicionRQ(rq: any) {
+    if (!rq) return "Selecciona un RQ para editar."
+    if (ESTADOS_BLOQUEADOS_EDICION.includes(rq.estado)) return "Este RQ no se puede editar porque esta pagado, cerrado o cancelado."
+    if (!["superadmin", "gerente_general", "gerente_produccion", "controller", "productor"].includes(perfil?.perfil)) return "Tu rol no tiene permiso para editar este RQ."
+    return ""
+  }
+
+  function proyectoBloqueadoEdicion(rq: any) {
+    return Boolean(rq?.proyecto_id && rq.estado !== "pendiente_aprobacion")
   }
 
   function abrirEditarRQ(rq: any) {
@@ -174,8 +186,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       return
     }
     const prov = proveedoresTodos.find((p: any) => p.id === formEditarRQ.proveedor_id)
-    const updates = {
-      proyecto_id: formEditarRQ.proyecto_id || null,
+    const updates: any = {
       descripcion: formEditarRQ.descripcion,
       proveedor_id: formEditarRQ.proveedor_id || null,
       proveedor_nombre: prov?.nombre || "",
@@ -190,15 +201,18 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       banco_pago: formEditarRQ.banco_pago || null,
       tipo_transferencia: formEditarRQ.tipo_transferencia || null,
     }
+    if (!proyectoBloqueadoEdicion(selected)) {
+      updates.proyecto_id = formEditarRQ.proyecto_id || null
+    }
     const { data: updated, error } = await supabase
       .from("requerimientos_pago")
       .update(updates)
       .eq("id", selected.id)
-      .not("estado", "in", "(pagado,cerrado)")
+      .not("estado", "in", "(pagado,cerrado,cancelado)")
       .select("id")
       .maybeSingle()
     if (error || !updated) {
-      alert("No se pudo editar el RQ. Puede que ya este pagado o cerrado.")
+      alert("No se pudo editar el RQ. Puede que ya este pagado, cerrado o cancelado.")
       return
     }
     await registrarAccion({ accion: "editar", modulo: "rq", entidad_id: selected.id, entidad_tipo: "rq", descripcion: "RQ editado: " + rqCodigo(selected), datos_nuevos: updates })
@@ -244,7 +258,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const lbl: any = { fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3, display: "block" }
 
   const puedeEditarPago = ["controller", "superadmin"].includes(perfil?.perfil)
-  const selectedBloqueado = selected ? ["pagado", "cerrado"].includes(selected.estado) : false
+  const selectedBloqueado = selected ? ESTADOS_BLOQUEADOS_EDICION.includes(selected.estado) : false
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
   return (
@@ -401,12 +415,20 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                       )}
                     </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                      {puedeEditarRQ(rq) && (
+                        <button onClick={() => { setSelected(rq); abrirEditarRQ(rq) }}
+                          style={{ fontSize: 11, padding: "4px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
+                          Editar
+                        </button>
+                      )}
                       {accion && (
                         <button onClick={() => cambiarEstado(rq.id, accion.nextEstado)}
                           style={{ fontSize: 11, padding: "4px 10px", border: "none", borderRadius: 6, background: accion.color, color: "#fff", cursor: "pointer", fontWeight: 600 }}>
                           {accion.label}
                         </button>
                       )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -431,9 +453,9 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 18 }}>x</button>
               </div>
             </div>
-            {["pagado", "cerrado"].includes(selected.estado) && (
+            {!puedeEditarRQ(selected) && mensajeEdicionRQ(selected) && (
               <div style={{ padding: "8px 10px", border: "1px solid #bbf7d0", borderRadius: 8, background: "#f0fdf4", color: "#166534", fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
-                RQ pagado/cerrado: la edicion esta bloqueada.
+                {mensajeEdicionRQ(selected)}
               </div>
             )}
 
@@ -606,7 +628,15 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               <button onClick={() => setShowEditarRQ(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
             </div>
             <div style={{ display: "grid", gap: 12 }}>
-              <div><label style={lbl}>PROYECTO</label><select style={inp} value={formEditarRQ.proyecto_id} onChange={e => setFormEditarRQ({ ...formEditarRQ, proyecto_id: e.target.value })}><option value="">Sin proyecto</option>{proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}</select></div>
+              <div>
+                <label style={lbl}>PROYECTO</label>
+                <select style={{ ...inp, background: proyectoBloqueadoEdicion(selected) ? "#f9fafb" : "#fff" }} value={formEditarRQ.proyecto_id} disabled={proyectoBloqueadoEdicion(selected)} onChange={e => setFormEditarRQ({ ...formEditarRQ, proyecto_id: e.target.value })}>
+                  <option value="">Sin proyecto</option>{proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}
+                </select>
+                {proyectoBloqueadoEdicion(selected) && (
+                  <div style={{ fontSize: 11, color: "#92400e", marginTop: 4 }}>El proyecto no se puede cambiar porque este RQ ya tiene flujo financiero.</div>
+                )}
+              </div>
               <div><label style={lbl}>CONCEPTO</label><input style={inp} value={formEditarRQ.descripcion} placeholder="Concepto del RQ..." onChange={e => setFormEditarRQ({ ...formEditarRQ, descripcion: e.target.value })} /></div>
               <div><label style={lbl}>PROVEEDOR</label><select style={inp} value={formEditarRQ.proveedor_id} onChange={e => setFormEditarRQ({ ...formEditarRQ, proveedor_id: e.target.value })}><option value="">Seleccionar proveedor</option>{proveedoresTodos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
