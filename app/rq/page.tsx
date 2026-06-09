@@ -56,6 +56,8 @@ export default function RQPage() {
 const [proyectos, setProyectos] = useState<any[]>([])
 const [formRQ, setFormRQ] = useState(FORM_RQ_VACIO)
 const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
+  const [guardandoRQ, setGuardandoRQ] = useState(false)
+  const [errorNuevoRQ, setErrorNuevoRQ] = useState("")
   const [showEditarRQ, setShowEditarRQ] = useState(false)
   const [formEditarRQ, setFormEditarRQ] = useState(FORM_RQ_VACIO)
   const [fechaPago, setFechaPago] = useState("")
@@ -82,7 +84,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       .select("*, proyecto:proyectos(id, nombre, codigo, productor:perfiles!productor_id(nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
       .order("created_at", { ascending: false })
     setRqs(data || [])
-    const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre").is("deleted_at", null).order("codigo")
+    const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado").is("deleted_at", null).order("codigo")
     setProyectos(projs || [])
     const { data: provsTodos } = await supabase.from("proveedores").select("id, nombre").order("nombre")
     setProveedoresTodos(provsTodos || [])
@@ -221,6 +223,60 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     load()
   }
 
+  function errorSupabaseRQ(error: any) {
+    const mensaje = String(error?.message || "")
+    if (mensaje.includes("incluye_igv") || mensaje.includes("schema cache")) {
+      return "No se pudo crear el RQ porque falta actualizar el esquema de Supabase. Verifica que la migracion de incluye_igv/codigo_rq este aplicada y refresca el schema cache."
+    }
+    if (mensaje.includes("solicitado_por")) {
+      return "No se pudo crear el RQ porque falta el campo solicitado_por en la base de datos o no esta disponible en el schema cache."
+    }
+    if (mensaje.includes("codigo_rq") || mensaje.includes("rq_codigo")) {
+      return "No se pudo generar el codigo RQ. Verifica que la migracion de numeracion RQ y su trigger esten aplicados."
+    }
+    return mensaje || "No se pudo crear el RQ. Revisa los datos obligatorios e intenta nuevamente."
+  }
+
+  async function crearRQManual() {
+    setErrorNuevoRQ("")
+    const monto = Number(formRQ.monto_solicitado)
+    const proyecto = proyectos.find((p: any) => p.id === formRQ.proyecto_id)
+    if (!formRQ.proyecto_id) { setErrorNuevoRQ("Selecciona un proyecto para evitar crear un RQ huerfano."); return }
+    if (proyecto?.estado !== "en_curso") { setErrorNuevoRQ("Para generar RQs, el proyecto debe estar En curso."); return }
+    if (!formRQ.descripcion.trim()) { setErrorNuevoRQ("Ingresa la descripcion o concepto del RQ."); return }
+    if (!formRQ.proveedor_id) { setErrorNuevoRQ("Selecciona un proveedor."); return }
+    if (!Number.isFinite(monto) || monto <= 0) { setErrorNuevoRQ("Ingresa un monto valido mayor a cero."); return }
+
+    setGuardandoRQ(true)
+    try {
+      const prov = proveedoresTodos.find((p: any) => p.id === formRQ.proveedor_id)
+      const payload = {
+        proyecto_id: formRQ.proyecto_id,
+        estado: "pendiente_aprobacion",
+        proveedor_id: formRQ.proveedor_id,
+        proveedor_nombre: prov?.nombre || "",
+        monto_solicitado: monto,
+        incluye_igv: formRQ.incluye_igv !== "no",
+        descripcion: formRQ.descripcion.trim(),
+        tipo_pago: formRQ.tipo_pago,
+        dias_credito: formRQ.dias_credito ? Number(formRQ.dias_credito) : null,
+        es_adicional: true,
+        solicitado_por: perfil?.id || null,
+      }
+      const { data: creado, error } = await supabase.from("requerimientos_pago").insert(payload).select("id,codigo_rq,numero_rq").single()
+      if (error) throw error
+      await registrarAccion({ accion: "crear", modulo: "rq", entidad_id: creado?.id, entidad_tipo: "rq", descripcion: "RQ manual creado: " + rqCodigo(creado), datos_nuevos: payload })
+      setShowNuevoRQ(false)
+      setFormRQ(FORM_RQ_VACIO)
+      await load()
+    } catch (error: any) {
+      console.error("Error creando RQ manual:", error)
+      setErrorNuevoRQ(errorSupabaseRQ(error))
+    } finally {
+      setGuardandoRQ(false)
+    }
+  }
+
   function getSiguienteAccion(rq: any) {
     const rol = perfil?.perfil
     const paso = FLUJO.find(f => f.estado === rq.estado)
@@ -270,7 +326,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
             {rqs.length} RQs · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}
           </p>
         </div>
-        {["superadmin","gerente_general","gerente_produccion","controller"].includes(perfil?.perfil) && (<button onClick={async () => { const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre").is("deleted_at", null).in("estado", ["en_curso"]).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
+        {["superadmin","gerente_general","gerente_produccion","controller"].includes(perfil?.perfil) && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado").is("deleted_at", null).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
         <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"incluye_igv",label:"Incluye IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), incluye_igv: rq.incluye_igv === false ? "No" : "Si" }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
       </div>
 
@@ -675,7 +731,15 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               <button onClick={() => setShowNuevoRQ(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
             </div>
             <div style={{ display: "grid", gap: 12 }}>
-              <div><label style={lbl}>PROYECTO</label><select style={inp} value={formRQ.proyecto_id} onChange={e => setFormRQ({ ...formRQ, proyecto_id: e.target.value })}><option value="">Sin proyecto</option>{proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}</select></div>
+              <div>
+                <label style={lbl}>PROYECTO</label>
+                <select style={inp} value={formRQ.proyecto_id} onChange={e => { setErrorNuevoRQ(""); setFormRQ({ ...formRQ, proyecto_id: e.target.value }) }}>
+                  <option value="">Seleccionar proyecto</option>{proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}{p.estado !== "en_curso" ? " (no en curso)" : ""}</option>)}
+                </select>
+                {formRQ.proyecto_id && proyectos.find((p: any) => p.id === formRQ.proyecto_id)?.estado !== "en_curso" && (
+                  <div style={{ fontSize: 11, color: "#92400e", marginTop: 4 }}>Para generar RQs, el proyecto debe estar En curso.</div>
+                )}
+              </div>
               <div><label style={lbl}>DESCRIPCION</label><input style={inp} value={formRQ.descripcion} placeholder="Concepto del RQ..." onChange={e => setFormRQ({ ...formRQ, descripcion: e.target.value })} /></div>
               <div><label style={lbl}>PROVEEDOR</label><select style={inp} value={formRQ.proveedor_id} onChange={e => setFormRQ({ ...formRQ, proveedor_id: e.target.value })}><option value="">Seleccionar proveedor</option>{proveedoresTodos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>
               <div><label style={lbl}>MONTO (S/)</label><input type="number" style={inp} value={formRQ.monto_solicitado} placeholder="0.00" onChange={e => setFormRQ({ ...formRQ, monto_solicitado: e.target.value })} /></div>
@@ -689,15 +753,13 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               <div><label style={lbl}>DIAS DE PAGO (opcional)</label><input type="number" style={inp} value={formRQ.dias_credito} placeholder="Ej: 30, 45, 60..." onChange={e => setFormRQ({ ...formRQ, dias_credito: e.target.value })} /></div>
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+              {errorNuevoRQ && (
+                <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: "#fef2f2", color: "#991b1b", fontSize: 12, textAlign: "left" }}>
+                  {errorNuevoRQ}
+                </div>
+              )}
               <button onClick={() => setShowNuevoRQ(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={async () => {
-                if (!formRQ.descripcion || !formRQ.monto_solicitado) { alert("Descripcion y monto son obligatorios"); return }
-                const prov = proveedoresTodos.find((p: any) => p.id === formRQ.proveedor_id)
-                await supabase.from("requerimientos_pago").insert({ proyecto_id: formRQ.proyecto_id || null, estado: "pendiente_aprobacion", proveedor_id: formRQ.proveedor_id || null, proveedor_nombre: prov?.nombre || "", monto_solicitado: Number(formRQ.monto_solicitado), incluye_igv: formRQ.incluye_igv !== "no", descripcion: formRQ.descripcion, tipo_pago: formRQ.tipo_pago, dias_credito: formRQ.dias_credito ? Number(formRQ.dias_credito) : null, es_adicional: true })
-                setShowNuevoRQ(false)
-                setFormRQ(FORM_RQ_VACIO)
-                load()
-              }} className="btn-primary" style={{ fontSize: 13 }}>Crear RQ</button>
+              <button onClick={crearRQManual} disabled={guardandoRQ} className="btn-primary" style={{ fontSize: 13 }}>{guardandoRQ ? "Creando..." : "Crear RQ"}</button>
             </div>
           </div>
         </div>
