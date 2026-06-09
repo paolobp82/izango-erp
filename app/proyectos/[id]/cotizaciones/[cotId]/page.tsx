@@ -769,8 +769,8 @@ useEffect(() => { itemsRef.current = items }, [items])
                       </td>
                       <td style={{ textAlign: "center", padding: "6px 4px", fontSize: 11, color: "#9ca3af", fontWeight: 600 }}>{numItem}</td>
                       <td style={{ padding: "6px 12px" }}>
-                        <input style={{ ...inp, width: "100%", minWidth: 160 }} value={item.descripcion} disabled={bloqueada}
-                          placeholder="Descripción del ítem" onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
+                        <textarea style={{ ...inp, width: "100%", minWidth: 180, minHeight: 72, resize: "vertical", lineHeight: 1.45 }} value={item.descripcion || ""} disabled={bloqueada}
+                          maxLength={2000} placeholder="Descripción del ítem" onChange={e => updateItem(item.id, "descripcion", e.target.value)} />
                       </td>
                       {columnaExtra.activa && (
                         <td style={{ padding: "6px 8px", width: 160 }}>

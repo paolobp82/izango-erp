@@ -65,6 +65,8 @@ const s = StyleSheet.create({
   bankItem: { flex: 1 },
 })
 
+const multilineText = (value: any) => String(value || "-").split(/\r?\n/)
+
 const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeMonto, subtotalConFee, igvPct, igvMonto, totalFinal, contactoCliente }: any) => {
   let itemCounter = 0
   return (
@@ -115,8 +117,10 @@ const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeM
             if (item.tipo === "celda_extra") return null
             if (item.tipo === "familia") {
               return (
-                <View key={item.id} style={s.tableRowFamilia} wrap={false}>
-                  <Text style={[{ flex: 1, fontSize: 9, fontWeight: "bold", color: GREEN }]}>{item.descripcion}</Text>
+                <View key={item.id} style={s.tableRowFamilia}>
+                  <Text style={[{ flex: 1, fontSize: 9, fontWeight: "bold", color: GREEN }]}>
+                    {multilineText(item.descripcion).map((line, i, arr) => <Text key={i}>{line || " "}{i < arr.length - 1 ? "\n" : ""}</Text>)}
+                  </Text>
                 </View>
               )
             }
@@ -124,9 +128,11 @@ const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeM
             const numItem = itemCounter
             const rowStyle = numItem % 2 === 0 ? s.tableRowAlt : s.tableRow
             return (
-              <View key={item.id} style={rowStyle} wrap={false}>
+              <View key={item.id} style={rowStyle}>
                 <Text style={[s.tdCenter, { width: 22 }]}>{numItem}</Text>
-                <Text style={[s.tdLeft, { flex: 1 }]}>{item.descripcion || "-"}</Text>
+                <Text style={[s.tdLeft, { flex: 1 }]}>
+                  {multilineText(item.descripcion).map((line, i, arr) => <Text key={i}>{line || " "}{i < arr.length - 1 ? "\n" : ""}</Text>)}
+                </Text>
                 <Text style={[s.tdCenter, { width: 38 }]}>{item.cantidad}</Text>
                 <Text style={[s.tdCenter, { width: 38 }]}>{item.fechas}</Text>
                 <Text style={[s.tdRight, { width: 65 }]}>{item.precio_cliente > 0 ? fmt(item.precio_cliente / ((item.cantidad || 1) * (item.fechas || 1))) : "-"}</Text>
@@ -342,7 +348,7 @@ a.download = `${proyecto?.codigo}-${nombreProyecto}-V${cotizacion?.version}.pdf`
                   return (
                     <tr key={item.id} style={{ background: COLOR_DARK }}>
                       <td colSpan={6} style={{ padding: "8px 16px", fontSize: 12, fontWeight: 700, color: COLOR_PRIMARY }}>
-                        {item.descripcion}
+                        <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{item.descripcion}</div>
                       </td>
                     </tr>
                   )
@@ -352,7 +358,7 @@ a.download = `${proyecto?.codigo}-${nombreProyecto}-V${cotizacion?.version}.pdf`
                 return (
                   <tr key={item.id} style={{ background: numItem % 2 === 0 ? "#f8fafc" : "#fff", borderBottom: "1px solid #f1f5f9" }}>
                     <td style={{ padding: "11px 12px", textAlign: "center", fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>{numItem}</td>
-                    <td style={{ padding: "11px 16px", fontSize: 13, color: COLOR_DARK, fontWeight: 500 }}>{item.descripcion || "—"}</td>
+                    <td style={{ padding: "11px 16px", fontSize: 13, color: COLOR_DARK, fontWeight: 500, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.45 }}>{item.descripcion || "—"}</td>
                     <td style={{ padding: "11px 10px", textAlign: "center", fontSize: 13, color: "#475569" }}>{item.cantidad}</td>
                     <td style={{ padding: "11px 10px", textAlign: "center", fontSize: 13, color: "#475569" }}>{item.fechas}</td>
                     <td style={{ padding: "11px 14px", textAlign: "right", fontSize: 13, color: "#475569" }}>
