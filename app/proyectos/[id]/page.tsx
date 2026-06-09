@@ -104,15 +104,22 @@ export default function ProyectoDetallePage() {
       .order("created_at", { ascending: false })
     let rqsVinculados = rqsPorId || []
     if (proy?.codigo) {
-      const { data: rqsPorCodigo } = await supabase
-        .from("requerimientos_pago")
-        .select(`${rqSelect}, proyecto:proyectos!inner(id,codigo,nombre)`)
-        .eq("proyecto.codigo", proy.codigo)
-        .order("created_at", { ascending: false })
-      if (rqsPorCodigo && rqsPorCodigo.length > 0) {
-        const porId = new Map<string, any>()
-        ;[...rqsVinculados, ...rqsPorCodigo].forEach((rq: any) => porId.set(rq.id, rq))
-        rqsVinculados = Array.from(porId.values()).sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      const { data: proyectosMismoCodigo } = await supabase
+        .from("proyectos")
+        .select("id")
+        .eq("codigo", proy.codigo)
+      const idsMismoCodigo = [...new Set([id, ...(proyectosMismoCodigo || []).map((p: any) => p.id)].filter(Boolean))]
+      if (idsMismoCodigo.length > 0) {
+        const { data: rqsPorCodigo } = await supabase
+          .from("requerimientos_pago")
+          .select(rqSelect)
+          .in("proyecto_id", idsMismoCodigo)
+          .order("created_at", { ascending: false })
+        if (rqsPorCodigo && rqsPorCodigo.length > 0) {
+          const porId = new Map<string, any>()
+          ;[...rqsVinculados, ...rqsPorCodigo].forEach((rq: any) => porId.set(rq.id, rq))
+          rqsVinculados = Array.from(porId.values()).sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+        }
       }
     }
     setRqsProyecto(rqsVinculados)
