@@ -27,6 +27,7 @@ const FLUJO = [
 const BANCOS_PAGO = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
 const TIPOS_TRANSFERENCIA = ["Transferencia bancaria", "Yape", "Plin", "Efectivo", "Cheque"]
 const ESTADOS_BLOQUEADOS_EDICION = ["pagado", "cerrado", "cancelado"]
+const ROLES_EDICION_TOTAL_RQ = ["superadmin", "controller", "gerente_general"]
 const FORM_RQ_VACIO = {
   descripcion: "",
   proveedor_id: "",
@@ -73,8 +74,10 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   useEffect(() => { load() }, [])
 
   async function load() {
-    const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
-    const viewParam = new URLSearchParams(window.location.search).get("view") || ""
+    const params = new URLSearchParams(window.location.search)
+    const proyectoIdParam = params.get("proyecto_id") || ""
+    const rqIdParam = params.get("rq_id") || ""
+    const viewParam = params.get("view") || ""
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
@@ -84,7 +87,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       .from("requerimientos_pago")
       .select("*, proyecto:proyectos(id, nombre, codigo, productor:perfiles!productor_id(nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
       .order("created_at", { ascending: false })
-    setRqs(data || [])
+    const loadedRqs = data || []
+    setRqs(loadedRqs)
     const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado").is("deleted_at", null).order("codigo")
     setProyectos(projs || [])
     const { data: provsTodos } = await supabase.from("proveedores").select("id, nombre").order("nombre")
@@ -98,6 +102,19 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       setFiltroProyecto(proyectoIdParam)
       setFormRQ(prev => ({ ...prev, proyecto_id: proyectoIdParam }))
       setShowNuevoRQ(viewParam !== "list")
+    }
+    if (rqIdParam) {
+      const rqSeleccionado = loadedRqs.find((r: any) => r.id === rqIdParam)
+      if (rqSeleccionado) {
+        setSelected(rqSeleccionado)
+        setDatosPago({
+          voucher_url: rqSeleccionado.voucher_url || "",
+          numero_operacion: rqSeleccionado.numero_operacion || "",
+          banco_pago: rqSeleccionado.banco_pago || "",
+          tipo_transferencia: rqSeleccionado.tipo_transferencia || "Transferencia bancaria",
+          nota_pago: rqSeleccionado.nota_pago || "",
+        })
+      }
     }
     setLoading(false)
   }
@@ -147,15 +164,18 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   function puedeEditarRQ(rq: any) {
     if (!rq) return false
+    if (ROLES_EDICION_TOTAL_RQ.includes(perfil?.perfil)) return true
     if (ESTADOS_BLOQUEADOS_EDICION.includes(rq.estado)) return false
-    return ["superadmin", "gerente_general", "gerente_produccion", "controller", "productor"].includes(perfil?.perfil)
+    return Boolean(perfil?.id && rq.solicitado_por === perfil.id && !rq.editado_por_creador)
   }
 
   function mensajeEdicionRQ(rq: any) {
     if (!rq) return "Selecciona un RQ para editar."
+    if (ROLES_EDICION_TOTAL_RQ.includes(perfil?.perfil)) return ""
+    if (perfil?.id && rq.solicitado_por === perfil.id && rq.editado_por_creador) return "Ya utilizaste tu edición correctiva. Solicita apoyo al Controller o Superadmin."
     if (ESTADOS_BLOQUEADOS_EDICION.includes(rq.estado)) return "Este RQ no se puede editar porque esta pagado, cerrado o cancelado."
-    if (!["superadmin", "gerente_general", "gerente_produccion", "controller", "productor"].includes(perfil?.perfil)) return "Tu rol no tiene permiso para editar este RQ."
-    return ""
+    if (perfil?.id && rq.solicitado_por === perfil.id) return "Puedes editar este RQ una sola vez antes de que quede pagado, cerrado o cancelado."
+    return "Tu rol no tiene permiso para editar este RQ."
   }
 
   function proyectoBloqueadoEdicion(rq: any) {
@@ -208,19 +228,31 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     if (!proyectoBloqueadoEdicion(selected)) {
       updates.proyecto_id = formEditarRQ.proyecto_id || null
     }
-    const { data: updated, error } = await supabase
+    const editorTotal = ROLES_EDICION_TOTAL_RQ.includes(perfil?.perfil)
+    const edicionCorrectivaCreador = Boolean(perfil?.id && selected.solicitado_por === perfil.id && !selected.editado_por_creador && !editorTotal)
+    if (edicionCorrectivaCreador) {
+      updates.editado_por_creador = true
+      updates.fecha_primera_edicion = new Date().toISOString()
+    }
+    let query = supabase
       .from("requerimientos_pago")
       .update(updates)
       .eq("id", selected.id)
-      .not("estado", "in", "(pagado,cerrado,cancelado)")
-      .select("id")
+    if (!editorTotal) {
+      query = query
+        .eq("solicitado_por", perfil?.id)
+        .eq("editado_por_creador", false)
+        .not("estado", "in", "(pagado,cerrado,cancelado)")
+    }
+    const { data: updated, error } = await query
+      .select("id,editado_por_creador,fecha_primera_edicion")
       .maybeSingle()
     if (error || !updated) {
-      alert("No se pudo editar el RQ. Puede que ya este pagado, cerrado o cancelado.")
+      alert(editorTotal ? "No se pudo editar el RQ. Revisa los datos e intenta nuevamente." : "Ya utilizaste tu edición correctiva. Solicita apoyo al Controller o Superadmin.")
       return
     }
     await registrarAccion({ accion: "editar", modulo: "rq", entidad_id: selected.id, entidad_tipo: "rq", descripcion: "RQ editado: " + rqCodigo(selected), datos_nuevos: updates })
-    setSelected((prev: any) => prev ? { ...prev, ...updates, proveedor: prov ? { ...(prev.proveedor || {}), nombre: prov.nombre } : prev.proveedor } : prev)
+    setSelected((prev: any) => prev ? { ...prev, ...updates, ...updated, proveedor: prov ? { ...(prev.proveedor || {}), nombre: prov.nombre } : prev.proveedor } : prev)
     setShowEditarRQ(false)
     load()
   }

@@ -98,7 +98,7 @@ export default function ProyectoDetallePage() {
 
     const { data: rqs } = await supabase
       .from("requerimientos_pago")
-      .select("id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,tratamiento_igv,incluye_igv,created_at")
+      .select("id,proyecto_id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,tratamiento_igv,incluye_igv,created_at")
       .eq("proyecto_id", id)
       .order("created_at", { ascending: false })
     setRqsProyecto(rqs || [])
@@ -1005,7 +1005,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                             <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600 }}>{rqTratamientoIgvLabel(rq)}</div>
                           </td>
                           <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                            <button onClick={() => router.push(`/rq?proyecto_id=${id}&view=list`)} className="btn-secondary" style={{ fontSize: 11 }}>Ver detalle</button>
+                            <button onClick={() => router.push(`/rq?proyecto_id=${id}&rq_id=${rq.id}&view=list`)} className="btn-secondary" style={{ fontSize: 11 }}>Abrir RQ</button>
                           </td>
                         </tr>
                       )
