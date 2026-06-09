@@ -1,5 +1,7 @@
 ﻿"use client"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { registrarHistorial } from "@/lib/historial"
+import { enviarAlerta } from "@/lib/alertas"
 import { notificarATodos } from "@/lib/notificaciones"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
@@ -140,6 +142,43 @@ export default function ProyectoDetallePage() {
     setTimeout(() => load(), 500)
   }
 
+  async function marcarCotizacionAprobadaCliente(cot: any) {
+    if (!cot?.id) return
+    if (!puedeAprobarCliente) {
+      alert("No tienes permisos para marcar aprobado por cliente")
+      return
+    }
+    if (!confirm("¿Confirmas que el cliente aprobó formalmente esta proforma?")) return
+    const aprobadoAt = new Date().toISOString()
+    for (const otra of cotizaciones) {
+      if (otra.id !== cot.id && otra.estado === "aprobada_cliente") {
+        await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", otra.id)
+      }
+    }
+    const { error } = await supabase.from("cotizaciones").update({
+      estado: "aprobada_cliente",
+      bloqueada: true,
+      bloqueada_por: perfil?.id || null,
+    }).eq("id", cot.id)
+    if (error) {
+      alert("Error al aprobar: " + error.message)
+      return
+    }
+    await supabase.from("proyectos").update({ cotizacion_aprobada_id: cot.id }).eq("id", id)
+    await registrarHistorial({
+      cotizacion_id: cot.id,
+      accion: "aprobada_cliente",
+      estado_anterior: cot.estado || "borrador",
+      estado_nuevo: "aprobada_cliente",
+      descripcion: "Cliente aprobo formalmente la proforma. Total: " + fmt(cot.total_cliente || 0),
+      datos: { aprobado_por: perfil?.id || null, aprobado_at: aprobadoAt },
+    })
+    await registrarAccion({ accion: "aprobar", modulo: "cotizaciones", entidad_id: cot.id, entidad_tipo: "cotizacion", descripcion: "Proforma marcada como aprobada por cliente", datos_nuevos: { aprobado_por: perfil?.id || null, aprobado_at: aprobadoAt } })
+    await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, codigo: proyecto?.codigo, version: cot.version, total: cot.total_cliente || 0, proyecto_id: id })
+    alert("Proforma marcada como aprobada por cliente")
+    load()
+  }
+
   async function cambiarEstado(nuevoEstado: string) {
     setCambiando(true)
     if (nuevoEstado === "aprobado_gerencia" && versionAprobar) {
@@ -185,17 +224,11 @@ export default function ProyectoDetallePage() {
     }
     if (nuevoEstado === "en_curso_confirmar" && versionAprobar) {
       const cotSeleccionada = cotizaciones.find(cot => cot.id === versionAprobar)
-      if (cotSeleccionada?.estado !== "aprobada_cliente" && !puedeAprobarCliente) {
+      if (cotSeleccionada?.estado !== "aprobada_cliente") {
         alert("La proforma debe estar aprobada por cliente antes de iniciar el proyecto")
         setCambiando(false)
         return
       }
-      for (const cot of cotizaciones) {
-        if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
-          await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", cot.id)
-        }
-      }
-      await supabase.from("cotizaciones").update({ estado: "aprobada_cliente" }).eq("id", versionAprobar)
       await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar }).eq("id", id)
     }
     if (nuevoEstado === "terminado") {
@@ -247,17 +280,11 @@ export default function ProyectoDetallePage() {
 
     if (!esAdicional) {
       const cotSeleccionada = cotizaciones.find(cot => cot.id === versionAprobar)
-      if (cotSeleccionada?.estado !== "aprobada_cliente" && !puedeAprobarCliente) {
+      if (cotSeleccionada?.estado !== "aprobada_cliente") {
         alert("La proforma debe estar aprobada por cliente antes de iniciar el proyecto")
         setGuardandoPreCuadre(false)
         return
       }
-      for (const cot of cotizaciones) {
-        if (cot.id !== versionAprobar && cot.estado === "aprobada_cliente") {
-          await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", cot.id)
-        }
-      }
-      await supabase.from("cotizaciones").update({ estado: "aprobada_cliente" }).eq("id", versionAprobar)
       await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar, estado: "en_curso" }).eq("id", id)
     }
     for (const item of preCuadreItems) {
@@ -962,8 +989,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                     <td style={{ padding: "12px" }}>
                       <select value={cot.estado || "borrador"} onChange={async ev => {
                         const nuevoEstado = ev.target.value
-                        if (nuevoEstado === "aprobada_cliente" && !puedeAprobarCliente) {
-                          alert("No tienes permisos para marcar aprobado por cliente")
+                        if (nuevoEstado === "aprobada_cliente") {
+                          alert("Usa la accion independiente para marcar aprobado por cliente")
                           return
                         }
                         await supabase.from("cotizaciones").update({ estado: nuevoEstado }).eq("id", cot.id)
@@ -973,7 +1000,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         <option value="borrador">Borrador</option>
                         <option value="enviada_cliente">Enviada</option>
                         <option value="pendiente">Pendiente</option>
-                        {(puedeAprobarCliente || cot.estado === "aprobada_cliente") && <option value="aprobada_cliente">Aprobada</option>}
+                        {cot.estado === "aprobada_cliente" && <option value="aprobada_cliente">Aprobada</option>}
                         <option value="rechazada">Rechazada</option>
                       </select>
                     </td>
@@ -1008,6 +1035,11 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>
                           Preview
                         </button>
+                        {puedeAprobarCliente && cot.estado !== "aprobada_cliente" && (
+                          <button onClick={() => marcarCotizacionAprobadaCliente(cot)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#15803d", cursor: "pointer", fontWeight: 600 }}>
+                            Marcar aprobado por cliente
+                          </button>
+                        )}
                         {!esAprobada && (
                           <button onClick={() => eliminarVersion(cot.id, cot.version)}
                             style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>

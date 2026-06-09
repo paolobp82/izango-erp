@@ -105,6 +105,7 @@ const autoSaveRef = useRef<any>(null)
   const [hasBackup, setHasBackup] = useState(false)
   const [contactosCliente, setContactosCliente] = useState<any[]>([])
   const [contactoClienteId, setContactoClienteId] = useState<string | null>(null)
+  const [historialAprobacion, setHistorialAprobacion] = useState<any[]>([])
 
   useEffect(() => {
     if (!cotId) return
@@ -130,6 +131,13 @@ const autoSaveRef = useRef<any>(null)
       }
       if (cot?.columna_extra_titulo) setColumnaExtra({ activa: true, titulo: cot.columna_extra_titulo })
       setContactoClienteId(cot?.contacto_cliente_id || null)
+      const { data: histAprob } = await supabase
+        .from("cotizacion_historial")
+        .select("*")
+        .eq("cotizacion_id", cotId)
+        .eq("accion", "aprobada_cliente")
+        .order("created_at", { ascending: false })
+      setHistorialAprobacion(histAprob || [])
 
 // Cargar contactos del cliente
 if (cot?.proyecto?.cliente) {
@@ -333,12 +341,8 @@ if (idsAEliminar.length > 0) {
     }
   }
 
-  async function guardar(nuevoEstado?: string) {
+  async function guardar(silencioso = false) {
     if (!cotId || !id) return
-    if (nuevoEstado === "aprobada_cliente" && !puedeAprobarCliente) {
-      alert("No tienes permisos para marcar aprobado por cliente")
-      return
-    }
     setSaving(true)
     const { data: dbItemsActuales } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
     const idsEnBD = (dbItemsActuales || []).map((i: any) => String(i.id))
@@ -388,7 +392,6 @@ if (idsAEliminar.length > 0) {
       descuento_pct: descuentoPct || 0,
       contacto_cliente_id: contactoClienteId || null,
       columna_extra_titulo: columnaExtra.activa ? columnaExtra.titulo : null,
-      ...(nuevoEstado ? { estado: nuevoEstado } : {}),
     }).eq("id", cotId)
     for (const [itemId, subs] of Object.entries(subitems)) {
       const dbItemId = String(itemId).startsWith("new_") ? null : itemId
@@ -406,18 +409,55 @@ if (idsAEliminar.length > 0) {
     }
     setSaving(false)
     await registrarAccion({ accion: "editar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion guardada" })
-    if (nuevoEstado === "aprobada_cliente") {
-      await supabase.from("cotizaciones").update({ bloqueada: true, bloqueada_por: perfilActual?.id }).eq("id", cotId)
-      setBloqueada(true)
-      const { data: cotData } = await supabase.from("cotizaciones").select("proyecto_id").eq("id", cotId).single()
-      await registrarHistorial({ cotizacion_id: cotId!, accion: "aprobada_cliente", estado_anterior: "borrador", estado_nuevo: "aprobada_cliente", descripcion: "Aprobada. Total: " + fmt(totalFinal) })
-      await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, codigo: proyecto?.codigo, version: cotizacion?.version, total: totalFinal, proyecto_id: id })
-    }
-    if (nuevoEstado) {
-      router.push("/proyectos/" + id)
-    } else {
+    if (!silencioso) {
       alert("Guardado correctamente")
     }
+  }
+
+  async function marcarAprobadoPorCliente() {
+    if (!cotId || !id) return
+    if (!puedeAprobarCliente) {
+      alert("No tienes permisos para marcar aprobado por cliente")
+      return
+    }
+    if (!confirm("¿Confirmas que el cliente aprobó formalmente esta proforma?")) return
+    await guardar(true)
+    setSaving(true)
+    const estadoAnterior = cotizacion?.estado || "borrador"
+    const aprobadoAt = new Date().toISOString()
+    const { error } = await supabase.from("cotizaciones").update({
+      estado: "aprobada_cliente",
+      bloqueada: true,
+      bloqueada_por: perfilActual?.id,
+    }).eq("id", cotId)
+    if (error) {
+      alert("Error al aprobar: " + error.message)
+      setSaving(false)
+      return
+    }
+    await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("proyecto_id", id).eq("estado", "aprobada_cliente").neq("id", cotId)
+    await supabase.from("proyectos").update({ cotizacion_aprobada_id: cotId }).eq("id", id)
+    await registrarHistorial({
+      cotizacion_id: cotId,
+      accion: "aprobada_cliente",
+      estado_anterior: estadoAnterior,
+      estado_nuevo: "aprobada_cliente",
+      descripcion: "Cliente aprobo formalmente la proforma. Total: " + fmt(totalFinal),
+      datos: { aprobado_por: perfilActual?.id || null, aprobado_at: aprobadoAt },
+    })
+    await registrarAccion({ accion: "aprobar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Proforma marcada como aprobada por cliente", datos_nuevos: { aprobado_por: perfilActual?.id || null, aprobado_at: aprobadoAt } })
+    await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, codigo: proyecto?.codigo, version: cotizacion?.version, total: totalFinal, proyecto_id: id })
+    setCotizacion((prev: any) => ({ ...prev, estado: "aprobada_cliente", bloqueada: true, bloqueada_por: perfilActual?.id }))
+    setBloqueada(true)
+    setHistorialAprobacion(prev => [{
+      accion: "aprobada_cliente",
+      usuario_nombre: perfilActual ? `${perfilActual.nombre || ""} ${perfilActual.apellido || ""}`.trim() : "Usuario actual",
+      created_at: aprobadoAt,
+      descripcion: "Cliente aprobo formalmente la proforma. Total: " + fmt(totalFinal),
+    }, ...prev])
+    setSaving(false)
+    alert("Proforma marcada como aprobada por cliente")
+    router.push("/proyectos/" + id)
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -576,7 +616,7 @@ useEffect(() => { itemsRef.current = items }, [items])
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={async () => { await guardar(); window.open(`/proyectos/${id}/cotizaciones/${cotId}/preview`, `_blank`) }}
+          <button onClick={async () => { await guardar(true); window.open(`/proyectos/${id}/cotizaciones/${cotId}/preview`, `_blank`) }}
             style={{ padding: "6px 14px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
             Descargar PDF
             {lastSaved && <span style={{ fontSize: 11, color: "#9ca3af" }}>✓ Auto-guardado {lastSaved}</span>}
@@ -584,11 +624,24 @@ useEffect(() => { itemsRef.current = items }, [items])
           {!bloqueada && <button onClick={() => guardar()} disabled={saving} className="btn-secondary" style={{ fontSize: 12 }}>
             {saving ? "Guardando..." : "Guardar borrador"}
           </button>}
-          {!bloqueada && puedeAprobarCliente && <button onClick={() => guardar("aprobada_cliente")} disabled={saving} className="btn-primary" style={{ fontSize: 12 }}>
-            Marcar aprobado cliente
+          {!bloqueada && puedeAprobarCliente && <button onClick={marcarAprobadoPorCliente} disabled={saving} className="btn-primary" style={{ fontSize: 12 }}>
+            Marcar aprobado por cliente
           </button>}
         </div>
       </div>
+
+      {historialAprobacion.length > 0 && (
+        <div className="card" style={{ marginBottom: 16, background: "#f0fdf4", borderColor: "#bbf7d0" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#15803d", marginBottom: 8 }}>Historial de aprobacion de cliente</div>
+          {historialAprobacion.slice(0, 3).map((h: any, idx: number) => (
+            <div key={h.id || idx} style={{ fontSize: 12, color: "#374151", display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 700 }}>{h.usuario_nombre || "Usuario"}</span>
+              <span>{new Date(h.created_at).toLocaleString("es-PE")}</span>
+              {h.descripcion && <span style={{ color: "#6b7280" }}>{h.descripcion}</span>}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 16, alignItems: "end" }}>
