@@ -211,7 +211,8 @@ else setBloqueada(cot?.bloqueada || false)
   }
 
   function updateItem(itemId: string, field: string, value: any) {
-    setItems(prev => prev.map(item => item.id !== itemId ? item : calcItem({ ...item, [field]: value })))
+    const normalizedValue = field === "descripcion" && typeof value === "string" ? value.replace(/\r\n/g, "\n") : value
+    setItems(prev => prev.map(item => item.id !== itemId ? item : calcItem({ ...item, [field]: normalizedValue })))
   }
 
   function addExtra(itemId: string, grupo: string) {
