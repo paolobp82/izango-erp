@@ -75,7 +75,7 @@ select
 from public.cotizacion_items ci
 join public.cotizaciones c on c.id = ci.cotizacion_id
 left join public.proyectos p on p.id = c.proyecto_id
-left join public.centros_costos cc on cc.id = ci.centro_costo_id
+left join public.centro_costos cc on cc.id = ci.centro_costo_id
 where ci.descripcion is not null
   and btrim(ci.descripcion) <> ''
   and coalesce(ci.tipo, 'item') not in ('familia', 'celda_extra')
