@@ -297,7 +297,7 @@ else setBloqueada(cot?.bloqueada || false)
   const subtotalConDescuento = subtotalConFee - descuentoMonto
   const igvMonto = subtotalConDescuento * (igvPct / 100)
   const totalFinal = subtotalConDescuento + igvMonto
-  const margenGlobalMonto = subtotalConDescuento - totalCosto
+  const margenGlobalMonto = totalFinal - totalCosto
   const margenGlobal = subtotalConDescuento > 0 ? ((subtotalConDescuento - totalCosto) / subtotalConDescuento) * 100 : 0
 
   async function generarRQs(cotizacionId: string, proyectoId: string) {
@@ -1074,7 +1074,7 @@ useEffect(() => { itemsRef.current = items }, [items])
           <div key={t.label} style={{ display: "flex", flexDirection: "column", gap: 2, paddingRight: 24, marginRight: 24, borderRight: i < arr.length - 1 ? "1px solid #a7f3d0" : "none" }}>
             <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "#085041" }}>{t.label}</div>
             <div style={{ fontSize: t.size, fontWeight: 700, color: t.color }}>{t.value}</div>
-            {"subvalue" in t && <div style={{ fontSize: 13, fontWeight: 700, color: t.color }}>{t.subvalue}</div>}
+            {t.label === "MARGEN GLOBAL" && <div style={{ fontSize: 13, fontWeight: 700, color: t.color }}>{t.subvalue}</div>}
           </div>
         ))}
       </div>
