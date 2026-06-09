@@ -7,6 +7,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams, useRouter } from "next/navigation"
 import { rqCodigo } from "@/lib/rq-code"
+import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
@@ -97,7 +98,7 @@ export default function ProyectoDetallePage() {
 
     const { data: rqs } = await supabase
       .from("requerimientos_pago")
-      .select("id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,created_at")
+      .select("id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,tratamiento_igv,incluye_igv,created_at")
       .eq("proyecto_id", id)
       .order("created_at", { ascending: false })
     setRqsProyecto(rqs || [])
@@ -461,8 +462,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const rqsActivos = rqsProyecto.filter(rq => rq.estado !== "rechazado")
   const rqsPendientes = rqsProyecto.filter(rq => ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "programado"].includes(rq.estado))
   const rqsPagados = rqsProyecto.filter(rq => rq.estado === "pagado")
-  const totalRqs = rqsActivos.reduce((sum, rq) => sum + Number(rq.monto_solicitado || 0), 0)
-  const totalRqsPendientes = rqsPendientes.reduce((sum, rq) => sum + Number(rq.monto_solicitado || 0), 0)
+  const totalRqs = rqsActivos.reduce((sum, rq) => sum + rqIgvDetalle(rq).total, 0)
+  const totalRqsPendientes = rqsPendientes.reduce((sum, rq) => sum + rqIgvDetalle(rq).total, 0)
   const resumenAlertas = [
     !tieneCotizacion ? { label: "Sin proforma", detalle: "Crea una proforma para continuar el flujo comercial." } : null,
     tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
@@ -999,7 +1000,10 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                           <td style={{ padding: "12px", fontSize: 12, color: "#374151", minWidth: 220 }}>{rq.descripcion || "—"}</td>
                           <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", minWidth: 160 }}>{rq.proveedor_nombre || "—"}</td>
                           <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>{rq.created_at ? new Date(rq.created_at).toLocaleDateString("es-PE") : "—"}</td>
-                          <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 800, color: "#0F6E56", textAlign: "right", whiteSpace: "nowrap" }}>{fmt(rq.monto_solicitado)}</td>
+                          <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 800, color: "#0F6E56", textAlign: "right", whiteSpace: "nowrap" }}>
+                            {fmt(rqIgvDetalle(rq).total)}
+                            <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600 }}>{rqTratamientoIgvLabel(rq)}</div>
+                          </td>
                           <td style={{ padding: "12px 16px", textAlign: "right" }}>
                             <button onClick={() => router.push(`/rq?proyecto_id=${id}&view=list`)} className="btn-secondary" style={{ fontSize: 11 }}>Ver detalle</button>
                           </td>

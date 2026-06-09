@@ -5,6 +5,7 @@ import { registrarAccion } from "@/lib/trazabilidad"
 import ImportExport from "@/components/ImportExport"
 import { enviarAlerta } from "@/lib/alertas"
 import { rqCodigo } from "@/lib/rq-code"
+import { rqIgvDetalle, rqIncluyeIgvLegacy, rqTratamientoIgv, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 
 const ESTADOS: Record<string, any> = {
   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e",  label: "Pendiente aprobacion" },
@@ -30,7 +31,7 @@ const FORM_RQ_VACIO = {
   descripcion: "",
   proveedor_id: "",
   monto_solicitado: "",
-  incluye_igv: "si",
+  tratamiento_igv: "incluye_igv",
   proyecto_id: "",
   tipo_pago: "contado",
   dias_credito: "",
@@ -167,7 +168,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       descripcion: rq.descripcion || "",
       proveedor_id: rq.proveedor_id || "",
       monto_solicitado: rq.monto_solicitado ? String(rq.monto_solicitado) : "",
-      incluye_igv: rq.incluye_igv === false ? "no" : "si",
+      tratamiento_igv: rqTratamientoIgv(rq),
       proyecto_id: rq.proyecto_id || "",
       tipo_pago: rq.tipo_pago || "contado",
       dias_credito: rq.dias_credito ? String(rq.dias_credito) : "",
@@ -193,7 +194,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       proveedor_id: formEditarRQ.proveedor_id || null,
       proveedor_nombre: prov?.nombre || "",
       monto_solicitado: Number(formEditarRQ.monto_solicitado),
-      incluye_igv: formEditarRQ.incluye_igv !== "no",
+      tratamiento_igv: formEditarRQ.tratamiento_igv,
+      incluye_igv: rqIncluyeIgvLegacy(formEditarRQ.tratamiento_igv),
       tipo_pago: formEditarRQ.tipo_pago,
       dias_credito: formEditarRQ.dias_credito ? Number(formEditarRQ.dias_credito) : null,
       fecha_pago: formEditarRQ.fecha_pago || null,
@@ -256,7 +258,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
         proveedor_id: formRQ.proveedor_id,
         proveedor_nombre: prov?.nombre || "",
         monto_solicitado: monto,
-        incluye_igv: formRQ.incluye_igv !== "no",
+        tratamiento_igv: formRQ.tratamiento_igv,
+        incluye_igv: rqIncluyeIgvLegacy(formRQ.tratamiento_igv),
         descripcion: formRQ.descripcion.trim(),
         tipo_pago: formRQ.tipo_pago,
         dias_credito: formRQ.dias_credito ? Number(formRQ.dias_credito) : null,
@@ -292,8 +295,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  const igvMonto = (rq: any) => Number(rq?.monto_solicitado || 0) * 0.18
-  const totalConIgv = (rq: any) => Number(rq?.monto_solicitado || 0) + igvMonto(rq)
+  const detalleIgv = (rq: any) => rqIgvDetalle(rq)
 
   const filtradosBase = rqs.filter(r => {
     if (filtroEstado && r.estado !== filtroEstado) return false
@@ -327,7 +329,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
           </p>
         </div>
         {["superadmin","gerente_general","gerente_produccion","controller"].includes(perfil?.perfil) && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado").is("deleted_at", null).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
-        <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"incluye_igv",label:"Incluye IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), incluye_igv: rq.incluye_igv === false ? "No" : "Si" }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
+        <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
@@ -401,6 +403,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               {paginados.map((rq, idx) => {
                 const ec = ESTADOS[rq.estado] || { bg: "#f3f4f6", color: "#6b7280", label: rq.estado }
                 const accion = getSiguienteAccion(rq)
+                const igv = detalleIgv(rq)
                 return (
                   <tr key={rq.id}
                     style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === rq.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}
@@ -437,12 +440,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                       {rq.descripcion || "—"}
                     </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>
-                      {fmt(rq.monto_solicitado)}
-                      {rq.incluye_igv === false && <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>Total ref. {fmt(totalConIgv(rq))}</div>}
+                      {fmt(igv.total)}
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>Base {fmt(igv.subtotal)}</div>
                     </td>
                     <td style={{ padding: "12px", textAlign: "center" }}>
-                      <span style={{ background: rq.incluye_igv === false ? "#fef9c3" : "#f0fdf4", color: rq.incluye_igv === false ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
-                        {rq.incluye_igv === false ? "No" : "Si"}
+                      <span style={{ background: igv.tratamiento === "mas_igv" ? "#fef9c3" : igv.tratamiento === "no_aplica" ? "#f3f4f6" : "#f0fdf4", color: igv.tratamiento === "mas_igv" ? "#92400e" : igv.tratamiento === "no_aplica" ? "#374151" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
+                        {rqTratamientoIgvLabel(rq)}
                       </span>
                     </td>
                     <td style={{ padding: "12px", fontSize: 12 }}>
@@ -539,17 +542,15 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               </div>
               <div>
                 <div style={lbl}>Monto solicitado</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "#0F6E56" }}>{fmt(selected.monto_solicitado)}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: "#0F6E56" }}>{fmt(detalleIgv(selected).total)}</div>
                 <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-                  Incluye IGV: <strong style={{ color: selected.incluye_igv === false ? "#92400e" : "#15803d" }}>{selected.incluye_igv === false ? "No" : "Si"}</strong>
+                  Tratamiento IGV: <strong style={{ color: rqTratamientoIgv(selected) === "mas_igv" ? "#92400e" : rqTratamientoIgv(selected) === "no_aplica" ? "#374151" : "#15803d" }}>{rqTratamientoIgvLabel(selected)}</strong>
                 </div>
-                {selected.incluye_igv === false && (
-                  <div style={{ marginTop: 8, padding: 10, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, display: "grid", gap: 4 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><span style={{ color: "#6b7280" }}>Subtotal</span><strong>{fmt(selected.monto_solicitado)}</strong></div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><span style={{ color: "#6b7280" }}>IGV 18%</span><strong>{fmt(igvMonto(selected))}</strong></div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, borderTop: "1px solid #e5e7eb", paddingTop: 4 }}><span style={{ color: "#374151", fontWeight: 700 }}>Total referencial</span><strong>{fmt(totalConIgv(selected))}</strong></div>
-                  </div>
-                )}
+                <div style={{ marginTop: 8, padding: 10, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, display: "grid", gap: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><span style={{ color: "#6b7280" }}>{rqTratamientoIgv(selected) === "no_aplica" ? "Monto" : "Subtotal"}</span><strong>{fmt(detalleIgv(selected).subtotal)}</strong></div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><span style={{ color: "#6b7280" }}>IGV 18%</span><strong>{fmt(detalleIgv(selected).igv)}</strong></div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, borderTop: "1px solid #e5e7eb", paddingTop: 4 }}><span style={{ color: "#374151", fontWeight: 700 }}>Total</span><strong>{fmt(detalleIgv(selected).total)}</strong></div>
+                </div>
               </div>
 
               {/* Flujo aprobacion */}
@@ -699,10 +700,13 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 <div><label style={lbl}>MONTO (S/)</label><input type="number" style={inp} value={formEditarRQ.monto_solicitado} placeholder="0.00" onChange={e => setFormEditarRQ({ ...formEditarRQ, monto_solicitado: e.target.value })} /></div>
                 <div><label style={lbl}>FECHA REQUERIDA</label><input type="date" style={inp} value={formEditarRQ.fecha_pago} onChange={e => setFormEditarRQ({ ...formEditarRQ, fecha_pago: e.target.value })} /></div>
               </div>
-              <div><label style={lbl}>INCLUYE IGV</label><select style={inp} value={formEditarRQ.incluye_igv} onChange={e => setFormEditarRQ({ ...formEditarRQ, incluye_igv: e.target.value })}><option value="si">Si, el monto incluye IGV</option><option value="no">No, agregar IGV aparte</option></select></div>
-              {formEditarRQ.incluye_igv === "no" && formEditarRQ.monto_solicitado && (
+              <div><label style={lbl}>TRATAMIENTO IGV</label><select style={inp} value={formEditarRQ.tratamiento_igv} onChange={e => setFormEditarRQ({ ...formEditarRQ, tratamiento_igv: e.target.value })}><option value="incluye_igv">Incluye IGV</option><option value="mas_igv">Mas IGV</option><option value="no_aplica">No aplica IGV</option></select></div>
+              {formEditarRQ.monto_solicitado && (
                 <div style={{ padding: 10, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, color: "#374151" }}>
-                  Subtotal {fmt(Number(formEditarRQ.monto_solicitado))} · IGV {fmt(Number(formEditarRQ.monto_solicitado || 0) * 0.18)} · Total referencial {fmt(Number(formEditarRQ.monto_solicitado || 0) * 1.18)}
+                  {(() => {
+                    const igv = rqIgvDetalle({ monto_solicitado: formEditarRQ.monto_solicitado, tratamiento_igv: formEditarRQ.tratamiento_igv })
+                    return <>Subtotal {fmt(igv.subtotal)} · IGV {fmt(igv.igv)} · Total {fmt(igv.total)}</>
+                  })()}
                 </div>
               )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -743,10 +747,13 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               <div><label style={lbl}>DESCRIPCION</label><input style={inp} value={formRQ.descripcion} placeholder="Concepto del RQ..." onChange={e => setFormRQ({ ...formRQ, descripcion: e.target.value })} /></div>
               <div><label style={lbl}>PROVEEDOR</label><select style={inp} value={formRQ.proveedor_id} onChange={e => setFormRQ({ ...formRQ, proveedor_id: e.target.value })}><option value="">Seleccionar proveedor</option>{proveedoresTodos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>
               <div><label style={lbl}>MONTO (S/)</label><input type="number" style={inp} value={formRQ.monto_solicitado} placeholder="0.00" onChange={e => setFormRQ({ ...formRQ, monto_solicitado: e.target.value })} /></div>
-              <div><label style={lbl}>INCLUYE IGV</label><select style={inp} value={formRQ.incluye_igv} onChange={e => setFormRQ({ ...formRQ, incluye_igv: e.target.value })}><option value="si">Si, el monto incluye IGV</option><option value="no">No, agregar IGV aparte</option></select></div>
-              {formRQ.incluye_igv === "no" && formRQ.monto_solicitado && (
+              <div><label style={lbl}>TRATAMIENTO IGV</label><select style={inp} value={formRQ.tratamiento_igv} onChange={e => setFormRQ({ ...formRQ, tratamiento_igv: e.target.value })}><option value="incluye_igv">Incluye IGV</option><option value="mas_igv">Mas IGV</option><option value="no_aplica">No aplica IGV</option></select></div>
+              {formRQ.monto_solicitado && (
                 <div style={{ padding: 10, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, color: "#374151" }}>
-                  Subtotal {fmt(Number(formRQ.monto_solicitado))} · IGV {fmt(Number(formRQ.monto_solicitado || 0) * 0.18)} · Total referencial {fmt(Number(formRQ.monto_solicitado || 0) * 1.18)}
+                  {(() => {
+                    const igv = rqIgvDetalle({ monto_solicitado: formRQ.monto_solicitado, tratamiento_igv: formRQ.tratamiento_igv })
+                    return <>Subtotal {fmt(igv.subtotal)} · IGV {fmt(igv.igv)} · Total {fmt(igv.total)}</>
+                  })()}
                 </div>
               )}
               <div><label style={lbl}>TIPO DE PAGO</label><select style={inp} value={formRQ.tipo_pago} onChange={e => setFormRQ({ ...formRQ, tipo_pago: e.target.value })}><option value="contado">Contado</option><option value="adelanto">Adelanto</option><option value="credito">Credito</option></select></div>

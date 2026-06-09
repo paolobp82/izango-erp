@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { rqCodigo } from "@/lib/rq-code"
+import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 
 const MODULOS = [
   { key: "proyectos",     label: "Proyectos",       icon: "📁" },
@@ -56,7 +57,10 @@ const CAMPOS: Record<string, { key: string; label: string; tipo?: string }[]> = 
     { key: "proyecto", label: "Proyecto" },
     { key: "descripcion", label: "Descripción" },
     { key: "proveedor_nombre", label: "Proveedor" },
-    { key: "monto_solicitado", label: "Monto", tipo: "monto" },
+    { key: "tratamiento_igv_label", label: "Tratamiento IGV" },
+    { key: "subtotal_igv", label: "Subtotal", tipo: "monto" },
+    { key: "igv_monto", label: "IGV", tipo: "monto" },
+    { key: "total_igv", label: "Total", tipo: "monto" },
     { key: "estado", label: "Estado" },
     { key: "fecha_vencimiento", label: "Vencimiento", tipo: "fecha" },
     { key: "fecha_pago", label: "Fecha pago", tipo: "fecha" },
@@ -196,7 +200,18 @@ export default function ReporteriaPage() {
       if (filtros.fechaDesde) q = q.gte("fecha_vencimiento", filtros.fechaDesde)
       if (filtros.fechaHasta) q = q.lte("fecha_vencimiento", filtros.fechaHasta)
       const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).map(r => ({ ...r, codigo_rq: rqCodigo(r), proyecto: r.proyecto ? r.proyecto.codigo + " — " + r.proyecto.nombre : "—" }))
+      data = (r || []).map(r => {
+        const igv = rqIgvDetalle(r)
+        return {
+          ...r,
+          codigo_rq: rqCodigo(r),
+          proyecto: r.proyecto ? r.proyecto.codigo + " — " + r.proyecto.nombre : "—",
+          tratamiento_igv_label: rqTratamientoIgvLabel(r),
+          subtotal_igv: igv.subtotal,
+          igv_monto: igv.igv,
+          total_igv: igv.total,
+        }
+      })
     } else if (moduloActivo === "caja_chica") {
       let q = supabase.from("caja_chica").select("*, proyecto:proyectos(nombre, codigo), solicitante:perfiles!solicitado_por(nombre, apellido)")
       if (filtros.estado) q = q.eq("estado", filtros.estado)
