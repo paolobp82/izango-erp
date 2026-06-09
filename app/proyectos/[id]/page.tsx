@@ -349,13 +349,54 @@ export default function ProyectoDetallePage() {
       })
     }
     if (rqsAInsertar.length > 0) {
-      const { error: rqError } = await supabase.from("requerimientos_pago").insert(rqsAInsertar)
+      console.info("Generando RQs desde Proyecto 360", {
+        proyecto_id: id,
+        proyecto_codigo: proyecto?.codigo,
+        total_items: rqsAInsertar.length,
+        solicitado_por: perfil?.id || null,
+        items: rqsAInsertar.map(rq => ({
+          descripcion: rq.descripcion,
+          proveedor_id: rq.proveedor_id,
+          proveedor_nombre: rq.proveedor_nombre,
+          monto_solicitado: rq.monto_solicitado,
+        })),
+      })
+      const { data: rqsCreados, error: rqError } = await supabase
+        .from("requerimientos_pago")
+        .insert(rqsAInsertar)
+        .select("id,proyecto_id,codigo_rq,numero_rq,proveedor_id,proveedor_nombre,descripcion,solicitado_por")
       if (rqError) {
-        console.error("Error creando RQs:", rqError)
+        console.error("Error creando RQs:", {
+          proyecto_id: id,
+          proyecto_codigo: proyecto?.codigo,
+          solicitado_por: perfil?.id || null,
+          error: rqError,
+          items: rqsAInsertar,
+        })
         alert(mensajeErrorRQ(rqError))
         setGuardandoPreCuadre(false)
         return
       }
+      const rqsSinCodigo = (rqsCreados || []).filter((rq: any) => !rq.codigo_rq && !rq.numero_rq)
+      if ((rqsCreados || []).length !== rqsAInsertar.length || rqsSinCodigo.length > 0) {
+        console.error("RQs creados con respuesta incompleta", {
+          esperados: rqsAInsertar.length,
+          recibidos: rqsCreados?.length || 0,
+          rqs_sin_codigo: rqsSinCodigo,
+          rqs_creados: rqsCreados,
+        })
+        alert("Los RQs fueron creados, pero la respuesta de Supabase no confirmo todos los codigos RQ. Refresca y verifica el listado antes de continuar.")
+        setGuardandoPreCuadre(false)
+        return
+      }
+      console.info("RQs creados desde Proyecto 360", {
+        proyecto_id: id,
+        proyecto_codigo: proyecto?.codigo,
+        total_creados: rqsCreados?.length || 0,
+        solicitado_por: perfil?.id || null,
+        codigos: (rqsCreados || []).map((rq: any) => rq.codigo_rq || rq.numero_rq),
+        rqs: rqsCreados,
+      })
     }
     if (!esAdicional) {
       const { error: proyectoError } = await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar, estado: "en_curso" }).eq("id", id)

@@ -320,6 +320,14 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       }
       const { data: creado, error } = await supabase.from("requerimientos_pago").insert(payload).select("id,codigo_rq,numero_rq").single()
       if (error) throw error
+      console.info("RQ manual creado", {
+        proyecto_id: payload.proyecto_id,
+        proveedor_id: payload.proveedor_id,
+        proveedor_nombre: payload.proveedor_nombre,
+        solicitado_por: payload.solicitado_por,
+        rq_id: creado?.id,
+        codigo_rq: creado?.codigo_rq || creado?.numero_rq,
+      })
       await registrarAccion({ accion: "crear", modulo: "rq", entidad_id: creado?.id, entidad_tipo: "rq", descripcion: "RQ manual creado: " + rqCodigo(creado), datos_nuevos: payload })
       setShowNuevoRQ(false)
       setFormRQ(FORM_RQ_VACIO)

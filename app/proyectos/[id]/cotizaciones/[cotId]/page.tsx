@@ -347,8 +347,43 @@ if (idsAEliminar.length > 0) {
       }
     }
     if (rqsAInsertar.length > 0) {
-      const { error } = await supabase.from("requerimientos_pago").insert(rqsAInsertar)
+      console.info("Generando RQs desde proforma", {
+        proyecto_id: proyectoId,
+        cotizacion_id: cotizacionId,
+        total_items: rqsAInsertar.length,
+        solicitado_por: perfilActual?.id || null,
+        items: rqsAInsertar.map(rq => ({
+          descripcion: rq.descripcion,
+          proveedor_id: rq.proveedor_id,
+          proveedor_nombre: rq.proveedor_nombre,
+          monto_solicitado: rq.monto_solicitado,
+        })),
+      })
+      const { data: rqsCreados, error } = await supabase
+        .from("requerimientos_pago")
+        .insert(rqsAInsertar)
+        .select("id,proyecto_id,codigo_rq,numero_rq,proveedor_id,proveedor_nombre,descripcion,solicitado_por")
       if (error) throw error
+      const rqsSinCodigo = (rqsCreados || []).filter((rq: any) => !rq.codigo_rq && !rq.numero_rq)
+      if ((rqsCreados || []).length !== rqsAInsertar.length || rqsSinCodigo.length > 0) {
+        console.error("RQs creados desde proforma con respuesta incompleta", {
+          proyecto_id: proyectoId,
+          cotizacion_id: cotizacionId,
+          esperados: rqsAInsertar.length,
+          recibidos: rqsCreados?.length || 0,
+          rqs_sin_codigo: rqsSinCodigo,
+          rqs_creados: rqsCreados,
+        })
+        throw new Error("Supabase no confirmo todos los codigos RQ generados. Refresca y verifica el listado antes de continuar.")
+      }
+      console.info("RQs creados desde proforma", {
+        proyecto_id: proyectoId,
+        cotizacion_id: cotizacionId,
+        total_creados: rqsCreados?.length || 0,
+        solicitado_por: perfilActual?.id || null,
+        codigos: (rqsCreados || []).map((rq: any) => rq.codigo_rq || rq.numero_rq),
+        rqs: rqsCreados,
+      })
     }
   }
 
