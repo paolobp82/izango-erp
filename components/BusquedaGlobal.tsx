@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import { buscarItemsCotizados } from "@/lib/quote-item-search"
 
 const TIPOS: Record<string, { icon: string, color: string }> = {
   proyecto:    { icon: "📁", color: "#1e40af" },
@@ -46,19 +47,14 @@ export default function BusquedaGlobal() {
       { data: proveedores },
       { data: facturas },
       { data: leads },
-      { data: itemsCotizacion },
     ] = await Promise.all([
       supabase.from("proyectos").select("id, nombre, codigo, estado").or(`nombre.ilike.${like},codigo.ilike.${like}`).limit(4),
       supabase.from("clientes").select("id, razon_social, ruc").or(`razon_social.ilike.${like},ruc.ilike.${like}`).limit(4),
       supabase.from("proveedores").select("id, nombre, ruc").or(`nombre.ilike.${like},ruc.ilike.${like}`).limit(3),
       supabase.from("facturas").select("id, numero_factura, estado").ilike("numero_factura", like).limit(3),
       supabase.from("crm_leads").select("id, razon_social, estado").ilike("razon_social", like).limit(3),
-      supabase
-        .from("cotizacion_items")
-        .select("id,descripcion,created_at,cotizacion:cotizaciones(id,version,estado,proyecto_id,proyecto:proyectos(id,codigo,nombre,cliente:clientes(razon_social)))")
-        .ilike("descripcion", like)
-        .limit(6),
     ])
+    const { data: itemsCotizacion } = await buscarItemsCotizados(supabase, { query: q, limit: 6 })
 
     const res: any[] = [
       ...(proyectos || []).map(p => ({ tipo: "proyecto", titulo: p.nombre, subtitulo: p.codigo + " · " + p.estado, href: "/proyectos/" + p.id })),
