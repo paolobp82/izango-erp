@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
+import { buscarItemsCotizados } from "@/lib/quote-item-search"
 
 const ESTADOS: Record<string, { label: string; bg: string; color: string }> = {
   borrador: { label: "Borrador", bg: "#f3f4f6", color: "#374151" },
@@ -20,17 +21,18 @@ export default function BuscarItemsCotizadosPage() {
   const [filtroProyecto, setFiltroProyecto] = useState("")
   const [filtroCliente, setFiltroCliente] = useState("")
   const [filtroEstado, setFiltroEstado] = useState("")
+  const [loadError, setLoadError] = useState("")
 
   useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
-    const { data, error } = await supabase
-      .from("cotizacion_items")
-      .select("id,descripcion,costo_total,precio_cliente,created_at,cotizacion:cotizaciones(id,version,estado,created_at,proyecto_id,proyecto:proyectos(id,codigo,nombre,cliente:clientes(id,razon_social)))")
-      .order("created_at", { ascending: false })
-      .limit(500)
-    if (error) console.error("Error cargando items de cotizacion:", error.message)
+    setLoadError("")
+    const { data, error } = await buscarItemsCotizados(supabase, { limit: 500 })
+    if (error) {
+      console.error("Error cargando items de cotizacion:", error.message)
+      setLoadError(error.message || "No se pudieron cargar los ítems cotizados.")
+    }
     setItems(data || [])
     setLoading(false)
   }
@@ -108,6 +110,12 @@ export default function BuscarItemsCotizadosPage() {
           )}
         </div>
       </div>
+
+      {loadError && (
+        <div style={{ padding: 12, border: "1px solid #fecaca", background: "#fef2f2", color: "#991b1b", borderRadius: 8, fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
+          No se pudo cargar la búsqueda de ítems: {loadError}
+        </div>
+      )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
