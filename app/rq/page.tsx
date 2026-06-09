@@ -29,6 +29,7 @@ const FORM_RQ_VACIO = {
   descripcion: "",
   proveedor_id: "",
   monto_solicitado: "",
+  incluye_igv: "si",
   proyecto_id: "",
   tipo_pago: "contado",
   dias_credito: "",
@@ -152,6 +153,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       descripcion: rq.descripcion || "",
       proveedor_id: rq.proveedor_id || "",
       monto_solicitado: rq.monto_solicitado ? String(rq.monto_solicitado) : "",
+      incluye_igv: rq.incluye_igv === false ? "no" : "si",
       proyecto_id: rq.proyecto_id || "",
       tipo_pago: rq.tipo_pago || "contado",
       dias_credito: rq.dias_credito ? String(rq.dias_credito) : "",
@@ -178,6 +180,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       proveedor_id: formEditarRQ.proveedor_id || null,
       proveedor_nombre: prov?.nombre || "",
       monto_solicitado: Number(formEditarRQ.monto_solicitado),
+      incluye_igv: formEditarRQ.incluye_igv !== "no",
       tipo_pago: formEditarRQ.tipo_pago,
       dias_credito: formEditarRQ.dias_credito ? Number(formEditarRQ.dias_credito) : null,
       fecha_pago: formEditarRQ.fecha_pago || null,
@@ -219,6 +222,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const igvMonto = (rq: any) => Number(rq?.monto_solicitado || 0) * 0.18
+  const totalConIgv = (rq: any) => Number(rq?.monto_solicitado || 0) + igvMonto(rq)
 
   const filtradosBase = rqs.filter(r => {
     if (filtroEstado && r.estado !== filtroEstado) return false
@@ -252,7 +257,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
           </p>
         </div>
         {["superadmin","gerente_general","gerente_produccion","controller"].includes(perfil?.perfil) && (<button onClick={async () => { const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre").is("deleted_at", null).in("estado", ["en_curso"]).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
-        <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
+        <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"incluye_igv",label:"Incluye IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), incluye_igv: rq.incluye_igv === false ? "No" : "Si" }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
@@ -314,6 +319,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRODUCTOR</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESCRIPCION</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MONTO</th>
+                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>IGV</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO PAGO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>F. SOLICITUD</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>F. VENCIMIENTO</th>
@@ -360,7 +366,15 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                     <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {rq.descripcion || "—"}
                     </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{fmt(rq.monto_solicitado)}</td>
+                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>
+                      {fmt(rq.monto_solicitado)}
+                      {rq.incluye_igv === false && <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>Total ref. {fmt(totalConIgv(rq))}</div>}
+                    </td>
+                    <td style={{ padding: "12px", textAlign: "center" }}>
+                      <span style={{ background: rq.incluye_igv === false ? "#fef9c3" : "#f0fdf4", color: rq.incluye_igv === false ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
+                        {rq.incluye_igv === false ? "No" : "Si"}
+                      </span>
+                    </td>
                     <td style={{ padding: "12px", fontSize: 12 }}>
                       {rq.tipo_pago ? (
                         <span style={{ background: rq.tipo_pago === "credito" ? "#dbeafe" : rq.tipo_pago === "adelanto" ? "#fef9c3" : "#f0fdf4", color: rq.tipo_pago === "credito" ? "#1e40af" : rq.tipo_pago === "adelanto" ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
@@ -398,7 +412,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 )
               })}
               {filtrados.length === 0 && (
-                <tr><td colSpan={8} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay requerimientos de pago</td></tr>
+                <tr><td colSpan={12} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay requerimientos de pago</td></tr>
               )}
             </tbody>
           </table>
@@ -448,6 +462,16 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               <div>
                 <div style={lbl}>Monto solicitado</div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: "#0F6E56" }}>{fmt(selected.monto_solicitado)}</div>
+                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                  Incluye IGV: <strong style={{ color: selected.incluye_igv === false ? "#92400e" : "#15803d" }}>{selected.incluye_igv === false ? "No" : "Si"}</strong>
+                </div>
+                {selected.incluye_igv === false && (
+                  <div style={{ marginTop: 8, padding: 10, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, display: "grid", gap: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><span style={{ color: "#6b7280" }}>Subtotal</span><strong>{fmt(selected.monto_solicitado)}</strong></div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><span style={{ color: "#6b7280" }}>IGV 18%</span><strong>{fmt(igvMonto(selected))}</strong></div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, borderTop: "1px solid #e5e7eb", paddingTop: 4 }}><span style={{ color: "#374151", fontWeight: 700 }}>Total referencial</span><strong>{fmt(totalConIgv(selected))}</strong></div>
+                  </div>
+                )}
               </div>
 
               {/* Flujo aprobacion */}
@@ -589,6 +613,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 <div><label style={lbl}>MONTO (S/)</label><input type="number" style={inp} value={formEditarRQ.monto_solicitado} placeholder="0.00" onChange={e => setFormEditarRQ({ ...formEditarRQ, monto_solicitado: e.target.value })} /></div>
                 <div><label style={lbl}>FECHA REQUERIDA</label><input type="date" style={inp} value={formEditarRQ.fecha_pago} onChange={e => setFormEditarRQ({ ...formEditarRQ, fecha_pago: e.target.value })} /></div>
               </div>
+              <div><label style={lbl}>INCLUYE IGV</label><select style={inp} value={formEditarRQ.incluye_igv} onChange={e => setFormEditarRQ({ ...formEditarRQ, incluye_igv: e.target.value })}><option value="si">Si, el monto incluye IGV</option><option value="no">No, agregar IGV aparte</option></select></div>
+              {formEditarRQ.incluye_igv === "no" && formEditarRQ.monto_solicitado && (
+                <div style={{ padding: 10, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, color: "#374151" }}>
+                  Subtotal {fmt(Number(formEditarRQ.monto_solicitado))} · IGV {fmt(Number(formEditarRQ.monto_solicitado || 0) * 0.18)} · Total referencial {fmt(Number(formEditarRQ.monto_solicitado || 0) * 1.18)}
+                </div>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div><label style={lbl}>TIPO DE PAGO</label><select style={inp} value={formEditarRQ.tipo_pago} onChange={e => setFormEditarRQ({ ...formEditarRQ, tipo_pago: e.target.value })}><option value="contado">Contado</option><option value="adelanto">Adelanto</option><option value="credito">Credito</option></select></div>
                 <div><label style={lbl}>DIAS DE PAGO</label><input type="number" style={inp} value={formEditarRQ.dias_credito} placeholder="Ej: 30" onChange={e => setFormEditarRQ({ ...formEditarRQ, dias_credito: e.target.value })} /></div>
@@ -619,6 +649,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               <div><label style={lbl}>DESCRIPCION</label><input style={inp} value={formRQ.descripcion} placeholder="Concepto del RQ..." onChange={e => setFormRQ({ ...formRQ, descripcion: e.target.value })} /></div>
               <div><label style={lbl}>PROVEEDOR</label><select style={inp} value={formRQ.proveedor_id} onChange={e => setFormRQ({ ...formRQ, proveedor_id: e.target.value })}><option value="">Seleccionar proveedor</option>{proveedoresTodos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>
               <div><label style={lbl}>MONTO (S/)</label><input type="number" style={inp} value={formRQ.monto_solicitado} placeholder="0.00" onChange={e => setFormRQ({ ...formRQ, monto_solicitado: e.target.value })} /></div>
+              <div><label style={lbl}>INCLUYE IGV</label><select style={inp} value={formRQ.incluye_igv} onChange={e => setFormRQ({ ...formRQ, incluye_igv: e.target.value })}><option value="si">Si, el monto incluye IGV</option><option value="no">No, agregar IGV aparte</option></select></div>
+              {formRQ.incluye_igv === "no" && formRQ.monto_solicitado && (
+                <div style={{ padding: 10, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, color: "#374151" }}>
+                  Subtotal {fmt(Number(formRQ.monto_solicitado))} · IGV {fmt(Number(formRQ.monto_solicitado || 0) * 0.18)} · Total referencial {fmt(Number(formRQ.monto_solicitado || 0) * 1.18)}
+                </div>
+              )}
               <div><label style={lbl}>TIPO DE PAGO</label><select style={inp} value={formRQ.tipo_pago} onChange={e => setFormRQ({ ...formRQ, tipo_pago: e.target.value })}><option value="contado">Contado</option><option value="adelanto">Adelanto</option><option value="credito">Credito</option></select></div>
               <div><label style={lbl}>DIAS DE PAGO (opcional)</label><input type="number" style={inp} value={formRQ.dias_credito} placeholder="Ej: 30, 45, 60..." onChange={e => setFormRQ({ ...formRQ, dias_credito: e.target.value })} /></div>
             </div>
@@ -627,7 +663,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               <button onClick={async () => {
                 if (!formRQ.descripcion || !formRQ.monto_solicitado) { alert("Descripcion y monto son obligatorios"); return }
                 const prov = proveedoresTodos.find((p: any) => p.id === formRQ.proveedor_id)
-                await supabase.from("requerimientos_pago").insert({ proyecto_id: formRQ.proyecto_id || null, estado: "pendiente_aprobacion", proveedor_id: formRQ.proveedor_id || null, proveedor_nombre: prov?.nombre || "", monto_solicitado: Number(formRQ.monto_solicitado), descripcion: formRQ.descripcion, tipo_pago: formRQ.tipo_pago, dias_credito: formRQ.dias_credito ? Number(formRQ.dias_credito) : null, es_adicional: true })
+                await supabase.from("requerimientos_pago").insert({ proyecto_id: formRQ.proyecto_id || null, estado: "pendiente_aprobacion", proveedor_id: formRQ.proveedor_id || null, proveedor_nombre: prov?.nombre || "", monto_solicitado: Number(formRQ.monto_solicitado), incluye_igv: formRQ.incluye_igv !== "no", descripcion: formRQ.descripcion, tipo_pago: formRQ.tipo_pago, dias_credito: formRQ.dias_credito ? Number(formRQ.dias_credito) : null, es_adicional: true })
                 setShowNuevoRQ(false)
                 setFormRQ(FORM_RQ_VACIO)
                 load()
