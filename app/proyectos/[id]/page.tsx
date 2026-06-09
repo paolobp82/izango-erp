@@ -310,6 +310,7 @@ export default function ProyectoDetallePage() {
         monto_solicitado: Number(item.costo_final) || 0,
         monto_presupuestado: Number(item.costo_total) || 0,
         descripcion: item.descripcion || "",
+        solicitado_por: perfil?.id || null,
       })
       if (rqError) { console.error("Error RQ:", rqError.message, "item:", item.descripcion); }
     }

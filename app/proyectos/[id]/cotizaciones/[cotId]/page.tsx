@@ -318,6 +318,7 @@ else setBloqueada(cot?.bloqueada || false)
         proveedor_tipo_pago: prov?.tipo_pago || null,
         monto_solicitado: item.costo_total,
         descripcion: item.descripcion,
+        solicitado_por: perfilActual?.id || null,
       })
     }
     // Eliminar items borrados de BD
