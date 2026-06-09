@@ -89,9 +89,12 @@ export default function CotizacionEditorPage() {
   const [proveedores, setProveedores] = useState<any[]>([])
   const [centrosCostos, setCentrosCostos] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
+  const [generatingPdf, setGeneratingPdf] = useState(false)
   const [loading, setLoading] = useState(true)
   const [lastSaved, setLastSaved] = useState<string>("")
 const autoSaveRef = useRef<any>(null)
+const savingRef = useRef(false)
+const generatingPdfRef = useRef(false)
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
   const [feeActivo, setFeeActivo] = useState(true)
   const [showBiblioteca, setShowBiblioteca] = useState(false)
@@ -403,87 +406,143 @@ if (idsAEliminar.length > 0) {
     if (error) console.error("Error copiando items a biblioteca:", error)
   }
 
-  async function guardar(silencioso = false) {
-    if (!cotId || !id) return
+  useEffect(() => { savingRef.current = saving }, [saving])
+  useEffect(() => { generatingPdfRef.current = generatingPdf }, [generatingPdf])
+
+  async function waitForSaveIdle() {
+    for (let i = 0; i < 50; i++) {
+      if (!savingRef.current) return true
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    return false
+  }
+
+  async function guardar(silencioso = false): Promise<boolean> {
+    if (!cotId || !id) return false
     setSaving(true)
-    const { data: dbItemsActuales } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
-    const idsEnBD = (dbItemsActuales || []).map((i: any) => String(i.id))
-    const idsEnState = items.filter(i => !String(i.id).startsWith("new_")).map(i => String(i.id))
-    const idsAEliminar = idsEnBD.filter(dbId => !idsEnState.includes(dbId))
-    if (idsAEliminar.length > 0) {
-      await supabase.from("cotizacion_items").delete().in("id", idsAEliminar)
-    }
-    const itemsPersistidos: any[] = []
-    const idReplacements: Record<string, string> = {}
-    for (const item of items) {
-      const payload = {
-        cotizacion_id: cotId, orden: item.orden, descripcion: item.descripcion,
-        cantidad: Number(item.cantidad) || 1, fechas: Number(item.fechas) || 1,
-        margen_pct: Number(item.margen_pct) || 0,
-        costo_manual: item.costo_manual !== "" && item.costo_manual !== null ? Number(item.costo_manual) : null,
-        costo_almacenaje: Number(item.costo_almacenaje) || 0, costo_impresion: Number(item.costo_impresion) || 0,
-        costo_permisos: Number(item.costo_permisos) || 0, costo_instalacion: Number(item.costo_instalacion) || 0,
-        costo_performer: Number(item.costo_performer) || 0, costo_alquiler: Number(item.costo_alquiler) || 0,
-        costo_supervision: Number(item.costo_supervision) || 0, costo_movilidad: Number(item.costo_movilidad) || 0,
-        costo_otros: Number(item.costo_otros) || 0, costo_unitario: item.costo_unitario || 0,
-        costo_total: item.costo_total || 0, precio_cliente: item.precio_cliente || 0,
-        margen_monto: item.margen_monto || 0, proveedor_id: item.proveedor_id || null,
-        proveedor_nombre: item.proveedor_nombre || null,
-        centro_costo_id: item.centro_costo_id || null,
-        extras_produccion: JSON.stringify(item.extras_produccion || []),
-        extras_alquiler: JSON.stringify(item.extras_alquiler || []),
-        tipo: item.tipo || "item",
-        familia_id: item.familia_id || null,
-        es_opcional: item.es_opcional || false,
-        incluir_en_total: item.incluir_en_total !== false,
-        celda_titulo: item.celda_titulo || null,
-        numero_item: item.numero_item || null,
-        columna_extra_valor: item.columna_extra_valor || null,
-        precio_cliente_manual: item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null,
+    savingRef.current = true
+    try {
+      const { data: dbItemsActuales, error: dbItemsError } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
+      if (dbItemsError) throw dbItemsError
+      const idsEnBD = (dbItemsActuales || []).map((i: any) => String(i.id))
+      const idsEnState = items.filter(i => !String(i.id).startsWith("new_")).map(i => String(i.id))
+      const idsAEliminar = idsEnBD.filter(dbId => !idsEnState.includes(dbId))
+      if (idsAEliminar.length > 0) {
+        const { error } = await supabase.from("cotizacion_items").delete().in("id", idsAEliminar)
+        if (error) throw error
       }
-      if (String(item.id).startsWith("new_")) {
-        const { data: inserted } = await supabase.from("cotizacion_items").insert(payload).select().single()
-        if (inserted) {
-          idReplacements[item.id] = inserted.id
-          itemsPersistidos.push({ ...item, id: inserted.id })
+      const itemsPersistidos: any[] = []
+      const idReplacements: Record<string, string> = {}
+      for (const item of items) {
+        const payload = {
+          cotizacion_id: cotId, orden: item.orden, descripcion: item.descripcion,
+          cantidad: Number(item.cantidad) || 1, fechas: Number(item.fechas) || 1,
+          margen_pct: Number(item.margen_pct) || 0,
+          costo_manual: item.costo_manual !== "" && item.costo_manual !== null ? Number(item.costo_manual) : null,
+          costo_almacenaje: Number(item.costo_almacenaje) || 0, costo_impresion: Number(item.costo_impresion) || 0,
+          costo_permisos: Number(item.costo_permisos) || 0, costo_instalacion: Number(item.costo_instalacion) || 0,
+          costo_performer: Number(item.costo_performer) || 0, costo_alquiler: Number(item.costo_alquiler) || 0,
+          costo_supervision: Number(item.costo_supervision) || 0, costo_movilidad: Number(item.costo_movilidad) || 0,
+          costo_otros: Number(item.costo_otros) || 0, costo_unitario: item.costo_unitario || 0,
+          costo_total: item.costo_total || 0, precio_cliente: item.precio_cliente || 0,
+          margen_monto: item.margen_monto || 0, proveedor_id: item.proveedor_id || null,
+          proveedor_nombre: item.proveedor_nombre || null,
+          centro_costo_id: item.centro_costo_id || null,
+          extras_produccion: JSON.stringify(item.extras_produccion || []),
+          extras_alquiler: JSON.stringify(item.extras_alquiler || []),
+          tipo: item.tipo || "item",
+          familia_id: item.familia_id || null,
+          es_opcional: item.es_opcional || false,
+          incluir_en_total: item.incluir_en_total !== false,
+          celda_titulo: item.celda_titulo || null,
+          numero_item: item.numero_item || null,
+          columna_extra_valor: item.columna_extra_valor || null,
+          precio_cliente_manual: item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null,
         }
+        if (String(item.id).startsWith("new_")) {
+          const { data: inserted, error } = await supabase.from("cotizacion_items").insert(payload).select().single()
+          if (error) throw error
+          if (inserted) {
+            idReplacements[item.id] = inserted.id
+            itemsPersistidos.push({ ...item, id: inserted.id })
+          }
+        } else {
+          const { error } = await supabase.from("cotizacion_items").update(payload).eq("id", item.id)
+          if (error) throw error
+          itemsPersistidos.push(item)
+        }
+      }
+      if (Object.keys(idReplacements).length > 0) {
+        setItems(prev => prev.map(item => idReplacements[item.id] ? { ...item, id: idReplacements[item.id] } : item))
+      }
+      const { error: cotError } = await supabase.from("cotizaciones").update({
+        subtotal_costo: totalCosto, subtotal_precio_cliente: totalPrecioCliente,
+        fee_agencia_monto: feeMonto, fee_agencia_pct: feePct, fee_activo: feeActivo,
+        subtotal_con_fee: subtotalConFee, igv_monto: igvMonto, igv_pct: igvPct,
+        total_cliente: totalFinal, margen_pct: margenGlobal,
+        condicion_pago: cotizacion?.condicion_pago, validez_dias: cotizacion?.validez_dias,
+        descuento_pct: descuentoPct || 0,
+        contacto_cliente_id: contactoClienteId || null,
+        columna_extra_titulo: columnaExtra.activa ? columnaExtra.titulo : null,
+      }).eq("id", cotId)
+      if (cotError) throw cotError
+      for (const [itemId, subs] of Object.entries(subitems)) {
+        const dbItemId = String(itemId).startsWith("new_") ? null : itemId
+        if (!dbItemId) continue
+        const { error: deleteSubError } = await supabase.from("cotizacion_subitems").delete().eq("item_id", dbItemId)
+        if (deleteSubError) throw deleteSubError
+        if (subs.length > 0) {
+          const { error: insertSubError } = await supabase.from("cotizacion_subitems").insert(
+            subs.map((s: any, i: number) => ({
+              item_id: dbItemId, descripcion: s.descripcion,
+              proveedor_id: s.proveedor_id || null, proveedor_nombre: s.proveedor_nombre || "",
+              monto: Number(s.monto) || 0, orden: i,
+            }))
+          )
+          if (insertSubError) throw insertSubError
+        }
+      }
+      await copiarItemsABiblioteca(itemsPersistidos)
+      await registrarAccion({ accion: "editar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion guardada" })
+      if (!silencioso) {
+        alert("Guardado correctamente")
+      }
+      return true
+    } catch (error: any) {
+      console.error("Error guardando cotizacion:", error)
+      alert("No se pudo guardar la proforma: " + (error?.message || "Error desconocido"))
+      return false
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
+  }
+
+  async function descargarPdf() {
+    if (generatingPdf) return
+    const previewWindow = window.open("", "_blank")
+    setGeneratingPdf(true)
+    generatingPdfRef.current = true
+    try {
+      const idle = await waitForSaveIdle()
+      if (!idle) throw new Error("El autoguardado sigue en proceso. Intenta nuevamente en unos segundos.")
+      const guardado = await guardar(true)
+      if (!guardado) {
+        previewWindow?.close()
+        return
+      }
+      if (previewWindow) {
+        previewWindow.location.href = `/proyectos/${id}/cotizaciones/${cotId}/preview`
       } else {
-        await supabase.from("cotizacion_items").update(payload).eq("id", item.id)
-        itemsPersistidos.push(item)
+        window.open(`/proyectos/${id}/cotizaciones/${cotId}/preview`, "_blank")
       }
-    }
-    if (Object.keys(idReplacements).length > 0) {
-      setItems(prev => prev.map(item => idReplacements[item.id] ? { ...item, id: idReplacements[item.id] } : item))
-    }
-    await copiarItemsABiblioteca(itemsPersistidos)
-    await supabase.from("cotizaciones").update({
-      subtotal_costo: totalCosto, subtotal_precio_cliente: totalPrecioCliente,
-      fee_agencia_monto: feeMonto, fee_agencia_pct: feePct, fee_activo: feeActivo,
-      subtotal_con_fee: subtotalConFee, igv_monto: igvMonto, igv_pct: igvPct,
-      total_cliente: totalFinal, margen_pct: margenGlobal,
-      condicion_pago: cotizacion?.condicion_pago, validez_dias: cotizacion?.validez_dias,
-      descuento_pct: descuentoPct || 0,
-      contacto_cliente_id: contactoClienteId || null,
-      columna_extra_titulo: columnaExtra.activa ? columnaExtra.titulo : null,
-    }).eq("id", cotId)
-    for (const [itemId, subs] of Object.entries(subitems)) {
-      const dbItemId = String(itemId).startsWith("new_") ? null : itemId
-      if (!dbItemId) continue
-      await supabase.from("cotizacion_subitems").delete().eq("item_id", dbItemId)
-      if (subs.length > 0) {
-        await supabase.from("cotizacion_subitems").insert(
-          subs.map((s: any, i: number) => ({
-            item_id: dbItemId, descripcion: s.descripcion,
-            proveedor_id: s.proveedor_id || null, proveedor_nombre: s.proveedor_nombre || "",
-            monto: Number(s.monto) || 0, orden: i,
-          }))
-        )
-      }
-    }
-    setSaving(false)
-    await registrarAccion({ accion: "editar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion guardada" })
-    if (!silencioso) {
-      alert("Guardado correctamente")
+    } catch (error: any) {
+      previewWindow?.close()
+      console.error("Error generando PDF:", error)
+      alert("No se pudo preparar el PDF: " + (error?.message || "Error desconocido"))
+    } finally {
+      generatingPdfRef.current = false
+      setGeneratingPdf(false)
     }
   }
 
@@ -494,7 +553,8 @@ if (idsAEliminar.length > 0) {
       return
     }
     if (!confirm("¿Confirmas que el cliente aprobó formalmente esta proforma?")) return
-    await guardar(true)
+    const guardado = await guardar(true)
+    if (!guardado) return
     setSaving(true)
     const estadoAnterior = cotizacion?.estado || "borrador"
     const aprobadoAt = new Date().toISOString()
@@ -541,8 +601,10 @@ if (idsAEliminar.length > 0) {
   useEffect(() => {
   if (!cotId || !id || loading) return
   autoSaveRef.current = setInterval(async () => {
-    if (saving) return
+    if (savingRef.current || generatingPdfRef.current) return
     setSaving(true)
+    savingRef.current = true
+    try {
 for (const item of itemsRef.current) {
   const payload = {
     cotizacion_id: cotId, orden: item.orden, descripcion: item.descripcion,
@@ -583,8 +645,13 @@ if (toDelete.length > 0) {
   await supabase.from("cotizacion_items").delete().in("id", toDelete)
 }
     await copiarItemsABiblioteca(itemsRef.current)
-    setSaving(false)
     setLastSaved(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }))
+    } catch (error) {
+      console.error("Error en autoguardado:", error)
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
   }, 60000)
   return () => clearInterval(autoSaveRef.current)
 }, [cotId, id, loading])
@@ -690,15 +757,15 @@ useEffect(() => { itemsRef.current = items }, [items])
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={async () => { await guardar(true); window.open(`/proyectos/${id}/cotizaciones/${cotId}/preview`, `_blank`) }}
-            style={{ padding: "6px 14px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-            Descargar PDF
+          <button onClick={descargarPdf} disabled={generatingPdf}
+            style={{ padding: "6px 14px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: generatingPdf ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, opacity: generatingPdf ? 0.7 : 1 }}>
+            {generatingPdf ? "Preparando PDF..." : "Descargar PDF"}
             {lastSaved && <span style={{ fontSize: 11, color: "#9ca3af" }}>✓ Auto-guardado {lastSaved}</span>}
           </button>
-          {!bloqueada && <button onClick={() => guardar()} disabled={saving} className="btn-secondary" style={{ fontSize: 12 }}>
+          {!bloqueada && <button onClick={() => guardar()} disabled={saving || generatingPdf} className="btn-secondary" style={{ fontSize: 12 }}>
             {saving ? "Guardando..." : "Guardar borrador"}
           </button>}
-          {!bloqueada && puedeAprobarCliente && <button onClick={marcarAprobadoPorCliente} disabled={saving} className="btn-primary" style={{ fontSize: 12 }}>
+          {!bloqueada && puedeAprobarCliente && <button onClick={marcarAprobadoPorCliente} disabled={saving || generatingPdf} className="btn-primary" style={{ fontSize: 12 }}>
             Marcar aprobado por cliente
           </button>}
         </div>
