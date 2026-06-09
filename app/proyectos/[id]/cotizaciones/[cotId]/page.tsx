@@ -345,6 +345,67 @@ if (idsAEliminar.length > 0) {
     }
   }
 
+  async function copiarItemsABiblioteca(itemsPersistidos: any[]) {
+    if (!cotId || !id) return
+    const candidatos = itemsPersistidos.filter(item =>
+      item.id &&
+      !String(item.id).startsWith("new_") &&
+      item.tipo !== "familia" &&
+      item.tipo !== "celda_extra" &&
+      item.descripcion?.trim()
+    )
+    if (candidatos.length === 0) return
+
+    const itemIds = candidatos.map(item => item.id)
+    const { data: existentes } = await supabase
+      .from("items_biblioteca")
+      .select("origen_cotizacion_item_id")
+      .eq("origen_cotizacion_id", cotId)
+      .in("origen_cotizacion_item_id", itemIds)
+
+    const yaImportados = new Set((existentes || []).map((item: any) => String(item.origen_cotizacion_item_id)))
+    const nuevos = candidatos.filter(item => !yaImportados.has(String(item.id)))
+    if (nuevos.length === 0) return
+
+    const { data: userData } = await supabase.auth.getUser()
+    const origenFecha = new Date().toISOString()
+    const registros = nuevos.map(item => {
+      const centro = centrosCostos.find((centro: any) => centro.id === item.centro_costo_id)
+      return {
+        descripcion: item.descripcion,
+        categoria: item.categoria || "Proforma",
+        notas: item.notas || null,
+        centro_costos: centro?.nombre || item.centro_costos || null,
+        margen_pct: Number(item.margen_pct) || 0,
+        precio_cliente_manual: item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null,
+        proveedor_id: item.proveedor_id || null,
+        proveedor_nombre: item.proveedor_nombre || null,
+        costo_almacenaje: Number(item.costo_almacenaje) || 0,
+        costo_impresion: Number(item.costo_impresion) || 0,
+        costo_permisos: Number(item.costo_permisos) || 0,
+        costo_instalacion: Number(item.costo_instalacion) || 0,
+        costo_performer: Number(item.costo_performer) || 0,
+        costo_alquiler: Number(item.costo_alquiler) || 0,
+        costo_supervision: Number(item.costo_supervision) || 0,
+        costo_movilidad: Number(item.costo_movilidad) || 0,
+        costo_total: Number(item.costo_total) || 0,
+        precio_cliente: Number(item.precio_cliente) || 0,
+        activo: true,
+        origen_proyecto_id: id,
+        origen_proyecto_nombre: proyecto?.nombre || null,
+        origen_proyecto_codigo: proyecto?.codigo || null,
+        origen_cotizacion_id: cotId,
+        origen_cotizacion_item_id: item.id,
+        origen_cotizacion_version: cotizacion?.version || null,
+        origen_fecha: origenFecha,
+        origen_usuario_id: userData.user?.id || null,
+      }
+    })
+
+    const { error } = await supabase.from("items_biblioteca").insert(registros)
+    if (error) console.error("Error copiando items a biblioteca:", error)
+  }
+
   useEffect(() => { savingRef.current = saving }, [saving])
   useEffect(() => { generatingPdfRef.current = generatingPdf }, [generatingPdf])
 
@@ -370,6 +431,8 @@ if (idsAEliminar.length > 0) {
         const { error } = await supabase.from("cotizacion_items").delete().in("id", idsAEliminar)
         if (error) throw error
       }
+      const itemsPersistidos: any[] = []
+      const idReplacements: Record<string, string> = {}
       for (const item of items) {
         const payload = {
           cotizacion_id: cotId, orden: item.orden, descripcion: item.descripcion,
@@ -397,12 +460,20 @@ if (idsAEliminar.length > 0) {
           precio_cliente_manual: item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null,
         }
         if (String(item.id).startsWith("new_")) {
-          const { error } = await supabase.from("cotizacion_items").insert(payload)
+          const { data: inserted, error } = await supabase.from("cotizacion_items").insert(payload).select().single()
           if (error) throw error
+          if (inserted) {
+            idReplacements[item.id] = inserted.id
+            itemsPersistidos.push({ ...item, id: inserted.id })
+          }
         } else {
           const { error } = await supabase.from("cotizacion_items").update(payload).eq("id", item.id)
           if (error) throw error
+          itemsPersistidos.push(item)
         }
+      }
+      if (Object.keys(idReplacements).length > 0) {
+        setItems(prev => prev.map(item => idReplacements[item.id] ? { ...item, id: idReplacements[item.id] } : item))
       }
       const { error: cotError } = await supabase.from("cotizaciones").update({
         subtotal_costo: totalCosto, subtotal_precio_cliente: totalPrecioCliente,
@@ -431,6 +502,7 @@ if (idsAEliminar.length > 0) {
           if (insertSubError) throw insertSubError
         }
       }
+      await copiarItemsABiblioteca(itemsPersistidos)
       await registrarAccion({ accion: "editar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotizacion guardada" })
       if (!silencioso) {
         alert("Guardado correctamente")
@@ -572,6 +644,7 @@ const toDelete: string[] = dbIds.filter((dbId: string) => !currentIds.includes(d
 if (toDelete.length > 0) {
   await supabase.from("cotizacion_items").delete().in("id", toDelete)
 }
+    await copiarItemsABiblioteca(itemsRef.current)
     setLastSaved(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }))
     } catch (error) {
       console.error("Error en autoguardado:", error)

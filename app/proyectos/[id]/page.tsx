@@ -353,6 +353,60 @@ export default function ProyectoDetallePage() {
     load()
   }
 
+  async function copiarItemsABiblioteca(cotizacion: any, itemsPersistidos: any[]) {
+    const candidatos = itemsPersistidos.filter(item =>
+      item.id &&
+      item.tipo !== "familia" &&
+      item.tipo !== "celda_extra" &&
+      item.descripcion?.trim()
+    )
+    if (candidatos.length === 0) return
+
+    const itemIds = candidatos.map(item => item.id)
+    const { data: existentes } = await supabase
+      .from("items_biblioteca")
+      .select("origen_cotizacion_item_id")
+      .eq("origen_cotizacion_id", cotizacion.id)
+      .in("origen_cotizacion_item_id", itemIds)
+
+    const yaImportados = new Set((existentes || []).map((item: any) => String(item.origen_cotizacion_item_id)))
+    const nuevos = candidatos.filter(item => !yaImportados.has(String(item.id)))
+    if (nuevos.length === 0) return
+
+    const registros = nuevos.map(item => ({
+      descripcion: item.descripcion,
+      categoria: item.categoria || "Proforma",
+      notas: item.notas || null,
+      centro_costos: item.centro_costos || null,
+      margen_pct: Number(item.margen_pct) || 0,
+      precio_cliente_manual: item.precio_cliente_manual !== null && item.precio_cliente_manual !== "" ? Number(item.precio_cliente_manual) : null,
+      proveedor_id: item.proveedor_id || null,
+      proveedor_nombre: item.proveedor_nombre || null,
+      costo_almacenaje: Number(item.costo_almacenaje) || 0,
+      costo_impresion: Number(item.costo_impresion) || 0,
+      costo_permisos: Number(item.costo_permisos) || 0,
+      costo_instalacion: Number(item.costo_instalacion) || 0,
+      costo_performer: Number(item.costo_performer) || 0,
+      costo_alquiler: Number(item.costo_alquiler) || 0,
+      costo_supervision: Number(item.costo_supervision) || 0,
+      costo_movilidad: Number(item.costo_movilidad) || 0,
+      costo_total: Number(item.costo_total) || 0,
+      precio_cliente: Number(item.precio_cliente) || 0,
+      activo: true,
+      origen_proyecto_id: id,
+      origen_proyecto_nombre: proyecto?.nombre || null,
+      origen_proyecto_codigo: proyecto?.codigo || null,
+      origen_cotizacion_id: cotizacion.id,
+      origen_cotizacion_item_id: item.id,
+      origen_cotizacion_version: cotizacion.version || null,
+      origen_fecha: new Date().toISOString(),
+      origen_usuario_id: perfil?.id || null,
+    }))
+
+    const { error } = await supabase.from("items_biblioteca").insert(registros)
+    if (error) console.error("Error copiando items a biblioteca:", error)
+  }
+
   async function nuevaVersion(copiarDeId?: string) {
     setCreando(true)
     const { data: todasCots } = await supabase.from("cotizaciones").select("version").eq("proyecto_id", id)
@@ -379,7 +433,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     }).select().single()
     if (nueva && itemsACopiar.length > 0) {
       const copias = itemsACopiar.map(({ id: _id, cotizacion_id: _cid, ...rest }: any) => ({ ...rest, cotizacion_id: nueva.id }))
-      await supabase.from("cotizacion_items").insert(copias)
+      const { data: insertados } = await supabase.from("cotizacion_items").insert(copias).select()
+      await copiarItemsABiblioteca(nueva, insertados || [])
     }
     setCreando(false)
     if (nueva) router.push(`/proyectos/${id}/cotizaciones/${nueva.id}`)
