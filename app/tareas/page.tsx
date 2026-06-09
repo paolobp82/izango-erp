@@ -347,6 +347,7 @@ export default function TareasPage() {
                   <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>PROYECTO</th>
                   <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>PRIORIDAD</th>
                   <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>AVANCE</th>
+                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>ESTADO</th>
                   <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>RESPONSABLE</th>
                   <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>ENTREGA</th>
                   <th style={{ width: 90 }}></th>
@@ -357,7 +358,7 @@ export default function TareasPage() {
                   const pr = PRIORIDADES[r.prioridad] || PRIORIDADES.media
                   const es = AV_ESTADOS[r.estado] || AV_ESTADOS.pendiente
                   return (
-                    <tr key={r.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                    <tr key={r.id} onClick={() => router.push(`/audiovisual/requerimientos?requerimiento_id=${r.id}`)} style={{ borderTop: "1px solid #f3f4f6", cursor: "pointer" }}>
                       <td style={{ padding: "9px 10px" }}><span style={{ background: "#eef2ff", color: "#3730a3", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 99 }}>Audiovisual</span></td>
                       <td style={{ padding: "9px 10px" }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>{r.proyecto?.codigo || "-"}</div>
@@ -370,10 +371,11 @@ export default function TareasPage() {
                           <div style={{ width: `${r.avance || 10}%`, height: "100%", background: es.color }} />
                         </div>
                       </td>
+                      <td style={{ padding: "9px 10px", textAlign: "center" }}><span style={{ background: es.bg, color: es.color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{es.label}</span></td>
                       <td style={{ padding: "9px 10px", fontSize: 12, color: "#374151" }}>{r.responsable ? `${r.responsable.nombre} ${r.responsable.apellido}` : "Sin responsable"}</td>
                       <td style={{ padding: "9px 10px", textAlign: "center", fontSize: 12, color: "#6b7280" }}>{r.fecha_entrega_solicitada || "-"}</td>
                       <td style={{ padding: "9px 10px", textAlign: "right" }}>
-                        <button onClick={() => router.push(`/audiovisual/requerimientos?requerimiento_id=${r.id}`)} className="btn-secondary" style={{ fontSize: 11 }}>Abrir</button>
+                        <button onClick={e => { e.stopPropagation(); router.push(`/audiovisual/requerimientos?requerimiento_id=${r.id}`) }} className="btn-secondary" style={{ fontSize: 11 }}>Abrir</button>
                       </td>
                     </tr>
                   )
