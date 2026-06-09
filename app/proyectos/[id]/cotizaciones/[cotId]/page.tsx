@@ -358,11 +358,15 @@ if (idsAEliminar.length > 0) {
     if (candidatos.length === 0) return
 
     const itemIds = candidatos.map(item => item.id)
-    const { data: existentes } = await supabase
+    const { data: existentes, error: existentesError } = await supabase
       .from("items_biblioteca")
       .select("origen_cotizacion_item_id")
       .eq("origen_cotizacion_id", cotId)
       .in("origen_cotizacion_item_id", itemIds)
+    if (existentesError) {
+      console.error("Error verificando items ya importados a biblioteca:", existentesError)
+      return
+    }
 
     const yaImportados = new Set((existentes || []).map((item: any) => String(item.origen_cotizacion_item_id)))
     const nuevos = candidatos.filter(item => !yaImportados.has(String(item.id)))
@@ -389,6 +393,7 @@ if (idsAEliminar.length > 0) {
         costo_alquiler: Number(item.costo_alquiler) || 0,
         costo_supervision: Number(item.costo_supervision) || 0,
         costo_movilidad: Number(item.costo_movilidad) || 0,
+        costo_otros: Number(item.costo_otros) || 0,
         costo_total: Number(item.costo_total) || 0,
         precio_cliente: Number(item.precio_cliente) || 0,
         activo: true,

@@ -13,6 +13,7 @@ const COSTOS_INTERNOS = [
   { key: "costo_alquiler", label: "Alquiler" },
   { key: "costo_supervision", label: "Supervision" },
   { key: "costo_movilidad", label: "Movilidad" },
+  { key: "costo_otros", label: "Otros" },
 ]
 
 const CENTROS_COSTOS_DEFAULT = ["Produccion", "Administracion", "Comercial", "Logistica", "Marketing", "RRHH", "Tecnologia", "Gerencia"]
@@ -35,6 +36,7 @@ const emptyForm = {
   margen_pct: 40, precio_cliente_manual: "", proveedor_id: "", proveedor_nombre: "",
   costo_almacenaje: 0, costo_impresion: 0, costo_permisos: 0, costo_instalacion: 0,
   costo_performer: 0, costo_alquiler: 0, costo_supervision: 0, costo_movilidad: 0,
+  costo_otros: 0,
 }
 
 export default function BibliotecaPage() {
@@ -83,6 +85,7 @@ export default function BibliotecaPage() {
       costo_permisos: item.costo_permisos || 0, costo_instalacion: item.costo_instalacion || 0,
       costo_performer: item.costo_performer || 0, costo_alquiler: item.costo_alquiler || 0,
       costo_supervision: item.costo_supervision || 0, costo_movilidad: item.costo_movilidad || 0,
+      costo_otros: item.costo_otros || 0,
     })
     setShowForm(true)
   }
@@ -143,6 +146,8 @@ export default function BibliotecaPage() {
         i.categoria,
         i.origen_proyecto_nombre,
         i.origen_proyecto_codigo,
+        i.origen_cotizacion_version ? `proforma v${i.origen_cotizacion_version}` : "",
+        i.origen_fecha ? new Date(i.origen_fecha).toLocaleDateString("es-PE") : "",
         i.proveedor?.nombre,
         i.proveedor_nombre,
       ].some(valor => String(valor || "").toLowerCase().includes(q))
