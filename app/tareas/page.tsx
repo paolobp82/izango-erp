@@ -223,10 +223,11 @@ export default function TareasPage() {
   const rolesGerenciales = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager"]
   const puedeVerEquipo = rolesGerenciales.includes(perfil?.perfil)
   const puedeFiltrarAudiovisual = puedeVerEquipo || perfil?.perfil === "productor"
+  const esSolicitanteAudiovisual = (r: any) => r.productor_id === perfil?.id || r.creado_por === perfil?.id
   const audiovisualesFiltrados = audiovisuales.filter(r => {
-    if (!puedeVerEquipo && perfil?.perfil === "productor" && r.productor_id !== perfil?.id) return false
+    if (!puedeVerEquipo && perfil?.perfil === "productor" && !esSolicitanteAudiovisual(r)) return false
     if (!puedeVerEquipo && perfil?.perfil !== "productor") {
-      if (r.responsable_audiovisual_id !== perfil?.id && r.productor_id !== perfil?.id) return false
+      if (r.responsable_audiovisual_id !== perfil?.id && !esSolicitanteAudiovisual(r)) return false
       if (["completado", "cancelado"].includes(r.estado)) return false
     }
     if (puedeFiltrarAudiovisual && avResponsableId && r.responsable_audiovisual_id !== avResponsableId) return false
@@ -342,6 +343,7 @@ export default function TareasPage() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#f9fafb" }}>
+                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280", width: 96 }}>TIPO</th>
                   <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>PROYECTO</th>
                   <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>PRIORIDAD</th>
                   <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>AVANCE</th>
@@ -356,12 +358,18 @@ export default function TareasPage() {
                   const es = AV_ESTADOS[r.estado] || AV_ESTADOS.pendiente
                   return (
                     <tr key={r.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "9px 10px" }}><span style={{ background: "#eef2ff", color: "#3730a3", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 99 }}>Audiovisual</span></td>
                       <td style={{ padding: "9px 10px" }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>{r.proyecto?.codigo || "-"}</div>
                         <div style={{ fontSize: 12, color: "#6b7280" }}>{r.proyecto?.nombre || "-"}</div>
                       </td>
                       <td style={{ padding: "9px 10px", textAlign: "center" }}><span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{pr.label}</span></td>
-                      <td style={{ padding: "9px 10px", textAlign: "center", fontSize: 12, fontWeight: 700, color: es.color }}>{r.avance || 10}%</td>
+                      <td style={{ padding: "9px 10px", textAlign: "center" }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: es.color, marginBottom: 3 }}>{r.avance || 10}%</div>
+                        <div style={{ width: 54, height: 5, background: "#e5e7eb", borderRadius: 99, margin: "0 auto", overflow: "hidden" }}>
+                          <div style={{ width: `${r.avance || 10}%`, height: "100%", background: es.color }} />
+                        </div>
+                      </td>
                       <td style={{ padding: "9px 10px", fontSize: 12, color: "#374151" }}>{r.responsable ? `${r.responsable.nombre} ${r.responsable.apellido}` : "Sin responsable"}</td>
                       <td style={{ padding: "9px 10px", textAlign: "center", fontSize: 12, color: "#6b7280" }}>{r.fecha_entrega_solicitada || "-"}</td>
                       <td style={{ padding: "9px 10px", textAlign: "right" }}>

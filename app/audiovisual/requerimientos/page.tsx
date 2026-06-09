@@ -228,16 +228,19 @@ export default function AudiovisualRequerimientosPage() {
       pieza_otros_descripcion: form.piezas.includes("Otros") ? form.pieza_otros_descripcion.trim() : null,
       brief: form.brief || null,
       prioridad: form.prioridad,
-      avance: Number(form.avance) || 10,
       referencia_url: form.referencia_url || null,
       documento_url: form.documento_url || null,
       artes_url: form.artes_url || null,
-      estado: form.estado,
       creado_por: perfil?.id || null,
       updated_at: new Date().toISOString(),
     }
-    if (esEdicion && puedeDefinirDevolucion) {
+    if (esEdicion && puedeGestionarAvance) {
+      payload.avance = Number(form.avance) || 10
+      payload.estado = form.estado
       payload.fecha_devolucion_audiovisual = form.fecha_devolucion_audiovisual || null
+    } else if (!esEdicion) {
+      payload.avance = 10
+      payload.estado = "pendiente"
     }
 
     if (esEdicion) {
@@ -278,7 +281,8 @@ export default function AudiovisualRequerimientosPage() {
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
   const esEdicionFormulario = Boolean(editando?.id)
-  const puedeDefinirDevolucion = esEdicionFormulario && ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager", "audiovisual"].includes(perfil?.perfil)
+  const puedeGestionarAudiovisual = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager", "audiovisual"].includes(perfil?.perfil)
+  const puedeGestionarAvance = esEdicionFormulario && puedeGestionarAudiovisual
   const hoy = new Date().toISOString().split("T")[0]
   const vencidos = requerimientos.filter(r => r.fecha_entrega_solicitada && r.fecha_entrega_solicitada < hoy && !["completado", "cancelado"].includes(r.estado)).length
   const enCurso = requerimientos.filter(r => r.estado === "en_progreso" || r.estado === "en_revision").length
@@ -334,7 +338,12 @@ export default function AudiovisualRequerimientosPage() {
                       </td>
                       <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>{(r.piezas || []).join(", ") || "-"}</td>
                       <td style={{ padding: "10px 12px", textAlign: "center" }}><span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{pr.label}</span></td>
-                      <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12, color: "#374151", fontWeight: 700 }}>{r.avance || 10}%</td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        <div style={{ fontSize: 12, color: "#374151", fontWeight: 700, marginBottom: 3 }}>{r.avance || 10}%</div>
+                        <div style={{ width: 54, height: 5, background: "#e5e7eb", borderRadius: 99, margin: "0 auto", overflow: "hidden" }}>
+                          <div style={{ width: `${r.avance || 10}%`, height: "100%", background: "#0F6E56" }} />
+                        </div>
+                      </td>
                       <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12, color: vencido ? "#991b1b" : "#6b7280", fontWeight: vencido ? 700 : 400 }}>{r.fecha_entrega_solicitada || "-"}</td>
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>
                         <button onClick={e => { e.stopPropagation(); abrirEditar(r) }} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer" }}>Editar</button>
@@ -359,14 +368,12 @@ export default function AudiovisualRequerimientosPage() {
           </div>
 
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6 }}>ESTADO</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {Object.entries(ESTADOS).map(([k, v]) => (
-                <button key={k} onClick={() => cambiarEstado(selected, k)}
-                  style={{ fontSize: 11, padding: "4px 10px", borderRadius: 99, border: selected.estado === k ? "2px solid #1D9E75" : "1px solid #e5e7eb", background: selected.estado === k ? v.bg : "#fff", color: selected.estado === k ? v.color : "#6b7280", cursor: "pointer", fontWeight: selected.estado === k ? 700 : 400 }}>
-                  {v.label}
-                </button>
-              ))}
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6 }}>AVANCE</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1, height: 8, background: "#e5e7eb", borderRadius: 99, overflow: "hidden" }}>
+                <div style={{ width: `${selected.avance || 10}%`, height: "100%", background: "#0F6E56" }} />
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#0F6E56" }}>{selected.avance || 10}%</span>
             </div>
           </div>
 
@@ -380,7 +387,6 @@ export default function AudiovisualRequerimientosPage() {
               { label: "Devolucion audiovisual", value: selected.fecha_devolucion_audiovisual || "-" },
               { label: "Piezas", value: (selected.piezas || []).join(", ") || "-" },
               { label: "Otros", value: selected.pieza_otros_descripcion || "-" },
-              { label: "Avance", value: `${selected.avance || 10}%` },
             ].map(r => (
               <div key={r.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, gap: 10 }}>
                 <span style={{ color: "#9ca3af", fontWeight: 600 }}>{r.label}</span>
@@ -504,7 +510,7 @@ export default function AudiovisualRequerimientosPage() {
                 <textarea style={{ ...inp, minHeight: 110, resize: "vertical" }} value={form.brief} placeholder="Detalle dinamica, estilo, referencias, formatos, restricciones, duracion, entregables o cualquier indicacion relevante." onChange={e => setForm({ ...form, brief: e.target.value })} />
               </div>
 
-              {puedeDefinirDevolucion && (
+              {puedeGestionarAvance && (
                 <div style={{ padding: 12, border: "1px solid #bfdbfe", borderRadius: 8, background: "#eff6ff" }}>
                   <label style={{ ...lbl, color: "#1e40af" }}>FECHA DE DEVOLUCION AUDIOVISUAL</label>
                   <input style={inp} type="date" value={form.fecha_devolucion_audiovisual} onChange={e => setForm({ ...form, fecha_devolucion_audiovisual: e.target.value })} />
@@ -514,7 +520,7 @@ export default function AudiovisualRequerimientosPage() {
                 </div>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: puedeGestionarAvance ? "1fr 1fr 1fr" : "1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>PRIORIDAD</label>
                   <select style={inp} value={form.prioridad} onChange={e => setForm({ ...form, prioridad: e.target.value })}>
@@ -523,18 +529,22 @@ export default function AudiovisualRequerimientosPage() {
                     <option value="baja">Baja</option>
                   </select>
                 </div>
-                <div>
-                  <label style={lbl}>ESTATUS DE AVANCE</label>
-                  <select style={inp} value={form.avance} onChange={e => setForm({ ...form, avance: e.target.value })}>
-                    {[10,20,30,40,50,60,70,80,90,100].map(n => <option key={n} value={n}>{n}%</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>ESTADO</label>
-                  <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
-                    {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
+                {puedeGestionarAvance && (
+                  <>
+                    <div>
+                      <label style={lbl}>AVANCE AUDIOVISUAL</label>
+                      <select style={inp} value={form.avance} onChange={e => setForm({ ...form, avance: e.target.value })}>
+                        {[10,20,30,40,50,60,70,80,90,100].map(n => <option key={n} value={n}>{n}%</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={lbl}>ESTADO</label>
+                      <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
+                        {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                      </select>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
