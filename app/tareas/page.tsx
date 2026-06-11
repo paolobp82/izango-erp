@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 const ESTADOS: Record<string, any> = {
   pendiente:    { label: "Pendiente",    bg: "#fef9c3", color: "#92400e" },
   en_progreso:  { label: "En progreso",  bg: "#dbeafe", color: "#1e40af" },
+  en_revision:  { label: "En revisión",  bg: "#f5f3ff", color: "#6d28d9" },
   completada:   { label: "Completada",   bg: "#dcfce7", color: "#15803d" },
   cancelada:    { label: "Cancelada",    bg: "#fee2e2", color: "#991b1b" },
 }
@@ -48,6 +49,7 @@ export default function TareasPage() {
   const [selected, setSelected] = useState<any>(null)
   const [comentarios, setComentarios] = useState<any[]>([])
   const [nuevoComentario, setNuevoComentario] = useState("")
+  const [nuevoLink, setNuevoLink] = useState("")
   const [saving, setSaving] = useState(false)
   const [savingCom, setSavingCom] = useState(false)
   const [form, setForm] = useState({ ...formVacio })
@@ -66,7 +68,9 @@ export default function TareasPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
+    const params = new URLSearchParams(window.location.search)
+    const proyectoIdParam = params.get("proyecto_id") || ""
+    const tareaIdParam = params.get("tarea_id") || ""
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
@@ -80,6 +84,13 @@ export default function TareasPage() {
       .select("*, proyecto:proyectos(nombre, codigo), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido)")
       .order("created_at", { ascending: false })
     setTareas(t || [])
+    if (tareaIdParam) {
+      const tareaDirecta = (t || []).find((item: any) => item.id === tareaIdParam)
+      if (tareaDirecta) {
+        setSelected(tareaDirecta)
+        await loadComentarios(tareaDirecta.id)
+      }
+    }
     const { data: av } = await supabase
       .from("audiovisual_requerimientos")
       .select("*, proyecto:proyectos(id,nombre,codigo), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido)")
@@ -134,10 +145,59 @@ export default function TareasPage() {
     await loadComentarios(t.id)
   }
 
+  async function notificarTarea(tareaId: string, evento: string, extra: any = {}) {
+    try {
+      const res = await fetch("/api/tareas/notificar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tarea_id: tareaId, evento, ...extra }),
+      })
+      if (!res.ok) console.warn("No se pudo enviar notificacion de tarea", await res.text())
+    } catch (error) {
+      console.warn("No se pudo enviar notificacion de tarea", error)
+    }
+  }
+
+  function esGerencia() {
+    return rolesGerenciales.includes(perfil?.perfil)
+  }
+
+  function esResponsable(t: any) {
+    return Boolean(perfil?.id && t?.asignado_a === perfil.id)
+  }
+
+  function esCreador(t: any) {
+    return Boolean(perfil?.id && t?.creado_por === perfil.id)
+  }
+
+  function puedeMoverEstado(t: any, estadoNuevo: string) {
+    if (!t || !perfil?.id) return false
+    if (esGerencia()) return true
+    if (esResponsable(t)) {
+      if (t.estado === "pendiente" && estadoNuevo === "en_progreso") return true
+      if (t.estado === "en_progreso" && estadoNuevo === "en_revision") return true
+    }
+    if (esCreador(t)) {
+      if (t.estado === "en_revision" && estadoNuevo === "completada") return true
+      if (t.estado === "en_revision" && estadoNuevo === "en_progreso") return true
+    }
+    return false
+  }
+
+  async function agregarEventoFeed(tareaId: string, tipo: string, comentario: string, linkUrl = "") {
+    await supabase.from("tarea_comentarios").insert({
+      tarea_id: tareaId,
+      usuario_id: perfil?.id,
+      comentario,
+      tipo,
+      link_url: linkUrl || null,
+    })
+  }
+
   async function guardar() {
     if (!form.titulo) { alert("El título es obligatorio"); return }
     setSaving(true)
-    const payload = {
+    const payload: any = {
       titulo: form.titulo,
       descripcion: form.descripcion || null,
       estado: form.estado,
@@ -146,27 +206,45 @@ export default function TareasPage() {
       cliente_id: form.cliente_id || null,
       asignado_a: form.asignado_a || null,
       fecha_limite: form.fecha_limite || null,
-      creado_por: perfil?.id || null,
       fecha_completada: form.estado === "completada" ? new Date().toISOString() : null,
     }
     if (editando) {
       await supabase.from("tareas").update(payload).eq("id", editando.id)
       await registrarAccion({ accion: "editar", modulo: "tareas", entidad_tipo: "tarea", descripcion: "Tarea editada: " + form.titulo })
     } else {
-      await supabase.from("tareas").insert(payload)
+      payload.creado_por = perfil?.id || null
+      const { data: nueva } = await supabase.from("tareas").insert(payload).select("id").single()
       await registrarAccion({ accion: "crear", modulo: "tareas", entidad_tipo: "tarea", descripcion: "Tarea creada: " + form.titulo })
+      if (nueva?.id) {
+        await agregarEventoFeed(nueva.id, "cambio_estado", "Tarea creada y delegada.")
+        await notificarTarea(nueva.id, "creada")
+      }
     }
     setSaving(false)
     setShowForm(false)
     load()
   }
 
-  async function cambiarEstado(id: string, estado: string) {
+  async function cambiarEstado(id: string, estado: string, comentario = "") {
+    const tareaActual = tareas.find(t => t.id === id) || selected
+    if (!puedeMoverEstado(tareaActual, estado)) {
+      alert("No tienes permiso para mover esta tarea a ese estado.")
+      return
+    }
     const payload: any = { estado }
     if (estado === "completada") payload.fecha_completada = new Date().toISOString()
     await supabase.from("tareas").update(payload).eq("id", id)
+    const estadoAnterior = tareaActual?.estado || ""
+    const textoFeed = comentario || `Estado cambiado: ${ESTADOS[estadoAnterior]?.label || estadoAnterior} → ${ESTADOS[estado]?.label || estado}`
+    await agregarEventoFeed(id, estado === "en_progreso" && estadoAnterior === "en_revision" ? "devolucion" : "cambio_estado", textoFeed)
+    await notificarTarea(id, estado === "completada" ? "completada" : estado === "en_progreso" && estadoAnterior === "en_revision" ? "devuelta" : "estado", {
+      comentario: textoFeed,
+      estado_anterior: ESTADOS[estadoAnterior]?.label || estadoAnterior,
+      estado_nuevo: ESTADOS[estado]?.label || estado,
+    })
     setTareas(prev => prev.map(t => t.id === id ? { ...t, ...payload } : t))
     if (selected?.id === id) setSelected((prev: any) => ({ ...prev, ...payload }))
+    await loadComentarios(id)
   }
 
   async function eliminar(id: string) {
@@ -183,8 +261,12 @@ export default function TareasPage() {
       tarea_id: selected.id,
       usuario_id: perfil?.id,
       comentario: nuevoComentario.trim(),
+      tipo: nuevoLink.trim() ? "adjunto" : "comentario",
+      link_url: nuevoLink.trim() || null,
     })
+    await notificarTarea(selected.id, "comentario", { comentario: nuevoComentario.trim() })
     setNuevoComentario("")
+    setNuevoLink("")
     await loadComentarios(selected.id)
     setSavingCom(false)
   }
@@ -396,6 +478,7 @@ export default function TareasPage() {
             if (e.target.value !== "responsable") setResponsableId("")
           }}>
             <option value="mias">Mi trabajo</option>
+            <option value="creadas">Creadas por mí</option>
             {puedeVerEquipo && <option value="todos">Todas las tareas</option>}
             {puedeVerEquipo && <option value="responsable">Por responsable</option>}
           </select>
@@ -486,16 +569,28 @@ export default function TareasPage() {
             <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 20 }}>×</button>
           </div>
 
-          {/* Estado rápido */}
+          {/* Estado y acciones */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6 }}>CAMBIAR ESTADO</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {Object.entries(ESTADOS).map(([k, v]) => (
-                <button key={k} onClick={() => cambiarEstado(selected.id, k)}
-                  style={{ fontSize: 11, padding: "4px 10px", borderRadius: 99, border: selected.estado === k ? "2px solid #1D9E75" : "1px solid #e5e7eb", background: selected.estado === k ? v.bg : "#fff", color: selected.estado === k ? v.color : "#6b7280", cursor: "pointer", fontWeight: selected.estado === k ? 700 : 400 }}>
-                  {v.label}
-                </button>
-              ))}
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6 }}>ESTADO Y ACCIONES</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 11, padding: "5px 10px", borderRadius: 99, background: ESTADOS[selected.estado]?.bg || "#f3f4f6", color: ESTADOS[selected.estado]?.color || "#6b7280", fontWeight: 700 }}>
+                {ESTADOS[selected.estado]?.label || selected.estado}
+              </span>
+              {puedeMoverEstado(selected, "en_progreso") && selected.estado === "pendiente" && (
+                <button onClick={() => cambiarEstado(selected.id, "en_progreso")} className="btn-secondary" style={{ fontSize: 12 }}>Iniciar</button>
+              )}
+              {puedeMoverEstado(selected, "en_revision") && selected.estado === "en_progreso" && (
+                <button onClick={() => cambiarEstado(selected.id, "en_revision")} className="btn-primary" style={{ fontSize: 12 }}>Enviar a revisión</button>
+              )}
+              {puedeMoverEstado(selected, "completada") && selected.estado === "en_revision" && (
+                <button onClick={() => cambiarEstado(selected.id, "completada")} className="btn-primary" style={{ fontSize: 12 }}>Aprobar / cerrar tarea</button>
+              )}
+              {puedeMoverEstado(selected, "en_progreso") && selected.estado === "en_revision" && (
+                <button onClick={() => {
+                  const obs = prompt("Observación para devolver la tarea:")
+                  if (obs?.trim()) cambiarEstado(selected.id, "en_progreso", obs.trim())
+                }} className="btn-secondary" style={{ fontSize: 12 }}>Devolver con observación</button>
+              )}
             </div>
           </div>
 
@@ -532,10 +627,13 @@ export default function TareasPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {comentarios.length === 0 && <div style={{ fontSize: 12, color: "#9ca3af" }}>Sin comentarios aún</div>}
               {comentarios.map(c => (
-                <div key={c.id} style={{ background: "#f9fafb", borderRadius: 8, padding: "8px 10px" }}>
+                <div key={c.id} style={{ background: c.tipo === "devolucion" ? "#fef2f2" : c.tipo === "cambio_estado" ? "#f0fdf4" : "#f9fafb", borderRadius: 8, padding: "8px 10px", border: c.tipo === "devolucion" ? "1px solid #fecaca" : c.tipo === "cambio_estado" ? "1px solid #bbf7d0" : "1px solid transparent" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>
                       {c.usuario?.nombre} {c.usuario?.apellido}
+                      {c.tipo && c.tipo !== "comentario" && (
+                        <span style={{ marginLeft: 6, fontSize: 10, color: c.tipo === "devolucion" ? "#991b1b" : "#0F6E56", fontWeight: 800, textTransform: "uppercase" }}>{c.tipo === "cambio_estado" ? "estado" : c.tipo}</span>
+                      )}
                     </span>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <span style={{ fontSize: 10, color: "#9ca3af" }}>{new Date(c.created_at).toLocaleDateString("es-PE")}</span>
@@ -545,22 +643,32 @@ export default function TareasPage() {
                       )}
                     </div>
                   </div>
-                  <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>{c.comentario}</div>
+                  <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{c.comentario}</div>
+                  {c.link_url && (
+                    <a href={c.link_url} target="_blank" style={{ fontSize: 11, color: "#1e40af", display: "inline-block", marginTop: 5 }}>Abrir link / adjunto</a>
+                  )}
                 </div>
               ))}
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                style={{ ...inp, flex: 1 }}
-                placeholder="Escribe un comentario..."
+            <div style={{ display: "grid", gap: 8 }}>
+              <textarea
+                style={{ ...inp, minHeight: 68, resize: "vertical" }}
+                placeholder="Escribe un comentario o actualización..."
                 value={nuevoComentario}
                 onChange={e => setNuevoComentario(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && !e.shiftKey && agregarComentario()}
               />
-              <button onClick={agregarComentario} disabled={savingCom || !nuevoComentario.trim()}
-                style={{ padding: "7px 14px", background: "#0F6E56", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
-                {savingCom ? "..." : "Enviar"}
-              </button>
+              <input
+                style={inp}
+                placeholder="Link de Drive o referencia (opcional)"
+                value={nuevoLink}
+                onChange={e => setNuevoLink(e.target.value)}
+              />
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button onClick={agregarComentario} disabled={savingCom || !nuevoComentario.trim()}
+                  style={{ padding: "7px 14px", background: "#0F6E56", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
+                  {savingCom ? "..." : "Comentar"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -619,19 +727,6 @@ export default function TareasPage() {
                     <option value="">Sin cliente</option>
                     {clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
                   </select>
-                  <select style={{ ...inp, width: "auto" }} value={ordenCampo} onChange={e => setOrdenCampo(e.target.value)}>
-            <option value="fecha_limite">Ordenar: Fecha límite</option>
-            <option value="titulo">Ordenar: Título</option>
-            <option value="proyecto">Ordenar: Proyecto</option>
-            <option value="cliente">Ordenar: Cliente</option>
-            <option value="prioridad">Ordenar: Prioridad</option>
-            <option value="asignado">Ordenar: Asignado a</option>
-            <option value="estado">Ordenar: Estado</option>
-          </select>
-          <select style={{ ...inp, width: "auto" }} value={ordenDir} onChange={e => setOrdenDir(e.target.value)}>
-            <option value="asc">↑ Ascendente</option>
-            <option value="desc">↓ Descendente</option>
-          </select>
                 </div>
               </div>
               <div>
