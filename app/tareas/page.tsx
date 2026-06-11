@@ -30,6 +30,7 @@ const AV_ESTADOS: Record<string, any> = {
 const formVacio = {
   titulo: "", descripcion: "", estado: "pendiente", prioridad: "media",
   proyecto_id: "", cliente_id: "", asignado_a: "", fecha_limite: "",
+  link_inicial: "", notificar_email: true,
 }
 
 export default function TareasPage() {
@@ -136,6 +137,8 @@ export default function TareasPage() {
       cliente_id: t.cliente_id || "",
       asignado_a: t.asignado_a || "",
       fecha_limite: t.fecha_limite || "",
+      link_inicial: "",
+      notificar_email: true,
     })
     setShowForm(true)
   }
@@ -196,6 +199,7 @@ export default function TareasPage() {
 
   async function guardar() {
     if (!form.titulo) { alert("El título es obligatorio"); return }
+    if (!editando && !form.asignado_a) { alert("Selecciona un responsable para delegar el trabajo."); return }
     setSaving(true)
     const payload: any = {
       titulo: form.titulo,
@@ -217,7 +221,10 @@ export default function TareasPage() {
       await registrarAccion({ accion: "crear", modulo: "tareas", entidad_tipo: "tarea", descripcion: "Tarea creada: " + form.titulo })
       if (nueva?.id) {
         await agregarEventoFeed(nueva.id, "cambio_estado", "Tarea creada y delegada.")
-        await notificarTarea(nueva.id, "creada")
+        if (form.link_inicial?.trim()) {
+          await agregarEventoFeed(nueva.id, "adjunto", "Referencia inicial adjunta.", form.link_inicial.trim())
+        }
+        if (form.notificar_email) await notificarTarea(nueva.id, "creada")
       }
     }
     setSaving(false)
@@ -679,11 +686,32 @@ export default function TareasPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 600, maxHeight: "92vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>{editando ? "Editar tarea" : "Nueva tarea"}</h2>
+              <div>
+                <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>{editando ? "Editar seguimiento" : "Delegar trabajo"}</h2>
+                {!editando && (
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                    Solicitante: {[perfil?.nombre, perfil?.apellido].filter(Boolean).join(" ") || "Usuario actual"}
+                  </div>
+                )}
+              </div>
               <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
             </div>
 
             <div style={{ display: "grid", gap: 14 }}>
+              {!editando && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, padding: 12, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10 }}>
+                  {[
+                    { label: "1. Pendiente", active: true },
+                    { label: "2. En progreso", active: false },
+                    { label: "3. En revisión", active: false },
+                    { label: "4. Cierre", active: false },
+                  ].map(paso => (
+                    <div key={paso.label} style={{ padding: "8px 10px", borderRadius: 8, background: paso.active ? "#fef9c3" : "#fff", border: "1px solid " + (paso.active ? "#fde68a" : "#e5e7eb"), color: paso.active ? "#92400e" : "#6b7280", fontSize: 11, fontWeight: 700, textAlign: "center" }}>
+                      {paso.label}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div>
                 <label style={lbl}>TÍTULO *</label>
                 <input style={inp} value={form.titulo} placeholder="Título de la tarea" onChange={e => setForm({ ...form, titulo: e.target.value })} />
@@ -693,12 +721,21 @@ export default function TareasPage() {
                 <textarea style={{ ...inp, minHeight: 80, resize: "vertical" }} value={form.descripcion} placeholder="Detalle de la tarea..." onChange={e => setForm({ ...form, descripcion: e.target.value })} />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>ESTADO</label>
-                  <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
-                    {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
+                {editando ? (
+                  <div>
+                    <label style={lbl}>ESTADO</label>
+                    <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
+                      {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label style={lbl}>ESTADO INICIAL</label>
+                    <div style={{ padding: "9px 10px", border: "1px solid #fde68a", borderRadius: 7, background: "#fef9c3", color: "#92400e", fontSize: 13, fontWeight: 700 }}>
+                      Pendiente
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label style={lbl}>PRIORIDAD</label>
                   <select style={inp} value={form.prioridad} onChange={e => setForm({ ...form, prioridad: e.target.value })}>
@@ -707,7 +744,7 @@ export default function TareasPage() {
                 </div>
               </div>
               <div>
-                <label style={lbl}>ASIGNADO A</label>
+                <label style={lbl}>RESPONSABLE *</label>
                 <select style={inp} value={form.asignado_a} onChange={e => setForm({ ...form, asignado_a: e.target.value })}>
                   <option value="">Sin asignar</option>
                   {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido} — {u.perfil}</option>)}
@@ -733,12 +770,27 @@ export default function TareasPage() {
                 <label style={lbl}>FECHA LÍMITE</label>
                 <input type="date" style={inp} value={form.fecha_limite} onChange={e => setForm({ ...form, fecha_limite: e.target.value })} />
               </div>
+              {!editando && (
+                <>
+                  <div>
+                    <label style={lbl}>LINK O REFERENCIA INICIAL</label>
+                    <input style={inp} value={form.link_inicial} placeholder="https://drive.google.com/..." onChange={e => setForm({ ...form, link_inicial: e.target.value })} />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 12, border: "1px solid #bbf7d0", borderRadius: 10, background: "#f0fdf4" }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>Notificar al responsable por correo</div>
+                      <div style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>El correo incluirá proyecto, cliente, prioridad, fecha límite y link directo.</div>
+                    </div>
+                    <input type="checkbox" checked={form.notificar_email} onChange={e => setForm({ ...form, notificar_email: e.target.checked })} />
+                  </div>
+                </>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
               <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
               <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
-                {saving ? "Guardando..." : editando ? "Actualizar" : "Crear tarea"}
+                {saving ? "Guardando..." : editando ? "Actualizar" : "Delegar trabajo"}
               </button>
             </div>
           </div>
