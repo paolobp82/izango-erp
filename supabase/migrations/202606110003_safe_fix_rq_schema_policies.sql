@@ -111,11 +111,11 @@ to authenticated
 using (
   solicitado_por = auth.uid()
   and coalesce(editado_por_creador, false) = false
-  and estado not in ('pagado', 'cerrado', 'cancelado')
+  and estado::text not in ('pagado', 'cerrado', 'cancelado')
 )
 with check (
   solicitado_por = auth.uid()
-  and estado not in ('pagado', 'cerrado', 'cancelado')
+  and estado::text not in ('pagado', 'cerrado', 'cancelado')
 );
 
 alter table public.requerimientos_pago enable row level security;

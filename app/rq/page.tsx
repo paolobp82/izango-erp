@@ -293,7 +293,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
         .update(updates)
         .eq("id", selected.id)
         .eq("editado_por_creador", false)
-        .not("estado", "in", "(pagado,cerrado,cancelado)")
+        .neq("estado", "pagado")
       if (selected.solicitado_por) query = query.eq("solicitado_por", perfil?.id)
       else query = query.is("solicitado_por", null)
       const result = await query
