@@ -76,7 +76,7 @@ using (
     select 1
     from public.perfiles p
     where p.id = auth.uid()
-      and lower(coalesce(p.perfil, '')) in ('superadmin', 'controller')
+      and lower(p.perfil::text) in ('superadmin', 'controller')
   )
 )
 with check (
@@ -84,7 +84,7 @@ with check (
     select 1
     from public.perfiles p
     where p.id = auth.uid()
-      and lower(coalesce(p.perfil, '')) in ('superadmin', 'controller')
+      and lower(p.perfil::text) in ('superadmin', 'controller')
   )
 );
 
