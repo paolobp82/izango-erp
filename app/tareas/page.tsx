@@ -19,6 +19,18 @@ const PRIORIDADES: Record<string, any> = {
   urgente: { label: "Urgente", bg: "#fee2e2", color: "#991b1b" },
 }
 
+const FRECUENCIAS: Record<string, string> = {
+  no_repite: "No se repite",
+  diario: "Diario",
+  semanal: "Semanal",
+  mensual: "Mensual",
+  anual: "Anual",
+  laborables: "Días laborables",
+  personalizado_dias: "Personalizado: días",
+  personalizado_semanas: "Personalizado: semanas",
+  personalizado_meses: "Personalizado: meses",
+}
+
 const AV_ESTADOS: Record<string, any> = {
   pendiente: { label: "Pendiente", bg: "#fef9c3", color: "#92400e" },
   en_progreso: { label: "En progreso", bg: "#dbeafe", color: "#1e40af" },
@@ -30,7 +42,9 @@ const AV_ESTADOS: Record<string, any> = {
 const formVacio = {
   titulo: "", descripcion: "", estado: "pendiente", prioridad: "media",
   proyecto_id: "", cliente_id: "", asignado_a: "", fecha_limite: "",
-  link_inicial: "", notificar_email: true,
+  participante_ids: [] as string[],
+  frecuencia: "no_repite", recurrencia_intervalo: 1, recurrencia_fecha_fin: "", recurrencia_max_repeticiones: "",
+  link_inicial: "", notificar_participantes: true, mostrar_participantes_mi_trabajo: true, permitir_comentarios: true, recibir_correos_automaticos: true,
 }
 
 export default function TareasPage() {
@@ -82,7 +96,7 @@ export default function TareasPage() {
     }
     const { data: t } = await supabase
       .from("tareas")
-      .select("*, proyecto:proyectos(nombre, codigo), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido)")
+      .select("*, proyecto:proyectos(nombre, codigo), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido), participantes:tarea_participantes(usuario_id, usuario:perfiles!usuario_id(id,nombre,apellido))")
       .order("created_at", { ascending: false })
     setTareas(t || [])
     if (tareaIdParam) {
@@ -136,9 +150,17 @@ export default function TareasPage() {
       proyecto_id: t.proyecto_id || "",
       cliente_id: t.cliente_id || "",
       asignado_a: t.asignado_a || "",
+      participante_ids: (t.participantes || []).map((p: any) => p.usuario_id).filter(Boolean),
       fecha_limite: t.fecha_limite || "",
+      frecuencia: t.frecuencia || "no_repite",
+      recurrencia_intervalo: t.recurrencia_intervalo || 1,
+      recurrencia_fecha_fin: t.recurrencia_fecha_fin || "",
+      recurrencia_max_repeticiones: t.recurrencia_max_repeticiones ? String(t.recurrencia_max_repeticiones) : "",
       link_inicial: "",
-      notificar_email: true,
+      notificar_participantes: t.notificar_participantes ?? true,
+      mostrar_participantes_mi_trabajo: t.mostrar_participantes_mi_trabajo ?? true,
+      permitir_comentarios: t.permitir_comentarios ?? true,
+      recibir_correos_automaticos: t.recibir_correos_automaticos ?? true,
     })
     setShowForm(true)
   }
@@ -187,6 +209,89 @@ export default function TareasPage() {
     return false
   }
 
+  function participantesIds(t: any) {
+    return (t?.participantes || []).map((p: any) => p.usuario_id).filter(Boolean)
+  }
+
+  function esParticipante(t: any) {
+    return Boolean(perfil?.id && t?.mostrar_participantes_mi_trabajo !== false && participantesIds(t).includes(perfil.id))
+  }
+
+  function addMonthsSafe(date: Date, months: number) {
+    const d = new Date(date)
+    const day = d.getDate()
+    d.setMonth(d.getMonth() + months, 1)
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+    d.setDate(Math.min(day, lastDay))
+    return d
+  }
+
+  function formatDate(date: Date) {
+    return date.toISOString().split("T")[0]
+  }
+
+  function siguienteFecha(t: any) {
+    if (!t?.fecha_limite || !t.frecuencia || t.frecuencia === "no_repite") return ""
+    const intervalo = Math.max(Number(t.recurrencia_intervalo || 1), 1)
+    const base = new Date(`${t.fecha_limite}T12:00:00`)
+    let next = new Date(base)
+    if (t.frecuencia === "diario") next.setDate(base.getDate() + 1)
+    if (t.frecuencia === "semanal") next.setDate(base.getDate() + 7)
+    if (t.frecuencia === "mensual") next = addMonthsSafe(base, 1)
+    if (t.frecuencia === "anual") next.setFullYear(base.getFullYear() + 1)
+    if (t.frecuencia === "laborables") {
+      next.setDate(base.getDate() + 1)
+      while ([0, 6].includes(next.getDay())) next.setDate(next.getDate() + 1)
+    }
+    if (t.frecuencia === "personalizado_dias") next.setDate(base.getDate() + intervalo)
+    if (t.frecuencia === "personalizado_semanas") next.setDate(base.getDate() + intervalo * 7)
+    if (t.frecuencia === "personalizado_meses") next = addMonthsSafe(base, intervalo)
+    const nextText = formatDate(next)
+    if (t.recurrencia_fecha_fin && nextText > t.recurrencia_fecha_fin) return ""
+    if (t.recurrencia_max_repeticiones && Number(t.recurrencia_secuencia || 1) >= Number(t.recurrencia_max_repeticiones)) return ""
+    return nextText
+  }
+
+  async function guardarParticipantes(tareaId: string, ids: string[]) {
+    await supabase.from("tarea_participantes").delete().eq("tarea_id", tareaId)
+    const rows = Array.from(new Set(ids.filter(Boolean))).map(usuario_id => ({ tarea_id: tareaId, usuario_id }))
+    if (rows.length > 0) await supabase.from("tarea_participantes").insert(rows)
+  }
+
+  async function generarSiguienteOcurrencia(t: any) {
+    const fecha = siguienteFecha(t)
+    if (!fecha) return null
+    const payload = {
+      titulo: t.titulo,
+      descripcion: t.descripcion || null,
+      estado: "pendiente",
+      prioridad: t.prioridad || "media",
+      proyecto_id: t.proyecto_id || null,
+      cliente_id: t.cliente_id || null,
+      asignado_a: t.asignado_a || null,
+      fecha_limite: fecha,
+      creado_por: t.creado_por || perfil?.id || null,
+      frecuencia: t.frecuencia,
+      recurrencia_intervalo: t.recurrencia_intervalo || 1,
+      recurrencia_fecha_fin: t.recurrencia_fecha_fin || null,
+      recurrencia_max_repeticiones: t.recurrencia_max_repeticiones || null,
+      recurrencia_grupo_id: t.recurrencia_grupo_id || t.id,
+      recurrencia_tarea_anterior_id: t.id,
+      recurrencia_secuencia: Number(t.recurrencia_secuencia || 1) + 1,
+      notificar_participantes: t.notificar_participantes ?? true,
+      mostrar_participantes_mi_trabajo: t.mostrar_participantes_mi_trabajo ?? true,
+      permitir_comentarios: t.permitir_comentarios ?? true,
+      recibir_correos_automaticos: t.recibir_correos_automaticos ?? true,
+    }
+    const { data: nueva } = await supabase.from("tareas").insert(payload).select("id").single()
+    if (nueva?.id) {
+      await guardarParticipantes(nueva.id, participantesIds(t))
+      await agregarEventoFeed(nueva.id, "cambio_estado", `Ocurrencia generada desde la tarea anterior con fecha límite ${t.fecha_limite || "sin fecha"}.`)
+      if (payload.recibir_correos_automaticos) await notificarTarea(nueva.id, "creada")
+    }
+    return nueva?.id || null
+  }
+
   async function agregarEventoFeed(tareaId: string, tipo: string, comentario: string, linkUrl = "") {
     await supabase.from("tarea_comentarios").insert({
       tarea_id: tareaId,
@@ -211,20 +316,32 @@ export default function TareasPage() {
       asignado_a: form.asignado_a || null,
       fecha_limite: form.fecha_limite || null,
       fecha_completada: form.estado === "completada" ? new Date().toISOString() : null,
+      frecuencia: form.frecuencia,
+      recurrencia_intervalo: Number(form.recurrencia_intervalo || 1),
+      recurrencia_fecha_fin: form.recurrencia_fecha_fin || null,
+      recurrencia_max_repeticiones: form.recurrencia_max_repeticiones ? Number(form.recurrencia_max_repeticiones) : null,
+      notificar_participantes: form.notificar_participantes,
+      mostrar_participantes_mi_trabajo: form.mostrar_participantes_mi_trabajo,
+      permitir_comentarios: form.permitir_comentarios,
+      recibir_correos_automaticos: form.recibir_correos_automaticos,
     }
     if (editando) {
       await supabase.from("tareas").update(payload).eq("id", editando.id)
+      await guardarParticipantes(editando.id, form.participante_ids)
       await registrarAccion({ accion: "editar", modulo: "tareas", entidad_tipo: "tarea", descripcion: "Tarea editada: " + form.titulo })
     } else {
       payload.creado_por = perfil?.id || null
+      payload.recurrencia_grupo_id = undefined
       const { data: nueva } = await supabase.from("tareas").insert(payload).select("id").single()
       await registrarAccion({ accion: "crear", modulo: "tareas", entidad_tipo: "tarea", descripcion: "Tarea creada: " + form.titulo })
       if (nueva?.id) {
+        await supabase.from("tareas").update({ recurrencia_grupo_id: nueva.id }).eq("id", nueva.id)
+        await guardarParticipantes(nueva.id, form.participante_ids)
         await agregarEventoFeed(nueva.id, "cambio_estado", "Tarea creada y delegada.")
         if (form.link_inicial?.trim()) {
           await agregarEventoFeed(nueva.id, "adjunto", "Referencia inicial adjunta.", form.link_inicial.trim())
         }
-        if (form.notificar_email) await notificarTarea(nueva.id, "creada")
+        if (form.recibir_correos_automaticos) await notificarTarea(nueva.id, "creada")
       }
     }
     setSaving(false)
@@ -249,9 +366,18 @@ export default function TareasPage() {
       estado_anterior: ESTADOS[estadoAnterior]?.label || estadoAnterior,
       estado_nuevo: ESTADOS[estado]?.label || estado,
     })
+    let generoSiguiente = false
+    if (estado === "completada" && tareaActual?.frecuencia && tareaActual.frecuencia !== "no_repite") {
+      const siguienteId = await generarSiguienteOcurrencia(tareaActual)
+      if (siguienteId) {
+        generoSiguiente = true
+        await agregarEventoFeed(id, "cambio_estado", "Se generó automáticamente la siguiente ocurrencia recurrente.")
+      }
+    }
     setTareas(prev => prev.map(t => t.id === id ? { ...t, ...payload } : t))
     if (selected?.id === id) setSelected((prev: any) => ({ ...prev, ...payload }))
     await loadComentarios(id)
+    if (generoSiguiente) await load()
   }
 
   async function eliminar(id: string) {
@@ -263,6 +389,7 @@ export default function TareasPage() {
 
   async function agregarComentario() {
     if (!nuevoComentario.trim() || !selected) return
+    if (selected.permitir_comentarios === false) return
     setSavingCom(true)
     await supabase.from("tarea_comentarios").insert({
       tarea_id: selected.id,
@@ -288,6 +415,7 @@ export default function TareasPage() {
     if (filtroAsignado === "mias" && t.asignado_a !== perfil?.id) return false
     if (filtroAsignado === "responsable" && t.asignado_a !== responsableId) return false
     if (filtroAsignado === "creadas" && t.creado_por !== perfil?.id) return false
+    if (filtroAsignado === "participo" && !esParticipante(t)) return false
     return true
   }).sort((a, b) => {
     let valA: any = "", valB: any = ""
@@ -329,11 +457,17 @@ export default function TareasPage() {
     return true
   })
   const misTareas = perfil?.id ? tareas.filter(t => t.asignado_a === perfil.id) : tareas
+  const tareasDelegadas = perfil?.id ? tareas.filter(t => t.creado_por === perfil.id) : []
+  const tareasParticipa = perfil?.id ? tareas.filter(esParticipante) : []
   const responsableSeleccionado = usuarios.find(u => u.id === responsableId)
   const nombreResponsable = responsableSeleccionado ? `${responsableSeleccionado.nombre} ${responsableSeleccionado.apellido}` : "responsable"
   const subtituloTrabajo =
     filtroAsignado === "mias"
       ? `${misTareas.length} tareas asignadas a mí`
+      : filtroAsignado === "creadas"
+        ? `${tareasDelegadas.length} tareas creadas por mí`
+        : filtroAsignado === "participo"
+          ? `${tareasParticipa.length} tareas donde participo`
       : filtroAsignado === "responsable"
         ? `${tareasFiltradas.length} tareas de ${nombreResponsable}`
         : `${tareasFiltradas.length} tareas del equipo`
@@ -348,6 +482,14 @@ export default function TareasPage() {
     t.estado !== "cancelada"
   ).length
   const audiovisualesPendientes = audiovisualesFiltrados.filter(r => !["completado", "cancelado"].includes(r.estado)).length
+  const pendientesRespuesta = tareasDelegadas.filter(t => t.estado === "pendiente").length
+  const delegadasEnEjecucion = tareasDelegadas.filter(t => t.estado === "en_progreso").length
+  const delegadasRevision = tareasDelegadas.filter(t => t.estado === "en_revision").length
+  const delegadasCompletadas = tareasDelegadas.filter(t => t.estado === "completada").length
+  const avancePorEstado: Record<string, number> = { pendiente: 0, en_progreso: 40, en_revision: 80, completada: 100, cancelada: 0 }
+  const avanceDelegadas = tareasDelegadas.length
+    ? Math.round(tareasDelegadas.reduce((acc, t) => acc + (avancePorEstado[t.estado] ?? 0), 0) / tareasDelegadas.length)
+    : 0
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -382,6 +524,21 @@ export default function TareasPage() {
             <div key={c.label} className="card" style={{ background: c.bg, border: "none", padding: "12px 16px" }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: c.color, textTransform: "uppercase" }}>{c.label}</div>
               <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>{c.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 20 }}>
+          {[
+            { label: "Delegadas pendientes", value: pendientesRespuesta, ...ESTADOS.pendiente },
+            { label: "Delegadas en ejecución", value: delegadasEnEjecucion, ...ESTADOS.en_progreso },
+            { label: "Delegadas en revisión", value: delegadasRevision, ...ESTADOS.en_revision },
+            { label: "Delegadas completadas", value: delegadasCompletadas, ...ESTADOS.completada },
+            { label: "Avance delegadas", value: `${avanceDelegadas}%`, bg: "#ecfeff", color: "#155e75" },
+          ].map(c => (
+            <div key={c.label} className="card" style={{ background: c.bg, border: "none", padding: "12px 14px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: "uppercase" }}>{c.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
             </div>
           ))}
         </div>
@@ -486,6 +643,7 @@ export default function TareasPage() {
           }}>
             <option value="mias">Mi trabajo</option>
             <option value="creadas">Creadas por mí</option>
+            <option value="participo">Participo</option>
             {puedeVerEquipo && <option value="todos">Todas las tareas</option>}
             {puedeVerEquipo && <option value="responsable">Por responsable</option>}
           </select>
@@ -521,7 +679,7 @@ export default function TareasPage() {
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 120 }}>PROYECTO</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 150 }}>CLIENTE</th>
                   <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 90 }}>PRIORIDAD</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 130 }}>ASIGNADO A</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 150 }}>RESPONSABLE</th>
                   <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#03E373", width: 110 }}>ESTADO</th>
                   <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 100 }}>FECHA LÍMITE</th>
                   <th style={{ width: 80 }}></th>
@@ -537,7 +695,11 @@ export default function TareasPage() {
                       style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === t.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
                       <td style={{ padding: "10px 16px" }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{t.titulo}</div>
-                        {vencida && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>VENCIDA</span>}
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 4 }}>
+                          {vencida && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>VENCIDA</span>}
+                          {t.frecuencia && t.frecuencia !== "no_repite" && <span style={{ fontSize: 10, background: "#ecfeff", color: "#155e75", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>{FRECUENCIAS[t.frecuencia] || "Recurrente"}</span>}
+                          {(t.participantes || []).length > 0 && <span style={{ fontSize: 10, background: "#f3f4f6", color: "#4b5563", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>{(t.participantes || []).length} participante{(t.participantes || []).length !== 1 ? "s" : ""}</span>}
+                        </div>
                       </td>
                       <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>{t.proyecto?.codigo || "—"}</td>
                       <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>{t.cliente?.razon_social || "—"}</td>
@@ -605,8 +767,10 @@ export default function TareasPage() {
           <div style={{ display: "grid", gap: 10, marginBottom: 16 }}>
             {[
               { label: "Prioridad", value: PRIORIDADES[selected.prioridad]?.label || "—" },
-              { label: "Asignado a", value: selected.asignado ? selected.asignado.nombre + " " + selected.asignado.apellido : "—" },
+              { label: "Responsable", value: selected.asignado ? selected.asignado.nombre + " " + selected.asignado.apellido : "—" },
+              { label: "Participantes", value: (selected.participantes || []).map((p: any) => p.usuario ? `${p.usuario.nombre} ${p.usuario.apellido}` : "").filter(Boolean).join(", ") || "—" },
               { label: "Creado por", value: selected.creador ? selected.creador.nombre + " " + selected.creador.apellido : "—" },
+              { label: "Frecuencia", value: FRECUENCIAS[selected.frecuencia] || "No se repite" },
               { label: "Proyecto", value: selected.proyecto ? selected.proyecto.codigo + " — " + selected.proyecto.nombre : "—" },
               { label: "Cliente", value: selected.cliente?.razon_social || "—" },
               { label: "Fecha límite", value: selected.fecha_limite || "—" },
@@ -657,6 +821,11 @@ export default function TareasPage() {
                 </div>
               ))}
             </div>
+            {selected.permitir_comentarios === false ? (
+              <div style={{ padding: 10, background: "#f9fafb", borderRadius: 8, color: "#6b7280", fontSize: 12 }}>
+                Los comentarios están desactivados para esta tarea.
+              </div>
+            ) : (
             <div style={{ display: "grid", gap: 8 }}>
               <textarea
                 style={{ ...inp, minHeight: 68, resize: "vertical" }}
@@ -677,6 +846,7 @@ export default function TareasPage() {
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -744,10 +914,21 @@ export default function TareasPage() {
                 </div>
               </div>
               <div>
-                <label style={lbl}>RESPONSABLE *</label>
+                <label style={lbl}>RESPONSABLE PRINCIPAL *</label>
                 <select style={inp} value={form.asignado_a} onChange={e => setForm({ ...form, asignado_a: e.target.value })}>
                   <option value="">Sin asignar</option>
                   {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido} — {u.perfil}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>PARTICIPANTES / SEGUIDORES</label>
+                <select
+                  multiple
+                  style={{ ...inp, minHeight: 94 }}
+                  value={form.participante_ids}
+                  onChange={e => setForm({ ...form, participante_ids: Array.from(e.target.selectedOptions).map(o => o.value) })}
+                >
+                  {usuarios.filter(u => u.id !== form.asignado_a).map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido} — {u.perfil}</option>)}
                 </select>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -770,18 +951,50 @@ export default function TareasPage() {
                 <label style={lbl}>FECHA LÍMITE</label>
                 <input type="date" style={inp} value={form.fecha_limite} onChange={e => setForm({ ...form, fecha_limite: e.target.value })} />
               </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={lbl}>FRECUENCIA</label>
+                  <select style={inp} value={form.frecuencia} onChange={e => setForm({ ...form, frecuencia: e.target.value })}>
+                    {Object.entries(FRECUENCIAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                {form.frecuencia.startsWith("personalizado") && (
+                  <div>
+                    <label style={lbl}>CADA</label>
+                    <input type="number" min={1} style={inp} value={form.recurrencia_intervalo} onChange={e => setForm({ ...form, recurrencia_intervalo: Number(e.target.value) })} />
+                  </div>
+                )}
+              </div>
+              {form.frecuencia !== "no_repite" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={lbl}>FECHA FIN</label>
+                    <input type="date" style={inp} value={form.recurrencia_fecha_fin} onChange={e => setForm({ ...form, recurrencia_fecha_fin: e.target.value })} />
+                  </div>
+                  <div>
+                    <label style={lbl}>MÁXIMO DE REPETICIONES</label>
+                    <input type="number" min={1} style={inp} value={form.recurrencia_max_repeticiones} onChange={e => setForm({ ...form, recurrencia_max_repeticiones: e.target.value })} />
+                  </div>
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {[
+                  { key: "notificar_participantes" as const, label: "Notificar participantes" },
+                  { key: "mostrar_participantes_mi_trabajo" as const, label: "Mostrar en Mi Trabajo" },
+                  { key: "permitir_comentarios" as const, label: "Permitir comentarios" },
+                  { key: "recibir_correos_automaticos" as const, label: "Correos automáticos" },
+                ].map(option => (
+                  <label key={option.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: 10, border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, color: "#374151", fontWeight: 600 }}>
+                    <input type="checkbox" checked={form[option.key]} onChange={e => setForm({ ...form, [option.key]: e.target.checked })} />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
               {!editando && (
                 <>
                   <div>
                     <label style={lbl}>LINK O REFERENCIA INICIAL</label>
                     <input style={inp} value={form.link_inicial} placeholder="https://drive.google.com/..." onChange={e => setForm({ ...form, link_inicial: e.target.value })} />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 12, border: "1px solid #bbf7d0", borderRadius: 10, background: "#f0fdf4" }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>Notificar al responsable por correo</div>
-                      <div style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>El correo incluirá proyecto, cliente, prioridad, fecha límite y link directo.</div>
-                    </div>
-                    <input type="checkbox" checked={form.notificar_email} onChange={e => setForm({ ...form, notificar_email: e.target.checked })} />
                   </div>
                 </>
               )}
