@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { useRouter } from "next/navigation"
+import { ArrowUpDown, CalendarDays, Check, ClipboardCheck, Eye, Grid2X2, MoreVertical, Play, Plus, User, Users } from "lucide-react"
 
 const ESTADOS: Record<string, any> = {
   pendiente:    { label: "Pendiente",    bg: "#fef9c3", color: "#92400e" },
@@ -31,14 +32,6 @@ const FRECUENCIAS: Record<string, string> = {
   personalizado_meses: "Personalizado: meses",
 }
 
-const AV_ESTADOS: Record<string, any> = {
-  pendiente: { label: "Pendiente", bg: "#fef9c3", color: "#92400e" },
-  en_progreso: { label: "En progreso", bg: "#dbeafe", color: "#1e40af" },
-  en_revision: { label: "En revision", bg: "#f5f3ff", color: "#6d28d9" },
-  completado: { label: "Completado", bg: "#dcfce7", color: "#15803d" },
-  cancelado: { label: "Cancelado", bg: "#fee2e2", color: "#991b1b" },
-}
-
 const formVacio = {
   titulo: "", descripcion: "", estado: "pendiente", prioridad: "media",
   proyecto_id: "", cliente_id: "", asignado_a: "", fecha_limite: "",
@@ -51,14 +44,13 @@ export default function TareasPage() {
   const supabase = createClient()
   const router = useRouter()
   const [tareas, setTareas] = useState<any[]>([])
-  const [audiovisuales, setAudiovisuales] = useState<any[]>([])
   const [proyectos, setProyectos] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [usuarios, setUsuarios] = useState<any[]>([])
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [pagina, setPagina] = useState(1)
-  const POR_PAGINA = 50
+  const POR_PAGINA = 10
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [selected, setSelected] = useState<any>(null)
@@ -70,16 +62,13 @@ export default function TareasPage() {
   const [form, setForm] = useState({ ...formVacio })
   const [filtroEstado, setFiltroEstado] = useState("todos")
   const [filtroAsignado, setFiltroAsignado] = useState("mias")
+  const [filtroProyecto, setFiltroProyecto] = useState("")
+  const [filtroPrioridad, setFiltroPrioridad] = useState("todos")
+  const [filtroFecha, setFiltroFecha] = useState("")
   const [responsableId, setResponsableId] = useState("")
   const [ordenCampo, setOrdenCampo] = useState("fecha_limite")
   const [ordenDir, setOrdenDir] = useState("asc")
   const [participanteSearch, setParticipanteSearch] = useState("")
-  const [avResponsableId, setAvResponsableId] = useState("")
-  const [avProyectoId, setAvProyectoId] = useState("")
-  const [avPrioridad, setAvPrioridad] = useState("todos")
-  const [avAvance, setAvAvance] = useState("todos")
-  const [avEstado, setAvEstado] = useState("activos")
-  const [avFecha, setAvFecha] = useState("")
 
   useEffect(() => { load() }, [])
 
@@ -107,11 +96,6 @@ export default function TareasPage() {
         await loadComentarios(tareaDirecta.id)
       }
     }
-    const { data: av } = await supabase
-      .from("audiovisual_requerimientos")
-      .select("*, proyecto:proyectos(id,nombre,codigo), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido)")
-      .order("fecha_entrega_solicitada", { ascending: true })
-    setAudiovisuales(av || [])
     const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").order("nombre")
     setProyectos(pr || [])
     const { data: cl } = await supabase.from("clientes").select("id, razon_social").order("razon_social")
@@ -413,6 +397,9 @@ export default function TareasPage() {
 
   const tareasFiltradas = tareas.filter(t => {
     if (filtroEstado !== "todos" && t.estado !== filtroEstado) return false
+    if (filtroProyecto && t.proyecto_id !== filtroProyecto) return false
+    if (filtroPrioridad !== "todos" && t.prioridad !== filtroPrioridad) return false
+    if (filtroFecha && t.fecha_limite !== filtroFecha) return false
     if (filtroAsignado === "mias" && t.asignado_a !== perfil?.id) return false
     if (filtroAsignado === "responsable" && t.asignado_a !== responsableId) return false
     if (filtroAsignado === "creadas" && (t.creado_por !== perfil?.id || t.asignado_a === perfil?.id)) return false
@@ -477,23 +464,6 @@ export default function TareasPage() {
   const enProximaSemana = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
   const rolesGerenciales = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager"]
   const puedeVerEquipo = rolesGerenciales.includes(perfil?.perfil)
-  const puedeFiltrarAudiovisual = puedeVerEquipo || perfil?.perfil === "productor"
-  const esSolicitanteAudiovisual = (r: any) => r.productor_id === perfil?.id || r.creado_por === perfil?.id
-  const audiovisualesFiltrados = audiovisuales.filter(r => {
-    if (!puedeVerEquipo && perfil?.perfil === "productor" && !esSolicitanteAudiovisual(r)) return false
-    if (!puedeVerEquipo && perfil?.perfil !== "productor") {
-      if (r.responsable_audiovisual_id !== perfil?.id && !esSolicitanteAudiovisual(r)) return false
-      if (["completado", "cancelado"].includes(r.estado)) return false
-    }
-    if (puedeFiltrarAudiovisual && avResponsableId && r.responsable_audiovisual_id !== avResponsableId) return false
-    if (puedeFiltrarAudiovisual && avProyectoId && r.proyecto_id !== avProyectoId) return false
-    if (puedeFiltrarAudiovisual && avPrioridad !== "todos" && r.prioridad !== avPrioridad) return false
-    if (puedeFiltrarAudiovisual && avAvance !== "todos" && String(r.avance) !== avAvance) return false
-    if (puedeFiltrarAudiovisual && avEstado === "activos" && ["completado", "cancelado"].includes(r.estado)) return false
-    if (puedeFiltrarAudiovisual && avEstado !== "activos" && avEstado !== "todos" && r.estado !== avEstado) return false
-    if (puedeFiltrarAudiovisual && avFecha && r.fecha_entrega_solicitada !== avFecha) return false
-    return true
-  })
   const misTareas = perfil?.id ? tareas.filter(t => t.asignado_a === perfil.id) : tareas
   const tareasDelegadas = perfil?.id ? tareas.filter(t => t.creado_por === perfil.id && t.asignado_a !== perfil.id) : []
   const tareasParticipa = perfil?.id ? tareas.filter(esParticipante) : []
@@ -529,7 +499,6 @@ export default function TareasPage() {
     t.estado !== "completada" &&
     t.estado !== "cancelada"
   ).length
-  const audiovisualesPendientes = audiovisualesFiltrados.filter(r => !["completado", "cancelado"].includes(r.estado)).length
   const pendientesRespuesta = tareasDelegadas.filter(t => t.estado === "pendiente").length
   const delegadasEnEjecucion = tareasDelegadas.filter(t => t.estado === "en_progreso").length
   const delegadasRevision = tareasDelegadas.filter(t => t.estado === "en_revision").length
@@ -551,11 +520,13 @@ export default function TareasPage() {
     { estado: "completada", label: "Completadas", value: delegadasCompletadas, ...ESTADOS.completada },
   ]
   const tabsTrabajo = [
-    { key: "mias", label: "Asignadas a mí", count: misTareas.length },
-    { key: "creadas", label: "Delegadas por mí", count: tareasDelegadas.length },
-    { key: "participo", label: "En las que participo", count: tareasParticipa.length },
-    ...(puedeVerEquipo ? [{ key: "todos", label: "Todas", count: tareas.length }] : []),
+    { key: "mias", label: "Asignadas a mí", count: misTareas.length, icon: User },
+    { key: "creadas", label: "Delegadas por mí", count: tareasDelegadas.length, icon: Users },
+    { key: "participo", label: "En las que participo", count: tareasParticipa.length, icon: Eye },
+    ...(puedeVerEquipo ? [{ key: "todos", label: "Todas", count: tareas.length, icon: Grid2X2 }] : []),
   ]
+  const tareasPagina = tareasFiltradas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+  const totalPaginas = Math.max(1, Math.ceil(tareasFiltradas.length / POR_PAGINA))
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -568,177 +539,119 @@ export default function TareasPage() {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Mi trabajo</h1>
-            <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-              {subtituloTrabajo}
-            </p>
+            <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "#111827" }}>Mi trabajo</h1>
+            <p style={{ fontSize: 13, color: "#475569", marginTop: 6 }}>Resumen de mis tareas y seguimiento</p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={() => router.push("/audiovisual/requerimientos")} className="btn-secondary" style={{ fontSize: 13 }}>Req. audiovisual</button>
-            <button onClick={abrirNueva} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva tarea</button>
+            <button onClick={() => router.push("/audiovisual/requerimientos")} className="btn-secondary" style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8 }}><ClipboardCheck size={16} />Req. audiovisual</button>
+            <button onClick={abrirNueva} className="btn-primary" style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8 }}><Plus size={16} />Nueva tarea</button>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 14, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 18, marginBottom: 18 }}>
           {[
             { title: "Mis tareas asignadas a mí", subtitle: "Tareas que debo ejecutar", cards: tarjetasMisTareas },
             { title: "Mis tareas delegadas a otros", subtitle: "Tareas que he creado y estoy haciendo seguimiento", cards: tarjetasDelegadas },
           ].map(section => (
-            <div key={section.title} className="card" style={{ padding: 16, background: "#fff", border: "1px solid #e5e7eb" }}>
-              <div style={{ marginBottom: 12 }}>
+            <div key={section.title} className="card" style={{ padding: 20, background: "#fff", border: "1px solid #dbe2ea", borderRadius: 8 }}>
+              <div style={{ marginBottom: 22 }}>
                 <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#111827", textTransform: "uppercase" }}>{section.title}</h2>
-                <p style={{ fontSize: 12, color: "#6b7280", margin: "3px 0 0" }}>{section.subtitle}</p>
+                <p style={{ fontSize: 12, color: "#475569", margin: "10px 0 0" }}>{section.subtitle}</p>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-                {section.cards.map(c => (
-                  <div key={c.estado} style={{ padding: 10, border: "1px solid #eef2f7", borderRadius: 8, borderTop: `3px solid ${c.color}`, background: "#fff" }}>
-                    <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 700 }}>{c.label}</div>
-                    <div style={{ fontSize: 22, lineHeight: 1.1, color: "#111827", fontWeight: 800 }}>{c.value}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
+                {section.cards.map((c, idx) => {
+                  const Icon = c.estado === "pendiente" ? ClipboardCheck : c.estado === "en_progreso" ? Play : c.estado === "en_revision" ? Eye : Check
+                  const tint = c.estado === "pendiente" ? "#e5e7eb" : c.estado === "en_progreso" ? "#bfdbfe" : c.estado === "en_revision" ? "#ddd6fe" : "#bbf7d0"
+                  return (
+                  <div key={c.estado} style={{ display: "flex", alignItems: "center", gap: 16, padding: "0 20px", borderLeft: idx === 0 ? "none" : "1px solid #e5e7eb" }}>
+                    <span style={{ width: 48, height: 48, borderRadius: 99, background: tint, color: c.color, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.55)" }}>
+                      <Icon size={24} />
+                    </span>
+                    <div>
+                      <div style={{ fontSize: 24, lineHeight: 1.1, color: "#0f172a", fontWeight: 900 }}>{c.value}</div>
+                      <div style={{ fontSize: 12, color: "#334155", marginTop: 6 }}>{c.label}</div>
+                    </div>
                   </div>
-                ))}
+                )})}
               </div>
             </div>
           ))}
         </div>
 
-        <div className="card" style={{ marginBottom: 20, padding: 16, background: "#fff", border: "1px solid #e5e7eb" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-            <div>
-              <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#111827", textTransform: "uppercase" }}>Avance general de tareas delegadas</h2>
-              <p style={{ fontSize: 12, color: "#6b7280", margin: "3px 0 0" }}>{delegadasCompletadas} de {tareasDelegadas.length} tareas completadas</p>
+        <div className="card" style={{ marginBottom: 22, padding: 20, background: "#fff", border: "1px solid #dbe2ea", borderRadius: 8 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#111827", textTransform: "uppercase" }}>Avance general de tareas delegadas</h2>
+          <p style={{ fontSize: 12, color: "#475569", margin: "10px 0 14px" }}>Porcentaje de avance promedio de las tareas que he delegado</p>
+          <div style={{ display: "grid", gridTemplateColumns: "150px 1fr 260px", gap: 24, alignItems: "center" }}>
+            <div style={{ width: 108, height: 108, borderRadius: "50%", background: `conic-gradient(#16a34a ${avanceDelegadas * 3.6}deg, #e5e7eb 0deg)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 84, height: 84, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 900, color: "#334155" }}>{avanceDelegadas}%</div>
             </div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: "#111827" }}>{avanceDelegadas}%</div>
-          </div>
-          <div style={{ height: 9, background: "#f3f4f6", borderRadius: 99, overflow: "hidden", marginTop: 14 }}>
-            <div style={{ width: `${avanceDelegadas}%`, height: "100%", background: "#16a34a" }} />
-          </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-            {estadoKeys.map(estado => (
-              <div key={estado} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#6b7280", fontWeight: 700 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 99, background: ESTADOS[estado].color }} />
-                {ESTADOS[estado].label}: {contarPorEstado(tareasDelegadas, estado)}
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 12 }}>{delegadasCompletadas} de {tareasDelegadas.length} tareas completadas</div>
+              <div style={{ height: 7, background: "#e5e7eb", borderRadius: 99, overflow: "hidden" }}>
+                <div style={{ width: `${avanceDelegadas}%`, height: "100%", background: "#16a34a" }} />
               </div>
-            ))}
-            <div style={{ marginLeft: "auto", fontSize: 11, color: "#6b7280" }}>Vencidas: {misVencidas} · Próximas: {proximasEntregas}</div>
+            </div>
+            <div style={{ display: "grid", gap: 14 }}>
+              {[
+                { estado: "completada", label: "Completadas", color: "#16a34a" },
+                { estado: "en_progreso", label: "En progreso", color: "#3b82f6" },
+                { estado: "en_revision", label: "En revisión", color: "#8b5cf6" },
+                { estado: "pendiente", label: "Pendientes", color: "#d1d5db" },
+              ].map(item => (
+                <div key={item.estado} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#334155" }}>
+                  <span style={{ width: 12, height: 12, borderRadius: 99, background: item.color }} />
+                  {contarPorEstado(tareasDelegadas, item.estado)} {item.label}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="card" style={{ marginBottom: 20, padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
-            <div>
-              <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "#111827" }}>Pendientes audiovisuales</h2>
-              <p style={{ fontSize: 12, color: "#6b7280", margin: "3px 0 0" }}>
-                {audiovisualesPendientes} requerimiento{audiovisualesPendientes !== 1 ? "s" : ""} operativo{audiovisualesPendientes !== 1 ? "s" : ""}
-              </p>
-            </div>
-            <button onClick={() => router.push("/audiovisual/requerimientos")} className="btn-secondary" style={{ fontSize: 12 }}>Abrir modulo</button>
-          </div>
-
-          {puedeFiltrarAudiovisual && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              <select style={{ ...inp, width: "auto" }} value={avResponsableId} onChange={e => setAvResponsableId(e.target.value)}>
-                <option value="">Todos los responsables</option>
-                {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={avProyectoId} onChange={e => setAvProyectoId(e.target.value)}>
-                <option value="">Todos los proyectos</option>
-                {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={avPrioridad} onChange={e => setAvPrioridad(e.target.value)}>
-                <option value="todos">Todas las prioridades</option>
-                <option value="alta">Alta</option>
-                <option value="media">Media</option>
-                <option value="baja">Baja</option>
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={avAvance} onChange={e => setAvAvance(e.target.value)}>
-                <option value="todos">Todos los avances</option>
-                {[10,20,30,40,50,60,70,80,90,100].map(n => <option key={n} value={n}>{n}%</option>)}
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={avEstado} onChange={e => setAvEstado(e.target.value)}>
-                <option value="activos">Activos</option>
-                <option value="todos">Todos los estados</option>
-                {Object.entries(AV_ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-              <input style={{ ...inp, width: "auto" }} type="date" value={avFecha} onChange={e => setAvFecha(e.target.value)} />
-            </div>
-          )}
-
-          {audiovisualesFiltrados.length === 0 ? (
-            <div style={{ padding: "18px 12px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No hay requerimientos audiovisuales pendientes para estos filtros</div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "#f9fafb" }}>
-                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280", width: 96 }}>TIPO</th>
-                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>PROYECTO</th>
-                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>PRIORIDAD</th>
-                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>AVANCE</th>
-                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>ESTADO</th>
-                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>RESPONSABLE</th>
-                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>ENTREGA</th>
-                  <th style={{ width: 90 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {audiovisualesFiltrados.slice(0, 8).map(r => {
-                  const pr = PRIORIDADES[r.prioridad] || PRIORIDADES.media
-                  const es = AV_ESTADOS[r.estado] || AV_ESTADOS.pendiente
-                  return (
-                    <tr key={r.id} onClick={() => router.push(`/audiovisual/requerimientos?requerimiento_id=${r.id}`)} style={{ borderTop: "1px solid #f3f4f6", cursor: "pointer" }}>
-                      <td style={{ padding: "9px 10px" }}><span style={{ background: "#eef2ff", color: "#3730a3", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 99 }}>Audiovisual</span></td>
-                      <td style={{ padding: "9px 10px" }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>{r.proyecto?.codigo || "-"}</div>
-                        <div style={{ fontSize: 12, color: "#6b7280" }}>{r.proyecto?.nombre || "-"}</div>
-                      </td>
-                      <td style={{ padding: "9px 10px", textAlign: "center" }}><span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{pr.label}</span></td>
-                      <td style={{ padding: "9px 10px", textAlign: "center" }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: es.color, marginBottom: 3 }}>{r.avance || 10}%</div>
-                        <div style={{ width: 54, height: 5, background: "#e5e7eb", borderRadius: 99, margin: "0 auto", overflow: "hidden" }}>
-                          <div style={{ width: `${r.avance || 10}%`, height: "100%", background: es.color }} />
-                        </div>
-                      </td>
-                      <td style={{ padding: "9px 10px", textAlign: "center" }}><span style={{ background: es.bg, color: es.color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{es.label}</span></td>
-                      <td style={{ padding: "9px 10px", fontSize: 12, color: "#374151" }}>{r.responsable ? `${r.responsable.nombre} ${r.responsable.apellido}` : "Sin responsable"}</td>
-                      <td style={{ padding: "9px 10px", textAlign: "center", fontSize: 12, color: "#6b7280" }}>{r.fecha_entrega_solicitada || "-"}</td>
-                      <td style={{ padding: "9px 10px", textAlign: "right" }}>
-                        <button onClick={e => { e.stopPropagation(); router.push(`/audiovisual/requerimientos?requerimiento_id=${r.id}`) }} className="btn-secondary" style={{ fontSize: 11 }}>Abrir</button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #dbe2ea", borderRadius: 8, background: "#fff" }}>
+        <div style={{ display: "flex", gap: 24, padding: "0 16px", borderBottom: "1px solid #e5e7eb", flexWrap: "wrap" }}>
           {tabsTrabajo.map(tab => {
             const active = filtroAsignado === tab.key
+            const Icon = tab.icon
             return (
               <button
                 key={tab.key}
                 onClick={() => { setFiltroAsignado(tab.key); setResponsableId("") }}
-                style={{ padding: "8px 12px", border: `1px solid ${active ? "#1D2040" : "#e5e7eb"}`, borderRadius: 8, background: active ? "#1D2040" : "#fff", color: active ? "#fff" : "#374151", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
+                style={{ padding: "16px 0", border: "none", borderBottom: `2px solid ${active ? "#2563eb" : "transparent"}`, background: "transparent", color: active ? "#2563eb" : "#1f2937", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}
               >
-                {tab.label} <span style={{ opacity: 0.75 }}>({tab.count})</span>
+                <Icon size={16} /> {tab.label} <span style={{ opacity: 0.6 }}>({tab.count})</span>
               </button>
             )
           })}
         </div>
 
         {/* Filtros */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-          <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
+        <div style={{ display: "grid", gridTemplateColumns: "220px 220px 220px 210px 1fr auto auto", gap: 12, padding: 16, borderBottom: "1px solid #e5e7eb", alignItems: "center" }}>
+          <select style={inp} value={filtroEstado} onChange={e => { setFiltroEstado(e.target.value); setPagina(1) }}>
             <option value="todos">Todos los estados</option>
             {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
+          <select style={inp} value={filtroProyecto} onChange={e => { setFiltroProyecto(e.target.value); setPagina(1) }}>
+            <option value="">Todos los proyectos</option>
+            {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}
+          </select>
+          <select style={inp} value={filtroPrioridad} onChange={e => { setFiltroPrioridad(e.target.value); setPagina(1) }}>
+            <option value="todos">Todas las prioridades</option>
+            {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+          <div style={{ position: "relative" }}>
+            <input style={{ ...inp, paddingRight: 34 }} type="date" value={filtroFecha} onChange={e => { setFiltroFecha(e.target.value); setPagina(1) }} />
+            <CalendarDays size={16} style={{ position: "absolute", right: 10, top: 9, color: "#64748b", pointerEvents: "none" }} />
+          </div>
           {puedeVerEquipo && (
-            <select style={{ ...inp, width: "auto" }} value={responsableId} onChange={e => { setResponsableId(e.target.value); if (e.target.value) setFiltroAsignado("responsable") }}>
+            <select style={inp} value={responsableId} onChange={e => { setResponsableId(e.target.value); if (e.target.value) setFiltroAsignado("responsable"); setPagina(1) }}>
               <option value="">Seleccionar responsable</option>
               {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
             </select>
           )}
-          <select style={{ ...inp, width: "auto" }} value={ordenCampo} onChange={e => setOrdenCampo(e.target.value)}>
+          {!puedeVerEquipo && <div />}
+          <div style={{ justifySelf: "end", fontSize: 12, color: "#334155" }}>Ordenar por</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <select style={{ ...inp, minWidth: 150 }} value={ordenCampo} onChange={e => setOrdenCampo(e.target.value)}>
             <option value="fecha_limite">Ordenar: Fecha límite</option>
             <option value="titulo">Ordenar: Título</option>
             <option value="proyecto">Ordenar: Proyecto</option>
@@ -747,19 +660,18 @@ export default function TareasPage() {
             <option value="asignado">Ordenar: Asignado a</option>
             <option value="estado">Ordenar: Estado</option>
           </select>
-          <select style={{ ...inp, width: "auto" }} value={ordenDir} onChange={e => setOrdenDir(e.target.value)}>
-            <option value="asc">↑ Ascendente</option>
-            <option value="desc">↓ Descendente</option>
-          </select>
+          <button onClick={() => setOrdenDir(ordenDir === "asc" ? "desc" : "asc")} title="Cambiar orden" style={{ width: 36, height: 36, border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: "pointer", color: "#334155" }}><ArrowUpDown size={15} /></button>
+          </div>
         </div>
         {/* Lista de tareas */}
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: 0, overflow: "hidden" }}>
           {tareasFiltradas.length === 0 ? (
             <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay tareas con estos filtros</div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  <th style={{ width: 42, padding: "10px 16px" }}><input type="checkbox" disabled /></th>
                   <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 800, color: "#6b7280" }}>TAREA</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 150 }}>PROYECTO</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 170 }}>RESPONSABLE</th>
@@ -770,13 +682,14 @@ export default function TareasPage() {
                 </tr>
               </thead>
               <tbody>
-                {tareasFiltradas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map((t, idx) => {
+                {tareasPagina.map((t, idx) => {
                   const es = ESTADOS[t.estado] || ESTADOS.pendiente
                   const pr = PRIORIDADES[t.prioridad] || PRIORIDADES.media
                   const vencida = estaVencida(t)
                   return (
                     <tr key={t.id} onClick={() => abrirDetalle(t)}
                       style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === t.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
+                      <td style={{ padding: "10px 16px" }}><input type="checkbox" onClick={e => e.stopPropagation()} /></td>
                       <td style={{ padding: "10px 16px" }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{t.titulo}</div>
                         <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{t.proyecto?.codigo || "Sin proyecto"}</div>
@@ -810,9 +723,9 @@ export default function TareasPage() {
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                           <button onClick={e => { e.stopPropagation(); abrirEditar(t) }}
-                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer" }}>✏️</button>
+                            style={{ width: 30, height: 30, border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#334155" }}><MoreVertical size={16} /></button>
                           <button onClick={e => { e.stopPropagation(); eliminar(t.id) }}
-                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
+                            style={{ width: 30, height: 30, border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
                         </div>
                       </td>
                     </tr>
@@ -821,6 +734,17 @@ export default function TareasPage() {
               </tbody>
             </table>
           )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid #e5e7eb", background: "#fff" }}>
+          <div style={{ fontSize: 12, color: "#334155" }}>Mostrando {tareasFiltradas.length === 0 ? 0 : (pagina - 1) * POR_PAGINA + 1} de {tareasFiltradas.length} tarea{tareasFiltradas.length !== 1 ? "s" : ""}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 12, color: "#334155" }}>Filas por página:</span>
+            <select style={{ ...inp, width: 84 }} value={POR_PAGINA} disabled><option>10</option></select>
+            <button disabled={pagina <= 1} onClick={() => setPagina(p => Math.max(1, p - 1))} style={{ width: 34, height: 34, border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: pagina <= 1 ? "not-allowed" : "pointer", color: "#334155" }}>‹</button>
+            <div style={{ minWidth: 34, height: 34, border: "1px solid #2563eb", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb", fontWeight: 800, fontSize: 13 }}>{pagina}</div>
+            <button disabled={pagina >= totalPaginas} onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} style={{ width: 34, height: 34, border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: pagina >= totalPaginas ? "not-allowed" : "pointer", color: "#334155" }}>›</button>
+          </div>
+        </div>
         </div>
         <div className="card" style={{ marginTop: 14, padding: 14, background: "#fff", border: "1px solid #e5e7eb" }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: "#6b7280", marginBottom: 10, textTransform: "uppercase" }}>Leyenda de estados</div>
