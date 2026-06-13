@@ -73,6 +73,7 @@ export default function TareasPage() {
   const [responsableId, setResponsableId] = useState("")
   const [ordenCampo, setOrdenCampo] = useState("fecha_limite")
   const [ordenDir, setOrdenDir] = useState("asc")
+  const [participanteSearch, setParticipanteSearch] = useState("")
   const [avResponsableId, setAvResponsableId] = useState("")
   const [avProyectoId, setAvProyectoId] = useState("")
   const [avPrioridad, setAvPrioridad] = useState("todos")
@@ -414,7 +415,7 @@ export default function TareasPage() {
     if (filtroEstado !== "todos" && t.estado !== filtroEstado) return false
     if (filtroAsignado === "mias" && t.asignado_a !== perfil?.id) return false
     if (filtroAsignado === "responsable" && t.asignado_a !== responsableId) return false
-    if (filtroAsignado === "creadas" && t.creado_por !== perfil?.id) return false
+    if (filtroAsignado === "creadas" && (t.creado_por !== perfil?.id || t.asignado_a === perfil?.id)) return false
     if (filtroAsignado === "participo" && !esParticipante(t)) return false
     return true
   }).sort((a, b) => {
@@ -433,6 +434,43 @@ export default function TareasPage() {
 
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
+  const estadoKeys = ["pendiente", "en_progreso", "en_revision", "completada"]
+
+  function nombreUsuario(u: any) {
+    return [u?.nombre, u?.apellido].filter(Boolean).join(" ") || "Sin nombre"
+  }
+
+  function inicialesUsuario(u: any) {
+    const nombre = nombreUsuario(u)
+    return nombre.split(" ").filter(Boolean).slice(0, 2).map((p: string) => p[0]).join("").toUpperCase() || "?"
+  }
+
+  function contarPorEstado(lista: any[], estado: string) {
+    return lista.filter(t => t.estado === estado).length
+  }
+
+  function formatFecha(fecha?: string) {
+    if (!fecha) return "—"
+    return new Date(`${fecha}T12:00:00`).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" })
+  }
+
+  function textoVencimiento(t: any) {
+    if (!t.fecha_limite) return "Sin fecha"
+    if (["completada", "cancelada"].includes(t.estado)) return ESTADOS[t.estado]?.label || "Cerrada"
+    const limite = new Date(`${t.fecha_limite}T12:00:00`).getTime()
+    const actual = new Date(`${hoy}T12:00:00`).getTime()
+    const diff = Math.round((limite - actual) / (24 * 60 * 60 * 1000))
+    if (diff < 0) return `Vencida hace ${Math.abs(diff)} día${Math.abs(diff) !== 1 ? "s" : ""}`
+    if (diff === 0) return "Vence hoy"
+    return `Vence en ${diff} día${diff !== 1 ? "s" : ""}`
+  }
+
+  function toggleParticipante(id: string) {
+    setForm(prev => {
+      const exists = prev.participante_ids.includes(id)
+      return { ...prev, participante_ids: exists ? prev.participante_ids.filter(pid => pid !== id) : [...prev.participante_ids, id] }
+    })
+  }
 
   const hoy = new Date().toISOString().split("T")[0]
   const estaVencida = (t: any) => t.fecha_limite && t.fecha_limite < hoy && t.estado !== "completada" && t.estado !== "cancelada"
@@ -457,8 +495,16 @@ export default function TareasPage() {
     return true
   })
   const misTareas = perfil?.id ? tareas.filter(t => t.asignado_a === perfil.id) : tareas
-  const tareasDelegadas = perfil?.id ? tareas.filter(t => t.creado_por === perfil.id) : []
+  const tareasDelegadas = perfil?.id ? tareas.filter(t => t.creado_por === perfil.id && t.asignado_a !== perfil.id) : []
   const tareasParticipa = perfil?.id ? tareas.filter(esParticipante) : []
+  const participantesSeleccionados = usuarios.filter(u => form.participante_ids.includes(u.id))
+  const participantesDisponibles = usuarios
+    .filter(u => u.id !== form.asignado_a)
+    .filter(u => {
+      const q = participanteSearch.trim().toLowerCase()
+      if (!q) return true
+      return `${u.nombre || ""} ${u.apellido || ""} ${u.perfil || ""} ${u.email || ""}`.toLowerCase().includes(q)
+    })
   const responsableSeleccionado = usuarios.find(u => u.id === responsableId)
   const nombreResponsable = responsableSeleccionado ? `${responsableSeleccionado.nombre} ${responsableSeleccionado.apellido}` : "responsable"
   const subtituloTrabajo =
@@ -473,6 +519,8 @@ export default function TareasPage() {
         : `${tareasFiltradas.length} tareas del equipo`
   const misPendientes = misTareas.filter(t => t.estado === "pendiente").length
   const misEnProgreso = misTareas.filter(t => t.estado === "en_progreso").length
+  const misRevision = misTareas.filter(t => t.estado === "en_revision").length
+  const misCompletadas = misTareas.filter(t => t.estado === "completada").length
   const misVencidas = misTareas.filter(estaVencida).length
   const proximasEntregas = misTareas.filter(t =>
     t.fecha_limite &&
@@ -490,6 +538,24 @@ export default function TareasPage() {
   const avanceDelegadas = tareasDelegadas.length
     ? Math.round(tareasDelegadas.reduce((acc, t) => acc + (avancePorEstado[t.estado] ?? 0), 0) / tareasDelegadas.length)
     : 0
+  const tarjetasMisTareas = [
+    { estado: "pendiente", label: "Pendientes", value: misPendientes, ...ESTADOS.pendiente },
+    { estado: "en_progreso", label: "En progreso", value: misEnProgreso, ...ESTADOS.en_progreso },
+    { estado: "en_revision", label: "En revisión", value: misRevision, ...ESTADOS.en_revision },
+    { estado: "completada", label: "Completadas", value: misCompletadas, ...ESTADOS.completada },
+  ]
+  const tarjetasDelegadas = [
+    { estado: "pendiente", label: "Pendientes", value: pendientesRespuesta, ...ESTADOS.pendiente },
+    { estado: "en_progreso", label: "En progreso", value: delegadasEnEjecucion, ...ESTADOS.en_progreso },
+    { estado: "en_revision", label: "En revisión", value: delegadasRevision, ...ESTADOS.en_revision },
+    { estado: "completada", label: "Completadas", value: delegadasCompletadas, ...ESTADOS.completada },
+  ]
+  const tabsTrabajo = [
+    { key: "mias", label: "Asignadas a mí", count: misTareas.length },
+    { key: "creadas", label: "Delegadas por mí", count: tareasDelegadas.length },
+    { key: "participo", label: "En las que participo", count: tareasParticipa.length },
+    ...(puedeVerEquipo ? [{ key: "todos", label: "Todas", count: tareas.length }] : []),
+  ]
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -513,34 +579,48 @@ export default function TareasPage() {
           </div>
         </div>
 
-        {/* Dashboard personal */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 14, marginBottom: 14 }}>
           {[
-            { label: "Mis tareas pendientes", value: misPendientes, ...ESTADOS.pendiente },
-            { label: "Mis tareas en progreso", value: misEnProgreso, ...ESTADOS.en_progreso },
-            { label: "Mis tareas vencidas", value: misVencidas, bg: "#fee2e2", color: "#991b1b" },
-            { label: "Próximas entregas", value: proximasEntregas, bg: "#f0fdf4", color: "#15803d" },
-          ].map(c => (
-            <div key={c.label} className="card" style={{ background: c.bg, border: "none", padding: "12px 16px" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: c.color, textTransform: "uppercase" }}>{c.label}</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>{c.value}</div>
+            { title: "Mis tareas asignadas a mí", subtitle: "Tareas que debo ejecutar", cards: tarjetasMisTareas },
+            { title: "Mis tareas delegadas a otros", subtitle: "Tareas que he creado y estoy haciendo seguimiento", cards: tarjetasDelegadas },
+          ].map(section => (
+            <div key={section.title} className="card" style={{ padding: 16, background: "#fff", border: "1px solid #e5e7eb" }}>
+              <div style={{ marginBottom: 12 }}>
+                <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#111827", textTransform: "uppercase" }}>{section.title}</h2>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "3px 0 0" }}>{section.subtitle}</p>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+                {section.cards.map(c => (
+                  <div key={c.estado} style={{ padding: 10, border: "1px solid #eef2f7", borderRadius: 8, borderTop: `3px solid ${c.color}`, background: "#fff" }}>
+                    <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 700 }}>{c.label}</div>
+                    <div style={{ fontSize: 22, lineHeight: 1.1, color: "#111827", fontWeight: 800 }}>{c.value}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 20 }}>
-          {[
-            { label: "Delegadas pendientes", value: pendientesRespuesta, ...ESTADOS.pendiente },
-            { label: "Delegadas en ejecución", value: delegadasEnEjecucion, ...ESTADOS.en_progreso },
-            { label: "Delegadas en revisión", value: delegadasRevision, ...ESTADOS.en_revision },
-            { label: "Delegadas completadas", value: delegadasCompletadas, ...ESTADOS.completada },
-            { label: "Avance delegadas", value: `${avanceDelegadas}%`, bg: "#ecfeff", color: "#155e75" },
-          ].map(c => (
-            <div key={c.label} className="card" style={{ background: c.bg, border: "none", padding: "12px 14px" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: "uppercase" }}>{c.label}</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
+        <div className="card" style={{ marginBottom: 20, padding: 16, background: "#fff", border: "1px solid #e5e7eb" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div>
+              <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#111827", textTransform: "uppercase" }}>Avance general de tareas delegadas</h2>
+              <p style={{ fontSize: 12, color: "#6b7280", margin: "3px 0 0" }}>{delegadasCompletadas} de {tareasDelegadas.length} tareas completadas</p>
             </div>
-          ))}
+            <div style={{ fontSize: 26, fontWeight: 800, color: "#111827" }}>{avanceDelegadas}%</div>
+          </div>
+          <div style={{ height: 9, background: "#f3f4f6", borderRadius: 99, overflow: "hidden", marginTop: 14 }}>
+            <div style={{ width: `${avanceDelegadas}%`, height: "100%", background: "#16a34a" }} />
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
+            {estadoKeys.map(estado => (
+              <div key={estado} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#6b7280", fontWeight: 700 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 99, background: ESTADOS[estado].color }} />
+                {ESTADOS[estado].label}: {contarPorEstado(tareasDelegadas, estado)}
+              </div>
+            ))}
+            <div style={{ marginLeft: "auto", fontSize: 11, color: "#6b7280" }}>Vencidas: {misVencidas} · Próximas: {proximasEntregas}</div>
+          </div>
         </div>
 
         <div className="card" style={{ marginBottom: 20, padding: 16 }}>
@@ -631,24 +711,29 @@ export default function TareasPage() {
           )}
         </div>
 
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {tabsTrabajo.map(tab => {
+            const active = filtroAsignado === tab.key
+            return (
+              <button
+                key={tab.key}
+                onClick={() => { setFiltroAsignado(tab.key); setResponsableId("") }}
+                style={{ padding: "8px 12px", border: `1px solid ${active ? "#1D2040" : "#e5e7eb"}`, borderRadius: 8, background: active ? "#1D2040" : "#fff", color: active ? "#fff" : "#374151", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
+              >
+                {tab.label} <span style={{ opacity: 0.75 }}>({tab.count})</span>
+              </button>
+            )
+          })}
+        </div>
+
         {/* Filtros */}
         <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
           <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
             <option value="todos">Todos los estados</option>
             {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
-          <select style={{ ...inp, width: "auto" }} value={filtroAsignado} onChange={e => {
-            setFiltroAsignado(e.target.value)
-            if (e.target.value !== "responsable") setResponsableId("")
-          }}>
-            <option value="mias">Mi trabajo</option>
-            <option value="creadas">Creadas por mí</option>
-            <option value="participo">Participo</option>
-            {puedeVerEquipo && <option value="todos">Todas las tareas</option>}
-            {puedeVerEquipo && <option value="responsable">Por responsable</option>}
-          </select>
-          {puedeVerEquipo && filtroAsignado === "responsable" && (
-            <select style={{ ...inp, width: "auto" }} value={responsableId} onChange={e => setResponsableId(e.target.value)}>
+          {puedeVerEquipo && (
+            <select style={{ ...inp, width: "auto" }} value={responsableId} onChange={e => { setResponsableId(e.target.value); if (e.target.value) setFiltroAsignado("responsable") }}>
               <option value="">Seleccionar responsable</option>
               {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
             </select>
@@ -674,14 +759,13 @@ export default function TareasPage() {
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "#1D2040" }}>
-                  <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#fff" }}>TÍTULO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 120 }}>PROYECTO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 150 }}>CLIENTE</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 90 }}>PRIORIDAD</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 150 }}>RESPONSABLE</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#03E373", width: 110 }}>ESTADO</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 100 }}>FECHA LÍMITE</th>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 800, color: "#6b7280" }}>TAREA</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 150 }}>PROYECTO</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 170 }}>RESPONSABLE</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 110 }}>ESTADO</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 90 }}>PRIORIDAD</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 130 }}>FECHA LÍMITE</th>
                   <th style={{ width: 80 }}></th>
                 </tr>
               </thead>
@@ -695,25 +779,33 @@ export default function TareasPage() {
                       style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === t.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
                       <td style={{ padding: "10px 16px" }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{t.titulo}</div>
+                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{t.proyecto?.codigo || "Sin proyecto"}</div>
+                        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Solicitado por {t.creador ? nombreUsuario(t.creador) : "—"}</div>
                         <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 4 }}>
                           {vencida && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>VENCIDA</span>}
                           {t.frecuencia && t.frecuencia !== "no_repite" && <span style={{ fontSize: 10, background: "#ecfeff", color: "#155e75", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>{FRECUENCIAS[t.frecuencia] || "Recurrente"}</span>}
                           {(t.participantes || []).length > 0 && <span style={{ fontSize: 10, background: "#f3f4f6", color: "#4b5563", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>{(t.participantes || []).length} participante{(t.participantes || []).length !== 1 ? "s" : ""}</span>}
                         </div>
                       </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>{t.proyecto?.codigo || "—"}</td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>{t.cliente?.razon_social || "—"}</td>
-                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                        <span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>{pr.label}</span>
+                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>
+                        <div style={{ fontWeight: 700, color: "#374151" }}>{t.proyecto?.codigo || "—"}</div>
+                        <div>{t.proyecto?.nombre || t.cliente?.razon_social || "Sin proyecto"}</div>
                       </td>
                       <td style={{ padding: "10px 12px", fontSize: 12, color: "#374151", whiteSpace: "nowrap" }}>
-                        {t.asignado ? t.asignado.nombre + " " + t.asignado.apellido : "—"}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ width: 28, height: 28, borderRadius: 99, background: "#eef2ff", color: "#3730a3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{inicialesUsuario(t.asignado)}</span>
+                          <span>{t.asignado ? nombreUsuario(t.asignado) : "Sin responsable"}</span>
+                        </div>
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "center" }}>
                         <span style={{ background: es.bg, color: es.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>{es.label}</span>
                       </td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        <span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>{pr.label}</span>
+                      </td>
                       <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12, color: vencida ? "#991b1b" : "#6b7280", fontWeight: vencida ? 700 : 400, whiteSpace: "nowrap" }}>
-                        {t.fecha_limite || "—"}
+                        <div>{formatFecha(t.fecha_limite)}</div>
+                        <div style={{ fontSize: 10, color: vencida ? "#991b1b" : "#9ca3af", fontWeight: 600 }}>{textoVencimiento(t)}</div>
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
@@ -729,6 +821,25 @@ export default function TareasPage() {
               </tbody>
             </table>
           )}
+        </div>
+        <div className="card" style={{ marginTop: 14, padding: 14, background: "#fff", border: "1px solid #e5e7eb" }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#6b7280", marginBottom: 10, textTransform: "uppercase" }}>Leyenda de estados</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+            {[
+              { estado: "pendiente", texto: "Tareas asignadas pero aún no iniciadas." },
+              { estado: "en_progreso", texto: "Tareas que están siendo trabajadas actualmente." },
+              { estado: "en_revision", texto: "Tareas completadas por el responsable y pendientes de validación." },
+              { estado: "completada", texto: "Tareas finalizadas y aprobadas." },
+            ].map(item => (
+              <div key={item.estado} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ width: 8, height: 8, borderRadius: 99, background: ESTADOS[item.estado].color, marginTop: 4, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#374151" }}>{ESTADOS[item.estado].label}</div>
+                  <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.4 }}>{item.texto}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       {selected && (
@@ -915,21 +1026,52 @@ export default function TareasPage() {
               </div>
               <div>
                 <label style={lbl}>RESPONSABLE PRINCIPAL *</label>
-                <select style={inp} value={form.asignado_a} onChange={e => setForm({ ...form, asignado_a: e.target.value })}>
+                <select style={inp} value={form.asignado_a} onChange={e => setForm({ ...form, asignado_a: e.target.value, participante_ids: form.participante_ids.filter(id => id !== e.target.value) })}>
                   <option value="">Sin asignar</option>
                   {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido} — {u.perfil}</option>)}
                 </select>
               </div>
               <div>
                 <label style={lbl}>PARTICIPANTES / SEGUIDORES</label>
-                <select
-                  multiple
-                  style={{ ...inp, minHeight: 94 }}
-                  value={form.participante_ids}
-                  onChange={e => setForm({ ...form, participante_ids: Array.from(e.target.selectedOptions).map(o => o.value) })}
-                >
-                  {usuarios.filter(u => u.id !== form.asignado_a).map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido} — {u.perfil}</option>)}
-                </select>
+                <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", padding: 10 }}>
+                  {participantesSeleccionados.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                      {participantesSeleccionados.map(u => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => toggleParticipante(u.id)}
+                          style={{ border: "1px solid #dbeafe", background: "#eff6ff", color: "#1e40af", borderRadius: 99, padding: "4px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                        >
+                          {nombreUsuario(u)} ×
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    style={{ ...inp, border: "1px solid #f3f4f6", marginBottom: 8 }}
+                    value={participanteSearch}
+                    placeholder="Buscar usuarios para agregar..."
+                    onChange={e => setParticipanteSearch(e.target.value)}
+                  />
+                  <div style={{ maxHeight: 170, overflowY: "auto", display: "grid", gap: 4 }}>
+                    {participantesDisponibles.length === 0 ? (
+                      <div style={{ padding: 10, color: "#9ca3af", fontSize: 12 }}>No hay usuarios con esa búsqueda</div>
+                    ) : participantesDisponibles.map(u => {
+                      const checked = form.participante_ids.includes(u.id)
+                      return (
+                        <label key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", borderRadius: 7, background: checked ? "#f0fdf4" : "#fff", border: `1px solid ${checked ? "#bbf7d0" : "#f3f4f6"}`, cursor: "pointer" }}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleParticipante(u.id)} />
+                          <span style={{ width: 26, height: 26, borderRadius: 99, background: "#eef2ff", color: "#3730a3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{inicialesUsuario(u)}</span>
+                          <span style={{ minWidth: 0 }}>
+                            <span style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#374151" }}>{nombreUsuario(u)} <span style={{ fontWeight: 600, color: "#9ca3af" }}>— {u.perfil || "Sin rol"}</span></span>
+                            {u.email && <span style={{ display: "block", fontSize: 11, color: "#9ca3af" }}>{u.email}</span>}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
