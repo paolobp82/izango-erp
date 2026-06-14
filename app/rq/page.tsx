@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
@@ -55,6 +55,8 @@ export default function RQPage() {
   const [proveedores, setProveedores] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [perfil, setPerfil] = useState<any>(null)
+  const [toastMsg, setToastMsg] = useState("")
+  const [toastType, setToastType] = useState<"success" | "error">("success")
   const [showNuevoRQ, setShowNuevoRQ] = useState(false)
 const [proyectos, setProyectos] = useState<any[]>([])
 const [formRQ, setFormRQ] = useState(FORM_RQ_VACIO)
@@ -120,6 +122,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     setLoading(false)
   }
 
+  function mostrarToast(mensaje: string, tipo: "success" | "error" = "success") {
+    setToastMsg(mensaje)
+    setToastType(tipo)
+    setTimeout(() => setToastMsg(""), 4000)
+  }
+
   async function cambiarEstado(id: string, estado: string, extra?: any) {
     const rqActual = rqs.find(r => r.id === id)
     if (rqPerteneceAProyectoEliminado(rqActual)) {
@@ -151,10 +159,28 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     const { error } = await supabase.from("requerimientos_pago").update(updates).eq("id", id)
     if (error) {
       console.error("RQ status update error:", error)
+      mostrarToast("No se pudo aprobar el RQ", "error")
       alert("No se pudo actualizar el estado del RQ: " + error.message)
       return
     }
-    await registrarAccion({ accion: "cambiar_estado", modulo: "rq", entidad_id: id, entidad_tipo: "rq", descripcion: "RQ cambiado a: " + estado })
+    await registrarAccion({
+      accion: "cambiar_estado",
+      modulo: "rq",
+      entidad_id: id,
+      entidad_tipo: "rq",
+      descripcion: "RQ cambiado a: " + estado,
+      datos_nuevos: {
+        estado,
+        aprobado_por: perfil?.id || null,
+        aprobado_por_nombre: `${perfil?.nombre || ""} ${perfil?.apellido || ""}`.trim(),
+        fecha_aprobacion: new Date().toISOString()
+      }
+    })
+
+    if (["aprobado_produccion", "aprobado", "programado", "pagado"].includes(estado)) {
+      const codigoRQ = rqActual?.codigo_rq || rqActual?.numero_rq
+      mostrarToast(codigoRQ ? `${codigoRQ} aprobado correctamente` : "RQ Aprobado", "success")
+    }
     load()
     if (selected?.id === id) setSelected((prev: any) => ({ ...prev, estado, ...updates }))
   }
@@ -424,6 +450,23 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   return (
     <div>
+      {toastMsg && (
+        <div style={{
+          position: "fixed",
+          top: 20,
+          right: 20,
+          zIndex: 9999,
+          padding: "12px 16px",
+          borderRadius: 8,
+          fontWeight: 700,
+          fontSize: 13,
+          color: "#fff",
+          background: toastType === "success" ? "#15803d" : "#dc2626",
+          boxShadow: "0 10px 25px rgba(0,0,0,.15)"
+        }}>
+          {toastMsg}
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Requerimientos de pago</h1>
@@ -902,3 +945,5 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
+
