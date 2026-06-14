@@ -815,7 +815,13 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               {["superadmin","gerente_general","controller"].includes(rolNormalizado()) && (
                 <button onClick={async () => {
                   if (!confirm("¿Eliminar este RQ permanentemente?")) return
-                  await supabase.from("requerimientos_pago").delete().eq("id", selected.id)
+                  const { error } = await supabase.from("requerimientos_pago").delete().eq("id", selected.id)
+
+                  if (error) {
+                    console.error("Error eliminando RQ:", error)
+                    alert("Error eliminando RQ: " + error.message)
+                    return
+                  }
                   setSelected(null)
                   load()
                 }}
@@ -945,5 +951,6 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
 
 
