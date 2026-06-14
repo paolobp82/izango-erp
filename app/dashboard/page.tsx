@@ -76,7 +76,7 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
     const porCobrar = (facturas || []).filter(f => f.estado === "emitida").reduce((s, f) => s + (f.monto_final_abonado||0), 0)
     const liqCerradas = (liquidaciones || []).filter(l => l.cerrada && l.margen_real_pct > 0)
     const margenPromedio = liqCerradas.length > 0 ? liqCerradas.reduce((s, l) => s + l.margen_real_pct, 0) / liqCerradas.length : 0
-    const rqsPendientes = (rqs || []).filter(r => !["pagado","rechazado"].includes(r.estado))
+    const rqsPendientes = (rqs || []).filter(r => !["pagado","rechazado","cancelado","cerrado"].includes(r.estado))
     const rqsPendientesMonto = rqsPendientes.reduce((s, r) => s + (r.monto_solicitado||0), 0)
     const leadsCalientes = (leads || []).filter(l => l.temperatura === "caliente").length
     const pipelineCRM = (leads || []).filter(l => !["ganado","perdido"].includes(l.estado)).length

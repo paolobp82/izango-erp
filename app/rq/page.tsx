@@ -13,6 +13,7 @@ const ESTADOS: Record<string, any> = {
   aprobado:             { bg: "#dcfce7", color: "#15803d",  label: "Aprobado GG" },
   programado:           { bg: "#dbeafe", color: "#1e40af",  label: "Programado pago" },
   pagado:               { bg: "#f0fdf4", color: "#166534",  label: "Pagado" },
+  cancelado:            { bg: "#f3f4f6", color: "#6b7280",  label: "Cancelado" },
   rechazado:            { bg: "#fee2e2", color: "#991b1b",  label: "Rechazado" },
 }
 
@@ -27,6 +28,8 @@ const FLUJO = [
 const BANCOS_PAGO = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
 const TIPOS_TRANSFERENCIA = ["Transferencia bancaria", "Yape", "Plin", "Efectivo", "Cheque"]
 const ESTADOS_BLOQUEADOS_EDICION = ["pagado", "cerrado", "cancelado"]
+const ESTADOS_CANCELABLES_RQ = ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "programado"]
+const ROLES_CANCELAR_RQ = ["superadmin", "controller", "gerente_general"]
 const ROLES_EDICION_TOTAL_RQ = ["superadmin", "controller"]
 const FORM_RQ_VACIO = {
   descripcion: "",
@@ -152,6 +155,47 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     await registrarAccion({ accion: "cambiar_estado", modulo: "rq", entidad_id: id, entidad_tipo: "rq", descripcion: "RQ cambiado a: " + estado })
     load()
     if (selected?.id === id) setSelected((prev: any) => ({ ...prev, estado, ...updates }))
+  }
+
+  async function cancelarRQ(rq: any) {
+    if (!puedeCancelarRQ(rq)) return
+    const codigo = rqCodigo(rq)
+    const updates = {
+      estado: "cancelado",
+      cancelado_por: perfil?.id || null,
+      cancelado_at: new Date().toISOString(),
+    }
+    const { data: cancelado, error } = await supabase
+      .from("requerimientos_pago")
+      .update(updates)
+      .eq("id", rq.id)
+      .in("estado", ESTADOS_CANCELABLES_RQ)
+      .select("id")
+      .maybeSingle()
+    if (error || !cancelado) {
+      alert("No se pudo cancelar el RQ")
+      return
+    }
+    await registrarAccion({ accion: "cancelar", modulo: "rq", entidad_id: rq.id, entidad_tipo: "rq", descripcion: codigo + " cancelado", datos_nuevos: updates })
+    alert(codigo + " cancelado correctamente")
+    setSelected((prev: any) => prev?.id === rq.id ? { ...prev, ...updates } : prev)
+    load()
+  }
+
+  async function eliminarRQ(rq: any) {
+    if (rq.estado !== "pendiente_aprobacion") {
+      alert("No se puede eliminar un RQ que ya ingresó al flujo de aprobación. Utilice Cancelar RQ.")
+      return
+    }
+    if (!confirm("¿Eliminar este RQ permanentemente?")) return
+    const { error } = await supabase.from("requerimientos_pago").delete().eq("id", rq.id).eq("estado", "pendiente_aprobacion")
+    if (error) {
+      alert("No se pudo eliminar el RQ")
+      return
+    }
+    await registrarAccion({ accion: "eliminar", modulo: "rq", entidad_id: rq.id, entidad_tipo: "rq", descripcion: "RQ eliminado fisicamente: " + rqCodigo(rq) })
+    setSelected(null)
+    load()
   }
 
   async function guardarDatosPago() {
@@ -366,8 +410,13 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   function puedeRechazar(rq: any) {
     if (rqPerteneceAProyectoEliminado(rq)) return false
     const rol = perfil?.perfil
-    if (rq.estado === "pagado" || rq.estado === "rechazado") return false
+    if (["pagado", "cerrado", "cancelado", "rechazado"].includes(rq.estado)) return false
     return ["gerente_produccion", "gerente_general", "controller", "superadmin"].includes(rol)
+  }
+
+  function puedeCancelarRQ(rq: any) {
+    if (!rq || rqPerteneceAProyectoEliminado(rq)) return false
+    return ROLES_CANCELAR_RQ.includes(perfil?.perfil) && ESTADOS_CANCELABLES_RQ.includes(rq.estado)
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -582,6 +631,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                           {accion.label}
                         </button>
                       )}
+                      {puedeCancelarRQ(rq) && (
+                        <button onClick={() => cancelarRQ(rq)}
+                          style={{ fontSize: 11, padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", color: "#4b5563", cursor: "pointer", fontWeight: 600 }}>
+                          Cancelar
+                        </button>
+                      )}
                       </div>
                     </td>
                   </tr>
@@ -749,14 +804,15 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               )}
 
               {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (
-                <button onClick={async () => {
-                  if (!confirm("¿Eliminar este RQ permanentemente?")) return
-                  await supabase.from("requerimientos_pago").delete().eq("id", selected.id)
-                  setSelected(null)
-                  load()
-                }}
+                <button onClick={() => eliminarRQ(selected)}
                   style={{ padding: "8px", border: "1px solid #fee2e2", borderRadius: 8, background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>
                   🗑 Eliminar RQ
+                </button>
+              )}
+              {puedeCancelarRQ(selected) && (
+                <button onClick={() => cancelarRQ(selected)}
+                  style={{ padding: "8px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#4b5563", cursor: "pointer", fontSize: 13 }}>
+                  Cancelar RQ
                 </button>
               )}
               {puedeRechazar(selected) && (
