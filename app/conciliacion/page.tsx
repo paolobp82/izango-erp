@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 const ESTADO_COLOR: Record<string, any> = {
   pendiente:   { bg: "#fef9c3", color: "#92400e", label: "Pendiente" },
@@ -31,10 +32,10 @@ export default function ConciliacionPage() {
     }
     const { data } = await supabase
       .from("facturas")
-      .select("*, proyecto:proyectos(nombre, codigo, cliente:clientes(razon_social))")
+      .select("*, proyecto:proyectos(nombre, codigo, deleted_at, cliente:clientes(razon_social))")
       .not("estado", "eq", "anulada")
       .order("fecha_emision", { ascending: false })
-    setFacturas(data || [])
+    setFacturas((data || []).filter((factura: any) => !rowBelongsToDeletedProject(factura)))
     setLoading(false)
   }
 

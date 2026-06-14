@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { useRouter } from "next/navigation"
+import { softDeleteProject } from "@/lib/projects"
 
 const ESTADO_LABEL: Record<string, string> = {
   pendiente_aprobacion: "Pendiente",
@@ -94,7 +95,8 @@ export default function ProyectosPage() {
   async function eliminar(id: string, nombre: string) {
     if (!confirm("¿Eliminar el proyecto " + nombre + "? Podrás recuperarlo en los próximos 2 días.")) return
     setEliminando(id)
-    await supabase.from("proyectos").update({ deleted_at: new Date().toISOString() }).eq("id", id)
+    const { error } = await softDeleteProject(supabase, id)
+    if (error) alert("No se pudo eliminar el proyecto: " + error.message)
     setEliminando(null)
     load()
   }

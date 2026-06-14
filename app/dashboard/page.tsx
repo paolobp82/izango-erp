@@ -1,6 +1,7 @@
 ﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend
@@ -53,30 +54,35 @@ export default function DashboardPage() {
       { data: cotizaciones },
       { data: cotsProy },
     ] = await Promise.all([
-supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
-supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at"),
-      supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id"),
-      supabase.from("requerimientos_pago").select("id, estado, monto_solicitado"),
+      supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
+      supabase.from("proyectos").select("id, estado").is("deleted_at", null),
+      supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at, proyecto_id, proyecto:proyectos(deleted_at)"),
+      supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id, proyecto:proyectos(deleted_at)"),
+      supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id, proyecto:proyectos(deleted_at)"),
       supabase.from("cotizaciones").select("id", { count: "exact", head: true }).gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
       supabase.from("crm_leads").select("estado, temperatura, presupuesto_estimado"),
-      supabase.from("cotizaciones").select("proyecto_id, total_cliente, estado, proyecto:proyectos(nombre, codigo)").eq("estado", "aprobada_cliente").order("total_cliente", { ascending: false }).limit(6),
-      supabase.from("cotizaciones").select("proyecto_id, total_cliente, estado").is("deleted_at", null),
+      supabase.from("cotizaciones").select("proyecto_id, total_cliente, estado, proyecto:proyectos(nombre, codigo, deleted_at)").eq("estado", "aprobada_cliente").order("total_cliente", { ascending: false }).limit(12),
+      supabase.from("cotizaciones").select("proyecto_id, total_cliente, estado, proyecto:proyectos(deleted_at)").is("deleted_at", null),
     ])
 
     setProyectos(provs || [])
-    setCotsProyState(cotsProy || [])
+    const facturasActivas = (facturas || []).filter((factura: any) => !rowBelongsToDeletedProject(factura))
+    const liquidacionesActivas = (liquidaciones || []).filter((liq: any) => !rowBelongsToDeletedProject(liq))
+    const rqsActivos = (rqs || []).filter((rq: any) => !rowBelongsToDeletedProject(rq))
+    const cotsProyActivas = (cotsProy || []).filter((cot: any) => !rowBelongsToDeletedProject(cot))
+    setCotsProyState(cotsProyActivas)
 
     // Métricas base
     const allProv = todosProyectos || []
     const activos = allProv.filter(p => ["aprobado","aprobado_produccion","en_curso"].includes(p.estado))
     const pendientes = allProv.filter(p => p.estado === "pendiente_aprobacion")
     const terminadosSinLiquidar = allProv.filter(p => p.estado === "terminado")
-    const totalFacturado = (facturas || []).filter(f => f.estado !== "anulada").reduce((s, f) => s + ((f.subtotal||0)+(f.igv||0)), 0)
-    const totalCobrado = (facturas || []).filter(f => f.estado === "cobrada").reduce((s, f) => s + (f.monto_final_abonado||0), 0)
-    const porCobrar = (facturas || []).filter(f => f.estado === "emitida").reduce((s, f) => s + (f.monto_final_abonado||0), 0)
-    const liqCerradas = (liquidaciones || []).filter(l => l.cerrada && l.margen_real_pct > 0)
+    const totalFacturado = facturasActivas.filter(f => f.estado !== "anulada").reduce((s, f) => s + ((f.subtotal||0)+(f.igv||0)), 0)
+    const totalCobrado = facturasActivas.filter(f => f.estado === "cobrada").reduce((s, f) => s + (f.monto_final_abonado||0), 0)
+    const porCobrar = facturasActivas.filter(f => f.estado === "emitida").reduce((s, f) => s + (f.monto_final_abonado||0), 0)
+    const liqCerradas = liquidacionesActivas.filter(l => l.cerrada && l.margen_real_pct > 0)
     const margenPromedio = liqCerradas.length > 0 ? liqCerradas.reduce((s, l) => s + l.margen_real_pct, 0) / liqCerradas.length : 0
-    const rqsPendientes = (rqs || []).filter(r => !["pagado","rechazado","cancelado","cerrado"].includes(r.estado))
+    const rqsPendientes = rqsActivos.filter(r => !["pagado","rechazado","cancelado","cerrado"].includes(r.estado))
     const rqsPendientesMonto = rqsPendientes.reduce((s, r) => s + (r.monto_solicitado||0), 0)
     const leadsCalientes = (leads || []).filter(l => l.temperatura === "caliente").length
     const pipelineCRM = (leads || []).filter(l => !["ganado","perdido"].includes(l.estado)).length
@@ -86,8 +92,8 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
     const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
     const inicioMesAnt = new Date(hoy.getFullYear(), hoy.getMonth()-1, 1)
     const finMesAnt = new Date(hoy.getFullYear(), hoy.getMonth(), 0)
-    const factMesAct = (facturas||[]).filter(f => new Date(f.created_at) >= inicioMes && f.estado !== "anulada").reduce((s,f) => s+((f.subtotal||0)+(f.igv||0)),0)
-    const factMesAnt = (facturas||[]).filter(f => { const d = new Date(f.created_at); return d >= inicioMesAnt && d <= finMesAnt && f.estado !== "anulada" }).reduce((s,f) => s+((f.subtotal||0)+(f.igv||0)),0)
+    const factMesAct = facturasActivas.filter(f => new Date(f.created_at) >= inicioMes && f.estado !== "anulada").reduce((s,f) => s+((f.subtotal||0)+(f.igv||0)),0)
+    const factMesAnt = facturasActivas.filter(f => { const d = new Date(f.created_at); return d >= inicioMesAnt && d <= finMesAnt && f.estado !== "anulada" }).reduce((s,f) => s+((f.subtotal||0)+(f.igv||0)),0)
     const varFacturacion = factMesAnt > 0 ? ((factMesAct - factMesAnt) / factMesAnt) * 100 : 0
 
     setMetricas({
@@ -96,8 +102,8 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
       rqsPendientes: rqsPendientes.length, rqsPendientesMonto,
       totalFacturado, totalCobrado, porCobrar, margenPromedio,
       cotMes: cotMes||0, leadsCalientes, pipelineCRM, factMesAct, varFacturacion,
-      presupuestosPendientes: allProv.filter((p: any) => p.estado === "pendiente_aprobacion").reduce((s: number, p: any) => { const cots = (cotsProy || []).filter((c: any) => c.proyecto_id === p.id && c.total_cliente > 0); const maxCot = cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (maxCot?.total_cliente || 0) }, 0),
-      presupuestosAprobados: allProv.filter((p: any) => ["aprobado_produccion","aprobado_gerencia","aprobado_cliente","aprobado","en_curso","terminado","liquidado"].includes(p.estado)).reduce((s: number, p: any) => { const cots = (cotsProy || []).filter((c: any) => c.proyecto_id === p.id && c.total_cliente > 0); const aprobada = cots.find((c: any) => c.estado === "aprobada_cliente") || cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (aprobada?.total_cliente || 0) }, 0),
+      presupuestosPendientes: allProv.filter((p: any) => p.estado === "pendiente_aprobacion").reduce((s: number, p: any) => { const cots = cotsProyActivas.filter((c: any) => c.proyecto_id === p.id && c.total_cliente > 0); const maxCot = cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (maxCot?.total_cliente || 0) }, 0),
+      presupuestosAprobados: allProv.filter((p: any) => ["aprobado_produccion","aprobado_gerencia","aprobado_cliente","aprobado","en_curso","terminado","liquidado"].includes(p.estado)).reduce((s: number, p: any) => { const cots = cotsProyActivas.filter((c: any) => c.proyecto_id === p.id && c.total_cliente > 0); const aprobada = cots.find((c: any) => c.estado === "aprobada_cliente") || cots.sort((a: any, b: any) => b.total_cliente - a.total_cliente)[0]; return s + (aprobada?.total_cliente || 0) }, 0),
     })
 
     // Chart facturación por mes (últimos 6 meses)
@@ -105,8 +111,8 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
     for (let i = 5; i >= 0; i--) {
       const d = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1)
       const fin = new Date(hoy.getFullYear(), hoy.getMonth()-i+1, 0)
-      const facturado = (facturas||[]).filter(f => { const fd = new Date(f.created_at); return fd >= d && fd <= fin && f.estado !== "anulada" }).reduce((s,f) => s+((f.subtotal||0)+(f.igv||0)),0)
-      const cobrado = (facturas||[]).filter(f => { const fd = new Date(f.created_at); return fd >= d && fd <= fin && f.estado === "cobrada" }).reduce((s,f) => s+(f.monto_final_abonado||0),0)
+      const facturado = facturasActivas.filter(f => { const fd = new Date(f.created_at); return fd >= d && fd <= fin && f.estado !== "anulada" }).reduce((s,f) => s+((f.subtotal||0)+(f.igv||0)),0)
+      const cobrado = facturasActivas.filter(f => { const fd = new Date(f.created_at); return fd >= d && fd <= fin && f.estado === "cobrada" }).reduce((s,f) => s+(f.monto_final_abonado||0),0)
       chartFact.push({ mes: MESES[d.getMonth()], facturado: Math.round(facturado), cobrado: Math.round(cobrado) })
     }
     setChartFacturacion(chartFact)
@@ -124,15 +130,15 @@ supabase.from("proyectos").select("id, estado").is("deleted_at", null),     supa
 
     // Chart RQs por estado
     const rqsData = [
-      { name: "Pendiente", value: (rqs||[]).filter(r => r.estado === "pendiente_aprobacion").length, color: "#f59e0b" },
-      { name: "Aprobado", value: (rqs||[]).filter(r => r.estado === "aprobado").length, color: "#3b82f6" },
-      { name: "Programado", value: (rqs||[]).filter(r => r.estado === "programado").length, color: "#8b5cf6" },
-      { name: "Pagado", value: (rqs||[]).filter(r => r.estado === "pagado").length, color: "#10b981" },
+      { name: "Pendiente", value: rqsActivos.filter(r => r.estado === "pendiente_aprobacion").length, color: "#f59e0b" },
+      { name: "Aprobado", value: rqsActivos.filter(r => r.estado === "aprobado").length, color: "#3b82f6" },
+      { name: "Programado", value: rqsActivos.filter(r => r.estado === "programado").length, color: "#8b5cf6" },
+      { name: "Pagado", value: rqsActivos.filter(r => r.estado === "pagado").length, color: "#10b981" },
     ].filter(d => d.value > 0)
     setChartRQs(rqsData)
 
     // Top proyectos por valor
-    const top = (cotizaciones||[]).map((c: any) => ({
+    const top = (cotizaciones || []).filter((cot: any) => !rowBelongsToDeletedProject(cot)).map((c: any) => ({
       nombre: c.proyecto?.codigo || "—",
       valor: Math.round(c.total_cliente || 0),
     })).slice(0, 5)

@@ -5,6 +5,7 @@ import { registrarAccion } from "@/lib/trazabilidad"
 import ImportExport from "@/components/ImportExport"
 import { enviarAlerta } from "@/lib/alertas"
 import { useRouter } from "next/navigation"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 export default function LiquidacionesPage() {
   const supabase = createClient()
@@ -29,21 +30,28 @@ export default function LiquidacionesPage() {
     }
     const { data: liqs } = await supabase
       .from("liquidaciones")
-      .select("*, proyecto:proyectos(nombre, codigo, cliente:clientes(razon_social))")
+      .select("*, proyecto:proyectos(nombre, codigo, deleted_at, cliente:clientes(razon_social))")
       .order("created_at", { ascending: false })
-    setLiquidaciones(liqs || [])
-    const liqProyecto = proyectoIdParam ? (liqs || []).find((liq: any) => liq.proyecto_id === proyectoIdParam) : null
+    const liqsActivas = (liqs || []).filter((liq: any) => !rowBelongsToDeletedProject(liq))
+    setLiquidaciones(liqsActivas)
+    const liqProyecto = proyectoIdParam ? liqsActivas.find((liq: any) => liq.proyecto_id === proyectoIdParam) : null
     if (liqProyecto) await abrirLiquidacion(liqProyecto)
 
     const { data: provs } = await supabase
       .from("proyectos")
       .select("id, nombre, codigo")
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
     setProyectos(provs || [])
     setLoading(false)
   }
 
   async function crearLiquidacion(proyectoId: string) {
+    const proyectoActivo = proyectos.find((p: any) => p.id === proyectoId)
+    if (!proyectoActivo) {
+      alert("No se puede liquidar un proyecto eliminado o no disponible.")
+      return
+    }
     setCreando(true)
     const { data: cots } = await supabase
       .from("cotizaciones")
@@ -90,6 +98,10 @@ export default function LiquidacionesPage() {
   }
 
   async function abrirLiquidacion(liq: any) {
+    if (rowBelongsToDeletedProject(liq)) {
+      alert("Esta liquidacion pertenece a un proyecto eliminado y no puede abrirse como activa.")
+      return
+    }
     setSelected(liq)
     setLoadingItems(true)
     const { data } = await supabase.from("liquidacion_items").select("*").eq("liquidacion_id", liq.id)

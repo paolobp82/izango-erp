@@ -1,6 +1,7 @@
 ﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 import { useRouter } from "next/navigation"
 
 const ESTADO_COT: Record<string, any> = {
@@ -31,11 +32,12 @@ export default function ProformasPage() {
   async function load() {
     const { data } = await supabase
       .from("cotizaciones")
-      .select("*, proyecto:proyectos!proyecto_id(id, nombre, codigo, entidad, cliente:clientes!cliente_id(id, razon_social))")
+      .select("*, proyecto:proyectos!proyecto_id(id, nombre, codigo, entidad, deleted_at, cliente:clientes!cliente_id(id, razon_social))")
       .order("created_at", { ascending: false })
-    setCotizaciones(data || [])
+    const cotizacionesActivas = (data || []).filter((cot: any) => !rowBelongsToDeletedProject(cot))
+    setCotizaciones(cotizacionesActivas)
     const clientesUnicos = Array.from(
-      new Map((data || []).map((c: any) => [c.proyecto?.cliente?.id, c.proyecto?.cliente] as [string, any]).filter(([k]) => k)).values()
+      new Map(cotizacionesActivas.map((c: any) => [c.proyecto?.cliente?.id, c.proyecto?.cliente] as [string, any]).filter(([k]) => k)).values()
     )
     setClientes(clientesUnicos)
     setLoading(false)

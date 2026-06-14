@@ -50,6 +50,7 @@ export default function GestorPage() {
     const { data: provs } = await supabase.from("proyectos")
       .select("*, cliente:clientes(razon_social)")
       .in("estado", ["aprobado","aprobado_produccion","en_curso","terminado"])
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
     setProyectos(provs || [])
     const { data: perfs } = await supabase.from("perfiles").select("id, nombre, apellido, perfil").order("nombre")
@@ -58,6 +59,8 @@ export default function GestorPage() {
   }
 
   async function loadTareas(proyectoId: string) {
+    const proyectoActivo = proyectos.find((p: any) => p.id === proyectoId)
+    if (!proyectoActivo) { setTareas([]); return }
     const { data } = await supabase.from("proyecto_tareas").select("*").eq("proyecto_id", proyectoId).order("orden")
     setTareas(data || [])
   }

@@ -48,7 +48,7 @@ export default function BusquedaGlobal() {
       { data: facturas },
       { data: leads },
     ] = await Promise.all([
-      supabase.from("proyectos").select("id, nombre, codigo, estado").or(`nombre.ilike.${like},codigo.ilike.${like}`).limit(4),
+      supabase.from("proyectos").select("id, nombre, codigo, estado").is("deleted_at", null).or(`nombre.ilike.${like},codigo.ilike.${like}`).limit(4),
       supabase.from("clientes").select("id, razon_social, ruc").or(`razon_social.ilike.${like},ruc.ilike.${like}`).limit(4),
       supabase.from("proveedores").select("id, nombre, ruc").or(`nombre.ilike.${like},ruc.ilike.${like}`).limit(3),
       supabase.from("facturas").select("id, numero_factura, estado").ilike("numero_factura", like).limit(3),

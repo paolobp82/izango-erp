@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { rqCodigo } from "@/lib/rq-code"
 import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 const MODULOS = [
   { key: "proyectos",     label: "Proyectos",       icon: "📁" },
@@ -173,34 +174,34 @@ export default function ReporteriaPage() {
         productor: p.productor ? p.productor.nombre + " " + p.productor.apellido : "—",
       }))
     } else if (moduloActivo === "facturacion") {
-      let q = supabase.from("facturas").select("*, proyecto:proyectos(nombre, codigo, cliente:clientes(razon_social))")
+      let q = supabase.from("facturas").select("*, proyecto:proyectos(nombre, codigo, deleted_at, cliente:clientes(razon_social))")
       if (filtros.estado) q = q.eq("estado", filtros.estado)
       if (filtros.fechaDesde) q = q.gte("fecha_emision", filtros.fechaDesde)
       if (filtros.fechaHasta) q = q.lte("fecha_emision", filtros.fechaHasta)
       const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).map(f => ({
+      data = (r || []).filter((f: any) => !rowBelongsToDeletedProject(f)).map(f => ({
         ...f,
         proyecto: f.proyecto ? f.proyecto.codigo + " — " + f.proyecto.nombre : "—",
         cliente: f.proyecto?.cliente?.razon_social || "—",
         total: (f.subtotal || 0) + (f.igv || 0),
       }))
     } else if (moduloActivo === "liquidaciones") {
-      let q = supabase.from("liquidaciones").select("*, proyecto:proyectos(nombre, codigo)")
+      let q = supabase.from("liquidaciones").select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
       if (filtros.fechaDesde) q = q.gte("created_at", filtros.fechaDesde)
       if (filtros.fechaHasta) q = q.lte("created_at", filtros.fechaHasta)
       const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).map(l => ({
+      data = (r || []).filter((l: any) => !rowBelongsToDeletedProject(l)).map(l => ({
         ...l,
         proyecto: l.proyecto ? l.proyecto.codigo + " — " + l.proyecto.nombre : "—",
         cerrada: l.cerrada ? "Sí" : "No",
       }))
     } else if (moduloActivo === "rqs") {
-      let q = supabase.from("requerimientos_pago").select("*, proyecto:proyectos(nombre, codigo)")
+      let q = supabase.from("requerimientos_pago").select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
       if (filtros.estado) q = q.eq("estado", filtros.estado)
       if (filtros.fechaDesde) q = q.gte("fecha_vencimiento", filtros.fechaDesde)
       if (filtros.fechaHasta) q = q.lte("fecha_vencimiento", filtros.fechaHasta)
       const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).map(r => {
+      data = (r || []).filter((rq: any) => !rowBelongsToDeletedProject(rq)).map(r => {
         const igv = rqIgvDetalle(r)
         return {
           ...r,
@@ -213,12 +214,12 @@ export default function ReporteriaPage() {
         }
       })
     } else if (moduloActivo === "caja_chica") {
-      let q = supabase.from("caja_chica").select("*, proyecto:proyectos(nombre, codigo), solicitante:perfiles!solicitado_por(nombre, apellido)")
+      let q = supabase.from("caja_chica").select("*, proyecto:proyectos(nombre, codigo, deleted_at), solicitante:perfiles!solicitado_por(nombre, apellido)")
       if (filtros.estado) q = q.eq("estado", filtros.estado)
       if (filtros.fechaDesde) q = q.gte("fecha", filtros.fechaDesde)
       if (filtros.fechaHasta) q = q.lte("fecha", filtros.fechaHasta)
       const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).map(c => ({
+      data = (r || []).filter((c: any) => !rowBelongsToDeletedProject(c)).map(c => ({
         ...c,
         proyecto: c.proyecto ? c.proyecto.codigo + " — " + c.proyecto.nombre : "—",
         solicitante: c.solicitante ? c.solicitante.nombre + " " + c.solicitante.apellido : "—",
