@@ -652,6 +652,23 @@ export default function TareasPage() {
         </div>
 
         <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #dbe2ea", borderRadius: 8, background: "#fff" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0, borderBottom: "1px solid #e5e7eb", background: "#f8fafc" }}>
+          {[
+            { key: "mias", label: "Asignadas a mí", value: misTareas.length },
+            { key: "creadas", label: "Delegadas por mí", value: tareasDelegadas.length },
+            { key: "participo", label: "Participo", value: tareasParticipa.length },
+            { key: "todos", label: "Todas relacionadas", value: tareasRelacionadas.length },
+          ].map((item, idx) => (
+            <button
+              key={item.key}
+              onClick={() => { setFiltroAsignado(item.key); setResponsableId(""); setPagina(1) }}
+              style={{ padding: "10px 14px", border: "none", borderLeft: idx === 0 ? "none" : "1px solid #e5e7eb", background: filtroAsignado === item.key ? "#eff6ff" : "transparent", color: filtroAsignado === item.key ? "#1d4ed8" : "#334155", cursor: "pointer", textAlign: "left" }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>{item.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 900, lineHeight: 1.1 }}>{item.value}</div>
+            </button>
+          ))}
+        </div>
         <div style={{ display: "flex", gap: 24, padding: "0 16px", borderBottom: "1px solid #e5e7eb", flexWrap: "wrap" }}>
           {tabsTrabajo.map(tab => {
             const active = filtroAsignado === tab.key
@@ -710,7 +727,31 @@ export default function TareasPage() {
         {/* Lista de tareas */}
         <div style={{ padding: 0, overflow: "hidden" }}>
           {tareasFiltradas.length === 0 ? (
-            <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay tareas con estos filtros</div>
+            <div style={{ padding: "38px 20px", textAlign: "center", color: "#64748b", fontSize: 14 }}>
+              <div style={{ fontWeight: 800, color: "#334155", marginBottom: 8 }}>No hay tareas en esta vista</div>
+              <div style={{ marginBottom: 16 }}>
+                {filtroAsignado === "mias" && tareasDelegadas.length > 0
+                  ? `No tienes tareas asignadas como responsable, pero sí tienes ${tareasDelegadas.length} tarea${tareasDelegadas.length !== 1 ? "s" : ""} delegada${tareasDelegadas.length !== 1 ? "s" : ""} para seguimiento.`
+                  : "Prueba otra vista o ajusta los filtros para revisar tareas relacionadas."}
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                {tareasDelegadas.length > 0 && (
+                  <button onClick={() => { setFiltroAsignado("creadas"); setPagina(1) }} className="btn-primary" style={{ fontSize: 12 }}>
+                    Ver delegadas por mí ({tareasDelegadas.length})
+                  </button>
+                )}
+                {tareasParticipa.length > 0 && (
+                  <button onClick={() => { setFiltroAsignado("participo"); setPagina(1) }} className="btn-secondary" style={{ fontSize: 12 }}>
+                    Ver en las que participo ({tareasParticipa.length})
+                  </button>
+                )}
+                {tareasRelacionadas.length > 0 && (
+                  <button onClick={() => { setFiltroAsignado("todos"); setPagina(1) }} className="btn-secondary" style={{ fontSize: 12 }}>
+                    Ver todas ({tareasRelacionadas.length})
+                  </button>
+                )}
+              </div>
+            </div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
