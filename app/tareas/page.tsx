@@ -202,6 +202,24 @@ export default function TareasPage() {
     return Boolean(perfil?.id && t?.mostrar_participantes_mi_trabajo !== false && participantesIds(t).includes(perfil.id))
   }
 
+  function esTareaRelacionada(t: any) {
+    return Boolean(esResponsable(t) || (perfil?.id && t?.creado_por === perfil.id) || esParticipante(t))
+  }
+
+  function participantesNombres(t: any) {
+    return (t?.participantes || [])
+      .map((p: any) => p.usuario ? nombreUsuario(p.usuario) : "")
+      .filter(Boolean)
+      .join(", ")
+  }
+
+  function rolUsuarioEnTarea(t: any) {
+    if (esResponsable(t)) return "Responsable"
+    if (perfil?.id && t?.creado_por === perfil.id && t?.asignado_a !== perfil.id) return "Solicitante"
+    if (esParticipante(t)) return "Participante"
+    return puedeVerEquipo ? "Equipo" : ""
+  }
+
   function addMonthsSafe(date: Date, months: number) {
     const d = new Date(date)
     const day = d.getDate()
@@ -395,6 +413,9 @@ export default function TareasPage() {
     await loadComentarios(selected.id)
   }
 
+  const rolesGerenciales = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager", "controller"]
+  const puedeVerEquipo = rolesGerenciales.includes(perfil?.perfil)
+
   const tareasFiltradas = tareas.filter(t => {
     if (filtroEstado !== "todos" && t.estado !== filtroEstado) return false
     if (filtroProyecto && t.proyecto_id !== filtroProyecto) return false
@@ -404,6 +425,7 @@ export default function TareasPage() {
     if (filtroAsignado === "responsable" && t.asignado_a !== responsableId) return false
     if (filtroAsignado === "creadas" && (t.creado_por !== perfil?.id || t.asignado_a === perfil?.id)) return false
     if (filtroAsignado === "participo" && !esParticipante(t)) return false
+    if (filtroAsignado === "todos" && !puedeVerEquipo && !esTareaRelacionada(t)) return false
     return true
   }).sort((a, b) => {
     let valA: any = "", valB: any = ""
@@ -462,11 +484,10 @@ export default function TareasPage() {
   const hoy = new Date().toISOString().split("T")[0]
   const estaVencida = (t: any) => t.fecha_limite && t.fecha_limite < hoy && t.estado !== "completada" && t.estado !== "cancelada"
   const enProximaSemana = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-  const rolesGerenciales = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager"]
-  const puedeVerEquipo = rolesGerenciales.includes(perfil?.perfil)
   const misTareas = perfil?.id ? tareas.filter(t => t.asignado_a === perfil.id) : tareas
   const tareasDelegadas = perfil?.id ? tareas.filter(t => t.creado_por === perfil.id && t.asignado_a !== perfil.id) : []
   const tareasParticipa = perfil?.id ? tareas.filter(esParticipante) : []
+  const tareasRelacionadas = puedeVerEquipo ? tareas : tareas.filter(esTareaRelacionada)
   const participantesSeleccionados = usuarios.filter(u => form.participante_ids.includes(u.id))
   const participantesDisponibles = usuarios
     .filter(u => u.id !== form.asignado_a)
@@ -507,23 +528,47 @@ export default function TareasPage() {
   const avanceDelegadas = tareasDelegadas.length
     ? Math.round(tareasDelegadas.reduce((acc, t) => acc + (avancePorEstado[t.estado] ?? 0), 0) / tareasDelegadas.length)
     : 0
-  const tarjetasMisTareas = [
-    { estado: "pendiente", label: "Pendientes", value: misPendientes, ...ESTADOS.pendiente },
-    { estado: "en_progreso", label: "En progreso", value: misEnProgreso, ...ESTADOS.en_progreso },
-    { estado: "en_revision", label: "En revisión", value: misRevision, ...ESTADOS.en_revision },
-    { estado: "completada", label: "Completadas", value: misCompletadas, ...ESTADOS.completada },
-  ]
-  const tarjetasDelegadas = [
-    { estado: "pendiente", label: "Pendientes", value: pendientesRespuesta, ...ESTADOS.pendiente },
-    { estado: "en_progreso", label: "En progreso", value: delegadasEnEjecucion, ...ESTADOS.en_progreso },
-    { estado: "en_revision", label: "En revisión", value: delegadasRevision, ...ESTADOS.en_revision },
-    { estado: "completada", label: "Completadas", value: delegadasCompletadas, ...ESTADOS.completada },
-  ]
+  const tareasResumenActual =
+    filtroAsignado === "mias"
+      ? misTareas
+      : filtroAsignado === "creadas"
+        ? tareasDelegadas
+        : filtroAsignado === "participo"
+          ? tareasParticipa
+          : filtroAsignado === "responsable"
+            ? tareas.filter(t => t.asignado_a === responsableId)
+            : tareasRelacionadas
+  const tarjetasResumenActual = estadoKeys.map(estado => ({
+    estado,
+    label: ESTADOS[estado].label,
+    value: contarPorEstado(tareasResumenActual, estado),
+    ...ESTADOS[estado],
+  }))
+  const tituloResumenActual =
+    filtroAsignado === "mias"
+      ? "Tareas asignadas a mí"
+      : filtroAsignado === "creadas"
+        ? "Tareas delegadas por mí"
+        : filtroAsignado === "participo"
+          ? "Tareas en las que participo"
+          : filtroAsignado === "responsable"
+            ? `Tareas de ${nombreResponsable}`
+            : puedeVerEquipo ? "Todas las tareas" : "Todas mis tareas relacionadas"
+  const subtituloResumenActual =
+    filtroAsignado === "mias"
+      ? "Tareas que debo ejecutar personalmente"
+      : filtroAsignado === "creadas"
+        ? "Tareas creadas por mí y asignadas a otra persona"
+        : filtroAsignado === "participo"
+          ? "Tareas donde estoy como participante o seguidor"
+          : filtroAsignado === "responsable"
+            ? "Seguimiento por responsable"
+            : puedeVerEquipo ? "Vista completa del sistema según permisos" : "Asignadas, delegadas o participadas por mí"
   const tabsTrabajo = [
     { key: "mias", label: "Asignadas a mí", count: misTareas.length, icon: User },
     { key: "creadas", label: "Delegadas por mí", count: tareasDelegadas.length, icon: Users },
     { key: "participo", label: "En las que participo", count: tareasParticipa.length, icon: Eye },
-    ...(puedeVerEquipo ? [{ key: "todos", label: "Todas", count: tareas.length, icon: Grid2X2 }] : []),
+    { key: "todos", label: "Todas", count: tareasRelacionadas.length, icon: Grid2X2 },
   ]
   const tareasPagina = tareasFiltradas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
   const totalPaginas = Math.max(1, Math.ceil(tareasFiltradas.length / POR_PAGINA))
@@ -548,10 +593,9 @@ export default function TareasPage() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 18, marginBottom: 18 }}>
+        <div style={{ marginBottom: 18 }}>
           {[
-            { title: "Mis tareas asignadas a mí", subtitle: "Tareas que debo ejecutar", cards: tarjetasMisTareas },
-            { title: "Mis tareas delegadas a otros", subtitle: "Tareas que he creado y estoy haciendo seguimiento", cards: tarjetasDelegadas },
+            { title: tituloResumenActual, subtitle: subtituloResumenActual, cards: tarjetasResumenActual },
           ].map(section => (
             <div key={section.title} className="card" style={{ padding: 20, background: "#fff", border: "1px solid #dbe2ea", borderRadius: 8 }}>
               <div style={{ marginBottom: 22 }}>
@@ -686,6 +730,8 @@ export default function TareasPage() {
                   const es = ESTADOS[t.estado] || ESTADOS.pendiente
                   const pr = PRIORIDADES[t.prioridad] || PRIORIDADES.media
                   const vencida = estaVencida(t)
+                  const rolUsuario = rolUsuarioEnTarea(t)
+                  const participantes = participantesNombres(t)
                   return (
                     <tr key={t.id} onClick={() => abrirDetalle(t)}
                       style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === t.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
@@ -693,8 +739,10 @@ export default function TareasPage() {
                       <td style={{ padding: "10px 16px" }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{t.titulo}</div>
                         <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{t.proyecto?.codigo || "Sin proyecto"}</div>
-                        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Solicitado por {t.creador ? nombreUsuario(t.creador) : "—"}</div>
+                        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Solicitante: {t.creador ? nombreUsuario(t.creador) : "—"}</div>
+                        {participantes && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Participantes: {participantes}</div>}
                         <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 4 }}>
+                          {rolUsuario && <span style={{ fontSize: 10, background: "#eff6ff", color: "#1d4ed8", padding: "1px 6px", borderRadius: 99, fontWeight: 800 }}>Mi rol: {rolUsuario}</span>}
                           {vencida && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>VENCIDA</span>}
                           {t.frecuencia && t.frecuencia !== "no_repite" && <span style={{ fontSize: 10, background: "#ecfeff", color: "#155e75", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>{FRECUENCIAS[t.frecuencia] || "Recurrente"}</span>}
                           {(t.participantes || []).length > 0 && <span style={{ fontSize: 10, background: "#f3f4f6", color: "#4b5563", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>{(t.participantes || []).length} participante{(t.participantes || []).length !== 1 ? "s" : ""}</span>}
@@ -803,8 +851,9 @@ export default function TareasPage() {
             {[
               { label: "Prioridad", value: PRIORIDADES[selected.prioridad]?.label || "—" },
               { label: "Responsable", value: selected.asignado ? selected.asignado.nombre + " " + selected.asignado.apellido : "—" },
-              { label: "Participantes", value: (selected.participantes || []).map((p: any) => p.usuario ? `${p.usuario.nombre} ${p.usuario.apellido}` : "").filter(Boolean).join(", ") || "—" },
-              { label: "Creado por", value: selected.creador ? selected.creador.nombre + " " + selected.creador.apellido : "—" },
+              { label: "Solicitante", value: selected.creador ? selected.creador.nombre + " " + selected.creador.apellido : "—" },
+              { label: "Participantes", value: participantesNombres(selected) || "—" },
+              { label: "Mi rol", value: rolUsuarioEnTarea(selected) || "—" },
               { label: "Frecuencia", value: FRECUENCIAS[selected.frecuencia] || "No se repite" },
               { label: "Proyecto", value: selected.proyecto ? selected.proyecto.codigo + " — " + selected.proyecto.nombre : "—" },
               { label: "Cliente", value: selected.cliente?.razon_social || "—" },
