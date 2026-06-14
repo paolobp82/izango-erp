@@ -79,6 +79,11 @@ export default function ProyectoDetallePage() {
       .select("*, cliente:clientes(razon_social, ruc, direccion, nombre_contacto, email_contacto, telefono_contacto), productor:perfiles!productor_id(nombre, apellido)")
       .eq("id", id)
       .single()
+    if (!proy || proy.deleted_at) {
+      setLoading(false)
+      router.replace("/proyectos")
+      return
+    }
     setProyecto(proy)
 
     const { data: cots } = await supabase.from("cotizaciones").select("*").eq("proyecto_id", id).is("deleted_at", null).order("version")

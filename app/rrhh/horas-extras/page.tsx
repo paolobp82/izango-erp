@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 const PROYECTO_OTRO = "__otro__"
 
@@ -32,11 +33,11 @@ export default function HorasExtrasPage() {
       setTrabajadorPropio(t)
     }
     const [{ data: regs }, { data: trabs }, { data: pros }] = await Promise.all([
-      supabase.from("rrhh_horas_extras").select("*, trabajador:rrhh_trabajadores(nombre,apellido,sueldo_base), proyecto:proyectos(nombre,codigo)").order("fecha", { ascending: false }),
+      supabase.from("rrhh_horas_extras").select("*, trabajador:rrhh_trabajadores(nombre,apellido,sueldo_base), proyecto:proyectos(nombre,codigo,deleted_at)").order("fecha", { ascending: false }),
       supabase.from("rrhh_trabajadores").select("id,nombre,apellido").eq("activo", true).order("apellido"),
-      supabase.from("proyectos").select("id,nombre,codigo").order("nombre"),
+      supabase.from("proyectos").select("id,nombre,codigo").is("deleted_at", null).order("nombre"),
     ])
-    setRegistros(regs || [])
+    setRegistros((regs || []).filter((registro: any) => !rowBelongsToDeletedProject(registro)))
     setTrabajadores(trabs || [])
     setProyectos(pros || [])
     setLoading(false)

@@ -78,11 +78,30 @@ export default function AdminUsuariosPage() {
   }
 
   async function cambiarPerfil(id: string, nuevoPerfil: string) {
-    await supabase.from("perfiles").update({ perfil: nuevoPerfil }).eq("id", id)
-    load()
+    setSaving(true)
+    setMsg("")
+    setError("")
+
+    const res = await fetch("/api/admin/cambiar-rol", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: id, nuevo_perfil: nuevoPerfil })
+    })
+
+    const data = await res.json()
+
+    if (data.error) {
+      setError(data.error)
+    } else {
+      setMsg(data.message || "Rol actualizado correctamente")
+      await load()
+    }
+
+    setSaving(false)
   }
 
   const esAdmin = perfil?.perfil === "superadmin" || perfil?.perfil === "gerente_general"
+  const puedeCambiarRoles = perfil?.perfil === "superadmin"
 
   const inp: any = { padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none", boxSizing: "border-box" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }
@@ -127,7 +146,7 @@ export default function AdminUsuariosPage() {
                   </div>
                 </td>
                 <td style={{ padding: "12px" }}>
-                  <select value={u.perfil} onChange={e => cambiarPerfil(u.id, e.target.value)}
+                  <select value={u.perfil} disabled={!puedeCambiarRoles || saving} onChange={e => cambiarPerfil(u.id, e.target.value)}
                     style={{ padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", cursor: "pointer" }}>
                     {PERFILES.map(p => <option key={p} value={p}>{PERFIL_LABEL[p]}</option>)}
                   </select>
@@ -214,3 +233,5 @@ export default function AdminUsuariosPage() {
     </div>
   )
 }
+
+

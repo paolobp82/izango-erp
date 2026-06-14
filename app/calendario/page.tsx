@@ -28,6 +28,7 @@ export default function CalendarioPage() {
       .from("proyectos")
       .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)")
       .in("estado", ["aprobado", "aprobado_produccion", "en_curso", "terminado", "facturado"])
+      .is("deleted_at", null)
       .not("fecha_inicio", "is", null)
       .order("fecha_inicio")
     setProyectos(data || [])

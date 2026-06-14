@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 const TIPOS = ["salida", "ingreso", "devolucion", "traslado"]
 const ESTADOS = ["borrador", "aprobada", "ejecutada", "cerrada", "cancelada"]
@@ -29,12 +30,12 @@ export default function OrdenesInventarioPage() {
 
   async function load() {
     const [{ data: ords }, { data: its }, { data: ubs }, { data: pros }] = await Promise.all([
-      supabase.from("inventario_ordenes").select("*, proyecto:proyectos(nombre,codigo), ubicacion_origen:inventario_ubicaciones!ubicacion_origen_id(nombre), ubicacion_destino:inventario_ubicaciones!ubicacion_destino_id(nombre), solicitado:perfiles!solicitado_por(nombre,apellido), inventario_orden_items(*, item:inventario_items(nombre))").order("created_at", { ascending: false }),
+      supabase.from("inventario_ordenes").select("*, proyecto:proyectos(nombre,codigo,deleted_at), ubicacion_origen:inventario_ubicaciones!ubicacion_origen_id(nombre), ubicacion_destino:inventario_ubicaciones!ubicacion_destino_id(nombre), solicitado:perfiles!solicitado_por(nombre,apellido), inventario_orden_items(*, item:inventario_items(nombre))").order("created_at", { ascending: false }),
       supabase.from("inventario_items").select("*, inventario_variantes(*)").eq("activo", true).order("nombre"),
       supabase.from("inventario_ubicaciones").select("*").eq("activo", true),
-      supabase.from("proyectos").select("id, nombre, codigo").order("nombre"),
+      supabase.from("proyectos").select("id, nombre, codigo").is("deleted_at", null).order("nombre"),
     ])
-    setOrdenes(ords || [])
+    setOrdenes((ords || []).filter((orden: any) => !rowBelongsToDeletedProject(orden)))
     setItems(its || [])
     setUbicaciones(ubs || [])
     setProyectos(pros || [])

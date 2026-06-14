@@ -1,8 +1,10 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { useRouter } from "next/navigation"
+
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 import { ArrowUpDown, CalendarDays, Check, ClipboardCheck, Eye, Grid2X2, MoreVertical, Play, Plus, User, Users } from "lucide-react"
 
 const ESTADOS: Record<string, any> = {
@@ -86,17 +88,22 @@ export default function TareasPage() {
     }
     const { data: t } = await supabase
       .from("tareas")
+
+      .select("*, proyecto:proyectos(nombre, codigo, deleted_at), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido)")
       .select("*, proyecto:proyectos(nombre, codigo), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido), participantes:tarea_participantes(usuario_id, usuario:perfiles!usuario_id(id,nombre,apellido))")
+
       .order("created_at", { ascending: false })
-    setTareas(t || [])
+    const tareasActivas = (t || []).filter((item: any) => !rowBelongsToDeletedProject(item))
+    setTareas(tareasActivas)
     if (tareaIdParam) {
-      const tareaDirecta = (t || []).find((item: any) => item.id === tareaIdParam)
+      const tareaDirecta = tareasActivas.find((item: any) => item.id === tareaIdParam)
       if (tareaDirecta) {
         setSelected(tareaDirecta)
         await loadComentarios(tareaDirecta.id)
       }
     }
-    const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").order("nombre")
+
+    const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").is("deleted_at", null).order("nombre")
     setProyectos(pr || [])
     const { data: cl } = await supabase.from("clientes").select("id, razon_social").order("razon_social")
     setClientes(cl || [])
@@ -1168,3 +1175,8 @@ export default function TareasPage() {
     </div>
   )
 }
+
+
+
+
+

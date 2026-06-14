@@ -19,13 +19,14 @@ export async function buscarItemsCotizados(supabase: any, options: { query?: str
   const { data: cotizaciones, error: cotizacionesError } = await supabase
     .from("cotizaciones")
     .select("id,version,estado,created_at,proyecto_id")
+    .is("deleted_at", null)
     .in("id", cotizacionIds)
 
   if (cotizacionesError) return { data: [], error: cotizacionesError }
 
   const proyectoIds = [...new Set((cotizaciones || []).map((cot: any) => cot.proyecto_id).filter(Boolean))]
   const { data: proyectos, error: proyectosError } = proyectoIds.length > 0
-    ? await supabase.from("proyectos").select("id,codigo,nombre,cliente_id").in("id", proyectoIds)
+    ? await supabase.from("proyectos").select("id,codigo,nombre,cliente_id").is("deleted_at", null).in("id", proyectoIds)
     : { data: [], error: null }
 
   if (proyectosError) return { data: [], error: proyectosError }
@@ -49,7 +50,7 @@ export async function buscarItemsCotizados(supabase: any, options: { query?: str
       ...item,
       cotizacion: cotizacion ? { ...cotizacion, proyecto: proyecto ? { ...proyecto, cliente } : null } : null,
     }
-  })
+  }).filter((item: any) => !item.cotizacion?.proyecto_id || item.cotizacion?.proyecto)
 
   return { data, error: null }
 }
