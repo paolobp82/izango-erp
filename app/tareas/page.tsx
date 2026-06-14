@@ -1,12 +1,11 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { useRouter } from "next/navigation"
-codex/project-soft-delete-cascade
+
 import { rowBelongsToDeletedProject } from "@/lib/projects"
 import { ArrowUpDown, CalendarDays, Check, ClipboardCheck, Eye, Grid2X2, MoreVertical, Play, Plus, User, Users } from "lucide-react"
-main
 
 const ESTADOS: Record<string, any> = {
   pendiente:    { label: "Pendiente",    bg: "#fef9c3", color: "#92400e" },
@@ -89,10 +88,10 @@ export default function TareasPage() {
     }
     const { data: t } = await supabase
       .from("tareas")
-codex/project-soft-delete-cascade
+
       .select("*, proyecto:proyectos(nombre, codigo, deleted_at), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido)")
       .select("*, proyecto:proyectos(nombre, codigo), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido), participantes:tarea_participantes(usuario_id, usuario:perfiles!usuario_id(id,nombre,apellido))")
-main
+
       .order("created_at", { ascending: false })
     const tareasActivas = (t || []).filter((item: any) => !rowBelongsToDeletedProject(item))
     setTareas(tareasActivas)
@@ -103,16 +102,8 @@ main
         await loadComentarios(tareaDirecta.id)
       }
     }
-codex/project-soft-delete-cascade
-    const { data: av } = await supabase
-      .from("audiovisual_requerimientos")
-      .select("*, proyecto:proyectos(id,nombre,codigo,deleted_at), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido)")
-      .is("deleted_at", null)
-      .order("fecha_entrega_solicitada", { ascending: true })
-    setAudiovisuales((av || []).filter((item: any) => !rowBelongsToDeletedProject(item)))
+
     const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").is("deleted_at", null).order("nombre")
-    const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").order("nombre")
-main
     setProyectos(pr || [])
     const { data: cl } = await supabase.from("clientes").select("id, razon_social").order("razon_social")
     setClientes(cl || [])
@@ -1184,3 +1175,8 @@ main
     </div>
   )
 }
+
+
+
+
+

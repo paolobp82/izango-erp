@@ -83,21 +83,21 @@ export async function POST(request: NextRequest) {
 
     const { data: tarea, error: tareaError } = await auth.supabase
       .from("tareas")
-codex/project-soft-delete-cascade
-      .select("*, proyecto:proyectos(nombre,codigo,deleted_at), cliente:clientes(razon_social), asignado:perfiles!asignado_a(id,nombre,apellido), creador:perfiles!creado_por(id,nombre,apellido)")
-      .select("*, proyecto:proyectos(nombre,codigo), cliente:clientes(razon_social), asignado:perfiles!asignado_a(id,nombre,apellido), creador:perfiles!creado_por(id,nombre,apellido), participantes:tarea_participantes(usuario_id, usuario:perfiles!usuario_id(id,nombre,apellido))")main
+      .select("*, proyecto:proyectos(nombre,codigo,deleted_at), cliente:clientes(razon_social), asignado:perfiles!asignado_a(id,nombre,apellido), creador:perfiles!creado_por(id,nombre,apellido), participantes:tarea_participantes(usuario_id, usuario:perfiles!usuario_id(id,nombre,apellido))")
       .eq("id", body.tarea_id)
       .single()
 
     if (tareaError || !tarea) {
       return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 })
     }
-codex/project-soft-delete-cascade
+
     if (tarea.proyecto?.deleted_at) {
       return NextResponse.json({ error: "Proyecto eliminado" }, { status: 410 })
+    }
+
     if (tarea.recibir_correos_automaticos === false) {
       return NextResponse.json({ enviados: 0, total: 0, motivo: "Correos automaticos desactivados para esta tarea" })
-main
+
     }
 
     const admin = createAdminClient()
@@ -173,3 +173,7 @@ main
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 })
   }
 }
+
+
+
+
