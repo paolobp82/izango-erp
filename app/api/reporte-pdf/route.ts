@@ -26,7 +26,7 @@ type Cotizacion = {
   cotizacion_items?: Array<{ descripcion?: string | null; costo_total?: number | null; margen_pct?: number | null; precio_cliente?: number | null }>
 }
 
-type Rq = { codigo_rq?: string | null; numero_rq?: string | null; descripcion?: string | null; proveedor_nombre?: string | null; monto_solicitado?: number | null; estado?: string | null; tratamiento_igv?: string | null; incluye_igv?: boolean | null }
+type Rq = { codigo_rq?: string | null; numero_rq?: string | null; descripcion?: string | null; proveedor_nombre?: string | null; monto_solicitado?: number | null; estado?: string | null; tratamiento_igv?: string | null }
 type Liquidacion = { margen_real_pct?: number | null; costo_presupuestado?: number | null; costo_real?: number | null; desvio_costo?: number | null; margen_presupuestado_pct?: number | null; desvio_margen_pp?: number | null; cerrada?: boolean | null }
 type Factura = { numero_factura?: string | null; subtotal?: number | null; igv?: number | null; estado?: string | null; fecha_emision?: string | null }
 
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     const [{ data: cotizaciones }, { data: rqs }, { data: liquidacion }, { data: facturas }] = await Promise.all([
       supabase.from("cotizaciones").select("*, cotizacion_items(*)").eq("proyecto_id", proyectoId).order("version").returns<Cotizacion[]>(),
-      supabase.from("requerimientos_pago").select("codigo_rq,numero_rq,descripcion,proveedor_nombre,monto_solicitado,estado,tratamiento_igv,incluye_igv").eq("proyecto_id", proyectoId).order("created_at").returns<Rq[]>(),
+      supabase.from("requerimientos_pago").select("codigo_rq,numero_rq,descripcion,proveedor_nombre,monto_solicitado,estado,tratamiento_igv").eq("proyecto_id", proyectoId).order("created_at").returns<Rq[]>(),
       supabase.from("liquidaciones").select("costo_presupuestado,costo_real,desvio_costo,margen_presupuestado_pct,margen_real_pct,desvio_margen_pp,cerrada").eq("proyecto_id", proyectoId).maybeSingle<Liquidacion>(),
       supabase.from("facturas").select("numero_factura,subtotal,igv,estado,fecha_emision").eq("proyecto_id", proyectoId).returns<Factura[]>(),
     ])

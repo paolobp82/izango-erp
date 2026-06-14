@@ -6,6 +6,13 @@ import { escapeAttribute, escapeHtml as h } from "@/lib/html"
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://izango-erp.vercel.app")
 
 type EventoTarea = "creada" | "comentario" | "estado" | "devuelta" | "completada"
+type ParticipanteTarea = {
+  usuario_id?: string | null
+  usuario?: {
+    nombre?: string | null
+    apellido?: string | null
+  } | null
+}
 
 function nombrePerfil(perfil: any) {
   return [perfil?.nombre, perfil?.apellido].filter(Boolean).join(" ") || "Usuario"
@@ -76,15 +83,21 @@ export async function POST(request: NextRequest) {
 
     const { data: tarea, error: tareaError } = await auth.supabase
       .from("tareas")
-      .select("*, proyecto:proyectos(nombre,codigo,deleted_at), cliente:clientes(razon_social), asignado:perfiles!asignado_a(id,nombre,apellido), creador:perfiles!creado_por(id,nombre,apellido)")
+      .select("*, proyecto:proyectos(nombre,codigo,deleted_at), cliente:clientes(razon_social), asignado:perfiles!asignado_a(id,nombre,apellido), creador:perfiles!creado_por(id,nombre,apellido), participantes:tarea_participantes(usuario_id, usuario:perfiles!usuario_id(id,nombre,apellido))")
       .eq("id", body.tarea_id)
       .single()
 
     if (tareaError || !tarea) {
       return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 })
     }
+
     if (tarea.proyecto?.deleted_at) {
       return NextResponse.json({ error: "Proyecto eliminado" }, { status: 410 })
+    }
+
+    if (tarea.recibir_correos_automaticos === false) {
+      return NextResponse.json({ enviados: 0, total: 0, motivo: "Correos automaticos desactivados para esta tarea" })
+
     }
 
     const admin = createAdminClient()
@@ -94,6 +107,8 @@ export async function POST(request: NextRequest) {
 
     const asignadoId = tarea.asignado_a as string | null
     const creadorId = tarea.creado_por as string | null
+    const participantes = (tarea.participantes || []) as ParticipanteTarea[]
+    const participanteIds = participantes.map(p => p.usuario_id).filter(Boolean) as string[]
 
     if (body.evento === "creada" && asignadoId && asignadoId !== actorId) destinatarios.add(asignadoId)
     if (body.evento === "comentario") {
@@ -105,6 +120,11 @@ export async function POST(request: NextRequest) {
     if (body.evento === "completada") {
       if (creadorId && creadorId !== actorId) destinatarios.add(creadorId)
       if (asignadoId && asignadoId !== actorId) destinatarios.add(asignadoId)
+    }
+    if (tarea.notificar_participantes !== false) {
+      participanteIds.forEach(id => {
+        if (id !== actorId) destinatarios.add(id)
+      })
     }
 
     const emails = (await Promise.all(Array.from(destinatarios).map(id => emailForProfile(admin, auth.supabase, id, pref)))).filter(Boolean) as string[]
@@ -120,6 +140,7 @@ export async function POST(request: NextRequest) {
       <p><strong>Fecha limite:</strong> ${h(tarea.fecha_limite || "Sin fecha")}</p>
       <p><strong>Solicitado por:</strong> ${h(nombrePerfil(tarea.creador))}</p>
       <p><strong>Responsable:</strong> ${h(nombrePerfil(tarea.asignado))}</p>
+      <p><strong>Participantes:</strong> ${h(participantes.map(p => nombrePerfil(p.usuario)).join(", ") || "Sin participantes")}</p>
     </div>`
 
     const bodyHtml =
@@ -152,3 +173,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 })
   }
 }
+
+
+
+

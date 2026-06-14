@@ -1,9 +1,11 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { useRouter } from "next/navigation"
+
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import { ArrowUpDown, CalendarDays, Check, ClipboardCheck, Eye, Grid2X2, MoreVertical, Play, Plus, User, Users } from "lucide-react"
 
 const ESTADOS: Record<string, any> = {
   pendiente:    { label: "Pendiente",    bg: "#fef9c3", color: "#92400e" },
@@ -20,32 +22,37 @@ const PRIORIDADES: Record<string, any> = {
   urgente: { label: "Urgente", bg: "#fee2e2", color: "#991b1b" },
 }
 
-const AV_ESTADOS: Record<string, any> = {
-  pendiente: { label: "Pendiente", bg: "#fef9c3", color: "#92400e" },
-  en_progreso: { label: "En progreso", bg: "#dbeafe", color: "#1e40af" },
-  en_revision: { label: "En revision", bg: "#f5f3ff", color: "#6d28d9" },
-  completado: { label: "Completado", bg: "#dcfce7", color: "#15803d" },
-  cancelado: { label: "Cancelado", bg: "#fee2e2", color: "#991b1b" },
+const FRECUENCIAS: Record<string, string> = {
+  no_repite: "No se repite",
+  diario: "Diario",
+  semanal: "Semanal",
+  mensual: "Mensual",
+  anual: "Anual",
+  laborables: "Días laborables",
+  personalizado_dias: "Personalizado: días",
+  personalizado_semanas: "Personalizado: semanas",
+  personalizado_meses: "Personalizado: meses",
 }
 
 const formVacio = {
   titulo: "", descripcion: "", estado: "pendiente", prioridad: "media",
   proyecto_id: "", cliente_id: "", asignado_a: "", fecha_limite: "",
-  link_inicial: "", notificar_email: true,
+  participante_ids: [] as string[],
+  frecuencia: "no_repite", recurrencia_intervalo: 1, recurrencia_fecha_fin: "", recurrencia_max_repeticiones: "",
+  link_inicial: "", notificar_participantes: true, mostrar_participantes_mi_trabajo: true, permitir_comentarios: true, recibir_correos_automaticos: true,
 }
 
 export default function TareasPage() {
   const supabase = createClient()
   const router = useRouter()
   const [tareas, setTareas] = useState<any[]>([])
-  const [audiovisuales, setAudiovisuales] = useState<any[]>([])
   const [proyectos, setProyectos] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [usuarios, setUsuarios] = useState<any[]>([])
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [pagina, setPagina] = useState(1)
-  const POR_PAGINA = 50
+  const POR_PAGINA = 10
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [selected, setSelected] = useState<any>(null)
@@ -57,15 +64,13 @@ export default function TareasPage() {
   const [form, setForm] = useState({ ...formVacio })
   const [filtroEstado, setFiltroEstado] = useState("todos")
   const [filtroAsignado, setFiltroAsignado] = useState("mias")
+  const [filtroProyecto, setFiltroProyecto] = useState("")
+  const [filtroPrioridad, setFiltroPrioridad] = useState("todos")
+  const [filtroFecha, setFiltroFecha] = useState("")
   const [responsableId, setResponsableId] = useState("")
   const [ordenCampo, setOrdenCampo] = useState("fecha_limite")
   const [ordenDir, setOrdenDir] = useState("asc")
-  const [avResponsableId, setAvResponsableId] = useState("")
-  const [avProyectoId, setAvProyectoId] = useState("")
-  const [avPrioridad, setAvPrioridad] = useState("todos")
-  const [avAvance, setAvAvance] = useState("todos")
-  const [avEstado, setAvEstado] = useState("activos")
-  const [avFecha, setAvFecha] = useState("")
+  const [participanteSearch, setParticipanteSearch] = useState("")
 
   useEffect(() => { load() }, [])
 
@@ -83,7 +88,10 @@ export default function TareasPage() {
     }
     const { data: t } = await supabase
       .from("tareas")
+
       .select("*, proyecto:proyectos(nombre, codigo, deleted_at), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido)")
+      .select("*, proyecto:proyectos(nombre, codigo), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido), participantes:tarea_participantes(usuario_id, usuario:perfiles!usuario_id(id,nombre,apellido))")
+
       .order("created_at", { ascending: false })
     const tareasActivas = (t || []).filter((item: any) => !rowBelongsToDeletedProject(item))
     setTareas(tareasActivas)
@@ -94,12 +102,7 @@ export default function TareasPage() {
         await loadComentarios(tareaDirecta.id)
       }
     }
-    const { data: av } = await supabase
-      .from("audiovisual_requerimientos")
-      .select("*, proyecto:proyectos(id,nombre,codigo,deleted_at), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido)")
-      .is("deleted_at", null)
-      .order("fecha_entrega_solicitada", { ascending: true })
-    setAudiovisuales((av || []).filter((item: any) => !rowBelongsToDeletedProject(item)))
+
     const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").is("deleted_at", null).order("nombre")
     setProyectos(pr || [])
     const { data: cl } = await supabase.from("clientes").select("id, razon_social").order("razon_social")
@@ -139,9 +142,17 @@ export default function TareasPage() {
       proyecto_id: t.proyecto_id || "",
       cliente_id: t.cliente_id || "",
       asignado_a: t.asignado_a || "",
+      participante_ids: (t.participantes || []).map((p: any) => p.usuario_id).filter(Boolean),
       fecha_limite: t.fecha_limite || "",
+      frecuencia: t.frecuencia || "no_repite",
+      recurrencia_intervalo: t.recurrencia_intervalo || 1,
+      recurrencia_fecha_fin: t.recurrencia_fecha_fin || "",
+      recurrencia_max_repeticiones: t.recurrencia_max_repeticiones ? String(t.recurrencia_max_repeticiones) : "",
       link_inicial: "",
-      notificar_email: true,
+      notificar_participantes: t.notificar_participantes ?? true,
+      mostrar_participantes_mi_trabajo: t.mostrar_participantes_mi_trabajo ?? true,
+      permitir_comentarios: t.permitir_comentarios ?? true,
+      recibir_correos_automaticos: t.recibir_correos_automaticos ?? true,
     })
     setShowForm(true)
   }
@@ -190,6 +201,107 @@ export default function TareasPage() {
     return false
   }
 
+  function participantesIds(t: any) {
+    return (t?.participantes || []).map((p: any) => p.usuario_id).filter(Boolean)
+  }
+
+  function esParticipante(t: any) {
+    return Boolean(perfil?.id && t?.mostrar_participantes_mi_trabajo !== false && participantesIds(t).includes(perfil.id))
+  }
+
+  function esTareaRelacionada(t: any) {
+    return Boolean(esResponsable(t) || (perfil?.id && t?.creado_por === perfil.id) || esParticipante(t))
+  }
+
+  function participantesNombres(t: any) {
+    return (t?.participantes || [])
+      .map((p: any) => p.usuario ? nombreUsuario(p.usuario) : "")
+      .filter(Boolean)
+      .join(", ")
+  }
+
+  function rolUsuarioEnTarea(t: any) {
+    if (esResponsable(t)) return "Responsable"
+    if (perfil?.id && t?.creado_por === perfil.id && t?.asignado_a !== perfil.id) return "Solicitante"
+    if (esParticipante(t)) return "Participante"
+    return puedeVerEquipo ? "Equipo" : ""
+  }
+
+  function addMonthsSafe(date: Date, months: number) {
+    const d = new Date(date)
+    const day = d.getDate()
+    d.setMonth(d.getMonth() + months, 1)
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+    d.setDate(Math.min(day, lastDay))
+    return d
+  }
+
+  function formatDate(date: Date) {
+    return date.toISOString().split("T")[0]
+  }
+
+  function siguienteFecha(t: any) {
+    if (!t?.fecha_limite || !t.frecuencia || t.frecuencia === "no_repite") return ""
+    const intervalo = Math.max(Number(t.recurrencia_intervalo || 1), 1)
+    const base = new Date(`${t.fecha_limite}T12:00:00`)
+    let next = new Date(base)
+    if (t.frecuencia === "diario") next.setDate(base.getDate() + 1)
+    if (t.frecuencia === "semanal") next.setDate(base.getDate() + 7)
+    if (t.frecuencia === "mensual") next = addMonthsSafe(base, 1)
+    if (t.frecuencia === "anual") next.setFullYear(base.getFullYear() + 1)
+    if (t.frecuencia === "laborables") {
+      next.setDate(base.getDate() + 1)
+      while ([0, 6].includes(next.getDay())) next.setDate(next.getDate() + 1)
+    }
+    if (t.frecuencia === "personalizado_dias") next.setDate(base.getDate() + intervalo)
+    if (t.frecuencia === "personalizado_semanas") next.setDate(base.getDate() + intervalo * 7)
+    if (t.frecuencia === "personalizado_meses") next = addMonthsSafe(base, intervalo)
+    const nextText = formatDate(next)
+    if (t.recurrencia_fecha_fin && nextText > t.recurrencia_fecha_fin) return ""
+    if (t.recurrencia_max_repeticiones && Number(t.recurrencia_secuencia || 1) >= Number(t.recurrencia_max_repeticiones)) return ""
+    return nextText
+  }
+
+  async function guardarParticipantes(tareaId: string, ids: string[]) {
+    await supabase.from("tarea_participantes").delete().eq("tarea_id", tareaId)
+    const rows = Array.from(new Set(ids.filter(Boolean))).map(usuario_id => ({ tarea_id: tareaId, usuario_id }))
+    if (rows.length > 0) await supabase.from("tarea_participantes").insert(rows)
+  }
+
+  async function generarSiguienteOcurrencia(t: any) {
+    const fecha = siguienteFecha(t)
+    if (!fecha) return null
+    const payload = {
+      titulo: t.titulo,
+      descripcion: t.descripcion || null,
+      estado: "pendiente",
+      prioridad: t.prioridad || "media",
+      proyecto_id: t.proyecto_id || null,
+      cliente_id: t.cliente_id || null,
+      asignado_a: t.asignado_a || null,
+      fecha_limite: fecha,
+      creado_por: t.creado_por || perfil?.id || null,
+      frecuencia: t.frecuencia,
+      recurrencia_intervalo: t.recurrencia_intervalo || 1,
+      recurrencia_fecha_fin: t.recurrencia_fecha_fin || null,
+      recurrencia_max_repeticiones: t.recurrencia_max_repeticiones || null,
+      recurrencia_grupo_id: t.recurrencia_grupo_id || t.id,
+      recurrencia_tarea_anterior_id: t.id,
+      recurrencia_secuencia: Number(t.recurrencia_secuencia || 1) + 1,
+      notificar_participantes: t.notificar_participantes ?? true,
+      mostrar_participantes_mi_trabajo: t.mostrar_participantes_mi_trabajo ?? true,
+      permitir_comentarios: t.permitir_comentarios ?? true,
+      recibir_correos_automaticos: t.recibir_correos_automaticos ?? true,
+    }
+    const { data: nueva } = await supabase.from("tareas").insert(payload).select("id").single()
+    if (nueva?.id) {
+      await guardarParticipantes(nueva.id, participantesIds(t))
+      await agregarEventoFeed(nueva.id, "cambio_estado", `Ocurrencia generada desde la tarea anterior con fecha límite ${t.fecha_limite || "sin fecha"}.`)
+      if (payload.recibir_correos_automaticos) await notificarTarea(nueva.id, "creada")
+    }
+    return nueva?.id || null
+  }
+
   async function agregarEventoFeed(tareaId: string, tipo: string, comentario: string, linkUrl = "") {
     await supabase.from("tarea_comentarios").insert({
       tarea_id: tareaId,
@@ -214,20 +326,32 @@ export default function TareasPage() {
       asignado_a: form.asignado_a || null,
       fecha_limite: form.fecha_limite || null,
       fecha_completada: form.estado === "completada" ? new Date().toISOString() : null,
+      frecuencia: form.frecuencia,
+      recurrencia_intervalo: Number(form.recurrencia_intervalo || 1),
+      recurrencia_fecha_fin: form.recurrencia_fecha_fin || null,
+      recurrencia_max_repeticiones: form.recurrencia_max_repeticiones ? Number(form.recurrencia_max_repeticiones) : null,
+      notificar_participantes: form.notificar_participantes,
+      mostrar_participantes_mi_trabajo: form.mostrar_participantes_mi_trabajo,
+      permitir_comentarios: form.permitir_comentarios,
+      recibir_correos_automaticos: form.recibir_correos_automaticos,
     }
     if (editando) {
       await supabase.from("tareas").update(payload).eq("id", editando.id)
+      await guardarParticipantes(editando.id, form.participante_ids)
       await registrarAccion({ accion: "editar", modulo: "tareas", entidad_tipo: "tarea", descripcion: "Tarea editada: " + form.titulo })
     } else {
       payload.creado_por = perfil?.id || null
+      payload.recurrencia_grupo_id = undefined
       const { data: nueva } = await supabase.from("tareas").insert(payload).select("id").single()
       await registrarAccion({ accion: "crear", modulo: "tareas", entidad_tipo: "tarea", descripcion: "Tarea creada: " + form.titulo })
       if (nueva?.id) {
+        await supabase.from("tareas").update({ recurrencia_grupo_id: nueva.id }).eq("id", nueva.id)
+        await guardarParticipantes(nueva.id, form.participante_ids)
         await agregarEventoFeed(nueva.id, "cambio_estado", "Tarea creada y delegada.")
         if (form.link_inicial?.trim()) {
           await agregarEventoFeed(nueva.id, "adjunto", "Referencia inicial adjunta.", form.link_inicial.trim())
         }
-        if (form.notificar_email) await notificarTarea(nueva.id, "creada")
+        if (form.recibir_correos_automaticos) await notificarTarea(nueva.id, "creada")
       }
     }
     setSaving(false)
@@ -252,9 +376,18 @@ export default function TareasPage() {
       estado_anterior: ESTADOS[estadoAnterior]?.label || estadoAnterior,
       estado_nuevo: ESTADOS[estado]?.label || estado,
     })
+    let generoSiguiente = false
+    if (estado === "completada" && tareaActual?.frecuencia && tareaActual.frecuencia !== "no_repite") {
+      const siguienteId = await generarSiguienteOcurrencia(tareaActual)
+      if (siguienteId) {
+        generoSiguiente = true
+        await agregarEventoFeed(id, "cambio_estado", "Se generó automáticamente la siguiente ocurrencia recurrente.")
+      }
+    }
     setTareas(prev => prev.map(t => t.id === id ? { ...t, ...payload } : t))
     if (selected?.id === id) setSelected((prev: any) => ({ ...prev, ...payload }))
     await loadComentarios(id)
+    if (generoSiguiente) await load()
   }
 
   async function eliminar(id: string) {
@@ -266,6 +399,7 @@ export default function TareasPage() {
 
   async function agregarComentario() {
     if (!nuevoComentario.trim() || !selected) return
+    if (selected.permitir_comentarios === false) return
     setSavingCom(true)
     await supabase.from("tarea_comentarios").insert({
       tarea_id: selected.id,
@@ -286,11 +420,19 @@ export default function TareasPage() {
     await loadComentarios(selected.id)
   }
 
+  const rolesGerenciales = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager", "controller"]
+  const puedeVerEquipo = rolesGerenciales.includes(perfil?.perfil)
+
   const tareasFiltradas = tareas.filter(t => {
     if (filtroEstado !== "todos" && t.estado !== filtroEstado) return false
+    if (filtroProyecto && t.proyecto_id !== filtroProyecto) return false
+    if (filtroPrioridad !== "todos" && t.prioridad !== filtroPrioridad) return false
+    if (filtroFecha && t.fecha_limite !== filtroFecha) return false
     if (filtroAsignado === "mias" && t.asignado_a !== perfil?.id) return false
     if (filtroAsignado === "responsable" && t.asignado_a !== responsableId) return false
-    if (filtroAsignado === "creadas" && t.creado_por !== perfil?.id) return false
+    if (filtroAsignado === "creadas" && (t.creado_por !== perfil?.id || t.asignado_a === perfil?.id)) return false
+    if (filtroAsignado === "participo" && !esParticipante(t)) return false
+    if (filtroAsignado === "todos" && !puedeVerEquipo && !esTareaRelacionada(t)) return false
     return true
   }).sort((a, b) => {
     let valA: any = "", valB: any = ""
@@ -308,40 +450,75 @@ export default function TareasPage() {
 
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
+  const estadoKeys = ["pendiente", "en_progreso", "en_revision", "completada"]
+
+  function nombreUsuario(u: any) {
+    return [u?.nombre, u?.apellido].filter(Boolean).join(" ") || "Sin nombre"
+  }
+
+  function inicialesUsuario(u: any) {
+    const nombre = nombreUsuario(u)
+    return nombre.split(" ").filter(Boolean).slice(0, 2).map((p: string) => p[0]).join("").toUpperCase() || "?"
+  }
+
+  function contarPorEstado(lista: any[], estado: string) {
+    return lista.filter(t => t.estado === estado).length
+  }
+
+  function formatFecha(fecha?: string) {
+    if (!fecha) return "—"
+    return new Date(`${fecha}T12:00:00`).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" })
+  }
+
+  function textoVencimiento(t: any) {
+    if (!t.fecha_limite) return "Sin fecha"
+    if (["completada", "cancelada"].includes(t.estado)) return ESTADOS[t.estado]?.label || "Cerrada"
+    const limite = new Date(`${t.fecha_limite}T12:00:00`).getTime()
+    const actual = new Date(`${hoy}T12:00:00`).getTime()
+    const diff = Math.round((limite - actual) / (24 * 60 * 60 * 1000))
+    if (diff < 0) return `Vencida hace ${Math.abs(diff)} día${Math.abs(diff) !== 1 ? "s" : ""}`
+    if (diff === 0) return "Vence hoy"
+    return `Vence en ${diff} día${diff !== 1 ? "s" : ""}`
+  }
+
+  function toggleParticipante(id: string) {
+    setForm(prev => {
+      const exists = prev.participante_ids.includes(id)
+      return { ...prev, participante_ids: exists ? prev.participante_ids.filter(pid => pid !== id) : [...prev.participante_ids, id] }
+    })
+  }
 
   const hoy = new Date().toISOString().split("T")[0]
   const estaVencida = (t: any) => t.fecha_limite && t.fecha_limite < hoy && t.estado !== "completada" && t.estado !== "cancelada"
   const enProximaSemana = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-  const rolesGerenciales = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager"]
-  const puedeVerEquipo = rolesGerenciales.includes(perfil?.perfil)
-  const puedeFiltrarAudiovisual = puedeVerEquipo || perfil?.perfil === "productor"
-  const esSolicitanteAudiovisual = (r: any) => r.productor_id === perfil?.id || r.creado_por === perfil?.id
-  const audiovisualesFiltrados = audiovisuales.filter(r => {
-    if (!puedeVerEquipo && perfil?.perfil === "productor" && !esSolicitanteAudiovisual(r)) return false
-    if (!puedeVerEquipo && perfil?.perfil !== "productor") {
-      if (r.responsable_audiovisual_id !== perfil?.id && !esSolicitanteAudiovisual(r)) return false
-      if (["completado", "cancelado"].includes(r.estado)) return false
-    }
-    if (puedeFiltrarAudiovisual && avResponsableId && r.responsable_audiovisual_id !== avResponsableId) return false
-    if (puedeFiltrarAudiovisual && avProyectoId && r.proyecto_id !== avProyectoId) return false
-    if (puedeFiltrarAudiovisual && avPrioridad !== "todos" && r.prioridad !== avPrioridad) return false
-    if (puedeFiltrarAudiovisual && avAvance !== "todos" && String(r.avance) !== avAvance) return false
-    if (puedeFiltrarAudiovisual && avEstado === "activos" && ["completado", "cancelado"].includes(r.estado)) return false
-    if (puedeFiltrarAudiovisual && avEstado !== "activos" && avEstado !== "todos" && r.estado !== avEstado) return false
-    if (puedeFiltrarAudiovisual && avFecha && r.fecha_entrega_solicitada !== avFecha) return false
-    return true
-  })
   const misTareas = perfil?.id ? tareas.filter(t => t.asignado_a === perfil.id) : tareas
+  const tareasDelegadas = perfil?.id ? tareas.filter(t => t.creado_por === perfil.id && t.asignado_a !== perfil.id) : []
+  const tareasParticipa = perfil?.id ? tareas.filter(esParticipante) : []
+  const tareasRelacionadas = puedeVerEquipo ? tareas : tareas.filter(esTareaRelacionada)
+  const participantesSeleccionados = usuarios.filter(u => form.participante_ids.includes(u.id))
+  const participantesDisponibles = usuarios
+    .filter(u => u.id !== form.asignado_a)
+    .filter(u => {
+      const q = participanteSearch.trim().toLowerCase()
+      if (!q) return true
+      return `${u.nombre || ""} ${u.apellido || ""} ${u.perfil || ""} ${u.email || ""}`.toLowerCase().includes(q)
+    })
   const responsableSeleccionado = usuarios.find(u => u.id === responsableId)
   const nombreResponsable = responsableSeleccionado ? `${responsableSeleccionado.nombre} ${responsableSeleccionado.apellido}` : "responsable"
   const subtituloTrabajo =
     filtroAsignado === "mias"
       ? `${misTareas.length} tareas asignadas a mí`
+      : filtroAsignado === "creadas"
+        ? `${tareasDelegadas.length} tareas creadas por mí`
+        : filtroAsignado === "participo"
+          ? `${tareasParticipa.length} tareas donde participo`
       : filtroAsignado === "responsable"
         ? `${tareasFiltradas.length} tareas de ${nombreResponsable}`
         : `${tareasFiltradas.length} tareas del equipo`
   const misPendientes = misTareas.filter(t => t.estado === "pendiente").length
   const misEnProgreso = misTareas.filter(t => t.estado === "en_progreso").length
+  const misRevision = misTareas.filter(t => t.estado === "en_revision").length
+  const misCompletadas = misTareas.filter(t => t.estado === "completada").length
   const misVencidas = misTareas.filter(estaVencida).length
   const proximasEntregas = misTareas.filter(t =>
     t.fecha_limite &&
@@ -350,7 +527,58 @@ export default function TareasPage() {
     t.estado !== "completada" &&
     t.estado !== "cancelada"
   ).length
-  const audiovisualesPendientes = audiovisualesFiltrados.filter(r => !["completado", "cancelado"].includes(r.estado)).length
+  const pendientesRespuesta = tareasDelegadas.filter(t => t.estado === "pendiente").length
+  const delegadasEnEjecucion = tareasDelegadas.filter(t => t.estado === "en_progreso").length
+  const delegadasRevision = tareasDelegadas.filter(t => t.estado === "en_revision").length
+  const delegadasCompletadas = tareasDelegadas.filter(t => t.estado === "completada").length
+  const avancePorEstado: Record<string, number> = { pendiente: 0, en_progreso: 40, en_revision: 80, completada: 100, cancelada: 0 }
+  const avanceDelegadas = tareasDelegadas.length
+    ? Math.round(tareasDelegadas.reduce((acc, t) => acc + (avancePorEstado[t.estado] ?? 0), 0) / tareasDelegadas.length)
+    : 0
+  const tareasResumenActual =
+    filtroAsignado === "mias"
+      ? misTareas
+      : filtroAsignado === "creadas"
+        ? tareasDelegadas
+        : filtroAsignado === "participo"
+          ? tareasParticipa
+          : filtroAsignado === "responsable"
+            ? tareas.filter(t => t.asignado_a === responsableId)
+            : tareasRelacionadas
+  const tarjetasResumenActual = estadoKeys.map(estado => ({
+    estado,
+    label: ESTADOS[estado].label,
+    value: contarPorEstado(tareasResumenActual, estado),
+    ...ESTADOS[estado],
+  }))
+  const tituloResumenActual =
+    filtroAsignado === "mias"
+      ? "Tareas asignadas a mí"
+      : filtroAsignado === "creadas"
+        ? "Tareas delegadas por mí"
+        : filtroAsignado === "participo"
+          ? "Tareas en las que participo"
+          : filtroAsignado === "responsable"
+            ? `Tareas de ${nombreResponsable}`
+            : puedeVerEquipo ? "Todas las tareas" : "Todas mis tareas relacionadas"
+  const subtituloResumenActual =
+    filtroAsignado === "mias"
+      ? "Tareas que debo ejecutar personalmente"
+      : filtroAsignado === "creadas"
+        ? "Tareas creadas por mí y asignadas a otra persona"
+        : filtroAsignado === "participo"
+          ? "Tareas donde estoy como participante o seguidor"
+          : filtroAsignado === "responsable"
+            ? "Seguimiento por responsable"
+            : puedeVerEquipo ? "Vista completa del sistema según permisos" : "Asignadas, delegadas o participadas por mí"
+  const tabsTrabajo = [
+    { key: "mias", label: "Asignadas a mí", count: misTareas.length, icon: User },
+    { key: "creadas", label: "Delegadas por mí", count: tareasDelegadas.length, icon: Users },
+    { key: "participo", label: "En las que participo", count: tareasParticipa.length, icon: Eye },
+    { key: "todos", label: "Todas", count: tareasRelacionadas.length, icon: Grid2X2 },
+  ]
+  const tareasPagina = tareasFiltradas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+  const totalPaginas = Math.max(1, Math.ceil(tareasFiltradas.length / POR_PAGINA))
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -363,142 +591,135 @@ export default function TareasPage() {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Mi trabajo</h1>
-            <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-              {subtituloTrabajo}
-            </p>
+            <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "#111827" }}>Mi trabajo</h1>
+            <p style={{ fontSize: 13, color: "#475569", marginTop: 6 }}>Resumen de mis tareas y seguimiento</p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={() => router.push("/audiovisual/requerimientos")} className="btn-secondary" style={{ fontSize: 13 }}>Req. audiovisual</button>
-            <button onClick={abrirNueva} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva tarea</button>
+            <button onClick={() => router.push("/audiovisual/requerimientos")} className="btn-secondary" style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8 }}><ClipboardCheck size={16} />Req. audiovisual</button>
+            <button onClick={abrirNueva} className="btn-primary" style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8 }}><Plus size={16} />Nueva tarea</button>
           </div>
         </div>
 
-        {/* Dashboard personal */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        <div style={{ marginBottom: 18 }}>
           {[
-            { label: "Mis tareas pendientes", value: misPendientes, ...ESTADOS.pendiente },
-            { label: "Mis tareas en progreso", value: misEnProgreso, ...ESTADOS.en_progreso },
-            { label: "Mis tareas vencidas", value: misVencidas, bg: "#fee2e2", color: "#991b1b" },
-            { label: "Próximas entregas", value: proximasEntregas, bg: "#f0fdf4", color: "#15803d" },
-          ].map(c => (
-            <div key={c.label} className="card" style={{ background: c.bg, border: "none", padding: "12px 16px" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: c.color, textTransform: "uppercase" }}>{c.label}</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>{c.value}</div>
+            { title: tituloResumenActual, subtitle: subtituloResumenActual, cards: tarjetasResumenActual },
+          ].map(section => (
+            <div key={section.title} className="card" style={{ padding: 20, background: "#fff", border: "1px solid #dbe2ea", borderRadius: 8 }}>
+              <div style={{ marginBottom: 22 }}>
+                <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#111827", textTransform: "uppercase" }}>{section.title}</h2>
+                <p style={{ fontSize: 12, color: "#475569", margin: "10px 0 0" }}>{section.subtitle}</p>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
+                {section.cards.map((c, idx) => {
+                  const Icon = c.estado === "pendiente" ? ClipboardCheck : c.estado === "en_progreso" ? Play : c.estado === "en_revision" ? Eye : Check
+                  const tint = c.estado === "pendiente" ? "#e5e7eb" : c.estado === "en_progreso" ? "#bfdbfe" : c.estado === "en_revision" ? "#ddd6fe" : "#bbf7d0"
+                  return (
+                  <div key={c.estado} style={{ display: "flex", alignItems: "center", gap: 16, padding: "0 20px", borderLeft: idx === 0 ? "none" : "1px solid #e5e7eb" }}>
+                    <span style={{ width: 48, height: 48, borderRadius: 99, background: tint, color: c.color, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.55)" }}>
+                      <Icon size={24} />
+                    </span>
+                    <div>
+                      <div style={{ fontSize: 24, lineHeight: 1.1, color: "#0f172a", fontWeight: 900 }}>{c.value}</div>
+                      <div style={{ fontSize: 12, color: "#334155", marginTop: 6 }}>{c.label}</div>
+                    </div>
+                  </div>
+                )})}
+              </div>
             </div>
           ))}
         </div>
 
-        <div className="card" style={{ marginBottom: 20, padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+        <div className="card" style={{ marginBottom: 22, padding: 20, background: "#fff", border: "1px solid #dbe2ea", borderRadius: 8 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#111827", textTransform: "uppercase" }}>Avance general de tareas delegadas</h2>
+          <p style={{ fontSize: 12, color: "#475569", margin: "10px 0 14px" }}>Porcentaje de avance promedio de las tareas que he delegado</p>
+          <div style={{ display: "grid", gridTemplateColumns: "150px 1fr 260px", gap: 24, alignItems: "center" }}>
+            <div style={{ width: 108, height: 108, borderRadius: "50%", background: `conic-gradient(#16a34a ${avanceDelegadas * 3.6}deg, #e5e7eb 0deg)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 84, height: 84, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 900, color: "#334155" }}>{avanceDelegadas}%</div>
+            </div>
             <div>
-              <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "#111827" }}>Pendientes audiovisuales</h2>
-              <p style={{ fontSize: 12, color: "#6b7280", margin: "3px 0 0" }}>
-                {audiovisualesPendientes} requerimiento{audiovisualesPendientes !== 1 ? "s" : ""} operativo{audiovisualesPendientes !== 1 ? "s" : ""}
-              </p>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 12 }}>{delegadasCompletadas} de {tareasDelegadas.length} tareas completadas</div>
+              <div style={{ height: 7, background: "#e5e7eb", borderRadius: 99, overflow: "hidden" }}>
+                <div style={{ width: `${avanceDelegadas}%`, height: "100%", background: "#16a34a" }} />
+              </div>
             </div>
-            <button onClick={() => router.push("/audiovisual/requerimientos")} className="btn-secondary" style={{ fontSize: 12 }}>Abrir modulo</button>
+            <div style={{ display: "grid", gap: 14 }}>
+              {[
+                { estado: "completada", label: "Completadas", color: "#16a34a" },
+                { estado: "en_progreso", label: "En progreso", color: "#3b82f6" },
+                { estado: "en_revision", label: "En revisión", color: "#8b5cf6" },
+                { estado: "pendiente", label: "Pendientes", color: "#d1d5db" },
+              ].map(item => (
+                <div key={item.estado} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#334155" }}>
+                  <span style={{ width: 12, height: 12, borderRadius: 99, background: item.color }} />
+                  {contarPorEstado(tareasDelegadas, item.estado)} {item.label}
+                </div>
+              ))}
+            </div>
           </div>
+        </div>
 
-          {puedeFiltrarAudiovisual && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              <select style={{ ...inp, width: "auto" }} value={avResponsableId} onChange={e => setAvResponsableId(e.target.value)}>
-                <option value="">Todos los responsables</option>
-                {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={avProyectoId} onChange={e => setAvProyectoId(e.target.value)}>
-                <option value="">Todos los proyectos</option>
-                {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={avPrioridad} onChange={e => setAvPrioridad(e.target.value)}>
-                <option value="todos">Todas las prioridades</option>
-                <option value="alta">Alta</option>
-                <option value="media">Media</option>
-                <option value="baja">Baja</option>
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={avAvance} onChange={e => setAvAvance(e.target.value)}>
-                <option value="todos">Todos los avances</option>
-                {[10,20,30,40,50,60,70,80,90,100].map(n => <option key={n} value={n}>{n}%</option>)}
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={avEstado} onChange={e => setAvEstado(e.target.value)}>
-                <option value="activos">Activos</option>
-                <option value="todos">Todos los estados</option>
-                {Object.entries(AV_ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-              <input style={{ ...inp, width: "auto" }} type="date" value={avFecha} onChange={e => setAvFecha(e.target.value)} />
-            </div>
-          )}
-
-          {audiovisualesFiltrados.length === 0 ? (
-            <div style={{ padding: "18px 12px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No hay requerimientos audiovisuales pendientes para estos filtros</div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "#f9fafb" }}>
-                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280", width: 96 }}>TIPO</th>
-                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>PROYECTO</th>
-                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>PRIORIDAD</th>
-                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>AVANCE</th>
-                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>ESTADO</th>
-                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>RESPONSABLE</th>
-                  <th style={{ textAlign: "center", padding: "8px 10px", fontSize: 11, color: "#6b7280" }}>ENTREGA</th>
-                  <th style={{ width: 90 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {audiovisualesFiltrados.slice(0, 8).map(r => {
-                  const pr = PRIORIDADES[r.prioridad] || PRIORIDADES.media
-                  const es = AV_ESTADOS[r.estado] || AV_ESTADOS.pendiente
-                  return (
-                    <tr key={r.id} onClick={() => router.push(`/audiovisual/requerimientos?requerimiento_id=${r.id}`)} style={{ borderTop: "1px solid #f3f4f6", cursor: "pointer" }}>
-                      <td style={{ padding: "9px 10px" }}><span style={{ background: "#eef2ff", color: "#3730a3", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 99 }}>Audiovisual</span></td>
-                      <td style={{ padding: "9px 10px" }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>{r.proyecto?.codigo || "-"}</div>
-                        <div style={{ fontSize: 12, color: "#6b7280" }}>{r.proyecto?.nombre || "-"}</div>
-                      </td>
-                      <td style={{ padding: "9px 10px", textAlign: "center" }}><span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{pr.label}</span></td>
-                      <td style={{ padding: "9px 10px", textAlign: "center" }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: es.color, marginBottom: 3 }}>{r.avance || 10}%</div>
-                        <div style={{ width: 54, height: 5, background: "#e5e7eb", borderRadius: 99, margin: "0 auto", overflow: "hidden" }}>
-                          <div style={{ width: `${r.avance || 10}%`, height: "100%", background: es.color }} />
-                        </div>
-                      </td>
-                      <td style={{ padding: "9px 10px", textAlign: "center" }}><span style={{ background: es.bg, color: es.color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{es.label}</span></td>
-                      <td style={{ padding: "9px 10px", fontSize: 12, color: "#374151" }}>{r.responsable ? `${r.responsable.nombre} ${r.responsable.apellido}` : "Sin responsable"}</td>
-                      <td style={{ padding: "9px 10px", textAlign: "center", fontSize: 12, color: "#6b7280" }}>{r.fecha_entrega_solicitada || "-"}</td>
-                      <td style={{ padding: "9px 10px", textAlign: "right" }}>
-                        <button onClick={e => { e.stopPropagation(); router.push(`/audiovisual/requerimientos?requerimiento_id=${r.id}`) }} className="btn-secondary" style={{ fontSize: 11 }}>Abrir</button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
+        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #dbe2ea", borderRadius: 8, background: "#fff" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0, borderBottom: "1px solid #e5e7eb", background: "#f8fafc" }}>
+          {[
+            { key: "mias", label: "Asignadas a mí", value: misTareas.length },
+            { key: "creadas", label: "Delegadas por mí", value: tareasDelegadas.length },
+            { key: "participo", label: "Participo", value: tareasParticipa.length },
+            { key: "todos", label: "Todas relacionadas", value: tareasRelacionadas.length },
+          ].map((item, idx) => (
+            <button
+              key={item.key}
+              onClick={() => { setFiltroAsignado(item.key); setResponsableId(""); setPagina(1) }}
+              style={{ padding: "10px 14px", border: "none", borderLeft: idx === 0 ? "none" : "1px solid #e5e7eb", background: filtroAsignado === item.key ? "#eff6ff" : "transparent", color: filtroAsignado === item.key ? "#1d4ed8" : "#334155", cursor: "pointer", textAlign: "left" }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>{item.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 900, lineHeight: 1.1 }}>{item.value}</div>
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 24, padding: "0 16px", borderBottom: "1px solid #e5e7eb", flexWrap: "wrap" }}>
+          {tabsTrabajo.map(tab => {
+            const active = filtroAsignado === tab.key
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.key}
+                onClick={() => { setFiltroAsignado(tab.key); setResponsableId("") }}
+                style={{ padding: "16px 0", border: "none", borderBottom: `2px solid ${active ? "#2563eb" : "transparent"}`, background: "transparent", color: active ? "#2563eb" : "#1f2937", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}
+              >
+                <Icon size={16} /> {tab.label} <span style={{ opacity: 0.6 }}>({tab.count})</span>
+              </button>
+            )
+          })}
         </div>
 
         {/* Filtros */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-          <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
+        <div style={{ display: "grid", gridTemplateColumns: "220px 220px 220px 210px 1fr auto auto", gap: 12, padding: 16, borderBottom: "1px solid #e5e7eb", alignItems: "center" }}>
+          <select style={inp} value={filtroEstado} onChange={e => { setFiltroEstado(e.target.value); setPagina(1) }}>
             <option value="todos">Todos los estados</option>
             {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
-          <select style={{ ...inp, width: "auto" }} value={filtroAsignado} onChange={e => {
-            setFiltroAsignado(e.target.value)
-            if (e.target.value !== "responsable") setResponsableId("")
-          }}>
-            <option value="mias">Mi trabajo</option>
-            <option value="creadas">Creadas por mí</option>
-            {puedeVerEquipo && <option value="todos">Todas las tareas</option>}
-            {puedeVerEquipo && <option value="responsable">Por responsable</option>}
+          <select style={inp} value={filtroProyecto} onChange={e => { setFiltroProyecto(e.target.value); setPagina(1) }}>
+            <option value="">Todos los proyectos</option>
+            {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}
           </select>
-          {puedeVerEquipo && filtroAsignado === "responsable" && (
-            <select style={{ ...inp, width: "auto" }} value={responsableId} onChange={e => setResponsableId(e.target.value)}>
+          <select style={inp} value={filtroPrioridad} onChange={e => { setFiltroPrioridad(e.target.value); setPagina(1) }}>
+            <option value="todos">Todas las prioridades</option>
+            {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+          <div style={{ position: "relative" }}>
+            <input style={{ ...inp, paddingRight: 34 }} type="date" value={filtroFecha} onChange={e => { setFiltroFecha(e.target.value); setPagina(1) }} />
+            <CalendarDays size={16} style={{ position: "absolute", right: 10, top: 9, color: "#64748b", pointerEvents: "none" }} />
+          </div>
+          {puedeVerEquipo && (
+            <select style={inp} value={responsableId} onChange={e => { setResponsableId(e.target.value); if (e.target.value) setFiltroAsignado("responsable"); setPagina(1) }}>
               <option value="">Seleccionar responsable</option>
               {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
             </select>
           )}
-          <select style={{ ...inp, width: "auto" }} value={ordenCampo} onChange={e => setOrdenCampo(e.target.value)}>
+          {!puedeVerEquipo && <div />}
+          <div style={{ justifySelf: "end", fontSize: 12, color: "#334155" }}>Ordenar por</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <select style={{ ...inp, minWidth: 150 }} value={ordenCampo} onChange={e => setOrdenCampo(e.target.value)}>
             <option value="fecha_limite">Ordenar: Fecha límite</option>
             <option value="titulo">Ordenar: Título</option>
             <option value="proyecto">Ordenar: Proyecto</option>
@@ -507,61 +728,100 @@ export default function TareasPage() {
             <option value="asignado">Ordenar: Asignado a</option>
             <option value="estado">Ordenar: Estado</option>
           </select>
-          <select style={{ ...inp, width: "auto" }} value={ordenDir} onChange={e => setOrdenDir(e.target.value)}>
-            <option value="asc">↑ Ascendente</option>
-            <option value="desc">↓ Descendente</option>
-          </select>
+          <button onClick={() => setOrdenDir(ordenDir === "asc" ? "desc" : "asc")} title="Cambiar orden" style={{ width: 36, height: 36, border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: "pointer", color: "#334155" }}><ArrowUpDown size={15} /></button>
+          </div>
         </div>
         {/* Lista de tareas */}
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: 0, overflow: "hidden" }}>
           {tareasFiltradas.length === 0 ? (
-            <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay tareas con estos filtros</div>
+            <div style={{ padding: "38px 20px", textAlign: "center", color: "#64748b", fontSize: 14 }}>
+              <div style={{ fontWeight: 800, color: "#334155", marginBottom: 8 }}>No hay tareas en esta vista</div>
+              <div style={{ marginBottom: 16 }}>
+                {filtroAsignado === "mias" && tareasDelegadas.length > 0
+                  ? `No tienes tareas asignadas como responsable, pero sí tienes ${tareasDelegadas.length} tarea${tareasDelegadas.length !== 1 ? "s" : ""} delegada${tareasDelegadas.length !== 1 ? "s" : ""} para seguimiento.`
+                  : "Prueba otra vista o ajusta los filtros para revisar tareas relacionadas."}
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                {tareasDelegadas.length > 0 && (
+                  <button onClick={() => { setFiltroAsignado("creadas"); setPagina(1) }} className="btn-primary" style={{ fontSize: 12 }}>
+                    Ver delegadas por mí ({tareasDelegadas.length})
+                  </button>
+                )}
+                {tareasParticipa.length > 0 && (
+                  <button onClick={() => { setFiltroAsignado("participo"); setPagina(1) }} className="btn-secondary" style={{ fontSize: 12 }}>
+                    Ver en las que participo ({tareasParticipa.length})
+                  </button>
+                )}
+                {tareasRelacionadas.length > 0 && (
+                  <button onClick={() => { setFiltroAsignado("todos"); setPagina(1) }} className="btn-secondary" style={{ fontSize: 12 }}>
+                    Ver todas ({tareasRelacionadas.length})
+                  </button>
+                )}
+              </div>
+            </div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "#1D2040" }}>
-                  <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#fff" }}>TÍTULO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 120 }}>PROYECTO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 150 }}>CLIENTE</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 90 }}>PRIORIDAD</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 130 }}>ASIGNADO A</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#03E373", width: 110 }}>ESTADO</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 100 }}>FECHA LÍMITE</th>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  <th style={{ width: 42, padding: "10px 16px" }}><input type="checkbox" disabled /></th>
+                  <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 800, color: "#6b7280" }}>TAREA</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 150 }}>PROYECTO</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 170 }}>RESPONSABLE</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 110 }}>ESTADO</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 90 }}>PRIORIDAD</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 130 }}>FECHA LÍMITE</th>
                   <th style={{ width: 80 }}></th>
                 </tr>
               </thead>
               <tbody>
-                {tareasFiltradas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map((t, idx) => {
+                {tareasPagina.map((t, idx) => {
                   const es = ESTADOS[t.estado] || ESTADOS.pendiente
                   const pr = PRIORIDADES[t.prioridad] || PRIORIDADES.media
                   const vencida = estaVencida(t)
+                  const rolUsuario = rolUsuarioEnTarea(t)
+                  const participantes = participantesNombres(t)
                   return (
                     <tr key={t.id} onClick={() => abrirDetalle(t)}
                       style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === t.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
+                      <td style={{ padding: "10px 16px" }}><input type="checkbox" onClick={e => e.stopPropagation()} /></td>
                       <td style={{ padding: "10px 16px" }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{t.titulo}</div>
-                        {vencida && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>VENCIDA</span>}
+                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{t.proyecto?.codigo || "Sin proyecto"}</div>
+                        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Solicitante: {t.creador ? nombreUsuario(t.creador) : "—"}</div>
+                        {participantes && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Participantes: {participantes}</div>}
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 4 }}>
+                          {rolUsuario && <span style={{ fontSize: 10, background: "#eff6ff", color: "#1d4ed8", padding: "1px 6px", borderRadius: 99, fontWeight: 800 }}>Mi rol: {rolUsuario}</span>}
+                          {vencida && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>VENCIDA</span>}
+                          {t.frecuencia && t.frecuencia !== "no_repite" && <span style={{ fontSize: 10, background: "#ecfeff", color: "#155e75", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>{FRECUENCIAS[t.frecuencia] || "Recurrente"}</span>}
+                          {(t.participantes || []).length > 0 && <span style={{ fontSize: 10, background: "#f3f4f6", color: "#4b5563", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>{(t.participantes || []).length} participante{(t.participantes || []).length !== 1 ? "s" : ""}</span>}
+                        </div>
                       </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>{t.proyecto?.codigo || "—"}</td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>{t.cliente?.razon_social || "—"}</td>
-                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                        <span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>{pr.label}</span>
+                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>
+                        <div style={{ fontWeight: 700, color: "#374151" }}>{t.proyecto?.codigo || "—"}</div>
+                        <div>{t.proyecto?.nombre || t.cliente?.razon_social || "Sin proyecto"}</div>
                       </td>
                       <td style={{ padding: "10px 12px", fontSize: 12, color: "#374151", whiteSpace: "nowrap" }}>
-                        {t.asignado ? t.asignado.nombre + " " + t.asignado.apellido : "—"}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ width: 28, height: 28, borderRadius: 99, background: "#eef2ff", color: "#3730a3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{inicialesUsuario(t.asignado)}</span>
+                          <span>{t.asignado ? nombreUsuario(t.asignado) : "Sin responsable"}</span>
+                        </div>
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "center" }}>
                         <span style={{ background: es.bg, color: es.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>{es.label}</span>
                       </td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        <span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>{pr.label}</span>
+                      </td>
                       <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12, color: vencida ? "#991b1b" : "#6b7280", fontWeight: vencida ? 700 : 400, whiteSpace: "nowrap" }}>
-                        {t.fecha_limite || "—"}
+                        <div>{formatFecha(t.fecha_limite)}</div>
+                        <div style={{ fontSize: 10, color: vencida ? "#991b1b" : "#9ca3af", fontWeight: 600 }}>{textoVencimiento(t)}</div>
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                           <button onClick={e => { e.stopPropagation(); abrirEditar(t) }}
-                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer" }}>✏️</button>
+                            style={{ width: 30, height: 30, border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#334155" }}><MoreVertical size={16} /></button>
                           <button onClick={e => { e.stopPropagation(); eliminar(t.id) }}
-                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
+                            style={{ width: 30, height: 30, border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
                         </div>
                       </td>
                     </tr>
@@ -570,6 +830,36 @@ export default function TareasPage() {
               </tbody>
             </table>
           )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid #e5e7eb", background: "#fff" }}>
+          <div style={{ fontSize: 12, color: "#334155" }}>Mostrando {tareasFiltradas.length === 0 ? 0 : (pagina - 1) * POR_PAGINA + 1} de {tareasFiltradas.length} tarea{tareasFiltradas.length !== 1 ? "s" : ""}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 12, color: "#334155" }}>Filas por página:</span>
+            <select style={{ ...inp, width: 84 }} value={POR_PAGINA} disabled><option>10</option></select>
+            <button disabled={pagina <= 1} onClick={() => setPagina(p => Math.max(1, p - 1))} style={{ width: 34, height: 34, border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: pagina <= 1 ? "not-allowed" : "pointer", color: "#334155" }}>‹</button>
+            <div style={{ minWidth: 34, height: 34, border: "1px solid #2563eb", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb", fontWeight: 800, fontSize: 13 }}>{pagina}</div>
+            <button disabled={pagina >= totalPaginas} onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} style={{ width: 34, height: 34, border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: pagina >= totalPaginas ? "not-allowed" : "pointer", color: "#334155" }}>›</button>
+          </div>
+        </div>
+        </div>
+        <div className="card" style={{ marginTop: 14, padding: 14, background: "#fff", border: "1px solid #e5e7eb" }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#6b7280", marginBottom: 10, textTransform: "uppercase" }}>Leyenda de estados</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+            {[
+              { estado: "pendiente", texto: "Tareas asignadas pero aún no iniciadas." },
+              { estado: "en_progreso", texto: "Tareas que están siendo trabajadas actualmente." },
+              { estado: "en_revision", texto: "Tareas completadas por el responsable y pendientes de validación." },
+              { estado: "completada", texto: "Tareas finalizadas y aprobadas." },
+            ].map(item => (
+              <div key={item.estado} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ width: 8, height: 8, borderRadius: 99, background: ESTADOS[item.estado].color, marginTop: 4, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#374151" }}>{ESTADOS[item.estado].label}</div>
+                  <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.4 }}>{item.texto}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       {selected && (
@@ -608,8 +898,11 @@ export default function TareasPage() {
           <div style={{ display: "grid", gap: 10, marginBottom: 16 }}>
             {[
               { label: "Prioridad", value: PRIORIDADES[selected.prioridad]?.label || "—" },
-              { label: "Asignado a", value: selected.asignado ? selected.asignado.nombre + " " + selected.asignado.apellido : "—" },
-              { label: "Creado por", value: selected.creador ? selected.creador.nombre + " " + selected.creador.apellido : "—" },
+              { label: "Responsable", value: selected.asignado ? selected.asignado.nombre + " " + selected.asignado.apellido : "—" },
+              { label: "Solicitante", value: selected.creador ? selected.creador.nombre + " " + selected.creador.apellido : "—" },
+              { label: "Participantes", value: participantesNombres(selected) || "—" },
+              { label: "Mi rol", value: rolUsuarioEnTarea(selected) || "—" },
+              { label: "Frecuencia", value: FRECUENCIAS[selected.frecuencia] || "No se repite" },
               { label: "Proyecto", value: selected.proyecto ? selected.proyecto.codigo + " — " + selected.proyecto.nombre : "—" },
               { label: "Cliente", value: selected.cliente?.razon_social || "—" },
               { label: "Fecha límite", value: selected.fecha_limite || "—" },
@@ -660,6 +953,11 @@ export default function TareasPage() {
                 </div>
               ))}
             </div>
+            {selected.permitir_comentarios === false ? (
+              <div style={{ padding: 10, background: "#f9fafb", borderRadius: 8, color: "#6b7280", fontSize: 12 }}>
+                Los comentarios están desactivados para esta tarea.
+              </div>
+            ) : (
             <div style={{ display: "grid", gap: 8 }}>
               <textarea
                 style={{ ...inp, minHeight: 68, resize: "vertical" }}
@@ -680,6 +978,7 @@ export default function TareasPage() {
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -747,11 +1046,53 @@ export default function TareasPage() {
                 </div>
               </div>
               <div>
-                <label style={lbl}>RESPONSABLE *</label>
-                <select style={inp} value={form.asignado_a} onChange={e => setForm({ ...form, asignado_a: e.target.value })}>
+                <label style={lbl}>RESPONSABLE PRINCIPAL *</label>
+                <select style={inp} value={form.asignado_a} onChange={e => setForm({ ...form, asignado_a: e.target.value, participante_ids: form.participante_ids.filter(id => id !== e.target.value) })}>
                   <option value="">Sin asignar</option>
                   {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido} — {u.perfil}</option>)}
                 </select>
+              </div>
+              <div>
+                <label style={lbl}>PARTICIPANTES / SEGUIDORES</label>
+                <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", padding: 10 }}>
+                  {participantesSeleccionados.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                      {participantesSeleccionados.map(u => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => toggleParticipante(u.id)}
+                          style={{ border: "1px solid #dbeafe", background: "#eff6ff", color: "#1e40af", borderRadius: 99, padding: "4px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                        >
+                          {nombreUsuario(u)} ×
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    style={{ ...inp, border: "1px solid #f3f4f6", marginBottom: 8 }}
+                    value={participanteSearch}
+                    placeholder="Buscar usuarios para agregar..."
+                    onChange={e => setParticipanteSearch(e.target.value)}
+                  />
+                  <div style={{ maxHeight: 170, overflowY: "auto", display: "grid", gap: 4 }}>
+                    {participantesDisponibles.length === 0 ? (
+                      <div style={{ padding: 10, color: "#9ca3af", fontSize: 12 }}>No hay usuarios con esa búsqueda</div>
+                    ) : participantesDisponibles.map(u => {
+                      const checked = form.participante_ids.includes(u.id)
+                      return (
+                        <label key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", borderRadius: 7, background: checked ? "#f0fdf4" : "#fff", border: `1px solid ${checked ? "#bbf7d0" : "#f3f4f6"}`, cursor: "pointer" }}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleParticipante(u.id)} />
+                          <span style={{ width: 26, height: 26, borderRadius: 99, background: "#eef2ff", color: "#3730a3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{inicialesUsuario(u)}</span>
+                          <span style={{ minWidth: 0 }}>
+                            <span style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#374151" }}>{nombreUsuario(u)} <span style={{ fontWeight: 600, color: "#9ca3af" }}>— {u.perfil || "Sin rol"}</span></span>
+                            {u.email && <span style={{ display: "block", fontSize: 11, color: "#9ca3af" }}>{u.email}</span>}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
@@ -773,18 +1114,50 @@ export default function TareasPage() {
                 <label style={lbl}>FECHA LÍMITE</label>
                 <input type="date" style={inp} value={form.fecha_limite} onChange={e => setForm({ ...form, fecha_limite: e.target.value })} />
               </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={lbl}>FRECUENCIA</label>
+                  <select style={inp} value={form.frecuencia} onChange={e => setForm({ ...form, frecuencia: e.target.value })}>
+                    {Object.entries(FRECUENCIAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                {form.frecuencia.startsWith("personalizado") && (
+                  <div>
+                    <label style={lbl}>CADA</label>
+                    <input type="number" min={1} style={inp} value={form.recurrencia_intervalo} onChange={e => setForm({ ...form, recurrencia_intervalo: Number(e.target.value) })} />
+                  </div>
+                )}
+              </div>
+              {form.frecuencia !== "no_repite" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={lbl}>FECHA FIN</label>
+                    <input type="date" style={inp} value={form.recurrencia_fecha_fin} onChange={e => setForm({ ...form, recurrencia_fecha_fin: e.target.value })} />
+                  </div>
+                  <div>
+                    <label style={lbl}>MÁXIMO DE REPETICIONES</label>
+                    <input type="number" min={1} style={inp} value={form.recurrencia_max_repeticiones} onChange={e => setForm({ ...form, recurrencia_max_repeticiones: e.target.value })} />
+                  </div>
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {[
+                  { key: "notificar_participantes" as const, label: "Notificar participantes" },
+                  { key: "mostrar_participantes_mi_trabajo" as const, label: "Mostrar en Mi Trabajo" },
+                  { key: "permitir_comentarios" as const, label: "Permitir comentarios" },
+                  { key: "recibir_correos_automaticos" as const, label: "Correos automáticos" },
+                ].map(option => (
+                  <label key={option.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: 10, border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, color: "#374151", fontWeight: 600 }}>
+                    <input type="checkbox" checked={form[option.key]} onChange={e => setForm({ ...form, [option.key]: e.target.checked })} />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
               {!editando && (
                 <>
                   <div>
                     <label style={lbl}>LINK O REFERENCIA INICIAL</label>
                     <input style={inp} value={form.link_inicial} placeholder="https://drive.google.com/..." onChange={e => setForm({ ...form, link_inicial: e.target.value })} />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 12, border: "1px solid #bbf7d0", borderRadius: 10, background: "#f0fdf4" }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>Notificar al responsable por correo</div>
-                      <div style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>El correo incluirá proyecto, cliente, prioridad, fecha límite y link directo.</div>
-                    </div>
-                    <input type="checkbox" checked={form.notificar_email} onChange={e => setForm({ ...form, notificar_email: e.target.checked })} />
                   </div>
                 </>
               )}
@@ -802,3 +1175,8 @@ export default function TareasPage() {
     </div>
   )
 }
+
+
+
+
+
