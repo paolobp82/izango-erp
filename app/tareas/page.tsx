@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { useRouter } from "next/navigation"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 const ESTADOS: Record<string, any> = {
   pendiente:    { label: "Pendiente",    bg: "#fef9c3", color: "#92400e" },
@@ -82,11 +83,12 @@ export default function TareasPage() {
     }
     const { data: t } = await supabase
       .from("tareas")
-      .select("*, proyecto:proyectos(nombre, codigo), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido)")
+      .select("*, proyecto:proyectos(nombre, codigo, deleted_at), cliente:clientes(razon_social), asignado:perfiles!asignado_a(nombre, apellido), creador:perfiles!creado_por(nombre, apellido)")
       .order("created_at", { ascending: false })
-    setTareas(t || [])
+    const tareasActivas = (t || []).filter((item: any) => !rowBelongsToDeletedProject(item))
+    setTareas(tareasActivas)
     if (tareaIdParam) {
-      const tareaDirecta = (t || []).find((item: any) => item.id === tareaIdParam)
+      const tareaDirecta = tareasActivas.find((item: any) => item.id === tareaIdParam)
       if (tareaDirecta) {
         setSelected(tareaDirecta)
         await loadComentarios(tareaDirecta.id)
@@ -94,10 +96,11 @@ export default function TareasPage() {
     }
     const { data: av } = await supabase
       .from("audiovisual_requerimientos")
-      .select("*, proyecto:proyectos(id,nombre,codigo), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido)")
+      .select("*, proyecto:proyectos(id,nombre,codigo,deleted_at), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido)")
+      .is("deleted_at", null)
       .order("fecha_entrega_solicitada", { ascending: true })
-    setAudiovisuales(av || [])
-    const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").order("nombre")
+    setAudiovisuales((av || []).filter((item: any) => !rowBelongsToDeletedProject(item)))
+    const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").is("deleted_at", null).order("nombre")
     setProyectos(pr || [])
     const { data: cl } = await supabase.from("clientes").select("id, razon_social").order("razon_social")
     setClientes(cl || [])

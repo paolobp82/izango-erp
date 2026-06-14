@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 const TIPOS = ["evento", "cliente", "campaña", "linea_negocio", "produccion", "movilidad", "personal", "materiales", "otro"]
 const TIPO_COLOR: Record<string, any> = {
@@ -67,11 +68,11 @@ export default function CentroCostosPage() {
   async function loadDetalle(centroId: string) {
     const { data } = await supabase
       .from("cotizacion_items")
-      .select("*, cotizacion:cotizaciones(version, estado, proyecto:proyectos(nombre, codigo))")
+      .select("*, cotizacion:cotizaciones(version, estado, proyecto_id, proyecto:proyectos(nombre, codigo, deleted_at))")
       .eq("centro_costo_id", centroId)
       .not("cotizacion.estado", "is", null)
       .order("created_at", { ascending: false })
-    setItemsDetalle(data || [])
+    setItemsDetalle((data || []).filter((item: any) => !rowBelongsToDeletedProject(item.cotizacion)))
   }
 
   async function guardarCentro() {

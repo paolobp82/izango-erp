@@ -76,12 +76,15 @@ export async function POST(request: NextRequest) {
 
     const { data: tarea, error: tareaError } = await auth.supabase
       .from("tareas")
-      .select("*, proyecto:proyectos(nombre,codigo), cliente:clientes(razon_social), asignado:perfiles!asignado_a(id,nombre,apellido), creador:perfiles!creado_por(id,nombre,apellido)")
+      .select("*, proyecto:proyectos(nombre,codigo,deleted_at), cliente:clientes(razon_social), asignado:perfiles!asignado_a(id,nombre,apellido), creador:perfiles!creado_por(id,nombre,apellido)")
       .eq("id", body.tarea_id)
       .single()
 
     if (tareaError || !tarea) {
       return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 })
+    }
+    if (tarea.proyecto?.deleted_at) {
+      return NextResponse.json({ error: "Proyecto eliminado" }, { status: 410 })
     }
 
     const admin = createAdminClient()

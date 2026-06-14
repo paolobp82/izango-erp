@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from "recharts"
 import { rqCodigo } from "@/lib/rq-code"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
 
@@ -19,16 +20,16 @@ export default function FlujoCajaPage() {
   async function load() {
     const [{ data: rqsData }, { data: facturasData }] = await Promise.all([
       supabase.from("requerimientos_pago")
-        .select("*, proyecto:proyectos(nombre, codigo)")
+        .select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
         .not("estado", "eq", "rechazado")
         .order("created_at"),
       supabase.from("facturas")
-        .select("*, proyecto:proyectos(nombre, codigo)")
+        .select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
         .not("estado", "eq", "anulada")
         .order("fecha_emision"),
     ])
-    setRqs(rqsData || [])
-    setFacturas(facturasData || [])
+    setRqs((rqsData || []).filter((rq: any) => !rowBelongsToDeletedProject(rq)))
+    setFacturas((facturasData || []).filter((factura: any) => !rowBelongsToDeletedProject(factura)))
     setLoading(false)
   }
 

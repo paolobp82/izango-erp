@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { enviarAlerta } from "@/lib/alertas"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 const ESTADOS: Record<string, any> = {
   pendiente:  { bg: "#fef9c3", color: "#92400e",  label: "Pendiente" },
@@ -37,14 +38,17 @@ export default function FacturacionPage() {
     const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
     const { data: facts } = await supabase
       .from("facturas")
-      .select("*, proyecto:proyectos(nombre, codigo, cliente:clientes(razon_social))")
+      .select("*, proyecto:proyectos(nombre, codigo, deleted_at, cliente:clientes(razon_social))")
       .order("created_at", { ascending: false })
-    setFacturas(facts || [])
-    const { data: provs } = await supabase.from("proyectos").select("id, nombre, codigo").order("created_at", { ascending: false })
+    setFacturas((facts || []).filter((factura: any) => !rowBelongsToDeletedProject(factura)))
+    const { data: provs } = await supabase.from("proyectos").select("id, nombre, codigo").is("deleted_at", null).order("created_at", { ascending: false })
     setProyectos(provs || [])
     if (proyectoIdParam) {
-      setForm(prev => ({ ...prev, proyecto_id: proyectoIdParam }))
-      setShowForm(true)
+      const proyectoActivo = (provs || []).some((p: any) => p.id === proyectoIdParam)
+      if (proyectoActivo) {
+        setForm(prev => ({ ...prev, proyecto_id: proyectoIdParam }))
+        setShowForm(true)
+      }
     }
     setLoading(false)
   }
@@ -63,6 +67,11 @@ export default function FacturacionPage() {
   async function guardar() {
     if (!form.proyecto_id || !form.numero_factura || !form.subtotal) {
       alert("Proyecto, número de factura y subtotal son obligatorios")
+      return
+    }
+    const proyecto = proyectos.find((p: any) => p.id === form.proyecto_id)
+    if (!proyecto) {
+      alert("No se puede facturar un proyecto eliminado o no disponible.")
       return
     }
     setSaving(true)
@@ -95,6 +104,11 @@ export default function FacturacionPage() {
   }
 
   async function cambiarEstado(id: string, estado: string) {
+    const facturaActual = facturas.find(f => f.id === id)
+    if (rowBelongsToDeletedProject(facturaActual)) {
+      alert("Esta factura pertenece a un proyecto eliminado y no puede procesarse.")
+      return
+    }
     await supabase.from("facturas").update({ estado }).eq("id", id)
     // Si cobrada → proyecto pasa a Pagado
     if (estado === "cobrada") {

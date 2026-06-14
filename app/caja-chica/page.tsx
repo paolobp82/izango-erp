@@ -1,6 +1,7 @@
 ﻿"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { rqCodigo } from "@/lib/rq-code"
 
@@ -58,10 +59,10 @@ export default function CajaChicaPage() {
     }
     const { data: r } = await supabase
       .from("caja_chica")
-      .select("*, proyecto:proyectos(nombre, codigo), solicitante:perfiles!solicitado_por(nombre, apellido), aprobador:perfiles!aprobado_por(nombre, apellido)")
+      .select("*, proyecto:proyectos(nombre, codigo, deleted_at), solicitante:perfiles!solicitado_por(nombre, apellido), aprobador:perfiles!aprobado_por(nombre, apellido)")
       .order("created_at", { ascending: false })
-    setRegistros(r || [])
-    const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").order("nombre")
+    setRegistros((r || []).filter((registro: any) => !rowBelongsToDeletedProject(registro)))
+    const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").is("deleted_at", null).order("nombre")
     const { data: rAll } = await supabase.from("caja_chica").select("periodo").not("periodo", "is", null)
     const periStr = [...new Set((rAll || []).map((r: any) => r.periodo).filter(Boolean))] as string[]
     setPeriodos(periStr)

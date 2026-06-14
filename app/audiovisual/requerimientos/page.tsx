@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 const PIEZAS = ["Video", "3D", "Imagenes IA", "Dinamica", "Graficas", "Adaptacion", "Otros"]
 const PRIORIDADES: Record<string, any> = {
@@ -84,13 +85,16 @@ export default function AudiovisualRequerimientosPage() {
 
     const { data: reqs } = await supabase
       .from("audiovisual_requerimientos")
-      .select("*, proyecto:proyectos(id,nombre,codigo), cotizacion:cotizaciones(id,version,total_cliente), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido), creador:perfiles!creado_por(nombre,apellido)")
+      .select("*, proyecto:proyectos(id,nombre,codigo,deleted_at), cotizacion:cotizaciones(id,version,total_cliente), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido), creador:perfiles!creado_por(nombre,apellido)")
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
-    setRequerimientos(reqs || [])
+    const reqsActivos = (reqs || []).filter((req: any) => !rowBelongsToDeletedProject(req))
+    setRequerimientos(reqsActivos)
 
     const { data: proys } = await supabase
       .from("proyectos")
       .select("id,nombre,codigo,productor_id,fecha_inicio,fecha_fin_estimada,productor:perfiles!productor_id(nombre,apellido)")
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
     setProyectos(proys || [])
 
@@ -98,7 +102,7 @@ export default function AudiovisualRequerimientosPage() {
     setProductores(prods || [])
 
     if (requerimientoIdParam) {
-      const reqParam = (reqs || []).find((r: any) => r.id === requerimientoIdParam)
+      const reqParam = reqsActivos.find((r: any) => r.id === requerimientoIdParam)
       if (reqParam) await abrirDetalle(reqParam)
     } else if (proyectoIdParam) {
       const proyectoParam = (proys || []).find((p: any) => p.id === proyectoIdParam)

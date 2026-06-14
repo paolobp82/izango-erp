@@ -51,19 +51,19 @@ async function cargarContextoERP(supabase: SupabaseServer, perfil: PerfilIA) {
 
   if (esAdmin || perfil.perfil === "gerente_finanzas" || perfil.perfil === "controller") {
     const { data: rqs } = await supabase.from("requerimientos_pago")
-      .select("codigo_rq,numero_rq,descripcion,monto_solicitado,estado,proveedor_nombre,proyecto:proyectos(codigo)")
+      .select("codigo_rq,numero_rq,descripcion,monto_solicitado,estado,proveedor_nombre,proyecto:proyectos(codigo,deleted_at)")
       .in("estado", ["pendiente_aprobacion","aprobado_produccion"]).limit(20)
-    contexto.rqs_pendientes = rqs || []
+    contexto.rqs_pendientes = (rqs || []).filter((rq: any) => !rq.proyecto?.deleted_at)
 
     const { data: facturas } = await supabase.from("facturas")
-      .select("numero_factura,subtotal,igv,detraccion_monto,estado,fecha_emision,proyecto:proyectos(codigo,nombre)")
+      .select("numero_factura,subtotal,igv,detraccion_monto,estado,fecha_emision,proyecto:proyectos(codigo,nombre,deleted_at)")
       .order("created_at", { ascending: false }).limit(15)
-    contexto.facturas_recientes = facturas || []
+    contexto.facturas_recientes = (facturas || []).filter((factura: any) => !factura.proyecto?.deleted_at)
 
     const { data: liquidaciones } = await supabase.from("liquidaciones")
-      .select("margen_real_pct,costo_real,cerrada,proyecto:proyectos(codigo,nombre)")
+      .select("margen_real_pct,costo_real,cerrada,proyecto:proyectos(codigo,nombre,deleted_at)")
       .order("created_at", { ascending: false }).limit(10)
-    contexto.liquidaciones = liquidaciones || []
+    contexto.liquidaciones = (liquidaciones || []).filter((liq: any) => !liq.proyecto?.deleted_at)
 
     const { data: cajaChica } = await supabase.from("caja_chica")
       .select("concepto,monto_debe,monto_haber,estado,fecha,categoria")
@@ -88,9 +88,9 @@ async function cargarContextoERP(supabase: SupabaseServer, perfil: PerfilIA) {
     contexto.inventario = inventario || []
 
     const { data: ordenes } = await supabase.from("inventario_ordenes")
-      .select("numero_orden,tipo,estado,fecha_entrega,proyecto:proyectos(codigo)")
+      .select("numero_orden,tipo,estado,fecha_entrega,proyecto:proyectos(codigo,deleted_at)")
       .in("estado", ["borrador","aprobada"]).limit(10)
-    contexto.ordenes_inventario_pendientes = ordenes || []
+    contexto.ordenes_inventario_pendientes = (ordenes || []).filter((orden: any) => !orden.proyecto?.deleted_at)
 
     const { data: envios } = await supabase.from("envios_materiales")
       .select("numero_envio,tipo,estado,departamento,provincia,fecha_salida,fecha_entrega_estimada")

@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
       .single<Project>()
 
     if (!proyecto) return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 })
+    if ((proyecto as any).deleted_at) return NextResponse.json({ error: "Proyecto eliminado" }, { status: 410 })
     if (!canAccessProjectReport(auth.profile, proyecto)) {
       return NextResponse.json({ error: "Acceso no autorizado" }, { status: 403 })
     }

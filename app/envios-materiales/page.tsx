@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 const DEPARTAMENTOS_PERU = [
   "Amazonas","Ancash","Apurimac","Arequipa","Ayacucho","Cajamarca","Callao","Cusco",
@@ -66,12 +67,12 @@ export default function EnviosMaterialesPage() {
       setPerfil(p)
     }
     const [{ data: envs }, { data: its }, { data: ubs }, { data: pros }] = await Promise.all([
-      supabase.from("envios_materiales").select("*, proyecto:proyectos(nombre,codigo), ubicacion_origen:inventario_ubicaciones!ubicacion_origen_id(nombre), solicitante:perfiles!solicitado_por(nombre,apellido), aprobador:perfiles!aprobado_por(nombre,apellido), envio_items(*, item:inventario_items(nombre), variante:inventario_variantes(nombre))").order("created_at", { ascending: false }),
+      supabase.from("envios_materiales").select("*, proyecto:proyectos(nombre,codigo,deleted_at), ubicacion_origen:inventario_ubicaciones!ubicacion_origen_id(nombre), solicitante:perfiles!solicitado_por(nombre,apellido), aprobador:perfiles!aprobado_por(nombre,apellido), envio_items(*, item:inventario_items(nombre), variante:inventario_variantes(nombre))").order("created_at", { ascending: false }),
       supabase.from("inventario_items").select("*, inventario_variantes(*)").eq("activo", true).order("nombre"),
       supabase.from("inventario_ubicaciones").select("*").eq("activo", true),
-      supabase.from("proyectos").select("id, nombre, codigo").order("nombre"),
+      supabase.from("proyectos").select("id, nombre, codigo").is("deleted_at", null).order("nombre"),
     ])
-    setEnvios(envs || [])
+    setEnvios((envs || []).filter((envio: any) => !rowBelongsToDeletedProject(envio)))
     setItems(its || [])
     setUbicaciones(ubs || [])
     setProyectos(pros || [])

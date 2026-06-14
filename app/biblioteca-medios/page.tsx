@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import type { CSSProperties } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { rowBelongsToDeletedProject } from "@/lib/projects"
 
 const TIPOS = [
   { value: "presentacion_comercial", label: "Presentacion comercial" },
@@ -32,7 +33,7 @@ const emptyForm = {
 }
 
 type Cliente = { id: string; razon_social: string | null }
-type Proyecto = { id: string; nombre: string | null; codigo: string | null; cliente_id?: string | null }
+type Proyecto = { id: string; nombre: string | null; codigo: string | null; cliente_id?: string | null; deleted_at?: string | null }
 type Responsable = { id: string; nombre: string | null; apellido: string | null; perfil?: string | null }
 type RecursoMedio = {
   id: string
@@ -49,7 +50,7 @@ type RecursoMedio = {
   tags: string[]
   estado: "activo" | "archivado"
   cliente?: { razon_social: string | null } | null
-  proyecto?: { nombre: string | null; codigo: string | null } | null
+  proyecto?: { nombre: string | null; codigo: string | null; deleted_at?: string | null } | null
   responsable?: { nombre: string | null; apellido: string | null } | null
 }
 
@@ -76,13 +77,13 @@ export default function BibliotecaMediosPage() {
     const [recursosRes, clientesRes, proyectosRes, responsablesRes] = await Promise.all([
       supabase
         .from("biblioteca_medios")
-        .select("*, cliente:clientes(razon_social), proyecto:proyectos(nombre,codigo), responsable:perfiles!responsable_id(nombre,apellido)")
+        .select("*, cliente:clientes(razon_social), proyecto:proyectos(nombre,codigo,deleted_at), responsable:perfiles!responsable_id(nombre,apellido)")
         .order("created_at", { ascending: false }),
       supabase.from("clientes").select("id, razon_social").order("razon_social"),
-      supabase.from("proyectos").select("id, nombre, codigo, cliente_id").order("created_at", { ascending: false }).limit(300),
+      supabase.from("proyectos").select("id, nombre, codigo, cliente_id").is("deleted_at", null).order("created_at", { ascending: false }).limit(300),
       supabase.from("perfiles").select("id, nombre, apellido, perfil").eq("activo", true).order("nombre"),
     ])
-    setRecursos((recursosRes.data || []) as RecursoMedio[])
+    setRecursos((recursosRes.data || []).filter((recurso: any) => !rowBelongsToDeletedProject(recurso)) as RecursoMedio[])
     setClientes(clientesRes.data || [])
     setProyectos(proyectosRes.data || [])
     setResponsables(responsablesRes.data || [])
