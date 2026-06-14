@@ -5,7 +5,7 @@ import { registrarAccion } from "@/lib/trazabilidad"
 import ImportExport from "@/components/ImportExport"
 import { enviarAlerta } from "@/lib/alertas"
 import { rqCodigo } from "@/lib/rq-code"
-import { rqIgvDetalle, rqIncluyeIgvLegacy, rqTratamientoIgv, rqTratamientoIgvLabel } from "@/lib/rq-igv"
+import { rqIgvDetalle, rqTratamientoIgv, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 
 const ESTADOS: Record<string, any> = {
   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e",  label: "Pendiente aprobacion" },
@@ -58,6 +58,8 @@ export default function RQPage() {
   const [proveedores, setProveedores] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [perfil, setPerfil] = useState<any>(null)
+  const [toastMsg, setToastMsg] = useState("")
+  const [toastType, setToastType] = useState<"success" | "error">("success")
   const [showNuevoRQ, setShowNuevoRQ] = useState(false)
 const [proyectos, setProyectos] = useState<any[]>([])
 const [formRQ, setFormRQ] = useState(FORM_RQ_VACIO)
@@ -123,6 +125,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     setLoading(false)
   }
 
+  function mostrarToast(mensaje: string, tipo: "success" | "error" = "success") {
+    setToastMsg(mensaje)
+    setToastType(tipo)
+    setTimeout(() => setToastMsg(""), 4000)
+  }
+
   async function cambiarEstado(id: string, estado: string, extra?: any) {
     const rqActual = rqs.find(r => r.id === id)
     if (rqPerteneceAProyectoEliminado(rqActual)) {
@@ -151,8 +159,30 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       updates.tipo_transferencia = datosPago.tipo_transferencia || null
       updates.nota_pago = datosPago.nota_pago || null
     }
-    await supabase.from("requerimientos_pago").update(updates).eq("id", id)
-    await registrarAccion({ accion: "cambiar_estado", modulo: "rq", entidad_id: id, entidad_tipo: "rq", descripcion: "RQ cambiado a: " + estado })
+    const { error } = await supabase.from("requerimientos_pago").update(updates).eq("id", id)
+    if (error) {
+      console.error("RQ status update error:", error)
+      mostrarToast("No se pudo aprobar el RQ", "error")
+      alert("No se pudo actualizar el estado del RQ: " + error.message)
+      return
+    }
+    await registrarAccion({
+      accion: "cambiar_estado",
+      modulo: "rq",
+      entidad_id: id,
+      entidad_tipo: "rq",
+      descripcion: "RQ cambiado a: " + estado,
+      datos_nuevos: {
+        estado,
+        aprobado_por: perfil?.id || null,
+        aprobado_por_nombre: `${perfil?.nombre || ""} ${perfil?.apellido || ""}`.trim(),
+        fecha_aprobacion: new Date().toISOString()
+      }
+    })
+    if (["aprobado_produccion", "aprobado", "programado", "pagado"].includes(estado)) {
+      const codigoRQ = rqActual?.codigo_rq || rqActual?.numero_rq
+      mostrarToast(codigoRQ ? `${codigoRQ} aprobado correctamente` : "RQ Aprobado", "success")
+    }
     load()
     if (selected?.id === id) setSelected((prev: any) => ({ ...prev, estado, ...updates }))
   }
@@ -173,11 +203,11 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       .select("id")
       .maybeSingle()
     if (error || !cancelado) {
-      alert("No se pudo cancelar el RQ")
+      mostrarToast("No se pudo cancelar el RQ", "error")
       return
     }
     await registrarAccion({ accion: "cancelar", modulo: "rq", entidad_id: rq.id, entidad_tipo: "rq", descripcion: codigo + " cancelado", datos_nuevos: updates })
-    alert(codigo + " cancelado correctamente")
+    mostrarToast(codigo + " cancelado correctamente", "success")
     setSelected((prev: any) => prev?.id === rq.id ? { ...prev, ...updates } : prev)
     load()
   }
@@ -234,20 +264,28 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     return Boolean(!rq.solicitado_por && rq.proyecto?.productor?.id === perfil.id)
   }
 
+  function rolNormalizado() {
+    return String(perfil?.perfil || "").trim().toLowerCase()
+  }
+
+  function puedeEditarTodoRQ() {
+    return ROLES_EDICION_TOTAL_RQ.includes(rolNormalizado())
+  }
+
   function rqPerteneceAProyectoEliminado(rq: any) {
     return Boolean(rq?.proyecto_id && (!rq.proyecto || rq.proyecto?.deleted_at))
   }
 
   function puedeEditarRQ(rq: any) {
     if (!rq) return false
-    if (ROLES_EDICION_TOTAL_RQ.includes(perfil?.perfil)) return true
+    if (puedeEditarTodoRQ()) return true
     if (ESTADOS_BLOQUEADOS_EDICION.includes(rq.estado)) return false
     return esCreadorRQ(rq) && !rq.editado_por_creador
   }
 
   function mensajeEdicionRQ(rq: any) {
     if (!rq) return "Selecciona un RQ para editar."
-    if (ROLES_EDICION_TOTAL_RQ.includes(perfil?.perfil)) return ""
+    if (puedeEditarTodoRQ()) return ""
     if (esCreadorRQ(rq) && rq.editado_por_creador) return "Ya utilizaste tu edición correctiva. Solicita apoyo al Controller o Superadmin."
     if (ESTADOS_BLOQUEADOS_EDICION.includes(rq.estado)) return "Este RQ no se puede editar porque esta pagado, cerrado o cancelado."
     if (esCreadorRQ(rq)) return "Puedes editar este RQ una sola vez antes de que quede pagado, cerrado o cancelado."
@@ -291,7 +329,6 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       proveedor_nombre: prov?.nombre || "",
       monto_solicitado: Number(formEditarRQ.monto_solicitado),
       tratamiento_igv: formEditarRQ.tratamiento_igv,
-      incluye_igv: rqIncluyeIgvLegacy(formEditarRQ.tratamiento_igv),
       tipo_pago: formEditarRQ.tipo_pago,
       dias_credito: formEditarRQ.dias_credito ? Number(formEditarRQ.dias_credito) : null,
       fecha_pago: formEditarRQ.fecha_pago || null,
@@ -304,29 +341,39 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     if (!proyectoBloqueadoEdicion(selected)) {
       updates.proyecto_id = formEditarRQ.proyecto_id || null
     }
-    const editorTotal = ROLES_EDICION_TOTAL_RQ.includes(perfil?.perfil)
+    const editorTotal = puedeEditarTodoRQ()
     const edicionCorrectivaCreador = Boolean(esCreadorRQ(selected) && !selected.editado_por_creador && !editorTotal)
     if (edicionCorrectivaCreador) {
       updates.editado_por_creador = true
       updates.fecha_primera_edicion = new Date().toISOString()
       if (!selected.solicitado_por) updates.solicitado_por = perfil.id
     }
-    let query = supabase
-      .from("requerimientos_pago")
-      .update(updates)
-      .eq("id", selected.id)
-    if (!editorTotal) {
-      query = query
+    let updated: any = {}
+    let error: any = null
+    if (editorTotal) {
+      const result = await supabase
+        .from("requerimientos_pago")
+        .update(updates)
+        .eq("id", selected.id)
+      error = result.error
+    } else {
+      let query = supabase
+        .from("requerimientos_pago")
+        .update(updates)
+        .eq("id", selected.id)
         .eq("editado_por_creador", false)
-        .not("estado", "in", "(pagado,cerrado,cancelado)")
+        .neq("estado", "pagado")
       if (selected.solicitado_por) query = query.eq("solicitado_por", perfil?.id)
       else query = query.is("solicitado_por", null)
+      const result = await query
+        .select("id,editado_por_creador,fecha_primera_edicion")
+        .maybeSingle()
+      updated = result.data
+      error = result.error
     }
-    const { data: updated, error } = await query
-      .select("id,editado_por_creador,fecha_primera_edicion")
-      .maybeSingle()
-    if (error || !updated) {
-      alert(editorTotal ? "No se pudo editar el RQ. Revisa los datos e intenta nuevamente." : "Ya utilizaste tu edición correctiva. Solicita apoyo al Controller o Superadmin.")
+    if (error || (!editorTotal && !updated)) {
+      if (error) console.error("RQ update error:", error)
+      alert(editorTotal ? `No se pudo editar el RQ. ${error?.message || "Revisa los datos e intenta nuevamente."}` : "Ya utilizaste tu edición correctiva. Solicita apoyo al Controller o Superadmin.")
       return
     }
     await registrarAccion({ accion: edicionCorrectivaCreador ? "editar_correctivo_creador" : "editar", modulo: "rq", entidad_id: selected.id, entidad_tipo: "rq", descripcion: (edicionCorrectivaCreador ? "Edicion correctiva del creador: " : "RQ editado: ") + rqCodigo(selected), datos_nuevos: updates })
@@ -337,8 +384,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   function errorSupabaseRQ(error: any) {
     const mensaje = String(error?.message || "")
-    if (mensaje.includes("incluye_igv") || mensaje.includes("schema cache")) {
-      return "No se pudo crear el RQ porque falta actualizar el esquema de Supabase. Verifica que la migracion de incluye_igv/codigo_rq este aplicada y refresca el schema cache."
+    if (mensaje.includes("tratamiento_igv") || mensaje.includes("schema cache")) {
+      return "No se pudo crear el RQ porque falta actualizar el esquema de Supabase. Verifica que la migracion RQ de tratamiento_igv/codigo_rq este aplicada y refresca el schema cache."
     }
     if (mensaje.includes("solicitado_por")) {
       return "No se pudo crear el RQ porque falta el campo solicitado_por en la base de datos o no esta disponible en el schema cache."
@@ -369,7 +416,6 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
         proveedor_nombre: prov?.nombre || "",
         monto_solicitado: monto,
         tratamiento_igv: formRQ.tratamiento_igv,
-        incluye_igv: rqIncluyeIgvLegacy(formRQ.tratamiento_igv),
         descripcion: formRQ.descripcion.trim(),
         tipo_pago: formRQ.tipo_pago,
         dias_credito: formRQ.dias_credito ? Number(formRQ.dias_credito) : null,
@@ -400,7 +446,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   function getSiguienteAccion(rq: any) {
     if (rqPerteneceAProyectoEliminado(rq)) return null
-    const rol = perfil?.perfil
+    const rol = rolNormalizado()
     const paso = FLUJO.find(f => f.estado === rq.estado)
     if (!paso || !paso.siguiente) return null
     if (paso.roles.includes(rol)) return { label: paso.accion, nextEstado: paso.siguiente, color: "#0F6E56" }
@@ -409,14 +455,14 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   function puedeRechazar(rq: any) {
     if (rqPerteneceAProyectoEliminado(rq)) return false
-    const rol = perfil?.perfil
+    const rol = rolNormalizado()
     if (["pagado", "cerrado", "cancelado", "rechazado"].includes(rq.estado)) return false
     return ["gerente_produccion", "gerente_general", "controller", "superadmin"].includes(rol)
   }
 
   function puedeCancelarRQ(rq: any) {
     if (!rq || rqPerteneceAProyectoEliminado(rq)) return false
-    return ROLES_CANCELAR_RQ.includes(perfil?.perfil) && ESTADOS_CANCELABLES_RQ.includes(rq.estado)
+    return ROLES_CANCELAR_RQ.includes(rolNormalizado()) && ESTADOS_CANCELABLES_RQ.includes(rq.estado)
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -447,11 +493,28 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3, display: "block" }
 
-  const puedeEditarPago = ["controller", "superadmin"].includes(perfil?.perfil)
+  const puedeEditarPago = ["controller", "superadmin"].includes(rolNormalizado())
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
   return (
     <div>
+      {toastMsg && (
+        <div style={{
+          position: "fixed",
+          top: 20,
+          right: 20,
+          zIndex: 9999,
+          padding: "12px 16px",
+          borderRadius: 8,
+          fontWeight: 700,
+          fontSize: 13,
+          color: "#fff",
+          background: toastType === "success" ? "#15803d" : "#dc2626",
+          boxShadow: "0 10px 25px rgba(0,0,0,.15)"
+        }}>
+          {toastMsg}
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Requerimientos de pago</h1>
@@ -459,7 +522,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
             {rqsVistaActiva.length} RQs activos{rqsProyectosEliminados.length ? ` · ${rqsProyectosEliminados.length} en proyectos eliminados` : ""} · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}
           </p>
         </div>
-        {["superadmin","gerente_general","gerente_produccion","controller"].includes(perfil?.perfil) && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado").is("deleted_at", null).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
+        {["superadmin","gerente_general","gerente_produccion","controller"].includes(rolNormalizado()) && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado").is("deleted_at", null).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
         <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
       </div>
 
@@ -803,7 +866,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 </button>
               )}
 
-              {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (
+              {["superadmin","gerente_general","controller"].includes(rolNormalizado()) && (
                 <button onClick={() => eliminarRQ(selected)}
                   style={{ padding: "8px", border: "1px solid #fee2e2", borderRadius: 8, background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>
                   🗑 Eliminar RQ
