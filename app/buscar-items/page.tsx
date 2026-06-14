@@ -22,8 +22,14 @@ export default function BuscarItemsCotizadosPage() {
   const [filtroCliente, setFiltroCliente] = useState("")
   const [filtroEstado, setFiltroEstado] = useState("")
   const [loadError, setLoadError] = useState("")
+  const [paginaActual, setPaginaActual] = useState(1)
+  const itemsPorPagina = 50
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    setPaginaActual(1)
+  }, [busqueda, filtroProyecto, filtroCliente, filtroEstado])
 
   async function load() {
     setLoading(true)
@@ -76,6 +82,14 @@ export default function BuscarItemsCotizadosPage() {
     return true
   })
 
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / itemsPorPagina))
+  const paginaSegura = Math.min(paginaActual, totalPaginas)
+  const indiceInicio = (paginaSegura - 1) * itemsPorPagina
+  const indiceFin = indiceInicio + itemsPorPagina
+  const itemsPaginados = filtrados.slice(indiceInicio, indiceFin)
+  const desde = filtrados.length === 0 ? 0 : indiceInicio + 1
+  const hasta = Math.min(indiceFin, filtrados.length)
+
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const inp: any = { padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none" }
 
@@ -86,7 +100,7 @@ export default function BuscarItemsCotizadosPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Buscar ítems cotizados</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{filtrados.length} resultados · {items.length} ítems revisados</p>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{filtrados.length} resultados · Mostrando {desde}-{hasta} · {items.length} ítems revisados</p>
         </div>
       </div>
 
@@ -133,7 +147,7 @@ export default function BuscarItemsCotizadosPage() {
           <tbody>
             {filtrados.length === 0 ? (
               <tr><td colSpan={7} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No se encontraron ítems cotizados</td></tr>
-            ) : filtrados.map((item, idx) => {
+            ) : itemsPaginados.map((item, idx) => {
               const cot = item.cotizacion
               const proy = cot?.proyecto
               const cliente = proy?.cliente
@@ -162,6 +176,39 @@ export default function BuscarItemsCotizadosPage() {
           </tbody>
         </table>
       </div>
+
+      {filtrados.length > itemsPorPagina && (
+        <div className="card" style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ fontSize: 13, color: "#6b7280" }}>
+            Mostrando <strong>{desde}</strong> a <strong>{hasta}</strong> de <strong>{filtrados.length}</strong> ítems
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              className="btn-secondary"
+              style={{ fontSize: 12 }}
+              disabled={paginaSegura <= 1}
+              onClick={() => setPaginaActual(p => Math.max(1, p - 1))}
+            >
+              ← Anterior
+            </button>
+
+            <span style={{ fontSize: 13, color: "#374151", fontWeight: 700 }}>
+              Página {paginaSegura} de {totalPaginas}
+            </span>
+
+            <button
+              className="btn-secondary"
+              style={{ fontSize: 12 }}
+              disabled={paginaSegura >= totalPaginas}
+              onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))}
+            >
+              Siguiente →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
