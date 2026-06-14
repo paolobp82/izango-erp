@@ -36,6 +36,7 @@ const ESTADOS_RQ: Record<string, any> = {
   aprobado: { bg: "#dcfce7", color: "#15803d", label: "Aprobado GG" },
   programado: { bg: "#dbeafe", color: "#1e40af", label: "Programado" },
   pagado: { bg: "#f0fdf4", color: "#166534", label: "Pagado" },
+  cancelado: { bg: "#f3f4f6", color: "#6b7280", label: "Cancelado" },
   rechazado: { bg: "#fee2e2", color: "#991b1b", label: "Rechazado" },
 }
 
@@ -557,7 +558,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const clienteContacto = clienteProyecto.nombre_contacto || "Sin contacto principal"
   const clienteEmail = clienteProyecto.email_contacto || "Sin correo"
   const clienteTelefono = clienteProyecto.telefono_contacto || "Sin telefono"
-  const rqsActivos = rqsProyecto.filter(rq => rq.estado !== "rechazado")
+  const rqsActivos = rqsProyecto.filter(rq => !["rechazado", "cancelado", "cerrado"].includes(rq.estado))
   const rqsPendientes = rqsProyecto.filter(rq => ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "programado"].includes(rq.estado))
   const rqsPagados = rqsProyecto.filter(rq => rq.estado === "pagado")
   const totalRqs = rqsActivos.reduce((sum, rq) => sum + rqIgvDetalle(rq).total, 0)

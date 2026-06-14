@@ -21,7 +21,7 @@ export default function FlujoCajaPage() {
     const [{ data: rqsData }, { data: facturasData }] = await Promise.all([
       supabase.from("requerimientos_pago")
         .select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
-        .not("estado", "eq", "rechazado")
+        .not("estado", "in", "(rechazado,cancelado,cerrado)")
         .order("created_at"),
       supabase.from("facturas")
         .select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
