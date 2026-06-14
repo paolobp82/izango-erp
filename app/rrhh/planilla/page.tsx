@@ -17,7 +17,7 @@ export default function PlanillaPage() {
   const [form, setForm] = useState({
     trabajador_id: "", periodo: "", sueldo_base: 0, bonificaciones: 0,
     gratificacion: 0, cts: 0, comision_proyectos: 0, comision_ventas: 0,
-    horas_extras_monto: 0, descuentos: 0, aporte_pension: 0, notas: ""
+    horas_extras_monto: 0, descuentos: 0, adelantos_monto: 0, aporte_pension: 0, notas: ""
   })
 
   useEffect(() => { load() }, [])
@@ -53,7 +53,7 @@ export default function PlanillaPage() {
           bonificaciones: 0, gratificacion, cts,
           comision_proyectos: 0, comision_ventas: 0,
           horas_extras_monto: totalHoras,
-          descuentos: 0, aporte_pension: aportePension,
+          descuentos: 0, adelantos_monto: 0, aporte_pension: aportePension,
           estado: "borrador"
         })
       }
@@ -70,7 +70,7 @@ export default function PlanillaPage() {
       sueldo_base: p.sueldo_base, bonificaciones: p.bonificaciones,
       gratificacion: p.gratificacion, cts: p.cts,
       comision_proyectos: p.comision_proyectos, comision_ventas: p.comision_ventas,
-      horas_extras_monto: p.horas_extras_monto, descuentos: p.descuentos,
+      horas_extras_monto: p.horas_extras_monto, descuentos: p.descuentos, adelantos_monto: p.adelantos_monto || 0,
       aporte_pension: p.aporte_pension, notas: p.notas || ""
     })
     setShowForm(true)
@@ -87,6 +87,7 @@ export default function PlanillaPage() {
       comision_ventas: parseFloat(form.comision_ventas.toString()) || 0,
       horas_extras_monto: parseFloat(form.horas_extras_monto.toString()) || 0,
       descuentos: parseFloat(form.descuentos.toString()) || 0,
+      adelantos_monto: parseFloat(form.adelantos_monto.toString()) || 0,
       aporte_pension: parseFloat(form.aporte_pension.toString()) || 0,
       notas: form.notas,
       updated_at: new Date().toISOString()
@@ -113,8 +114,24 @@ export default function PlanillaPage() {
     return matchPeriodo && matchTrab && matchEstado
   })
 
-  const totalBruto = planillasFiltradas.reduce((s, p) => s + (p.total_bruto || 0), 0)
-  const totalNeto = planillasFiltradas.reduce((s, p) => s + (p.total_neto || 0), 0)
+  const calcularBruto = (p: any) =>
+    Number(p.sueldo_base || 0) +
+    Number(p.bonificaciones || 0) +
+    Number(p.gratificacion || 0) +
+    Number(p.cts || 0) +
+    Number(p.comision_proyectos || 0) +
+    Number(p.comision_ventas || 0) +
+    Number(p.horas_extras_monto || 0)
+
+  const calcularNeto = (p: any) =>
+    calcularBruto(p) -
+    Number(p.descuentos || 0) -
+    Number(p.adelantos_monto || 0) -
+    Number(p.aporte_pension || 0)
+
+  const totalBruto = planillasFiltradas.reduce((s, p) => s + calcularBruto(p), 0)
+  const totalNeto = planillasFiltradas.reduce((s, p) => s + calcularNeto(p), 0)
+  const totalAdelantos = planillasFiltradas.reduce((s, p) => s + Number(p.adelantos_monto || 0), 0)
 
   const ESTADO_COLOR: any = {
     borrador: { bg: "#f3f4f6", color: "#6b7280" },
@@ -144,7 +161,7 @@ export default function PlanillaPage() {
               {key:"bonificaciones",label:"Bonificaciones"},{key:"gratificacion",label:"Gratificacion"},
               {key:"cts",label:"CTS"},{key:"comision_proyectos",label:"Comision proyectos"},
               {key:"comision_ventas",label:"Comision ventas"},{key:"horas_extras_monto",label:"HH.EE monto"},
-              {key:"descuentos",label:"Descuentos"},{key:"aporte_pension",label:"Aporte pension"},
+              {key:"descuentos",label:"Descuentos"},{key:"adelantos_monto",label:"Adelantos"},{key:"aporte_pension",label:"Aporte pension"},
               {key:"total_bruto",label:"Total bruto"},{key:"total_neto",label:"Total neto"},
               {key:"estado",label:"Estado"},
             ]}
@@ -163,7 +180,7 @@ export default function PlanillaPage() {
               {saving ? "Generando..." : "⚡ Generar planilla"}
             </button>
           </div>
-          <button onClick={() => { setEditando(null); setForm({ trabajador_id: "", periodo: "", sueldo_base: 0, bonificaciones: 0, gratificacion: 0, cts: 0, comision_proyectos: 0, comision_ventas: 0, horas_extras_monto: 0, descuentos: 0, aporte_pension: 0, notas: "" }); setShowForm(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Manual</button>
+          <button onClick={() => { setEditando(null); setForm({ trabajador_id: "", periodo: "", sueldo_base: 0, bonificaciones: 0, gratificacion: 0, cts: 0, comision_proyectos: 0, comision_ventas: 0, horas_extras_monto: 0, descuentos: 0, adelantos_monto: 0, aporte_pension: 0, notas: "" }); setShowForm(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Manual</button>
         </div>
       </div>
 
@@ -186,6 +203,7 @@ export default function PlanillaPage() {
         {planillasFiltradas.length > 0 && (
           <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
             <div style={{ background: "#f0fdf4", color: "#15803d", padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 700 }}>Bruto: {fmt(totalBruto)}</div>
+            <div style={{ background: "#fef9c3", color: "#92400e", padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 700 }}>Adelantos: {fmt(totalAdelantos)}</div>
             <div style={{ background: "#1D2040", color: "#03E373", padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 700 }}>Neto: {fmt(totalNeto)}</div>
           </div>
         )}
@@ -205,6 +223,7 @@ export default function PlanillaPage() {
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>GRAT.</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>HH.EE</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESCTOS.</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ADELANTOS</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PENSIÓN</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>BRUTO</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>NETO</th>
@@ -227,9 +246,10 @@ export default function PlanillaPage() {
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 12, color: "#374151" }}>{fmt(p.gratificacion)}</td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 12, color: "#374151" }}>{fmt(p.horas_extras_monto)}</td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 12, color: "#dc2626" }}>{fmt(p.descuentos)}</td>
+                    <td style={{ padding: "12px", textAlign: "right", fontSize: 12, color: "#dc2626" }}>{fmt(p.adelantos_monto)}</td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 12, color: "#dc2626" }}>{fmt(p.aporte_pension)}</td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600 }}>{fmt(p.total_bruto)}</td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 800, color: "#03E373" }}>{fmt(p.total_neto)}</td>
+                    <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600 }}>{fmt(calcularBruto(p))}</td>
+                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 800, color: "#03E373" }}>{fmt(calcularNeto(p))}</td>
                     <td style={{ padding: "12px", textAlign: "center" }}>
                       <span style={{ background: ec.bg, color: ec.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{p.estado}</span>
                     </td>
@@ -281,6 +301,9 @@ export default function PlanillaPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div><label style={lbl}>HH.EE monto</label><input style={inp} type="number" value={form.horas_extras_monto} onChange={e => setForm({ ...form, horas_extras_monto: parseFloat(e.target.value) || 0 })} /></div>
                 <div><label style={lbl}>Descuentos</label><input style={inp} type="number" value={form.descuentos} onChange={e => setForm({ ...form, descuentos: parseFloat(e.target.value) || 0 })} /></div>
+                <div><label style={lbl}>Adelantos</label><input style={inp} type="number" value={form.adelantos_monto} onChange={e => setForm({ ...form, adelantos_monto: parseFloat(e.target.value) || 0 })} /></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div><label style={lbl}>Aporte pensión</label><input style={inp} type="number" value={form.aporte_pension} onChange={e => setForm({ ...form, aporte_pension: parseFloat(e.target.value) || 0 })} /></div>
               </div>
               <div><label style={lbl}>Notas</label><input style={inp} value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} /></div>
