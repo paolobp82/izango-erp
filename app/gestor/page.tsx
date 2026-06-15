@@ -49,7 +49,7 @@ export default function GestorPage() {
   async function load() {
     const { data: provs } = await supabase.from("proyectos")
       .select("*, cliente:clientes(razon_social)")
-      .in("estado", ["aprobado","aprobado_produccion","en_curso","terminado"])
+      .in("estado", ["aprobado","aprobado_produccion","en_curso"])
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
     setProyectos(provs || [])
@@ -499,3 +499,4 @@ export default function GestorPage() {
     </div>
   )
 }
+
