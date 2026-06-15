@@ -481,6 +481,28 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const rqsVistaActiva = incluirProyectosEliminados ? rqs : rqs.filter(r => !rqPerteneceAProyectoEliminado(r))
   const rqsProyectosEliminados = rqs.filter(r => rqPerteneceAProyectoEliminado(r))
   const filtradosBase = rqsVistaActiva.filter(r => {
+    const textoBusqueda = busquedaRQ.trim().toLowerCase()
+
+    if (textoBusqueda) {
+      const searchable = [
+        rqCodigo(r),
+        r.codigo_rq,
+        r.numero_rq,
+        r.descripcion,
+        r.proveedor_nombre,
+        r.proveedor?.nombre,
+        r.proyecto?.codigo,
+        r.proyecto?.nombre,
+        String(r.monto_solicitado || ""),
+        r.estado
+      ].filter(Boolean).join(" ").toLowerCase()
+
+      const searchableNumerico = searchable.replace(/\D/g, "")
+      const textoNumerico = textoBusqueda.replace(/\D/g, "")
+
+      if (!searchable.includes(textoBusqueda) && (!textoNumerico || !searchableNumerico.includes(textoNumerico))) return false
+    }
+
     if (filtroEstado && r.estado !== filtroEstado) return false
     if (filtroProveedor && r.proveedor_id !== filtroProveedor) return false
     if (filtroProyecto) {
@@ -1042,6 +1064,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
 
 
 
