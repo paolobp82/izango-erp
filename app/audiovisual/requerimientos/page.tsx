@@ -3,6 +3,8 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import KpiCard from "@/components/ui/KpiCard"
+import StatusBadge from "@/components/ui/StatusBadge"
 
 const PIEZAS = ["Video", "3D", "Imagenes IA", "Dinamica", "Graficas", "Adaptacion", "Otros"]
 const PRIORIDADES: Record<string, any> = {
@@ -438,33 +440,54 @@ export default function AudiovisualRequerimientosPage() {
             <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Solicitudes de produccion para piezas audiovisuales, artes y entregables.</p>
           </div>
           <button onClick={() => abrirNuevo()} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo requerimiento</button>
+        </div>        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 16,
+            marginBottom: 24,
+          }}
+        >
+          <KpiCard
+            icon="file"
+            label="Total requerimientos"
+            value={String(requerimientos.length)}
+            sub="Registrados"
+            borderColor="#64748B"
+            valueColor="#334155"
+          />
+
+          <KpiCard
+            icon="chart"
+            label="En seguimiento"
+            value={String(enCurso)}
+            sub="Producción activa"
+            borderColor="#3B82F6"
+            valueColor="#1E40AF"
+          />
+
+          <KpiCard
+            icon="shield"
+            label="Vencidos"
+            value={String(vencidos)}
+            sub="Requieren atención"
+            borderColor="#EF4444"
+            valueColor="#B91C1C"
+          />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-          {[
-            { label: "Total requerimientos", value: requerimientos.length, bg: "#f3f4f6", color: "#374151" },
-            { label: "En seguimiento", value: enCurso, bg: "#dbeafe", color: "#1e40af" },
-            { label: "Vencidos", value: vencidos, bg: "#fee2e2", color: "#991b1b" },
-          ].map(c => (
-            <div key={c.label} className="card" style={{ background: c.bg, border: "none", padding: "12px 16px" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: c.color, textTransform: "uppercase" }}>{c.label}</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>{c.value}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
           {requerimientos.length === 0 ? (
             <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay requerimientos audiovisuales registrados</div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "#1D2040" }}>
-                  <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#fff" }}>PROYECTO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>PIEZAS</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>PRIORIDAD</th>
+                <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+                  <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#475569" }}>PROYECTO</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#475569" }}>PIEZAS</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#475569" }}>PRIORIDAD</th><th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#475569" }}>ESTADO</th>
                   <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>AVANCE</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>ENTREGA</th>
+                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#475569" }}>ENTREGA</th>
                   <th style={{ width: 80 }}></th>
                 </tr>
               </thead>
@@ -473,13 +496,13 @@ export default function AudiovisualRequerimientosPage() {
                   const pr = PRIORIDADES[r.prioridad] || PRIORIDADES.media
                   const vencido = r.fecha_entrega_solicitada && r.fecha_entrega_solicitada < hoy && !["completado", "cancelado"].includes(r.estado)
                   return (
-                    <tr key={r.id} onClick={() => abrirDetalle(r)} style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === r.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
+                    <tr key={r.id} onClick={() => abrirDetalle(r)} style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === r.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}>
                       <td style={{ padding: "10px 16px" }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{r.proyecto?.codigo || "-"}</div>
                         <div style={{ fontSize: 12, color: "#6b7280" }}>{r.proyecto?.nombre || "Sin proyecto"}</div>
                       </td>
                       <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>{(r.piezas || []).join(", ") || "-"}</td>
-                      <td style={{ padding: "10px 12px", textAlign: "center" }}><span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{pr.label}</span></td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}><span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{pr.label}</span></td><td style={{ padding: "10px 12px", textAlign: "center" }}><StatusBadge label={(ESTADOS[r.estado] || ESTADOS.pendiente).label} type={r.estado} /></td>
                       <td style={{ padding: "10px 12px", textAlign: "center" }}>
                         <div style={{ fontSize: 12, color: "#374151", fontWeight: 700, marginBottom: 3 }}>{r.avance || 10}%</div>
                         <div style={{ width: 54, height: 5, background: "#e5e7eb", borderRadius: 99, margin: "0 auto", overflow: "hidden" }}>
@@ -507,7 +530,7 @@ export default function AudiovisualRequerimientosPage() {
       </div>
 
       {selected && (
-        <div style={{ width: 390, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, overflowY: "auto", flexShrink: 0 }}>
+        <div style={{ width: 390, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 18, padding: 20, boxShadow: "0 10px 24px rgba(15,23,42,0.06)", overflowY: "auto", flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "#111827" }}>{selected.proyecto?.codigo || "Requerimiento"}</h2>
@@ -727,7 +750,7 @@ export default function AudiovisualRequerimientosPage() {
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22, paddingTop: 16, borderTop: "1px solid #f3f4f6" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
               <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
               <button onClick={guardar} disabled={saving || uploading} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : esEdicionFormulario ? "Guardar cambios" : "Crear y alertar audiovisual"}</button>
             </div>
@@ -791,3 +814,5 @@ export default function AudiovisualRequerimientosPage() {
     </div>
   )
 }
+
+
