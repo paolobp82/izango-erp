@@ -1,9 +1,10 @@
 export function projectIsDeleted(project: any) {
-  return Boolean(project?.deleted_at)
+  const normalizedProject = Array.isArray(project) ? project[0] : project
+  return Boolean(normalizedProject?.deleted_at)
 }
 
 export function rowBelongsToDeletedProject(row: any) {
-  return Boolean(row?.proyecto_id && (!row.proyecto || projectIsDeleted(row.proyecto)))
+  return projectIsDeleted(row?.proyecto)
 }
 
 export async function softDeleteProject(supabase: any, projectId: string) {
