@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import KpiCard from "@/components/ui/KpiCard"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend
@@ -248,51 +249,19 @@ export default function DashboardPage() {
             </a>
           ))}
         </div>
-      )}
+      )}      {/* KPIs principales */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 20 }}>
+        <KpiCard icon="money" label="Presupuestos Pendientes" value={fmt(metricas.presupuestosPendientes || 0)} sub={(metricas.pendientes || 0) + " esperando aprobación"} borderColor="#10B981" valueColor="#059669" />
 
-      {/* KPIs Presupuestos */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 16 }}>
-        {[
-          { label: "Presupuestos Pendientes", value: fmt(metricas.presupuestosPendientes||0), sub: "Esperando aprobación", border: "#f59e0b", valueColor: "#d97706" },
-          { label: "Presupuestos Aprobados", value: fmt(metricas.presupuestosAprobados||0), sub: "En proceso de aprobación", border: "#3b82f6", valueColor: "#1e40af" },
-        ].map((k, i) => (
-          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", borderLeft: "4px solid "+k.border }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{k.label}</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: k.valueColor }}>{k.value}</div>
-            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>{k.sub}</div>
-          </div>
-        ))}
-      </div>
-      {/* KPIs Row 1 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
-        {[
-          { label: "Facturado este mes", value: fmtShort(metricas.factMesAct||0), sub: (metricas.varFacturacion||0) >= 0 ? "↑ "+Math.abs(metricas.varFacturacion||0).toFixed(1)+"% vs mes ant." : "↓ "+Math.abs(metricas.varFacturacion||0).toFixed(1)+"% vs mes ant.", subColor: (metricas.varFacturacion||0) >= 0 ? "#059669" : "#dc2626", border: "#2563EB", valueColor: "#1E293B" },
-          { label: "Por cobrar", value: fmtShort(metricas.porCobrar||0), sub: "Cobrado: "+fmtShort(metricas.totalCobrado||0), subColor: "#64748B", border: "#1e40af", valueColor: "#1e40af" },
-          { label: "Margen real", value: (metricas.margenPromedio||0) > 0 ? (metricas.margenPromedio||0).toFixed(1)+"%" : "—", sub: "En proyectos liquidados", subColor: "#64748B", border: (metricas.margenPromedio||0) >= 30 ? "#059669" : "#dc2626", valueColor: (metricas.margenPromedio||0) >= 30 ? "#059669" : "#dc2626" },
-          { label: "Proyectos activos", value: String(metricas.activos||0), sub: (metricas.pendientes||0)+" pendientes aprobación", subColor: "#64748B", border: "#0F6E56", valueColor: "#0F6E56" },
-        ].map((k, i) => (
-          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", borderLeft: "4px solid "+k.border }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{k.label}</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: k.valueColor }}>{k.value}</div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: k.subColor, marginTop: 6 }}>{k.sub}</div>
-          </div>
-        ))}
-      </div>
+        <KpiCard icon="shield" label="Presupuestos Aprobados" value={fmt(metricas.presupuestosAprobados || 0)} sub="En proceso de ejecución" borderColor="#3B82F6" valueColor="#1D4ED8" />
 
-      {/* KPIs Row 2 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
-        {[
-          { label: "RQs pendientes", value: String(metricas.rqsPendientes||0), sub: fmtShort(metricas.rqsPendientesMonto||0)+" en espera", color: (metricas.rqsPendientes||0) > 0 ? "#d97706" : "#374151" },
-          { label: "Sin liquidar", value: String(metricas.terminadosSinLiquidar||0), sub: "Proyectos terminados", color: (metricas.terminadosSinLiquidar||0) > 0 ? "#d97706" : "#374151" },
-          { label: "Pipeline CRM", value: String(metricas.pipelineCRM||0), sub: (metricas.leadsCalientes||0)+" leads calientes 🔥", color: "#374151" },
-          { label: "Cotizaciones mes", value: String(metricas.cotMes||0), sub: "Versiones generadas", color: "#374151" },
-        ].map((k, i) => (
-          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", marginBottom: 4 }}>{k.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: k.color }}>{k.value}</div>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>{k.sub}</div>
-          </div>
-        ))}
+        <KpiCard icon="chart" label="Facturado Este Mes" value={fmtShort(metricas.factMesAct || 0)} sub="0% vs. mes ant." borderColor="#14B8A6" valueColor="#0D9488" />
+
+        <KpiCard icon="wallet" label="Por Cobrar" value={fmtShort(metricas.porCobrar || 0)} sub={"Cobrados: " + fmtShort(metricas.totalCobrado || 0)} borderColor="#8B5CF6" valueColor="#5B21B6" />
+
+        <KpiCard icon="folder" label="Proyectos Activos" value={String(metricas.activos || 0)} sub={(metricas.pendientes || 0) + " pendientes aprobación"} borderColor="#F97316" valueColor="#EA580C" />
+
+        <KpiCard icon="file" label="Cotizaciones Mes" value={String(metricas.cotMes || 0)} sub="Versiones generadas" borderColor="#10B981" valueColor="#059669" />
       </div>
 
       {/* Gráficos Row 1: Facturación + Estados */}
@@ -412,4 +381,9 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+
+
+
+
 
