@@ -79,6 +79,14 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   useEffect(() => { load() }, [])
 
+  useEffect(() => {
+    setPagina(1)
+  }, [filtroEstado, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
+
+  useEffect(() => {
+    setPagina(1)
+  }, [filtroEstado, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
+
   async function load() {
     const params = new URLSearchParams(window.location.search)
     const proyectoIdParam = params.get("proyecto_id") || ""
@@ -483,7 +491,11 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     return true
   })
   const filtrados = filtradosBase
-  const paginados = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA))
+  const paginaActual = Math.min(pagina, totalPaginas)
+  const inicioPagina = filtrados.length === 0 ? 0 : (paginaActual - 1) * POR_PAGINA + 1
+  const finPagina = Math.min(paginaActual * POR_PAGINA, filtrados.length)
+  const paginados = filtrados.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA)
 
   const totalPendiente = rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
   const totalAprobado = rqsVistaActiva.filter(r => ["aprobado_produccion", "aprobado"].includes(r.estado)).reduce((s, r) => s + (r.monto_solicitado || 0), 0)
@@ -1000,5 +1012,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
+
 
 
