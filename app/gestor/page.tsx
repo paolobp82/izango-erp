@@ -47,12 +47,8 @@ export default function GestorPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data: provs } = await supabase.from("proyectos")
-      .select("*, cliente:clientes(razon_social)")
-      .in("estado", ["aprobado","aprobado_produccion","en_curso"])
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-    setProyectos(provs || [])
+    const { data: provs } = await supabase.from("proyectos").select("*, cliente:clientes(razon_social)").eq("estado", "en_curso").is("deleted_at", null).order("created_at", { ascending: false })
+    setProyectos((provs || []).filter((p: any) => p.estado === "en_curso"))
     const { data: perfs } = await supabase.from("perfiles").select("id, nombre, apellido, perfil").order("nombre")
     setPerfiles(perfs || [])
     setLoading(false)
@@ -60,7 +56,7 @@ export default function GestorPage() {
 
   async function loadTareas(proyectoId: string) {
     const proyectoActivo = proyectos.find((p: any) => p.id === proyectoId)
-    if (!proyectoActivo) { setTareas([]); return }
+    if (!proyectoActivo || proyectoActivo.estado !== "en_curso") { setTareas([]); setProyectoSeleccionado(null); return }
     const { data } = await supabase.from("proyecto_tareas").select("*").eq("proyecto_id", proyectoId).order("orden")
     setTareas(data || [])
   }
@@ -499,4 +495,8 @@ export default function GestorPage() {
     </div>
   )
 }
+
+
+
+
 
