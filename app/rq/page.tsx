@@ -556,6 +556,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
       <div className="card" style={{ marginBottom: 16, padding: "12px 16px" }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <input
+  value={busquedaRQ}
+  onChange={e => setBusquedaRQ(e.target.value)}
+  placeholder="Buscar RQ, número, proyecto, proveedor o concepto..."
+  style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", minWidth: 360, flex: "1 1 360px" }}
+/>
           <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
             value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
             <option value="">Todos los estados</option>
@@ -1036,6 +1042,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
 
 
 
