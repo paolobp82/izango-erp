@@ -52,6 +52,7 @@ export default function RQPage() {
   const [rqs, setRqs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState("")
+  const [busquedaRQ, setBusquedaRQ] = useState("")
   const [filtroProveedor, setFiltroProveedor] = useState("")
   const [filtroProyecto, setFiltroProyecto] = useState("")
   const [incluirProyectosEliminados, setIncluirProyectosEliminados] = useState(false)
@@ -81,11 +82,11 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   useEffect(() => {
     setPagina(1)
-  }, [filtroEstado, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
+  }, [busquedaRQ, filtroEstado, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
 
   useEffect(() => {
     setPagina(1)
-  }, [filtroEstado, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
+  }, [busquedaRQ, filtroEstado, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
 
   async function load() {
     const params = new URLSearchParams(window.location.search)
@@ -277,7 +278,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   }
 
   function puedeEditarTodoRQ() {
-    return ROLES_EDICION_TOTAL_RQ.includes(rolNormalizado())
+    return ["superadmin", "controller"].includes(rolNormalizado())
   }
 
   function rqPerteneceAProyectoEliminado(rq: any) {
@@ -470,7 +471,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   function puedeCancelarRQ(rq: any) {
     if (!rq || rqPerteneceAProyectoEliminado(rq)) return false
-    return ROLES_CANCELAR_RQ.includes(rolNormalizado()) && ESTADOS_CANCELABLES_RQ.includes(rq.estado)
+    if (["pagado", "cerrado", "cancelado"].includes(rq.estado)) return false
+    return ["superadmin", "controller"].includes(rolNormalizado())
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -878,7 +880,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 </button>
               )}
 
-              {["superadmin","gerente_general","controller"].includes(rolNormalizado()) && (
+              {["superadmin","controller"].includes(rolNormalizado()) && (
                 <button onClick={() => eliminarRQ(selected)}
                   style={{ padding: "8px", border: "1px solid #fee2e2", borderRadius: 8, background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>
                   🗑 Eliminar RQ
@@ -1012,6 +1014,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
 
 
 
