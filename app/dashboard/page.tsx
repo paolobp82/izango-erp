@@ -20,8 +20,8 @@ const ESTADO_COLOR: Record<string, any> = {
 
 const DONA_COLORS = ["#f59e0b","#3b82f6","#10b981","#6b7280","#8b5cf6","#059669"]
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
-const COTIZACION_APROBADA_ESTADOS = ["aprobada_cliente", "aprobado_cliente"]
-const PROYECTO_APROBADO_ESTADOS = ["aprobado_produccion", "aprobado_gerencia", "aprobado_cliente", "aprobado", "en_curso", "terminado", "facturado", "liquidado"]
+const COTIZACION_APROBADA_ESTADOS = ["aprobada_cliente", "aprobada_cliente"]
+const PROYECTO_APROBADO_ESTADOS = ["aprobado_produccion", "aprobado_gerencia", "aprobada_cliente", "aprobado", "en_curso", "terminado", "facturado", "liquidado"]
 const FACTURA_ANULADA_ESTADOS = ["anulada", "cancelada"]
 const FACTURA_COBRADA_ESTADOS = ["cobrada", "pagada"]
 const FACTURA_POR_COBRAR_ESTADOS = ["emitida", "pendiente", "pendiente_cobro"]
@@ -412,3 +412,4 @@ export default function DashboardPage() {
     </div>
   )
 }
+

@@ -1,6 +1,7 @@
-﻿"use client"
+"use client"
 import { useEffect, useState, useRef } from "react"
 import { createClient } from "@/lib/supabase"
+import { cargarItemsAprobadosAlGestor } from "@/lib/gestor"
 import { useParams, useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { registrarHistorial } from "@/lib/historial"
@@ -617,6 +618,15 @@ if (idsAEliminar.length > 0) {
     }
     await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("proyecto_id", id).eq("estado", "aprobada_cliente").neq("id", cotId)
     await supabase.from("proyectos").update({ cotizacion_aprobada_id: cotId }).eq("id", id)
+    try {
+      const resultadoGestor = await cargarItemsAprobadosAlGestor(supabase, String(id), String(cotId))
+      if (resultadoGestor.creados > 0) {
+        console.info("Items cargados al Gestor desde proforma aprobada", resultadoGestor)
+      }
+    } catch (gestorError) {
+      console.error("No se pudieron cargar items aprobados al Gestor:", gestorError)
+      alert("La proforma fue aprobada, pero no se pudieron cargar los items al Gestor. Revisa consola.")
+    }
     await registrarHistorial({
       cotizacion_id: cotId,
       accion: "aprobada_cliente",
@@ -1269,3 +1279,5 @@ useEffect(() => { itemsRef.current = items }, [items])
     </div>
   )
 }
+
+

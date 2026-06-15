@@ -1,10 +1,11 @@
-﻿"use client"
+"use client"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { registrarHistorial } from "@/lib/historial"
 import { enviarAlerta } from "@/lib/alertas"
 import { notificarATodos } from "@/lib/notificaciones"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { cargarItemsAprobadosAlGestor } from "@/lib/gestor"
 import { useParams, useRouter } from "next/navigation"
 import { rqCodigo } from "@/lib/rq-code"
 import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
@@ -196,6 +197,15 @@ export default function ProyectoDetallePage() {
       return
     }
     await supabase.from("proyectos").update({ cotizacion_aprobada_id: cot.id }).eq("id", id)
+    try {
+      const resultadoGestor = await cargarItemsAprobadosAlGestor(supabase, String(id), String(cot.id))
+      if (resultadoGestor.creados > 0) {
+        console.info("Items cargados al Gestor desde proforma aprobada", resultadoGestor)
+      }
+    } catch (gestorError) {
+      console.error("No se pudieron cargar items aprobados al Gestor:", gestorError)
+      alert("La proforma fue aprobada, pero no se pudieron cargar los items al Gestor. Revisa consola.")
+    }
     await registrarHistorial({
       cotizacion_id: cot.id,
       accion: "aprobada_cliente",
@@ -1466,3 +1476,5 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
+
