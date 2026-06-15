@@ -724,6 +724,28 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               )}
             </tbody>
           </table>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderTop: "1px solid #f3f4f6", background: "#fff", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              Mostrando <strong style={{ color: "#111827" }}>{inicioPagina}</strong>–<strong style={{ color: "#111827" }}>{finPagina}</strong> de <strong style={{ color: "#111827" }}>{filtrados.length}</strong> RQs · 50 por página
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={() => setPagina(prev => Math.max(1, prev - 1))} disabled={paginaActual <= 1}
+                style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 7, background: paginaActual <= 1 ? "#f9fafb" : "#fff", color: paginaActual <= 1 ? "#9ca3af" : "#374151", cursor: paginaActual <= 1 ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600 }}>
+                ← Anterior
+              </button>
+
+              <span style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>
+                Página {paginaActual} de {totalPaginas}
+              </span>
+
+              <button onClick={() => setPagina(prev => Math.min(totalPaginas, prev + 1))} disabled={paginaActual >= totalPaginas}
+                style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 7, background: paginaActual >= totalPaginas ? "#f9fafb" : "#fff", color: paginaActual >= totalPaginas ? "#9ca3af" : "#374151", cursor: paginaActual >= totalPaginas ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600 }}>
+                Siguiente →
+              </button>
+            </div>
+          </div>
         </div>
 
         {selected && (
@@ -1014,6 +1036,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
 
 
 
