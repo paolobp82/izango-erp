@@ -1,9 +1,11 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { rqCodigo } from "@/lib/rq-code"
+import KpiCard from "@/components/ui/KpiCard"
+import StatusBadge from "@/components/ui/StatusBadge"
 
 const ESTADOS: Record<string, any> = {
   pendiente: { label: "Pendiente", bg: "#fef9c3", color: "#92400e" },
@@ -244,21 +246,45 @@ export default function CajaChicaPage() {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-          {[
-            { label: "Total egresos aprobados", value: fmt(totalDebe), color: "#991b1b", bg: "#fee2e2" },
-            { label: "Total ingresos aprobados", value: fmt(totalHaber), color: "#15803d", bg: "#dcfce7" },
-            { label: "Saldo disponible", value: fmt(saldoCaja), color: saldoCaja >= 0 ? "#15803d" : "#991b1b", bg: saldoCaja >= 0 ? "#dcfce7" : "#fee2e2" },
-            { label: "Pendiente aprobacion", value: fmt(totalPendiente), color: "#92400e", bg: "#fef9c3" },
-          ].map(c => (
-            <div key={c.label} className="card" style={{ background: c.bg, border: "none", padding: "12px 16px" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: c.color, textTransform: "uppercase", marginBottom: 4 }}>{c.label}</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: c.color }}>{c.value}</div>
-            </div>
-          ))}
-        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
 
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+<KpiCard
+icon="wallet"
+label="Egresos aprobados"
+value={fmt(totalDebe)}
+sub="Salidas registradas"
+borderColor="#EF4444"
+valueColor="#991B1B"
+/>
+
+<KpiCard
+icon="money"
+label="Ingresos aprobados"
+value={fmt(totalHaber)}
+sub="Fondos disponibles"
+borderColor="#10B981"
+valueColor="#166534"
+/>
+
+<KpiCard
+icon="chart"
+label="Saldo disponible"
+value={fmt(saldoCaja)}
+sub="Caja actual"
+borderColor="#0F6E56"
+valueColor="#0F6E56"
+/>
+
+<KpiCard
+icon="shield"
+label="Pendiente aprobación"
+value={fmt(totalPendiente)}
+sub={`${registrosFiltrados.filter(r => r.estado === "pendiente").length} solicitudes`}
+borderColor="#F59E0B"
+valueColor="#92400E"
+/>
+
+</div><div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
           <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
             <option value="todos">Todos los estados</option>
             {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -270,13 +296,13 @@ export default function CajaChicaPage() {
           </select>
         </div>
 
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#fff", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
           {registrosFiltrados.length === 0 ? (
             <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay registros</div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "#f9fafb" }}>
+                <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                   <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FECHA</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONCEPTO</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>SOLICITANTE</th>
@@ -291,7 +317,7 @@ export default function CajaChicaPage() {
                   const es = ESTADOS[r.estado] || ESTADOS.pendiente
                   return (
                     <tr key={r.id} onClick={() => setSelected(r)}
-                      style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === r.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
+                      style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === r.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}>
                       <td style={{ padding: "12px 16px", fontSize: 12, color: "#6b7280" }}>{r.fecha}</td>
                       <td style={{ padding: "12px" }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{r.concepto}</div>
@@ -308,7 +334,7 @@ export default function CajaChicaPage() {
                         {r.monto_haber > 0 ? fmt(r.monto_haber) : "—"}
                       </td>
                       <td style={{ padding: "12px" }}>
-                        <span style={{ background: es.bg, color: es.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{es.label}</span>
+                        <StatusBadge label={es.label} type={r.estado} />
                       </td>
                       <td style={{ padding: "12px 16px", textAlign: "right" }}>
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
@@ -522,3 +548,12 @@ export default function CajaChicaPage() {
     </div>
   )
 }
+
+
+
+
+
+
+
+
+

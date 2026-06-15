@@ -5,6 +5,8 @@ import ImportExport from "@/components/ImportExport"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { enviarAlerta } from "@/lib/alertas"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import KpiCard from "@/components/ui/KpiCard"
+import StatusBadge from "@/components/ui/StatusBadge"
 
 const ESTADOS: Record<string, any> = {
   pendiente:  { bg: "#fef9c3", color: "#92400e",  label: "Pendiente" },
@@ -154,18 +156,49 @@ export default function FacturacionPage() {
       </div>
 
       {/* Cards resumen global */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-        {[
-          { label: "Total emitido", value: fmt(totalEmitido), color: "#1e40af", bg: "#dbeafe" },
-          { label: "Por cobrar", value: fmt(totalPendiente), color: "#92400e", bg: "#fef9c3" },
-          { label: "Cobrado", value: fmt(totalCobrado), color: "#15803d", bg: "#dcfce7" },
-          { label: "Total detracciones", value: fmt(totalDetracciones), color: "#6d28d9", bg: "#f5f3ff" },
-        ].map(t => (
-          <div key={t.label} className="card" style={{ background: t.bg, border: "none" }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: t.color, textTransform: "uppercase", marginBottom: 4 }}>{t.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: t.color }}>{t.value}</div>
-          </div>
-        ))}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 16,
+          marginBottom: 24,
+        }}
+      >
+        <KpiCard
+          icon="chart"
+          label="Total emitido"
+          value={fmt(totalEmitido)}
+          sub={`${facturas.length} facturas`}
+          borderColor="#3B82F6"
+          valueColor="#1E40AF"
+        />
+
+        <KpiCard
+          icon="wallet"
+          label="Por cobrar"
+          value={fmt(totalPendiente)}
+          sub={`${facturas.filter(f => f.estado === "emitida").length} pendientes`}
+          borderColor="#F59E0B"
+          valueColor="#92400E"
+        />
+
+        <KpiCard
+          icon="money"
+          label="Cobrado"
+          value={fmt(totalCobrado)}
+          sub={`${facturas.filter(f => f.estado === "cobrada").length} cobradas`}
+          borderColor="#10B981"
+          valueColor="#166534"
+        />
+
+        <KpiCard
+          icon="shield"
+          label="Detracciones"
+          value={fmt(totalDetracciones)}
+          sub="Aplicadas"
+          borderColor="#8B5CF6"
+          valueColor="#6D28D9"
+        />
       </div>
 
       {/* Filtro por estado */}
@@ -288,13 +321,13 @@ export default function FacturacionPage() {
         </div>
       )}
 
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#fff", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
         {facturasFiltradas.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay facturas registradas</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#f9fafb" }}>
+              <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                 <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>N° FACTURA</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
@@ -312,7 +345,7 @@ export default function FacturacionPage() {
                 const ec = ESTADOS[f.estado] || { bg: "#f3f4f6", color: "#6b7280", label: f.estado }
                 const total = (f.subtotal || 0) + (f.igv || 0)
                 return (
-                  <tr key={f.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                  <tr key={f.id} style={{ borderTop: "1px solid #F1F5F9", background: "#FFFFFF" }}>
                     <td style={{ padding: "12px 20px", fontSize: 13, fontWeight: 700, color: "#111827" }}>{f.numero_factura}</td>
                     <td style={{ padding: "12px" }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{f.proyecto?.codigo}</div>
@@ -332,7 +365,7 @@ export default function FacturacionPage() {
                     </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{fmt(f.monto_final_abonado)}</td>
                     <td style={{ padding: "12px" }}>
-                      <span style={{ background: ec.bg, color: ec.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{ec.label}</span>
+                      <StatusBadge label={ec.label} type={f.estado} />
                     </td>
                     <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{f.fecha_emision || "—"}</td>
                     <td style={{ padding: "12px" }}>
@@ -366,3 +399,11 @@ export default function FacturacionPage() {
     </div>
   )
 }
+
+
+
+
+
+
+
+
