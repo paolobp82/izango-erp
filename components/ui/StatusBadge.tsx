@@ -19,20 +19,80 @@ const COLORS: Record<string, any> = {
     color: "#166534",
   },
 
-  bloqueado: {
+  enviado: {
+    bg: "#FED7AA",
+    color: "#C2410C",
+  },
+
+  programado: {
+    bg: "#CFFAFE",
+    color: "#0E7490",
+  },
+
+  pagado: {
+    bg: "#DCFCE7",
+    color: "#166534",
+  },
+
+  cancelado: {
     bg: "#FEE2E2",
     color: "#B91C1C",
   },
+
+  rechazado: {
+    bg: "#FEE2E2",
+    color: "#B91C1C",
+  },
+
+  neutro: {
+    bg: "#F1F5F9",
+    color: "#475569",
+  },
+}
+
+const STATE_TYPE: Record<string, string> = {
+  pendiente: "pendiente",
+  pendiente_aprobacion: "pendiente",
+  borrador: "neutro",
+
+  en_progreso: "progreso",
+  en_curso: "progreso",
+  aprobado_produccion: "progreso",
+
+  en_revision: "revision",
+  recotizar: "revision",
+  aprobado: "revision",
+  aprobada_interna: "revision",
+
+  enviada_cliente: "enviado",
+  programado: "programado",
+
+  completada: "completado",
+  terminado: "completado",
+  aprobada_cliente: "completado",
+  pagado: "pagado",
+  liquidado: "pagado",
+
+  cancelado: "cancelado",
+  cancelada: "cancelado",
+  rechazado: "rechazado",
+  rechazada: "rechazado",
+}
+
+export function getStatusType(status?: string) {
+  if (!status) return "neutro"
+  return STATE_TYPE[status] || status
 }
 
 export default function StatusBadge({
   label,
-  type = "pendiente",
+  type,
 }: {
   label: string
   type?: string
 }) {
-  const c = COLORS[type] || COLORS.pendiente
+  const mappedType = getStatusType(type)
+  const c = COLORS[mappedType] || COLORS.neutro
 
   return (
     <span
@@ -42,7 +102,10 @@ export default function StatusBadge({
         padding: "4px 10px",
         borderRadius: 999,
         fontSize: 11,
-        fontWeight: 600,
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+        display: "inline-flex",
+        alignItems: "center",
       }}
     >
       {label}

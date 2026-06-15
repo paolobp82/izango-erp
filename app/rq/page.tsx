@@ -6,6 +6,8 @@ import ImportExport from "@/components/ImportExport"
 import { enviarAlerta } from "@/lib/alertas"
 import { rqCodigo } from "@/lib/rq-code"
 import { rqIgvDetalle, rqTratamientoIgv, rqTratamientoIgvLabel } from "@/lib/rq-igv"
+import KpiCard from "@/components/ui/KpiCard"
+import StatusBadge from "@/components/ui/StatusBadge"
 
 const ESTADOS: Record<string, any> = {
   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e",  label: "Pendiente aprobacion" },
@@ -560,20 +562,42 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
         </div>
         {["superadmin","gerente_general","gerente_produccion","controller"].includes(rolNormalizado()) && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado").is("deleted_at", null).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
         <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
-      </div>
+      </div>      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+        <KpiCard
+          icon="money"
+          label="Pendientes"
+          value={fmt(totalPendiente)}
+          sub={`${rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").length} RQs`}
+          borderColor="#F59E0B"
+          valueColor="#92400E"
+        />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-        {[
-          { label: "Pendientes", value: fmt(totalPendiente), color: "#92400e", bg: "#fef9c3", count: rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").length },
-          { label: "En aprobacion", value: fmt(totalAprobado), color: "#9a3412", bg: "#fed7aa", count: rqsVistaActiva.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length },
-          { label: "Programados", value: fmt(totalProgramado), color: "#1e40af", bg: "#dbeafe", count: rqsVistaActiva.filter(r => r.estado === "programado").length },
-          { label: "Pagados", value: fmt(totalPagado), color: "#166534", bg: "#f0fdf4", count: rqsVistaActiva.filter(r => r.estado === "pagado").length },
-        ].map(t => (
-          <div key={t.label} className="card" style={{ background: t.bg, border: "none" }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: t.color, textTransform: "uppercase", marginBottom: 4 }}>{t.label} ({t.count})</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: t.color }}>{t.value}</div>
-          </div>
-        ))}
+        <KpiCard
+          icon="shield"
+          label="En aprobación"
+          value={fmt(totalAprobado)}
+          sub={`${rqsVistaActiva.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length} RQs`}
+          borderColor="#3B82F6"
+          valueColor="#1E40AF"
+        />
+
+        <KpiCard
+          icon="chart"
+          label="Programados"
+          value={fmt(totalProgramado)}
+          sub={`${rqsVistaActiva.filter(r => r.estado === "programado").length} RQs`}
+          borderColor="#06B6D4"
+          valueColor="#0E7490"
+        />
+
+        <KpiCard
+          icon="wallet"
+          label="Pagados"
+          value={fmt(totalPagado)}
+          sub={`${rqsVistaActiva.filter(r => r.estado === "pagado").length} RQs`}
+          borderColor="#10B981"
+          valueColor="#166534"
+        />
       </div>
 
       <div className="card" style={{ marginBottom: 16, padding: "12px 16px" }}>
@@ -621,10 +645,10 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 420px" : "1fr", gap: 16 }}>
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#fff", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#f9fafb" }}>
+              <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                 <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>N RQ</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
@@ -647,7 +671,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 const proyectoEliminado = rqPerteneceAProyectoEliminado(rq)
                 return (
                   <tr key={rq.id}
-                    style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === rq.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}
+                    style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === rq.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}
                     onClick={() => {
                       if (selected?.id === rq.id) { setSelected(null); return }
                       setSelected(rq)
@@ -712,9 +736,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                         : "—"}
                     </td>
                     <td style={{ padding: "12px" }}>
-                      <span style={{ background: ec.bg, color: ec.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                        {ec.label}
-                      </span>
+                      <StatusBadge label={ec.label} type={rq.estado} />
                       {rq.estado === "pagado" && rq.numero_operacion && (
                         <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>Op: {rq.numero_operacion}</div>
                       )}
@@ -753,7 +775,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
             </tbody>
           </table>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderTop: "1px solid #f3f4f6", background: "#fff", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderTop: "1px solid #F1F5F9", background: "#fff", gap: 12, flexWrap: "wrap" }}>
             <div style={{ fontSize: 12, color: "#6b7280" }}>
               Mostrando <strong style={{ color: "#111827" }}>{inicioPagina}</strong>–<strong style={{ color: "#111827" }}>{finPagina}</strong> de <strong style={{ color: "#111827" }}>{filtrados.length}</strong> RQs · 50 por página
             </div>
@@ -1064,6 +1086,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
 
 
 
