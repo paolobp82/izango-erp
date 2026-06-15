@@ -1,8 +1,9 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
 import { useRouter } from "next/navigation"
+import KpiCard from "@/components/ui/KpiCard"
 
 const ESTADO_COT: Record<string, any> = {
   borrador:         { bg: "#f3f4f6", color: "#6b7280",  label: "Borrador" },
@@ -73,22 +74,40 @@ export default function ProformasPage() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
-        <div className="card" style={{ background: "#dcfce7", border: "none" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#15803d", textTransform: "uppercase", marginBottom: 4 }}>Aprobadas por cliente</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#15803d" }}>{fmt(totalAprobadas)}</div>
-          <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2 }}>{cotizaciones.filter(c => c.estado === "aprobada_cliente").length} proformas</div>
-        </div>
-        <div className="card" style={{ background: "#fed7aa", border: "none" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#9a3412", textTransform: "uppercase", marginBottom: 4 }}>Enviadas al cliente</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#9a3412" }}>{fmt(totalEnviadas)}</div>
-          <div style={{ fontSize: 11, color: "#c2410c", marginTop: 2 }}>{cotizaciones.filter(c => c.estado === "enviada_cliente").length} proformas</div>
-        </div>
-        <div className="card" style={{ background: "#f3f4f6", border: "none" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Borradores</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#374151" }}>{totalBorradores}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Pendientes de envio</div>
-        </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 16,
+          marginBottom: 24,
+        }}
+      >
+        <KpiCard
+          icon="money"
+          label="Aprobadas por cliente"
+          value={fmt(totalAprobadas)}
+          sub={`${cotizaciones.filter(c => c.estado === "aprobada_cliente").length} proformas`}
+          borderColor="#16A34A"
+          valueColor="#15803D"
+        />
+
+        <KpiCard
+          icon="wallet"
+          label="Enviadas al cliente"
+          value={fmt(totalEnviadas)}
+          sub={`${cotizaciones.filter(c => c.estado === "enviada_cliente").length} proformas`}
+          borderColor="#EA580C"
+          valueColor="#C2410C"
+        />
+
+        <KpiCard
+          icon="file"
+          label="Borradores"
+          value={String(totalBorradores)}
+          sub="Pendientes de envío"
+          borderColor="#64748B"
+          valueColor="#334155"
+        />
       </div>
 
       <div className="card" style={{ marginBottom: 16, padding: "12px 16px" }}>
@@ -208,3 +227,5 @@ export default function ProformasPage() {
     </div>
   )
 }
+
+
