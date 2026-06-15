@@ -1,6 +1,8 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import KpiCard from "@/components/ui/KpiCard"
+import SectionCard from "@/components/ui/SectionCard"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { useRouter } from "next/navigation"
 
@@ -604,7 +606,7 @@ export default function TareasPage() {
           {[
             { title: tituloResumenActual, subtitle: subtituloResumenActual, cards: tarjetasResumenActual },
           ].map(section => (
-            <div key={section.title} className="card" style={{ padding: 20, background: "#fff", border: "1px solid #dbe2ea", borderRadius: 8 }}>
+            <div key={section.title} className="card" style={{ padding: 20, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 18, boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
               <div style={{ marginBottom: 22 }}>
                 <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#111827", textTransform: "uppercase" }}>{section.title}</h2>
                 <p style={{ fontSize: 12, color: "#475569", margin: "10px 0 0" }}>{section.subtitle}</p>
@@ -612,10 +614,10 @@ export default function TareasPage() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
                 {section.cards.map((c, idx) => {
                   const Icon = c.estado === "pendiente" ? ClipboardCheck : c.estado === "en_progreso" ? Play : c.estado === "en_revision" ? Eye : Check
-                  const tint = c.estado === "pendiente" ? "#e5e7eb" : c.estado === "en_progreso" ? "#bfdbfe" : c.estado === "en_revision" ? "#ddd6fe" : "#bbf7d0"
+                  const tint = c.estado === "pendiente" ? "#fef3c7" : c.estado === "en_progreso" ? "#dbeafe" : c.estado === "en_revision" ? "#ede9fe" : "#dcfce7"
                   return (
                   <div key={c.estado} style={{ display: "flex", alignItems: "center", gap: 16, padding: "0 20px", borderLeft: idx === 0 ? "none" : "1px solid #e5e7eb" }}>
-                    <span style={{ width: 48, height: 48, borderRadius: 99, background: tint, color: c.color, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.55)" }}>
+                    <span style={{ width: 52, height: 52, borderRadius: 16, background: tint, color: c.color, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.55)" }}>
                       <Icon size={24} />
                     </span>
                     <div>
@@ -629,7 +631,7 @@ export default function TareasPage() {
           ))}
         </div>
 
-        <div className="card" style={{ marginBottom: 22, padding: 20, background: "#fff", border: "1px solid #dbe2ea", borderRadius: 8 }}>
+        <div className="card" style={{ marginBottom: 22, padding: 20, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 18, boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
           <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#111827", textTransform: "uppercase" }}>Avance general de tareas delegadas</h2>
           <p style={{ fontSize: 12, color: "#475569", margin: "10px 0 14px" }}>Porcentaje de avance promedio de las tareas que he delegado</p>
           <div style={{ display: "grid", gridTemplateColumns: "150px 1fr 260px", gap: 24, alignItems: "center" }}>
@@ -647,7 +649,7 @@ export default function TareasPage() {
                 { estado: "completada", label: "Completadas", color: "#16a34a" },
                 { estado: "en_progreso", label: "En progreso", color: "#3b82f6" },
                 { estado: "en_revision", label: "En revisión", color: "#8b5cf6" },
-                { estado: "pendiente", label: "Pendientes", color: "#d1d5db" },
+                { estado: "pendiente", label: "Pendientes", color: "#f59e0b" },
               ].map(item => (
                 <div key={item.estado} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#334155" }}>
                   <span style={{ width: 12, height: 12, borderRadius: 99, background: item.color }} />
@@ -658,8 +660,8 @@ export default function TareasPage() {
           </div>
         </div>
 
-        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #dbe2ea", borderRadius: 8, background: "#fff" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0, borderBottom: "1px solid #e5e7eb", background: "#f8fafc" }}>
+        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#fff", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0, borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
           {[
             { key: "mias", label: "Asignadas a mí", value: misTareas.length },
             { key: "creadas", label: "Delegadas por mí", value: tareasDelegadas.length },
@@ -669,7 +671,7 @@ export default function TareasPage() {
             <button
               key={item.key}
               onClick={() => { setFiltroAsignado(item.key); setResponsableId(""); setPagina(1) }}
-              style={{ padding: "10px 14px", border: "none", borderLeft: idx === 0 ? "none" : "1px solid #e5e7eb", background: filtroAsignado === item.key ? "#eff6ff" : "transparent", color: filtroAsignado === item.key ? "#1d4ed8" : "#334155", cursor: "pointer", textAlign: "left" }}
+              style={{ padding: "10px 14px", border: "none", borderLeft: idx === 0 ? "none" : "1px solid #e5e7eb", background: filtroAsignado === item.key ? "#F0FDF4" : "#FFFFFF", color: filtroAsignado === item.key ? "#0F6E56" : "#475569", cursor: "pointer", textAlign: "left" }}
             >
               <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>{item.label}</div>
               <div style={{ fontSize: 20, fontWeight: 900, lineHeight: 1.1 }}>{item.value}</div>
@@ -684,7 +686,7 @@ export default function TareasPage() {
               <button
                 key={tab.key}
                 onClick={() => { setFiltroAsignado(tab.key); setResponsableId("") }}
-                style={{ padding: "16px 0", border: "none", borderBottom: `2px solid ${active ? "#2563eb" : "transparent"}`, background: "transparent", color: active ? "#2563eb" : "#1f2937", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}
+                style={{ padding: "16px 0", border: "none", borderBottom: `2px solid ${active ? "#0F6E56" : "transparent"}`, background: "transparent", color: active ? "#0F6E56" : "#1f2937", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}
               >
                 <Icon size={16} /> {tab.label} <span style={{ opacity: 0.6 }}>({tab.count})</span>
               </button>
@@ -782,7 +784,7 @@ export default function TareasPage() {
                   const participantes = participantesNombres(t)
                   return (
                     <tr key={t.id} onClick={() => abrirDetalle(t)}
-                      style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === t.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
+                      style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === t.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}>
                       <td style={{ padding: "10px 16px" }}><input type="checkbox" onClick={e => e.stopPropagation()} /></td>
                       <td style={{ padding: "10px 16px" }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{t.titulo}</div>
@@ -1175,6 +1177,7 @@ export default function TareasPage() {
     </div>
   )
 }
+
 
 
 
