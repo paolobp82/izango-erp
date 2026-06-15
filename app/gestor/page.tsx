@@ -47,11 +47,7 @@ export default function GestorPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data: provs } = await supabase.from("proyectos")
-      .select("*, cliente:clientes(razon_social)")
-      .eq("estado", "en_curso")
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
+    const { data: provs } = await supabase.from("proyectos").select("*, cliente:clientes(razon_social)").eq("estado", "en_curso").is("deleted_at", null).order("created_at", { ascending: false })
     setProyectos(provs || [])
     const { data: perfs } = await supabase.from("perfiles").select("id, nombre, apellido, perfil").order("nombre")
     setPerfiles(perfs || [])
@@ -499,6 +495,7 @@ export default function GestorPage() {
     </div>
   )
 }
+
 
 
 
