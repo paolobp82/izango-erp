@@ -473,14 +473,14 @@ if (idsAEliminar.length > 0) {
     return false
   }
 
-  async function guardar(silencioso = false): Promise<boolean> {
+  async function guardar(silencioso = false, forceSave = false): Promise<boolean> {
     if (!cotId || !id) return false
 
-    if (concurrencyBlockedRef.current) {
-      if (!silencioso) {
-        const continuar = confirm("Se detectaron cambios realizados por otro usuario mientras esta proforma estaba abierta. El autoguardado fue pausado para evitar conflictos. ¿Deseas guardar tu versión manualmente?")
-        if (!continuar) return false
-      }
+    const forceSaveManual = forceSave || (concurrencyBlockedRef.current && !silencioso)
+
+    if (concurrencyBlockedRef.current && !silencioso) {
+      const continuar = confirm("Hay una diferencia entre tu versión abierta y la última versión guardada. El autoguardado está pausado para evitar sobrescribir sin querer.`n`n¿Deseas guardar manualmente tu versión actual?")
+      if (!continuar) return false
     }
 
     const { data: versionActual, error: versionError } = await supabase
@@ -498,11 +498,11 @@ if (idsAEliminar.length > 0) {
     const dbUpdatedAt = versionActual?.updated_at || null
     const localUpdatedAt = loadedUpdatedAtRef.current
 
-    if (localUpdatedAt && dbUpdatedAt && dbUpdatedAt !== localUpdatedAt) {
+    if (!forceSaveManual && localUpdatedAt && dbUpdatedAt && dbUpdatedAt !== localUpdatedAt) {
       concurrencyBlockedRef.current = true
       setConcurrencyBlocked(true)
       if (autoSaveRef.current) clearInterval(autoSaveRef.current)
-      alert("Se detectaron cambios realizados por otro usuario. El autoguardado fue pausado para evitar sobrescribir información. Puedes seguir trabajando y guardar manualmente cuando lo consideres necesario.")
+      console.warn("Conflicto de edición detectado. Autoguardado pausado.")
       return false
     }
     setSaving(true)
@@ -693,97 +693,15 @@ if (idsAEliminar.length > 0) {
   const puedeDesbloquear = perfilActual?.perfil === "superadmin" || perfilActual?.email === "jsosa@izango.com.pe" || perfilActual?.email === "pbastianelli@izango.com.pe"
   const puedeAprobarCliente = ROLES_APRUEBAN_CLIENTE.includes(perfilActual?.perfil)
 
+  // Autosave destructivo desactivado temporalmente.
+  // Motivo: el autosave estaba guardando items desde un snapshot local y podía sobrescribir montos sin intervención de otro usuario.
+  // Los items de proforma ahora deben persistirse únicamente con acciones explícitas: Guardar borrador, Descargar PDF o Aprobar.
   useEffect(() => {
-  if (!cotId || !id || loading) return
-  autoSaveRef.current = setInterval(async () => {
-    if (savingRef.current || generatingPdfRef.current || concurrencyBlockedRef.current) return
-
-    const { data: versionAuto, error: versionAutoError } = await supabase
-      .from("cotizaciones")
-      .select("updated_at")
-      .eq("id", cotId)
-      .single()
-
-    if (versionAutoError) {
-      console.error("No se pudo verificar la versión antes del autoguardado:", versionAutoError)
-      return
-    }
-
-    const dbAutoUpdatedAt = versionAuto?.updated_at || null
-    const localAutoUpdatedAt = loadedUpdatedAtRef.current
-
-    if (localAutoUpdatedAt && dbAutoUpdatedAt && dbAutoUpdatedAt !== localAutoUpdatedAt) {
-      concurrencyBlockedRef.current = true
-      setConcurrencyBlocked(true)
+    if (autoSaveRef.current) clearInterval(autoSaveRef.current)
+    return () => {
       if (autoSaveRef.current) clearInterval(autoSaveRef.current)
-      alert("Se detectaron cambios realizados por otro usuario. El autoguardado fue pausado para evitar conflictos. Puedes continuar trabajando normalmente.")
-      return
     }
-
-    setSaving(true)
-    savingRef.current = true
-    try {
-for (const item of itemsRef.current) {
-  const payload = {
-    cotizacion_id: cotId, orden: item.orden, descripcion: item.descripcion,
-    cantidad: Number(item.cantidad)||1, fechas: Number(item.fechas)||1,
-    margen_pct: Number(item.margen_pct)||0,
-    costo_manual: item.costo_manual!==""&&item.costo_manual!==null ? Number(item.costo_manual) : null,
-    costo_almacenaje: Number(item.costo_almacenaje)||0, costo_impresion: Number(item.costo_impresion)||0,
-    costo_permisos: Number(item.costo_permisos)||0, costo_instalacion: Number(item.costo_instalacion)||0,
-    costo_performer: Number(item.costo_performer)||0, costo_alquiler: Number(item.costo_alquiler)||0,
-    costo_supervision: Number(item.costo_supervision)||0, costo_movilidad: Number(item.costo_movilidad)||0,
-    costo_otros: Number(item.costo_otros)||0, costo_unitario: item.costo_unitario||0,
-    costo_total: item.costo_total||0, precio_cliente: item.precio_cliente||0,
-    margen_monto: item.margen_monto||0, proveedor_id: item.proveedor_id||null,
-    proveedor_nombre: item.proveedor_nombre||null, centro_costo_id: item.centro_costo_id||null,
-    extras_produccion: JSON.stringify(item.extras_produccion||[]),
-    extras_alquiler: JSON.stringify(item.extras_alquiler||[]),
-    tipo: item.tipo||"item", familia_id: item.familia_id||null,
-    es_opcional: item.es_opcional||false, incluir_en_total: item.incluir_en_total!==false,
-    celda_titulo: item.celda_titulo||null, numero_item: item.numero_item||null,
-    columna_extra_valor: item.columna_extra_valor||null,
-  }
-  if (String(item.id).startsWith("new_")) {
-    const { data: inserted } = await supabase.from("cotizacion_items").insert(payload).select().single()
-    if (inserted) {
-      itemsRef.current = itemsRef.current.map(i => i.id === item.id ? { ...i, id: inserted.id } : i)
-      setItems(prev => prev.map(i => i.id === item.id ? { ...i, id: inserted.id } : i))
-    }
-  } else {
-    await supabase.from("cotizacion_items").update(payload).eq("id", item.id)
-  }
-}
-// Eliminar items borrados
-const { data: dbItems } = await supabase.from("cotizacion_items").select("id").eq("cotizacion_id", cotId)
-const dbIds: string[] = (dbItems || []).map((i: any) => String(i.id))
-const currentIds: string[] = itemsRef.current.filter((i: any) => !String(i.id).startsWith("new_")).map((i: any) => String(i.id))
-const toDelete: string[] = dbIds.filter((dbId: string) => !currentIds.includes(dbId))
-if (toDelete.length > 0) {
-  await supabase.from("cotizacion_items").delete().in("id", toDelete)
-}
-    await copiarItemsABiblioteca(itemsRef.current)
-    const { data: refreshedAuto } = await supabase
-      .from("cotizaciones")
-      .select("updated_at")
-      .eq("id", cotId)
-      .single()
-
-    if (refreshedAuto?.updated_at) {
-      setLoadedUpdatedAt(refreshedAuto.updated_at)
-      loadedUpdatedAtRef.current = refreshedAuto.updated_at
-    }
-
-    setLastSaved(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }))
-    } catch (error) {
-      console.error("Error en autoguardado:", error)
-    } finally {
-      savingRef.current = false
-      setSaving(false)
-    }
-  }, 60000)
-  return () => clearInterval(autoSaveRef.current)
-}, [cotId, id, loading])
+  }, [cotId, id, loading])
 
 const itemsRef = useRef(items)
 useEffect(() => { itemsRef.current = items }, [items])
@@ -824,9 +742,9 @@ useEffect(() => { itemsRef.current = items }, [items])
 
       {concurrencyBlocked && (
         <div style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, color: "#991B1B", fontSize: 13 }}>Conflicto detectado</div>
+          <div style={{ fontWeight: 800, color: "#991B1B", fontSize: 13 }}>Autoguardado pausado</div>
           <div style={{ color: "#7F1D1D", fontSize: 12, marginTop: 4 }}>
-            Se detectaron cambios realizados por otro usuario mientras esta proforma estaba abierta. El autoguardado fue pausado para evitar sobrescribir información. Puedes continuar trabajando y guardar manualmente si lo consideras necesario.
+            Esta proforma tiene una versión guardada más reciente que la versión cargada en esta pantalla. Puedes seguir editando y guardar manualmente tu versión actual si corresponde.
           </div>
         </div>
       )}
@@ -1360,6 +1278,10 @@ useEffect(() => { itemsRef.current = items }, [items])
     </div>
   )
 }
+
+
+
+
 
 
 
