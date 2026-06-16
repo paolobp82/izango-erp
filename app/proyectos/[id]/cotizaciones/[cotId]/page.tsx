@@ -93,6 +93,10 @@ export default function CotizacionEditorPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [loading, setLoading] = useState(true)
   const [lastSaved, setLastSaved] = useState<string>("")
+const [loadedUpdatedAt, setLoadedUpdatedAt] = useState<string | null>(null)
+const [concurrencyBlocked, setConcurrencyBlocked] = useState(false)
+const loadedUpdatedAtRef = useRef<string | null>(null)
+const concurrencyBlockedRef = useRef(false)
 const autoSaveRef = useRef<any>(null)
 const savingRef = useRef(false)
 const generatingPdfRef = useRef(false)
@@ -119,6 +123,10 @@ const generatingPdfRef = useRef(false)
         .select("*, proyecto:proyectos!proyecto_id(id,nombre,codigo,cliente:clientes!cliente_id(id,razon_social))")
         .eq("id", cotId).single()
       setCotizacion(cot)
+setLoadedUpdatedAt(cot?.updated_at || null)
+loadedUpdatedAtRef.current = cot?.updated_at || null
+setConcurrencyBlocked(false)
+concurrencyBlockedRef.current = false
       setProyecto(cot?.proyecto)
       if (cot?.fee_activo === false) setFeeActivo(false)
       setBloqueada(false) // se evalúa abajo según perfil
@@ -467,6 +475,34 @@ if (idsAEliminar.length > 0) {
 
   async function guardar(silencioso = false): Promise<boolean> {
     if (!cotId || !id) return false
+
+    if (concurrencyBlockedRef.current) {
+      if (!silencioso) alert("Esta proforma fue modificada por otro usuario. Recarga la página antes de guardar.")
+      return false
+    }
+
+    const { data: versionActual, error: versionError } = await supabase
+      .from("cotizaciones")
+      .select("updated_at")
+      .eq("id", cotId)
+      .single()
+
+    if (versionError) {
+      console.error("No se pudo verificar la versión de la proforma:", versionError)
+      if (!silencioso) alert("No se pudo verificar si la proforma fue modificada por otro usuario.")
+      return false
+    }
+
+    const dbUpdatedAt = versionActual?.updated_at || null
+    const localUpdatedAt = loadedUpdatedAtRef.current
+
+    if (localUpdatedAt && dbUpdatedAt && dbUpdatedAt !== localUpdatedAt) {
+      concurrencyBlockedRef.current = true
+      setConcurrencyBlocked(true)
+      if (autoSaveRef.current) clearInterval(autoSaveRef.current)
+      alert("Esta proforma fue modificada por otro usuario mientras la tenías abierta. El autoguardado fue detenido. Recarga la página antes de continuar.")
+      return false
+    }
     setSaving(true)
     savingRef.current = true
     try {
@@ -658,7 +694,30 @@ if (idsAEliminar.length > 0) {
   useEffect(() => {
   if (!cotId || !id || loading) return
   autoSaveRef.current = setInterval(async () => {
-    if (savingRef.current || generatingPdfRef.current) return
+    if (savingRef.current || generatingPdfRef.current || concurrencyBlockedRef.current) return
+
+    const { data: versionAuto, error: versionAutoError } = await supabase
+      .from("cotizaciones")
+      .select("updated_at")
+      .eq("id", cotId)
+      .single()
+
+    if (versionAutoError) {
+      console.error("No se pudo verificar la versión antes del autoguardado:", versionAutoError)
+      return
+    }
+
+    const dbAutoUpdatedAt = versionAuto?.updated_at || null
+    const localAutoUpdatedAt = loadedUpdatedAtRef.current
+
+    if (localAutoUpdatedAt && dbAutoUpdatedAt && dbAutoUpdatedAt !== localAutoUpdatedAt) {
+      concurrencyBlockedRef.current = true
+      setConcurrencyBlocked(true)
+      if (autoSaveRef.current) clearInterval(autoSaveRef.current)
+      alert("Esta proforma fue modificada por otro usuario. El autoguardado fue detenido para no sobrescribir cambios.")
+      return
+    }
+
     setSaving(true)
     savingRef.current = true
     try {
@@ -702,6 +761,17 @@ if (toDelete.length > 0) {
   await supabase.from("cotizacion_items").delete().in("id", toDelete)
 }
     await copiarItemsABiblioteca(itemsRef.current)
+    const { data: refreshedAuto } = await supabase
+      .from("cotizaciones")
+      .select("updated_at")
+      .eq("id", cotId)
+      .single()
+
+    if (refreshedAuto?.updated_at) {
+      setLoadedUpdatedAt(refreshedAuto.updated_at)
+      loadedUpdatedAtRef.current = refreshedAuto.updated_at
+    }
+
     setLastSaved(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }))
     } catch (error) {
       console.error("Error en autoguardado:", error)
@@ -746,6 +816,15 @@ useEffect(() => { itemsRef.current = items }, [items])
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {concurrencyBlocked && (
+        <div style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, color: "#991B1B", fontSize: 13 }}>Edición detenida por conflicto</div>
+          <div style={{ color: "#7F1D1D", fontSize: 12, marginTop: 4 }}>
+            Otro usuario guardó cambios en esta proforma mientras la tenías abierta. Para evitar sobrescribir información, el autoguardado fue detenido. Recarga la página antes de continuar.
           </div>
         </div>
       )}
@@ -1279,5 +1358,7 @@ useEffect(() => { itemsRef.current = items }, [items])
     </div>
   )
 }
+
+
 
 

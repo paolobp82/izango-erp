@@ -247,44 +247,44 @@ export default function CajaChicaPage() {
         )}
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+          <KpiCard
+            icon="wallet"
+            label="Egresos aprobados"
+            value={fmt(totalDebe)}
+            sub="Salidas registradas"
+            borderColor="#EF4444"
+            valueColor="#991B1B"
+          />
 
-<KpiCard
-icon="wallet"
-label="Egresos aprobados"
-value={fmt(totalDebe)}
-sub="Salidas registradas"
-borderColor="#EF4444"
-valueColor="#991B1B"
-/>
+          <KpiCard
+            icon="money"
+            label="Ingresos aprobados"
+            value={fmt(totalHaber)}
+            sub="Fondos disponibles"
+            borderColor="#10B981"
+            valueColor="#166534"
+          />
 
-<KpiCard
-icon="money"
-label="Ingresos aprobados"
-value={fmt(totalHaber)}
-sub="Fondos disponibles"
-borderColor="#10B981"
-valueColor="#166534"
-/>
+          <KpiCard
+            icon="chart"
+            label="Saldo disponible"
+            value={fmt(saldoCaja)}
+            sub="Caja actual"
+            borderColor="#0F6E56"
+            valueColor="#0F6E56"
+          />
 
-<KpiCard
-icon="chart"
-label="Saldo disponible"
-value={fmt(saldoCaja)}
-sub="Caja actual"
-borderColor="#0F6E56"
-valueColor="#0F6E56"
-/>
+          <KpiCard
+            icon="shield"
+            label="Pendiente aprobación"
+            value={fmt(totalPendiente)}
+            sub={`${registrosFiltrados.filter(r => r.estado === "pendiente").length} solicitudes`}
+            borderColor="#F59E0B"
+            valueColor="#92400E"
+          />
+        </div>
 
-<KpiCard
-icon="shield"
-label="Pendiente aprobación"
-value={fmt(totalPendiente)}
-sub={`${registrosFiltrados.filter(r => r.estado === "pendiente").length} solicitudes`}
-borderColor="#F59E0B"
-valueColor="#92400E"
-/>
-
-</div><div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
           <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
             <option value="todos">Todos los estados</option>
             {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -548,6 +548,9 @@ valueColor="#92400E"
     </div>
   )
 }
+
+
+
 
 
 
