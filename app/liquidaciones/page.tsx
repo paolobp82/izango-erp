@@ -120,10 +120,15 @@ export default function LiquidacionesPage() {
 
     const { data: rqs } = await supabase
       .from("requerimientos_pago")
-      .select("id, codigo_rq, numero_rq, estado, proveedor_id, proveedor_nombre, descripcion, monto_solicitado")
+      .select("id, codigo_rq, numero_rq, estado, proveedor_id, proveedor_nombre, descripcion, monto_solicitado, cotizacion_item_id, es_adicional")
       .eq("proyecto_id", liq.proyecto_id)
 
     const cotItemMap = new Map((cotItems || []).map((c: any) => [c.id, c]))
+    const rqByCotizacionItemId = new Map(
+      (rqs || [])
+        .filter((rq: any) => rq.cotizacion_item_id)
+        .map((rq: any) => [rq.cotizacion_item_id, rq])
+    )
 
     const normalizar = (txt: string) =>
       String(txt || "")
@@ -138,7 +143,9 @@ export default function LiquidacionesPage() {
       const proveedorNombre = item.proveedor_nombre || cotItem?.proveedor_nombre || null
       const descItem = normalizar(item.descripcion)
 
-      const rqMatch = (rqs || []).find((rq: any) => {
+      const rqExacto = rqByCotizacionItemId.get(item.cotizacion_item_id)
+
+      const rqMatch = rqExacto || (rqs || []).find((rq: any) => {
         const mismoProveedor =
           proveedorId && rq.proveedor_id
             ? rq.proveedor_id === proveedorId
@@ -163,7 +170,33 @@ export default function LiquidacionesPage() {
       }
     })
 
-    setItems(enriched)
+    const idsRqYaMostrados = new Set(enriched.map((item: any) => item.rq_id).filter(Boolean))
+
+    const adicionales = (rqs || [])
+      .filter((rq: any) =>
+        !rq.cotizacion_item_id &&
+        rq.es_adicional === true &&
+        !idsRqYaMostrados.has(rq.id) &&
+        !["cancelado", "rechazado"].includes(rq.estado)
+      )
+      .map((rq: any) => ({
+        id: `rq_extra_${rq.id}`,
+        liquidacion_id: liq.id,
+        cotizacion_item_id: null,
+        descripcion: rq.descripcion || "RQ adicional",
+        proveedor_id: rq.proveedor_id || null,
+        proveedor_nombre: rq.proveedor_nombre || null,
+        costo_presupuestado: 0,
+        costo_real: rq.monto_solicitado || 0,
+        desvio: rq.monto_solicitado || 0,
+        desvio_pct: 100,
+        es_adicional_rq: true,
+        rq_id: rq.id,
+        rq_codigo: rq.codigo_rq || (rq.numero_rq ? `RQ-${String(rq.numero_rq).padStart(5, "0")}` : "RQ"),
+        rq_estado: rq.estado || null,
+      }))
+
+    setItems([...enriched, ...adicionales])
     setLoadingItems(false)
   }
 
@@ -177,13 +210,14 @@ export default function LiquidacionesPage() {
 
   async function guardarItems() {
     for (const item of items) {
+      if (String(item.id).startsWith("rq_extra_")) continue
       await supabase.from("liquidacion_items").update({
         costo_real: item.costo_real || 0,
         desvio: item.desvio || 0,
         desvio_pct: item.desvio_pct || 0,
       }).eq("id", item.id)
     }
-    const costoReal = items.reduce((s, i) => s + (i.costo_real || 0), 0)
+    const costoReal = items.reduce((s, i) => s + (Number(i.costo_real) || 0), 0)
     const precioReal = selected.precio_cliente_presupuestado || 0
     const margenReal = precioReal > 0 ? ((precioReal - costoReal) / precioReal) * 100 : 0
     const desvioCosto = costoReal - (selected.costo_presupuestado || 0)
@@ -236,6 +270,27 @@ export default function LiquidacionesPage() {
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const fmtPct = (n: number) => Number(n || 0).toFixed(1) + "%"
+  const totalPresupuestadoLive = items.filter((i:any) => !i.es_adicional_rq).reduce((s:number, i:any) => s + (Number(i.costo_presupuestado) || 0), 0)
+  const totalRealPresupuestoLive = items.filter((i:any) => !i.es_adicional_rq).reduce((s:number, i:any) => s + (Number(i.costo_real) || 0), 0)
+  const totalRealAdicionalesLive = items.filter((i:any) => i.es_adicional_rq).reduce((s:number, i:any) => s + (Number(i.costo_real) || 0), 0)
+  const totalRealLive = totalRealPresupuestoLive + totalRealAdicionalesLive
+  const precioClientePresupuestadoLive = Number(selected?.precio_cliente_presupuestado || 0)
+  const precioClienteRealLive = Number(selected?.precio_cliente_real || selected?.precio_cliente_presupuestado || 0)
+  const margenInicialLive = Number(selected?.margen_presupuestado_pct || 0)
+  const margenRealLive = precioClienteRealLive > 0 ? ((precioClienteRealLive - totalRealLive) / precioClienteRealLive) * 100 : 0
+  const desvioCostoLive = totalRealLive - totalPresupuestadoLive
+  const desvioMargenLive = margenRealLive - margenInicialLive
+  const utilidadProyectadaLive = precioClientePresupuestadoLive - totalPresupuestadoLive
+  const utilidadRealLive = precioClienteRealLive - totalRealLive
+
+  const itemsLiquidacionOrdenados = [...items].sort((a:any, b:any) => {
+    const aRealizado = Number(a.costo_real || 0) > 0 || ["pagado", "programado", "aprobado", "aprobado_produccion"].includes(a.rq_estado)
+    const bRealizado = Number(b.costo_real || 0) > 0 || ["pagado", "programado", "aprobado", "aprobado_produccion"].includes(b.rq_estado)
+    if (aRealizado !== bRealizado) return aRealizado ? -1 : 1
+    if (!!a.es_adicional_rq !== !!b.es_adicional_rq) return a.es_adicional_rq ? 1 : -1
+    return String(a.descripcion || "").localeCompare(String(b.descripcion || ""))
+  })
+
   const inp: any = { padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", width: "100%" }
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
@@ -258,7 +313,7 @@ export default function LiquidacionesPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "320px 1fr" : "1fr", gap: 16 }}>
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
           <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6" }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Proyectos</div>
           </div>
@@ -321,33 +376,38 @@ export default function LiquidacionesPage() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
                 {[
-                  { label: "Costo presupuestado", value: fmt(selected.costo_presupuestado), color: "#374151" },
-                  { label: "Costo real", value: fmt(selected.costo_real), color: selected.costo_real > selected.costo_presupuestado ? "#dc2626" : "#15803d" },
-                  { label: "Desvío costo", value: fmt(selected.desvio_costo), color: (selected.desvio_costo || 0) > 0 ? "#dc2626" : "#15803d" },
-                  { label: "Margen presupuestado", value: fmtPct(selected.margen_presupuestado_pct), color: "#374151" },
-                  { label: "Margen real", value: fmtPct(selected.margen_real_pct), color: selected.margen_real_pct >= selected.margen_presupuestado_pct ? "#15803d" : "#dc2626" },
-                  { label: "Desvío margen", value: fmtPct(selected.desvio_margen_pp), color: (selected.desvio_margen_pp || 0) >= 0 ? "#15803d" : "#dc2626" },
+                  { label: "Costo presupuestado", value: fmt(totalPresupuestadoLive), sub: "Suma del presupuesto", color: "#0F172A" },
+                  { label: "Costo real", value: fmt(totalRealLive), sub: "Presupuesto + adicionales", color: totalRealLive > totalPresupuestadoLive ? "#DC2626" : "#15803D" },
+                  { label: "Desvío costo", value: fmt(desvioCostoLive), sub: totalPresupuestadoLive > 0 ? `${Math.abs((desvioCostoLive / totalPresupuestadoLive) * 100).toFixed(1)}% vs presupuesto` : "Sin presupuesto", color: desvioCostoLive > 0 ? "#DC2626" : "#15803D" },
+                  { label: "Precio cliente inicial", value: fmt(precioClientePresupuestadoLive), sub: "Valor presupuestado", color: "#0F172A" },
+                  { label: "Precio cliente real", value: fmt(precioClienteRealLive), sub: "Valor final", color: "#15803D" },
+                  { label: "Margen inicial proyectado", value: fmtPct(margenInicialLive), sub: "Según presupuesto", color: "#1E40AF" },
+                  { label: "Margen real", value: fmtPct(margenRealLive), sub: "Rentabilidad final", color: margenRealLive >= margenInicialLive ? "#15803D" : "#DC2626" },
+                  { label: "Desvío margen", value: `${desvioMargenLive.toFixed(2)} pp`, sub: "Puntos porcentuales", color: desvioMargenLive >= 0 ? "#15803D" : "#DC2626" },
+                  { label: "Utilidad proyectada", value: fmt(utilidadProyectadaLive), sub: "Precio - costo presup.", color: "#1E40AF" },
+                  { label: "Utilidad real", value: fmt(utilidadRealLive), sub: "Precio real - costo real", color: utilidadRealLive >= utilidadProyectadaLive ? "#15803D" : "#DC2626" },
                 ].map(t => (
-                  <div key={t.label} style={{ background: "#f9fafb", borderRadius: 8, padding: "10px 14px" }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 4 }}>{t.label}</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: t.color }}>{t.value}</div>
+                  <div key={t.label} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 14, padding: "14px 16px", boxShadow: "0 8px 20px rgba(15,23,42,0.04)" }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: "#94A3B8", textTransform: "uppercase", marginBottom: 6 }}>{t.label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: t.color }}>{t.value}</div>
+                    <div style={{ fontSize: 11, color: "#64748B", marginTop: 5 }}>{t.sub}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
               <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6" }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Ítems</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>Gastos del proyecto <span style={{ background: "#F1F5F9", color: "#64748B", borderRadius: 999, padding: "2px 8px", fontSize: 11, marginLeft: 8 }}>{items.length} items</span></div>
               </div>
               {loadingItems ? (
                 <div style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Cargando ítems...</div>
               ) : (
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ background: "#f9fafb" }}>
+                    <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                       <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESCRIPCIÓN</th>
                       <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
                       <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RQ</th>
@@ -359,9 +419,16 @@ export default function LiquidacionesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((item, idx) => (
-                      <tr key={item.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                        <td style={{ padding: "10px 16px", fontSize: 13, color: "#374151" }}>{item.descripcion || "—"}</td>
+                    {itemsLiquidacionOrdenados.map((item, idx) => (
+                      <tr key={item.id} style={{ borderTop: "1px solid #F1F5F9", background: item.es_adicional_rq ? "#FFFBEB" : "#FFFFFF" }}>
+                        <td style={{ padding: "10px 16px", fontSize: 13, color: "#374151" }}>
+                          {item.es_adicional_rq && (
+                            <span style={{ display: "inline-block", marginRight: 6, background: "#FEF3C7", color: "#92400E", borderRadius: 999, padding: "2px 7px", fontSize: 10, fontWeight: 800 }}>
+                              ADICIONAL
+                            </span>
+                          )}
+                          {item.descripcion || "—"}
+                        </td>
                         <td style={{ padding: "10px 12px", fontSize: 12, color: "#475569" }}>{item.proveedor_nombre || "—"}</td>
                         <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12 }}>
                           {item.rq_id ? (
@@ -414,6 +481,9 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
+
+
 
 
 
