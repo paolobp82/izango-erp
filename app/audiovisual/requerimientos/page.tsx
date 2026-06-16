@@ -647,6 +647,19 @@ export default function AudiovisualRequerimientosPage() {
                 </div>
               </div>
 
+              {form.proyecto_id === "__OTRO__" && (
+                <div>
+                  <label style={lbl}>DETALLE DEL PROYECTO O SOLICITUD *</label>
+                  <input
+                    style={inp}
+                    value={form.detalle_otro_proyecto}
+                    onChange={e => setForm({ ...form, detalle_otro_proyecto: e.target.value })}
+                    placeholder="Ej: Video institucional, RRHH, redes sociales, propuesta comercial..."
+                  />
+                </div>
+              )}
+
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>UBICACION DEL PROYECTO</label>
@@ -735,6 +748,19 @@ export default function AudiovisualRequerimientosPage() {
                 )}
               </div>
 
+              {form.proyecto_id === "__OTRO__" && (
+                <div>
+                  <label style={lbl}>DETALLE DEL PROYECTO O SOLICITUD *</label>
+                  <input
+                    style={inp}
+                    value={form.detalle_otro_proyecto}
+                    onChange={e => setForm({ ...form, detalle_otro_proyecto: e.target.value })}
+                    placeholder="Ej: Video institucional, RRHH, redes sociales, propuesta comercial..."
+                  />
+                </div>
+              )}
+
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>REFERENCIAS / DOCUMENTOS (LINK)</label>
@@ -818,6 +844,7 @@ export default function AudiovisualRequerimientosPage() {
     </div>
   )
 }
+
 
 
 
