@@ -1,6 +1,8 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import KpiCard from "@/components/ui/KpiCard"
+import StatusBadge from "@/components/ui/StatusBadge"
 
 const MODULO_COLOR: Record<string, any> = {
   proyectos:    { bg: "#dbeafe", color: "#1e40af" },
@@ -83,7 +85,7 @@ export default function TrazabilidadPage() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
         <div className="card" style={{ borderLeft: "4px solid #0F6E56" }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Total registros</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: "#0F6E56" }}>{registros.length}</div>
@@ -98,7 +100,7 @@ export default function TrazabilidadPage() {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 12, padding: "10px 14px" }}>
+      <div className="card" style={{ marginBottom: 12, padding: "10px 14px", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <input style={{ ...inp, width: 220 }} placeholder="Buscar en registros..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
           <select style={{ ...inp, width: "auto" }} value={filtroModulo} onChange={e => setFiltroModulo(e.target.value)}>
@@ -122,7 +124,7 @@ export default function TrazabilidadPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 360px" : "1fr", gap: 16 }}>
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
           {filtrados.length === 0 ? (
             <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>
               No hay registros de trazabilidad aún. Las acciones se irán registrando automáticamente.
@@ -130,7 +132,7 @@ export default function TrazabilidadPage() {
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "#f9fafb" }}>
+                <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                   <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FECHA / HORA</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>USUARIO</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ACCION</th>
@@ -241,3 +243,4 @@ export default function TrazabilidadPage() {
     </div>
   )
 }
+
