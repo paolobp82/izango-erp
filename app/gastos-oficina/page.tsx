@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
+import KpiCard from "@/components/ui/KpiCard"
+import StatusBadge from "@/components/ui/StatusBadge"
 
 const TIPOS: Record<string, string> = {
   alquiler: "Alquiler",
@@ -170,20 +172,35 @@ export default function GastosOficinaPage() {
       </div>
 
       {/* Resumen */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-        {[
-          { label: "Pagado", value: fmt(totalPagado), ...ESTADOS_PAGO.pagado },
-          { label: "Pendiente", value: fmt(totalPendiente), ...ESTADOS_PAGO.pendiente },
-          { label: "Vencido", value: fmt(totalVencido), ...ESTADOS_PAGO.vencido },
-        ].map(c => (
-          <div key={c.label} className="card" style={{ background: c.bg, border: "none", padding: "12px 16px" }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: c.color, textTransform: "uppercase", marginBottom: 4 }}>{c.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: c.color }}>{c.value}</div>
-          </div>
-        ))}
-      </div>
+<div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
 
-      {/* Filtros */}
+  <KpiCard
+    label="PAGADO"
+    value={fmt(totalPagado)}
+    icon="money"
+    borderColor="#16A34A"
+    valueColor="#15803D"
+  />
+
+  <KpiCard
+    label="PENDIENTE"
+    value={fmt(totalPendiente)}
+    icon="wallet"
+    borderColor="#F59E0B"
+    valueColor="#D97706"
+  />
+
+  <KpiCard
+    label="VENCIDO"
+    value={fmt(totalVencido)}
+    icon="chart"
+    borderColor="#DC2626"
+    valueColor="#DC2626"
+  />
+
+</div>
+
+{/* Filtros */}
       <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
         <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
           <option value="todos">Todos los estados</option>
@@ -196,13 +213,13 @@ export default function GastosOficinaPage() {
       </div>
 
       {/* Tabla */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
         {gastosFiltrados.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay gastos registrados</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#f9fafb" }}>
+              <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                 <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FECHA</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESCRIPCIÓN</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO</th>
@@ -244,7 +261,7 @@ export default function GastosOficinaPage() {
                           {Object.entries(ESTADOS_PAGO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                         </select>
                       ) : (
-                        <span style={{ background: ep.bg, color: ep.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{ep.label}</span>
+                        <StatusBadge label={ep.label} type={g.estado_pago} />
                       )}
                     </td>
                     <td style={{ padding: "12px" }}>
@@ -270,7 +287,7 @@ export default function GastosOficinaPage() {
               })}
             </tbody>
             <tfoot>
-              <tr style={{ background: "#f9fafb", borderTop: "2px solid #e5e7eb" }}>
+              <tr style={{ background: "#F8FAFC", borderTop: "2px solid #E2E8F0" }}>
                 <td colSpan={4} style={{ padding: "10px 16px", fontSize: 12, fontWeight: 700, color: "#374151" }}>TOTAL</td>
                 <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#111827" }}>
                   {fmt(gastosFiltrados.reduce((s, g) => s + (g.monto || 0), 0))}
@@ -387,3 +404,4 @@ export default function GastosOficinaPage() {
     </div>
   )
 }
+
