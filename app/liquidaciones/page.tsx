@@ -6,6 +6,9 @@ import ImportExport from "@/components/ImportExport"
 import { enviarAlerta } from "@/lib/alertas"
 import { useRouter } from "next/navigation"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import KpiCard from "@/components/ui/KpiCard"
+import SectionCard from "@/components/ui/SectionCard"
+import StatusBadge from "@/components/ui/StatusBadge"
 
 export default function LiquidacionesPage() {
   const supabase = createClient()
@@ -160,10 +163,19 @@ export default function LiquidacionesPage() {
         return mismoProveedor || descripcionParecida
       })
 
+      const montoRq = Number(rqMatch?.monto_solicitado || 0)
+      const costoRealActual = Number(item.costo_real || 0)
+      const costoRealCalculado = costoRealActual > 0 ? costoRealActual : montoRq
+      const costoPresupuestado = Number(item.costo_presupuestado || 0)
+      const desvioCalculado = costoRealCalculado - costoPresupuestado
+
       return {
         ...item,
         proveedor_id: proveedorId,
         proveedor_nombre: proveedorNombre,
+        costo_real: costoRealCalculado,
+        desvio: desvioCalculado,
+        desvio_pct: costoPresupuestado > 0 ? (desvioCalculado / costoPresupuestado) * 100 : 0,
         rq_id: rqMatch?.id || null,
         rq_codigo: rqMatch?.codigo_rq || (rqMatch?.numero_rq ? `RQ-${String(rqMatch.numero_rq).padStart(5, "0")}` : null),
         rq_estado: rqMatch?.estado || null,
@@ -175,7 +187,6 @@ export default function LiquidacionesPage() {
     const adicionales = (rqs || [])
       .filter((rq: any) =>
         !rq.cotizacion_item_id &&
-        rq.es_adicional === true &&
         !idsRqYaMostrados.has(rq.id) &&
         !["cancelado", "rechazado"].includes(rq.estado)
       )
@@ -287,9 +298,20 @@ export default function LiquidacionesPage() {
     const aRealizado = Number(a.costo_real || 0) > 0 || ["pagado", "programado", "aprobado", "aprobado_produccion"].includes(a.rq_estado)
     const bRealizado = Number(b.costo_real || 0) > 0 || ["pagado", "programado", "aprobado", "aprobado_produccion"].includes(b.rq_estado)
     if (aRealizado !== bRealizado) return aRealizado ? -1 : 1
-    if (!!a.es_adicional_rq !== !!b.es_adicional_rq) return a.es_adicional_rq ? 1 : -1
     return String(a.descripcion || "").localeCompare(String(b.descripcion || ""))
   })
+
+  const getRqNumber = (item:any) => {
+    const raw = String(item.rq_codigo || "")
+    const match = raw.match(/(\d+)$/)
+    return match ? Number(match[1]) : 999999999
+  }
+
+  const itemsPresupuestados = itemsLiquidacionOrdenados.filter((i:any) => !i.es_adicional_rq)
+
+  const itemsAdicionales = itemsLiquidacionOrdenados
+    .filter((i:any) => i.es_adicional_rq)
+    .sort((a:any, b:any) => getRqNumber(a) - getRqNumber(b))
 
   const inp: any = { padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", width: "100%" }
 
@@ -376,31 +398,88 @@ export default function LiquidacionesPage() {
                 </div>
               </div>
 
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
-                {[
-                  { label: "Costo presupuestado", value: fmt(totalPresupuestadoLive), sub: "Suma del presupuesto", color: "#0F172A" },
-                  { label: "Costo real", value: fmt(totalRealLive), sub: "Presupuesto + adicionales", color: totalRealLive > totalPresupuestadoLive ? "#DC2626" : "#15803D" },
-                  { label: "Desvío costo", value: fmt(desvioCostoLive), sub: totalPresupuestadoLive > 0 ? `${Math.abs((desvioCostoLive / totalPresupuestadoLive) * 100).toFixed(1)}% vs presupuesto` : "Sin presupuesto", color: desvioCostoLive > 0 ? "#DC2626" : "#15803D" },
-                  { label: "Precio cliente inicial", value: fmt(precioClientePresupuestadoLive), sub: "Valor presupuestado", color: "#0F172A" },
-                  { label: "Precio cliente real", value: fmt(precioClienteRealLive), sub: "Valor final", color: "#15803D" },
-                  { label: "Margen inicial proyectado", value: fmtPct(margenInicialLive), sub: "Según presupuesto", color: "#1E40AF" },
-                  { label: "Margen real", value: fmtPct(margenRealLive), sub: "Rentabilidad final", color: margenRealLive >= margenInicialLive ? "#15803D" : "#DC2626" },
-                  { label: "Desvío margen", value: `${desvioMargenLive.toFixed(2)} pp`, sub: "Puntos porcentuales", color: desvioMargenLive >= 0 ? "#15803D" : "#DC2626" },
-                  { label: "Utilidad proyectada", value: fmt(utilidadProyectadaLive), sub: "Precio - costo presup.", color: "#1E40AF" },
-                  { label: "Utilidad real", value: fmt(utilidadRealLive), sub: "Precio real - costo real", color: utilidadRealLive >= utilidadProyectadaLive ? "#15803D" : "#DC2626" },
-                ].map(t => (
-                  <div key={t.label} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 14, padding: "14px 16px", boxShadow: "0 8px 20px rgba(15,23,42,0.04)" }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: "#94A3B8", textTransform: "uppercase", marginBottom: 6 }}>{t.label}</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: t.color }}>{t.value}</div>
-                    <div style={{ fontSize: 11, color: "#64748B", marginTop: 5 }}>{t.sub}</div>
-                  </div>
-                ))}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+                  gap: 16,
+                }}
+              >
+                <KpiCard
+                  label="PRECIO CLIENTE"
+                  value={fmt(precioClienteRealLive)}
+                  sub="Venta final"
+                  icon="wallet"
+                  borderColor="#16A34A"
+                  valueColor="#15803D"
+                />
+
+                <KpiCard
+                  label="COSTO PRESUPUESTADO"
+                  value={fmt(totalPresupuestadoLive)}
+                  sub="Costo planificado"
+                  icon="chart"
+                  borderColor="#2563EB"
+                  valueColor="#1E40AF"
+                />
+
+                <KpiCard
+                  label="COSTO REAL"
+                  value={fmt(totalRealLive)}
+                  sub="Costo ejecutado"
+                  icon="money"
+                  borderColor="#64748B"
+                />
+
+                <KpiCard
+                  label="DESVÍO"
+                  value={fmt(desvioCostoLive)}
+                  sub={`${Math.abs(totalPresupuestadoLive > 0 ? (desvioCostoLive / totalPresupuestadoLive) * 100 : 0).toFixed(1)}%`}
+                  icon="shield"
+                  borderColor={desvioCostoLive > 0 ? "#DC2626" : "#16A34A"}
+                  valueColor={desvioCostoLive > 0 ? "#DC2626" : "#15803D"}
+                />
+
+                <KpiCard
+                  label="MARGEN INICIAL"
+                  value={fmtPct(margenInicialLive)}
+                  sub="Presupuestado"
+                  icon="chart"
+                  borderColor="#2563EB"
+                  valueColor="#1E40AF"
+                />
+
+                <KpiCard
+                  label="MARGEN FINAL"
+                  value={fmtPct(margenRealLive)}
+                  sub="Resultado real"
+                  icon="chart"
+                  borderColor={margenRealLive >= margenInicialLive ? "#16A34A" : "#DC2626"}
+                  valueColor={margenRealLive >= margenInicialLive ? "#15803D" : "#DC2626"}
+                />
+
+                <KpiCard
+                  label="UTILIDAD REAL"
+                  value={fmt(utilidadRealLive)}
+                  sub="Ganancia final"
+                  icon="wallet"
+                  borderColor="#16A34A"
+                  valueColor="#15803D"
+                />
+
+                <KpiCard
+                  label="ESTADO FINANCIERO"
+                  value={margenRealLive >= 30 ? "Rentable" : margenRealLive >= 15 ? "Riesgo" : "Pérdida"}
+                  sub="Rentabilidad proyecto"
+                  icon="shield"
+                  borderColor={margenRealLive >= 30 ? "#16A34A" : margenRealLive >= 15 ? "#D97706" : "#DC2626"}
+                />
               </div>
             </div>
 
             <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
               <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6" }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>Gastos del proyecto <span style={{ background: "#F1F5F9", color: "#64748B", borderRadius: 999, padding: "2px 8px", fontSize: 11, marginLeft: 8 }}>{items.length} items</span></div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>Gastos presupuestados <span style={{ background: "#F1F5F9", color: "#64748B", borderRadius: 999, padding: "2px 8px", fontSize: 11, marginLeft: 8 }}>{itemsPresupuestados.length} items</span></div>
               </div>
               {loadingItems ? (
                 <div style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Cargando ítems...</div>
@@ -419,7 +498,7 @@ export default function LiquidacionesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {itemsLiquidacionOrdenados.map((item, idx) => (
+                    {itemsPresupuestados.map((item, idx) => (
                       <tr key={item.id} style={{ borderTop: "1px solid #F1F5F9", background: item.es_adicional_rq ? "#FFFBEB" : "#FFFFFF" }}>
                         <td style={{ padding: "10px 16px", fontSize: 13, color: "#374151" }}>
                           {item.es_adicional_rq && (
@@ -439,16 +518,10 @@ export default function LiquidacionesPage() {
                         </td>
                         <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 11 }}>
                           {item.rq_estado ? (
-                            <span style={{
-                              background: item.rq_estado === "pagado" ? "#DCFCE7" : item.rq_estado === "pendiente_aprobacion" ? "#FEF3C7" : item.rq_estado === "rechazado" ? "#FEE2E2" : "#DBEAFE",
-                              color: item.rq_estado === "pagado" ? "#166534" : item.rq_estado === "pendiente_aprobacion" ? "#92400E" : item.rq_estado === "rechazado" ? "#B91C1C" : "#1E40AF",
-                              padding: "3px 8px",
-                              borderRadius: 999,
-                              fontWeight: 700,
-                              whiteSpace: "nowrap",
-                            }}>
-                              {item.rq_estado === "pendiente_aprobacion" ? "Pendiente" : item.rq_estado}
-                            </span>
+                            <StatusBadge
+                              label={item.rq_estado === "pendiente_aprobacion" ? "Pendiente" : item.rq_estado}
+                              type={item.rq_estado}
+                            />
                           ) : "—"}
                         </td>
                         <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, color: "#6b7280" }}>{fmt(item.costo_presupuestado)}</td>
@@ -468,19 +541,87 @@ export default function LiquidacionesPage() {
                         </td>
                       </tr>
                     ))}
-                    {items.length === 0 && (
+                    {itemsPresupuestados.length === 0 && (
                       <tr><td colSpan={8} style={{ padding: "24px 16px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No hay ítems</td></tr>
                     )}
                   </tbody>
                 </table>
               )}
             </div>
-          </div>
+
+            <div style={{ height: 16 }} />
+
+            <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>
+                  Gastos adicionales <span style={{ background: "#FEF3C7", color: "#92400E", borderRadius: 999, padding: "2px 8px", fontSize: 11, marginLeft: 8 }}>{itemsAdicionales.length} RQ extras</span>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: "#DC2626" }}>
+                  Impacto: {fmt(totalRealAdicionalesLive)}
+                </div>
+              </div>
+
+              {loadingItems ? (
+                <div style={{ padding: 24, color: "#6b7280", fontSize: 13 }}>Cargando RQ adicionales...</div>
+              ) : itemsAdicionales.length === 0 ? (
+                <div style={{ padding: 24, color: "#9ca3af", fontSize: 13, textAlign: "center" }}>
+                  No hay gastos adicionales registrados
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#FFFBEB", borderBottom: "1px solid #E2E8F0" }}>
+                      <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESCRIPCIÓN</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
+                      <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RQ</th>
+                      <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
+                      <th style={{ textAlign: "right", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MONTO REAL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {itemsAdicionales.map((item:any) => (
+                      <tr key={item.id} style={{ borderTop: "1px solid #F1F5F9", background: "#FFFBEB" }}>
+                        <td style={{ padding: "10px 16px", fontSize: 13, color: "#374151" }}>{item.descripcion || "RQ adicional"}</td>
+                        <td style={{ padding: "10px 12px", fontSize: 12, color: "#475569" }}>{item.proveedor_nombre || "—"}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12 }}>
+                          {item.rq_id ? (
+                            <a href={`/rq?rq_id=${item.rq_id}`} style={{ color: "#0F6E56", fontWeight: 700, textDecoration: "none" }}>
+                              {item.rq_codigo || "RQ"}
+                            </a>
+                          ) : "—"}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 11 }}>
+                          {item.rq_estado ? (
+                            <StatusBadge
+                              label={item.rq_estado === "pendiente_aprobacion" ? "Pendiente" : item.rq_estado}
+                              type={item.rq_estado}
+                            />
+                          ) : "—"}
+                        </td>
+                        <td style={{ padding: "10px 16px", textAlign: "right", fontSize: 13, fontWeight: 800, color: "#DC2626" }}>
+                          {fmt(item.costo_real)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>          </div>
         )}
       </div>
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
