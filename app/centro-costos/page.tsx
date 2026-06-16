@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import KpiCard from "@/components/ui/KpiCard"
+import StatusBadge from "@/components/ui/StatusBadge"
 
 const TIPOS = ["evento", "cliente", "campaña", "linea_negocio", "produccion", "movilidad", "personal", "materiales", "otro"]
 const TIPO_COLOR: Record<string, any> = {
@@ -127,26 +129,14 @@ export default function CentroCostosPage() {
       </div>
 
       {/* KPIs globales */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-        <div className="card" style={{ borderLeft: "4px solid #0F6E56" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Centros activos</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: "#0F6E56" }}>{centros.length}</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #2563eb" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Presupuesto total</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: "#2563eb" }}>{fmt(totalPresupuesto)}</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #dc2626" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Ejecutado total</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: "#dc2626" }}>{fmt(totalEjecutado)}</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid " + (totalSaldo >= 0 ? "#059669" : "#dc2626") }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Saldo disponible</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: totalSaldo >= 0 ? "#059669" : "#dc2626" }}>{fmt(totalSaldo)}</div>
-        </div>
-      </div>
+<div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 16, marginBottom: 24 }}>
+  <KpiCard label="CENTROS ACTIVOS" value={String(centros.length)} icon="folder" borderColor="#0F6E56" valueColor="#0F6E56" />
+  <KpiCard label="PRESUPUESTO TOTAL" value={fmt(totalPresupuesto)} icon="money" borderColor="#2563EB" valueColor="#1E40AF" />
+  <KpiCard label="EJECUTADO TOTAL" value={fmt(totalEjecutado)} icon="wallet" borderColor="#DC2626" valueColor="#DC2626" />
+  <KpiCard label="SALDO DISPONIBLE" value={fmt(totalSaldo)} icon="chart" borderColor={totalSaldo >= 0 ? "#16A34A" : "#DC2626"} valueColor={totalSaldo >= 0 ? "#15803D" : "#DC2626"} />
+</div>
 
-      {/* Modal form */}
+{/* Modal form */}
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 480 }}>
@@ -176,7 +166,7 @@ export default function CentroCostosPage() {
       )}
 
       {/* Filtros de fecha */}
-      <div className="card" style={{ marginBottom: 16, padding: "12px 16px" }}>
+      <div className="card" style={{ marginBottom: 16, padding: "12px 16px", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>Periodo:</span>
           {[
@@ -209,7 +199,7 @@ export default function CentroCostosPage() {
       </div>
 
       {/* Tabla principal presupuesto vs ejecutado */}
-      <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>
+      <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 16, border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
         <div style={{ padding: "12px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Presupuesto vs Ejecutado</div>
           <div style={{ fontSize: 11, color: "#9ca3af" }}>Los costos ejecutados se actualizan al aprobar cotizaciones</div>
@@ -221,7 +211,7 @@ export default function CentroCostosPage() {
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#f9fafb" }}>
+              <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                 <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CENTRO DE COSTOS</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#2563eb" }}>PRESUPUESTO</th>
@@ -249,7 +239,7 @@ export default function CentroCostosPage() {
                       {c.descripcion && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{c.descripcion}</div>}
                     </td>
                     <td style={{ padding: "12px" }}>
-                      <span style={{ background: tc.bg, color: tc.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, textTransform: "capitalize" }}>{c.tipo}</span>
+                      <StatusBadge label={c.tipo} type="borrador" />
                     </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: "#2563eb" }}>{presupuesto > 0 ? fmt(presupuesto) : "—"}</td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: sobreEjecutado ? "#dc2626" : "#374151" }}>{ejecutado > 0 ? fmt(ejecutado) : "—"}</td>
@@ -295,7 +285,7 @@ export default function CentroCostosPage() {
 
       {/* Panel detalle del centro seleccionado */}
       {selected && (
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
           <div style={{ padding: "12px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f0fdf4" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#0F6E56" }}>
               Detalle — {selected.nombre}
@@ -310,7 +300,7 @@ export default function CentroCostosPage() {
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "#f9fafb" }}>
+                <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                   <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESCRIPCIÓN</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>COTIZACIÓN</th>
@@ -353,3 +343,4 @@ export default function CentroCostosPage() {
     </div>
   )
 }
+
