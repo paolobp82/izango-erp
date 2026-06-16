@@ -634,6 +634,7 @@ export default function AudiovisualRequerimientosPage() {
                   <label style={lbl}>PROYECTO *</label>
                   <select style={inp} value={form.proyecto_id} onChange={e => handleProyectoChange(e.target.value)} disabled={camposPedidoDeshabilitados}>
                     <option value="">Seleccionar proyecto</option>
+<option value="__OTRO__">OTRO / SIN PROYECTO</option>
                     {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}
                   </select>
                 </div>
@@ -817,6 +818,7 @@ export default function AudiovisualRequerimientosPage() {
     </div>
   )
 }
+
 
 
 
