@@ -84,6 +84,8 @@ export default function LiquidacionesPage() {
         liquidacion_id: liq.id,
         cotizacion_item_id: item.id,
         descripcion: item.descripcion,
+        proveedor_id: item.proveedor_id || null,
+        proveedor_nombre: item.proveedor_nombre || null,
         costo_presupuestado: item.costo_total || 0,
         costo_real: 0,
         desvio: 0,
@@ -102,10 +104,66 @@ export default function LiquidacionesPage() {
       alert("Esta liquidacion pertenece a un proyecto eliminado y no puede abrirse como activa.")
       return
     }
+
     setSelected(liq)
     setLoadingItems(true)
-    const { data } = await supabase.from("liquidacion_items").select("*").eq("liquidacion_id", liq.id)
-    setItems(data || [])
+
+    const { data: liqItems } = await supabase
+      .from("liquidacion_items")
+      .select("*")
+      .eq("liquidacion_id", liq.id)
+
+    const { data: cotItems } = await supabase
+      .from("cotizacion_items")
+      .select("id, proveedor_id, proveedor_nombre")
+      .in("id", (liqItems || []).map((i: any) => i.cotizacion_item_id).filter(Boolean))
+
+    const { data: rqs } = await supabase
+      .from("requerimientos_pago")
+      .select("id, codigo_rq, numero_rq, estado, proveedor_id, proveedor_nombre, descripcion, monto_solicitado")
+      .eq("proyecto_id", liq.proyecto_id)
+
+    const cotItemMap = new Map((cotItems || []).map((c: any) => [c.id, c]))
+
+    const normalizar = (txt: string) =>
+      String(txt || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+
+    const enriched = (liqItems || []).map((item: any) => {
+      const cotItem: any = cotItemMap.get(item.cotizacion_item_id)
+      const proveedorId = item.proveedor_id || cotItem?.proveedor_id || null
+      const proveedorNombre = item.proveedor_nombre || cotItem?.proveedor_nombre || null
+      const descItem = normalizar(item.descripcion)
+
+      const rqMatch = (rqs || []).find((rq: any) => {
+        const mismoProveedor =
+          proveedorId && rq.proveedor_id
+            ? rq.proveedor_id === proveedorId
+            : normalizar(rq.proveedor_nombre) && normalizar(proveedorNombre) && normalizar(rq.proveedor_nombre) === normalizar(proveedorNombre)
+
+        const descRq = normalizar(rq.descripcion)
+        const descripcionParecida =
+          descItem &&
+          descRq &&
+          (descRq.includes(descItem.slice(0, 24)) || descItem.includes(descRq.slice(0, 24)))
+
+        return mismoProveedor || descripcionParecida
+      })
+
+      return {
+        ...item,
+        proveedor_id: proveedorId,
+        proveedor_nombre: proveedorNombre,
+        rq_id: rqMatch?.id || null,
+        rq_codigo: rqMatch?.codigo_rq || (rqMatch?.numero_rq ? `RQ-${String(rqMatch.numero_rq).padStart(5, "0")}` : null),
+        rq_estado: rqMatch?.estado || null,
+      }
+    })
+
+    setItems(enriched)
     setLoadingItems(false)
   }
 
@@ -291,6 +349,9 @@ export default function LiquidacionesPage() {
                   <thead>
                     <tr style={{ background: "#f9fafb" }}>
                       <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESCRIPCIÓN</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
+                      <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RQ</th>
+                      <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO RQ</th>
                       <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRESUPUESTADO</th>
                       <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>REAL</th>
                       <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESVÍO</th>
@@ -301,6 +362,28 @@ export default function LiquidacionesPage() {
                     {items.map((item, idx) => (
                       <tr key={item.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                         <td style={{ padding: "10px 16px", fontSize: 13, color: "#374151" }}>{item.descripcion || "—"}</td>
+                        <td style={{ padding: "10px 12px", fontSize: 12, color: "#475569" }}>{item.proveedor_nombre || "—"}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12 }}>
+                          {item.rq_id ? (
+                            <a href={`/rq?rq_id=${item.rq_id}`} style={{ color: "#0F6E56", fontWeight: 700, textDecoration: "none" }}>
+                              {item.rq_codigo || "RQ"}
+                            </a>
+                          ) : "—"}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 11 }}>
+                          {item.rq_estado ? (
+                            <span style={{
+                              background: item.rq_estado === "pagado" ? "#DCFCE7" : item.rq_estado === "pendiente_aprobacion" ? "#FEF3C7" : item.rq_estado === "rechazado" ? "#FEE2E2" : "#DBEAFE",
+                              color: item.rq_estado === "pagado" ? "#166534" : item.rq_estado === "pendiente_aprobacion" ? "#92400E" : item.rq_estado === "rechazado" ? "#B91C1C" : "#1E40AF",
+                              padding: "3px 8px",
+                              borderRadius: 999,
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                            }}>
+                              {item.rq_estado === "pendiente_aprobacion" ? "Pendiente" : item.rq_estado}
+                            </span>
+                          ) : "—"}
+                        </td>
                         <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, color: "#6b7280" }}>{fmt(item.costo_presupuestado)}</td>
                         <td style={{ padding: "6px 12px" }}>
                           {selected.cerrada ? (
@@ -319,7 +402,7 @@ export default function LiquidacionesPage() {
                       </tr>
                     ))}
                     {items.length === 0 && (
-                      <tr><td colSpan={5} style={{ padding: "24px 16px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No hay ítems</td></tr>
+                      <tr><td colSpan={8} style={{ padding: "24px 16px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No hay ítems</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -331,5 +414,6 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
 
 
