@@ -477,8 +477,10 @@ if (idsAEliminar.length > 0) {
     if (!cotId || !id) return false
 
     if (concurrencyBlockedRef.current) {
-      if (!silencioso) alert("Esta proforma fue modificada por otro usuario. Recarga la página antes de guardar.")
-      return false
+      if (!silencioso) {
+        const continuar = confirm("Se detectaron cambios realizados por otro usuario mientras esta proforma estaba abierta. El autoguardado fue pausado para evitar conflictos. ¿Deseas guardar tu versión manualmente?")
+        if (!continuar) return false
+      }
     }
 
     const { data: versionActual, error: versionError } = await supabase
@@ -500,7 +502,7 @@ if (idsAEliminar.length > 0) {
       concurrencyBlockedRef.current = true
       setConcurrencyBlocked(true)
       if (autoSaveRef.current) clearInterval(autoSaveRef.current)
-      alert("Esta proforma fue modificada por otro usuario mientras la tenías abierta. El autoguardado fue detenido. Recarga la página antes de continuar.")
+      alert("Se detectaron cambios realizados por otro usuario. El autoguardado fue pausado para evitar sobrescribir información. Puedes seguir trabajando y guardar manualmente cuando lo consideres necesario.")
       return false
     }
     setSaving(true)
@@ -714,7 +716,7 @@ if (idsAEliminar.length > 0) {
       concurrencyBlockedRef.current = true
       setConcurrencyBlocked(true)
       if (autoSaveRef.current) clearInterval(autoSaveRef.current)
-      alert("Esta proforma fue modificada por otro usuario. El autoguardado fue detenido para no sobrescribir cambios.")
+      alert("Se detectaron cambios realizados por otro usuario. El autoguardado fue pausado para evitar conflictos. Puedes continuar trabajando normalmente.")
       return
     }
 
@@ -822,9 +824,9 @@ useEffect(() => { itemsRef.current = items }, [items])
 
       {concurrencyBlocked && (
         <div style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, color: "#991B1B", fontSize: 13 }}>Edición detenida por conflicto</div>
+          <div style={{ fontWeight: 800, color: "#991B1B", fontSize: 13 }}>Conflicto detectado</div>
           <div style={{ color: "#7F1D1D", fontSize: 12, marginTop: 4 }}>
-            Otro usuario guardó cambios en esta proforma mientras la tenías abierta. Para evitar sobrescribir información, el autoguardado fue detenido. Recarga la página antes de continuar.
+            Se detectaron cambios realizados por otro usuario mientras esta proforma estaba abierta. El autoguardado fue pausado para evitar sobrescribir información. Puedes continuar trabajando y guardar manualmente si lo consideras necesario.
           </div>
         </div>
       )}
@@ -1358,6 +1360,9 @@ useEffect(() => { itemsRef.current = items }, [items])
     </div>
   )
 }
+
+
+
 
 
 

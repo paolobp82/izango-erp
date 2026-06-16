@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from "recharts"
 import { rqCodigo } from "@/lib/rq-code"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import KpiCard from "@/components/ui/KpiCard"
+import StatusBadge from "@/components/ui/StatusBadge"
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
 
@@ -113,35 +115,48 @@ export default function FlujoCajaPage() {
         <div style={{ display: "flex", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
           {(["mensual", "detalle"] as const).map(v => (
             <button key={v} onClick={() => setVista(v)}
-              style={{ padding: "7px 16px", border: "none", background: vista === v ? "#0F6E56" : "#fff", color: vista === v ? "#fff" : "#374151", cursor: "pointer", fontSize: 13, fontWeight: vista === v ? 700 : 400, fontFamily: "inherit", textTransform: "capitalize" }}>
+              style={{ padding: "8px 18px", border: "none", background: vista === v ? "#0F6E56" : "#FFFFFF", color: vista === v ? "#FFFFFF" : "#334155", cursor: "pointer", fontSize: 13, fontWeight: 800, fontFamily: "inherit", textTransform: "capitalize" }}>
               {v === "mensual" ? "📊 Gráfico" : "📋 Detalle"}
             </button>
           ))}
         </div>
-      </div>
+      </div>      {/* KPIs */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 16, marginBottom: 24 }}>
+        <KpiCard
+          label="POR COBRAR"
+          value={fmt(totalPorCobrar)}
+          sub={`${facturasPorCobrar.length} facturas emitidas`}
+          icon="money"
+          borderColor="#16A34A"
+          valueColor="#15803D"
+        />
 
-      {/* KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-        <div className="card" style={{ borderLeft: "4px solid #059669" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Por cobrar</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#059669" }}>{fmt(totalPorCobrar)}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>{facturasPorCobrar.length} facturas emitidas</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #dc2626" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Por pagar (RQs)</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#dc2626" }}>{fmt(totalPendiente)}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>{rqsPendientes.length} RQs pendientes</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #2563eb" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Total ingresos proyectados</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#2563eb" }}>{fmt(totalIngresos)}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>Próximos 6 meses</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid " + (netoTotal >= 0 ? "#059669" : "#dc2626") }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Neto proyectado</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: netoTotal >= 0 ? "#059669" : "#dc2626" }}>{fmt(netoTotal)}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>Ingresos - Egresos</div>
-        </div>
+        <KpiCard
+          label="POR PAGAR"
+          value={fmt(totalPendiente)}
+          sub={`${rqsPendientes.length} RQs pendientes`}
+          icon="wallet"
+          borderColor="#DC2626"
+          valueColor="#DC2626"
+        />
+
+        <KpiCard
+          label="INGRESOS PROYECTADOS"
+          value={fmt(totalIngresos)}
+          sub="Próximos 6 meses"
+          icon="chart"
+          borderColor="#2563EB"
+          valueColor="#1E40AF"
+        />
+
+        <KpiCard
+          label="NETO PROYECTADO"
+          value={fmt(netoTotal)}
+          sub="Ingresos - egresos"
+          icon="shield"
+          borderColor={netoTotal >= 0 ? "#16A34A" : "#DC2626"}
+          valueColor={netoTotal >= 0 ? "#15803D" : "#DC2626"}
+        />
       </div>
 
       {vista === "mensual" ? (
@@ -166,10 +181,10 @@ export default function FlujoCajaPage() {
           </div>
 
           {/* Tabla resumen mensual */}
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "#f9fafb" }}>
+                <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                   <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MES</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#059669" }}>INGRESOS</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#86efac" }}>INGRESOS PROY.</th>
@@ -183,7 +198,7 @@ export default function FlujoCajaPage() {
                   <tr key={m.key} onClick={() => setMesSeleccionado(m.key === mesSeleccionado ? null : m.key)}
                     style={{ borderTop: "1px solid #f3f4f6", background: m.key === mesSeleccionado ? "#f0fdf4" : m.esActual ? "#fefce8" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
                     <td style={{ padding: "10px 20px", fontSize: 13, fontWeight: m.esActual ? 700 : 400, color: "#111827" }}>
-                      {m.mes} {m.esActual && <span style={{ fontSize: 10, background: "#fef9c3", color: "#92400e", padding: "1px 6px", borderRadius: 4, marginLeft: 4 }}>Actual</span>}
+                      {m.mes} {m.esActual && <span style={{ fontSize: 10, background: "#DBEAFE", color: "#1E40AF", padding: "2px 8px", borderRadius: 999, marginLeft: 6, fontWeight: 800 }}>Actual</span>}
                     </td>
                     <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, color: "#059669", fontWeight: 600 }}>{m.ingresos > 0 ? fmt(m.ingresos) : "—"}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, color: "#16a34a" }}>{m.ingresosProyectados > 0 ? fmt(m.ingresosProyectados) : "—"}</td>
@@ -202,16 +217,16 @@ export default function FlujoCajaPage() {
         /* Vista detalle */
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div>
-            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
               <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", background: "#f0fdf4" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#15803d" }}>📥 Ingresos — Facturas</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#15803d" }}>Ingresos pendientes de cobro <span style={{ background: "#DCFCE7", color: "#166534", borderRadius: 999, padding: "2px 8px", fontSize: 11, marginLeft: 8 }}>{facturasPorCobrar.length} facturas</span></div>
               </div>
               {facturasPorCobrar.length === 0 ? (
                 <div style={{ padding: "24px 16px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No hay facturas pendientes de cobro</div>
               ) : (
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ background: "#f9fafb" }}>
+                    <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                       <th style={{ textAlign: "left", padding: "8px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FACTURA</th>
                       <th style={{ textAlign: "left", padding: "8px 8px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
                       <th style={{ textAlign: "right", padding: "8px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MONTO</th>
@@ -225,7 +240,7 @@ export default function FlujoCajaPage() {
                         <td style={{ padding: "8px 8px", fontSize: 11, color: "#6b7280" }}>{f.proyecto?.codigo || "—"}</td>
                         <td style={{ padding: "8px 16px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#059669" }}>{fmtFull(f.monto_final_abonado || 0)}</td>
                         <td style={{ padding: "8px 8px" }}>
-                          <span style={{ background: "#dbeafe", color: "#1e40af", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>{f.estado}</span>
+                          <StatusBadge label={f.estado} type={f.estado} />
                         </td>
                       </tr>
                     ))}
@@ -240,16 +255,16 @@ export default function FlujoCajaPage() {
           </div>
 
           <div>
-            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
               <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", background: "#fef2f2" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#dc2626" }}>📤 Egresos — RQs pendientes</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#dc2626" }}>Egresos pendientes de pago <span style={{ background: "#FEE2E2", color: "#B91C1C", borderRadius: 999, padding: "2px 8px", fontSize: 11, marginLeft: 8 }}>{rqsPendientes.length} RQs</span></div>
               </div>
               {rqsPendientes.length === 0 ? (
                 <div style={{ padding: "24px 16px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No hay RQs pendientes de pago</div>
               ) : (
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ background: "#f9fafb" }}>
+                    <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                       <th style={{ textAlign: "left", padding: "8px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>N° RQ</th>
                       <th style={{ textAlign: "left", padding: "8px 8px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
                       <th style={{ textAlign: "right", padding: "8px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MONTO</th>
@@ -263,7 +278,7 @@ export default function FlujoCajaPage() {
                         <td style={{ padding: "8px 8px", fontSize: 11, color: "#6b7280" }}>{r.proveedor_nombre || "—"}</td>
                         <td style={{ padding: "8px 16px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#dc2626" }}>{fmtFull(r.monto_solicitado || 0)}</td>
                         <td style={{ padding: "8px 8px" }}>
-                          <span style={{ background: "#fef9c3", color: "#92400e", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>{r.estado}</span>
+                          <StatusBadge label={r.estado} type={r.estado} />
                         </td>
                       </tr>
                     ))}
@@ -281,3 +296,5 @@ export default function FlujoCajaPage() {
     </div>
   )
 }
+
+
