@@ -817,7 +817,15 @@ export default function TareasPage() {
                   const rolUsuario = rolUsuarioEnTarea(t)
                   const participantes = participantesNombres(t)
                   return (
-                    <tr key={t.id} onClick={() => abrirDetalle(t)}
+                    <tr
+                      key={t.id}
+                      onClick={() => {
+                        if (t.origen === "audiovisual" && t.origen_id) {
+                          router.push(`/audiovisual/requerimientos?requerimiento_id=${t.origen_id}`)
+                          return
+                        }
+                        abrirDetalle(t)
+                      }}
                       style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === t.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}>
                       <td style={{ padding: "10px 16px" }}><input type="checkbox" onClick={e => e.stopPropagation()} /></td>
                       <td style={{ padding: "10px 16px" }}>
@@ -826,6 +834,19 @@ export default function TareasPage() {
                         <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Solicitante: {t.creador ? nombreUsuario(t.creador) : "—"}</div>
                         {participantes && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Participantes: {participantes}</div>}
                         <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 4 }}>
+                          {t.origen_label && (
+                            <span style={{
+                              background: "#eff6ff",
+                              color: "#1d4ed8",
+                              fontSize: 10,
+                              fontWeight: 800,
+                              padding: "2px 7px",
+                              borderRadius: 99,
+                              textTransform: "uppercase"
+                            }}>
+                              {t.origen_label}
+                            </span>
+                          )}
                           {rolUsuario && <span style={{ fontSize: 10, background: "#eff6ff", color: "#1d4ed8", padding: "1px 6px", borderRadius: 99, fontWeight: 800 }}>Mi rol: {rolUsuario}</span>}
                           {vencida && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>VENCIDA</span>}
                           {t.frecuencia && t.frecuencia !== "no_repite" && <span style={{ fontSize: 10, background: "#ecfeff", color: "#155e75", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>{FRECUENCIAS[t.frecuencia] || "Recurrente"}</span>}
@@ -1233,6 +1254,7 @@ export default function TareasPage() {
     </div>
   )
 }
+
 
 
 

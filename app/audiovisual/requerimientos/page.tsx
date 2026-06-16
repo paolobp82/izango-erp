@@ -291,6 +291,32 @@ export default function AudiovisualRequerimientosPage() {
     } else {
       const { data, error } = await supabase.from("audiovisual_requerimientos").insert(payload).select().single()
       if (error) { alert("Error: " + error.message); setSaving(false); return }
+
+      const proyectoTarea = payload.proyecto_id ? proyectos.find(p => p.id === payload.proyecto_id) : null
+      const tituloTarea = `Req. audiovisual - ${proyectoTarea?.codigo || payload.detalle_otro_proyecto || "Sin proyecto"}`
+
+      const { error: tareaError } = await supabase.from("tareas").insert({
+        titulo: tituloTarea,
+        descripcion: payload.brief || "Requerimiento audiovisual generado desde el modulo audiovisual.",
+        estado: "pendiente",
+        prioridad: payload.prioridad || "media",
+        proyecto_id: payload.proyecto_id || null,
+        asignado_a: payload.responsable_audiovisual_id || payload.productor_id || perfil?.id || null,
+        creado_por: perfil?.id || null,
+        fecha_limite: payload.fecha_entrega_solicitada || null,
+        origen: "audiovisual",
+        origen_id: data.id,
+        origen_url: `/audiovisual/requerimientos?requerimiento_id=${data.id}`,
+        origen_label: "Req. Audiovisual",
+        mostrar_participantes_mi_trabajo: true,
+        permitir_comentarios: true,
+        recibir_correos_automaticos: true,
+      })
+
+      if (tareaError) {
+        alert("El requerimiento fue creado, pero no se pudo crear la tarea en Mi Trabajo: " + tareaError.message)
+      }
+
       await registrarAccion({ accion: "crear", modulo: "audiovisual", entidad_tipo: "requerimiento_audiovisual", entidad_id: data?.id, descripcion: "Requerimiento audiovisual creado" })
       await enviarCorreo(payload)
     }
@@ -844,6 +870,7 @@ export default function AudiovisualRequerimientosPage() {
     </div>
   )
 }
+
 
 
 
