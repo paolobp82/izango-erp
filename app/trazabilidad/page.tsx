@@ -86,19 +86,33 @@ export default function TrazabilidadPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
-        <div className="card" style={{ borderLeft: "4px solid #0F6E56" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Total registros</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: "#0F6E56" }}>{registros.length}</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #2563eb" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Usuarios activos</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: "#2563eb" }}>{usuarios.length}</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #d97706" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Modulos registrados</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: "#d97706" }}>{modulos.length}</div>
-        </div>
-      </div>
+  <KpiCard
+    label="TOTAL REGISTROS"
+    value={String(registros.length)}
+    sub="Acciones recientes"
+    icon="file"
+    borderColor="#0F6E56"
+    valueColor="#0F6E56"
+  />
+
+  <KpiCard
+    label="USUARIOS ACTIVOS"
+    value={String(usuarios.length)}
+    sub="Con actividad"
+    icon="shield"
+    borderColor="#2563EB"
+    valueColor="#1E40AF"
+  />
+
+  <KpiCard
+    label="MÓDULOS REGISTRADOS"
+    value={String(modulos.length)}
+    sub="Áreas auditadas"
+    icon="folder"
+    borderColor="#D97706"
+    valueColor="#B45309"
+  />
+</div>
 
       <div className="card" style={{ marginBottom: 12, padding: "10px 14px", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -147,7 +161,7 @@ export default function TrazabilidadPage() {
                   const icon = ACCION_ICON[r.accion] || "•"
                   const fecha = new Date(r.created_at)
                   return (
-                    <tr key={r.id} style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === r.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}
+                    <tr key={r.id} style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === r.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}
                       onClick={() => setSelected(r)}>
                       <td style={{ padding: "10px 20px" }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>{fecha.toLocaleDateString("es-PE")}</div>
@@ -155,7 +169,7 @@ export default function TrazabilidadPage() {
                       </td>
                       <td style={{ padding: "10px 12px", fontSize: 13, color: "#374151", fontWeight: 600 }}>{r.usuario_nombre || "—"}</td>
                       <td style={{ padding: "10px 12px" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>{icon} {r.accion}</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>{icon} {r.accion}</span>
                       </td>
                       <td style={{ padding: "10px 12px" }}>
                         <span style={{ background: mc.bg, color: mc.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, textTransform: "capitalize" }}>{r.modulo}</span>
@@ -165,7 +179,7 @@ export default function TrazabilidadPage() {
                       </td>
                       <td style={{ padding: "10px 20px", textAlign: "right" }}>
                         <button onClick={e => { e.stopPropagation(); setSelected(r) }}
-                          style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #e5e7eb", borderRadius: 5, background: "#fff", cursor: "pointer", color: "#6b7280" }}>
+                          style={{ fontSize: 11, padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: 8, background: "#FFFFFF", cursor: "pointer", color: "#334155", fontWeight: 700 }}>
                           Ver
                         </button>
                       </td>
@@ -243,4 +257,5 @@ export default function TrazabilidadPage() {
     </div>
   )
 }
+
 
