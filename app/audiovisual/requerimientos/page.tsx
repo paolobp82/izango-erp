@@ -34,6 +34,7 @@ const ESTADOS_PEDIDO_EDITABLE = ["pendiente", "en_progreso"]
 const formVacio = {
   proyecto_id: "",
   cotizacion_id: "",
+  detalle_otro_proyecto: "",
   ubicacion: "",
   productor_id: "",
   responsable_audiovisual_id: "",
@@ -165,6 +166,7 @@ export default function AudiovisualRequerimientosPage() {
     setForm({
       proyecto_id: req.proyecto_id || "",
       cotizacion_id: req.cotizacion_id || "",
+      detalle_otro_proyecto: req.detalle_otro_proyecto || "",
       ubicacion: req.ubicacion || "",
       productor_id: req.productor_id || "",
       responsable_audiovisual_id: req.responsable_audiovisual_id || "",
@@ -815,6 +817,11 @@ export default function AudiovisualRequerimientosPage() {
     </div>
   )
 }
+
+
+
+
+
 
 
 
