@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import KpiCard from "@/components/ui/KpiCard"
+import StatusBadge from "@/components/ui/StatusBadge"
 
 const ESTADO_COLOR: Record<string, any> = {
   pendiente:   { bg: "#fef9c3", color: "#92400e", label: "Pendiente" },
@@ -99,31 +101,48 @@ export default function ConciliacionPage() {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-        <div className="card" style={{ borderLeft: "4px solid #059669" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Conciliado</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#059669" }}>{fmt(totalCobrado)}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>{facturas.filter(f => f.conciliado).length} facturas confirmadas</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #f59e0b" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Por conciliar</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#f59e0b" }}>{fmt(totalPorConciliar)}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>{pendientesConciliar} facturas cobradas sin confirmar</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #2563eb" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Emitidas (por cobrar)</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#2563eb" }}>{fmt(totalEmitido)}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>{facturas.filter(f => f.estado === "emitida").length} facturas emitidas</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #0F6E56" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Total facturas</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#0F6E56" }}>{facturas.length}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>En el sistema</div>
-        </div>
-      </div>
+<div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 16, marginBottom: 24 }}>
 
-      {/* Filtros */}
-      <div className="card" style={{ marginBottom: 16, padding: "12px 16px" }}>
+  <KpiCard
+    label="CONCILIADO"
+    value={fmt(totalCobrado)}
+    sub={`${facturas.filter(f => f.conciliado).length} facturas confirmadas`}
+    icon="money"
+    borderColor="#16A34A"
+    valueColor="#15803D"
+  />
+
+  <KpiCard
+    label="POR CONCILIAR"
+    value={fmt(totalPorConciliar)}
+    sub={`${pendientesConciliar} pendientes`}
+    icon="wallet"
+    borderColor="#F59E0B"
+    valueColor="#D97706"
+  />
+
+  <KpiCard
+    label="EMITIDAS"
+    value={fmt(totalEmitido)}
+    sub={`${facturas.filter(f => f.estado === "emitida").length} facturas`}
+    icon="chart"
+    borderColor="#2563EB"
+    valueColor="#1E40AF"
+  />
+
+  <KpiCard
+    label="TOTAL FACTURAS"
+    value={String(facturas.length)}
+    sub="Registradas"
+    icon="file"
+    borderColor="#0F6E56"
+    valueColor="#0F6E56"
+  />
+
+</div>
+
+{/* Filtros */}
+      <div className="card" style={{ marginBottom: 16, padding: "12px 16px", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           {[
             { key: "pendientes", label: "Por conciliar" + (pendientesConciliar > 0 ? ` (${pendientesConciliar})` : "") },
@@ -176,7 +195,7 @@ export default function ConciliacionPage() {
       )}
 
       {/* Tabla facturas */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
         {filtradas.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>
             {filtro === "pendientes" ? "No hay facturas pendientes de conciliar 🎉" : "No hay facturas en este filtro"}
@@ -184,7 +203,7 @@ export default function ConciliacionPage() {
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#f9fafb" }}>
+              <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                 <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>N° FACTURA</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO / CLIENTE</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MONTO</th>
@@ -209,7 +228,7 @@ export default function ConciliacionPage() {
                       {fmt(f.monto_final_abonado || 0)}
                     </td>
                     <td style={{ padding: "12px" }}>
-                      <span style={{ background: ec.bg, color: ec.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{ec.label}</span>
+                      <StatusBadge label={ec.label} type={f.conciliado ? "pagado" : f.estado} />
                     </td>
                     <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{f.fecha_emision || "—"}</td>
                     <td style={{ padding: "12px", fontSize: 12, color: f.fecha_deposito ? "#15803d" : "#9ca3af", fontWeight: f.fecha_deposito ? 600 : 400 }}>
@@ -241,3 +260,4 @@ export default function ConciliacionPage() {
     </div>
   )
 }
+
