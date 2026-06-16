@@ -224,7 +224,7 @@ export default function AudiovisualRequerimientosPage() {
         tipo: "audiovisual_requerimiento_creado",
         destinatarios: AUDIOVISUAL_EMAILS,
         datos: {
-          proyecto: proyecto ? `${proyecto.codigo} - ${proyecto.nombre}` : "Sin proyecto",
+          proyecto: proyecto ? `${proyecto.codigo} - ${proyecto.nombre}` : (req.detalle_otro_proyecto || "OTRO / SIN PROYECTO"),
           productor: productor ? `${productor.nombre} ${productor.apellido}` : "Sin productor",
           prioridad: PRIORIDADES[req.prioridad]?.label || req.prioridad,
           fecha_entrega_solicitada: req.fecha_entrega_solicitada || "-",
@@ -242,7 +242,8 @@ export default function AudiovisualRequerimientosPage() {
       return
     }
     if (!esEdicion || puedeEditarPedidoFormulario) {
-      if (!form.proyecto_id) { alert("Selecciona un proyecto"); return }
+      if (!form.proyecto_id) { alert("Selecciona un proyecto u OTRO / SIN PROYECTO"); return }
+      if (form.proyecto_id === "__OTRO__" && !form.detalle_otro_proyecto.trim()) { alert("Escribe el detalle para OTRO / SIN PROYECTO"); return }
       if (!form.fecha_entrega_solicitada) { alert("La fecha solicitada por produccion es obligatoria"); return }
       if (form.piezas.length === 0) { alert("Selecciona al menos una pieza necesaria"); return }
       if (form.piezas.includes("Otros") && !form.pieza_otros_descripcion.trim()) { alert("Describe la pieza requerida en Otros"); return }
@@ -636,7 +637,7 @@ export default function AudiovisualRequerimientosPage() {
                 </div>
                 <div>
                   <label style={lbl}>COTIZACION / PROFORMA</label>
-                  <select style={inp} value={form.cotizacion_id} onChange={e => setForm({ ...form, cotizacion_id: e.target.value })} disabled={camposPedidoDeshabilitados}>
+                  <select style={inp} value={form.cotizacion_id} onChange={e => setForm({ ...form, cotizacion_id: e.target.value })} disabled={camposPedidoDeshabilitados || form.proyecto_id === "__OTRO__"}>
                     <option value="">Sin proforma especifica</option>
                     {cotizaciones.map(c => <option key={c.id} value={c.id}>V{c.version} - {c.estado}</option>)}
                   </select>
@@ -814,5 +815,6 @@ export default function AudiovisualRequerimientosPage() {
     </div>
   )
 }
+
 
 
