@@ -38,7 +38,7 @@ const FRECUENCIAS: Record<string, string> = {
 
 const formVacio = {
   titulo: "", descripcion: "", estado: "pendiente", prioridad: "media",
-  proyecto_id: "", cliente_id: "", asignado_a: "", fecha_limite: "",
+  proyecto_id: "", cliente_id: "", asignado_a: "", fecha_limite: "", hora_inicio: "", hora_fin: "",
   participante_ids: [] as string[],
   frecuencia: "no_repite", recurrencia_intervalo: 1, recurrencia_fecha_fin: "", recurrencia_max_repeticiones: "",
   link_inicial: "", notificar_participantes: true, mostrar_participantes_mi_trabajo: true, permitir_comentarios: true, recibir_correos_automaticos: true,
@@ -146,6 +146,8 @@ export default function TareasPage() {
       asignado_a: t.asignado_a || "",
       participante_ids: (t.participantes || []).map((p: any) => p.usuario_id).filter(Boolean),
       fecha_limite: t.fecha_limite || "",
+      hora_inicio: t.hora_inicio || "",
+      hora_fin: t.hora_fin || "",
       frecuencia: t.frecuencia || "no_repite",
       recurrencia_intervalo: t.recurrencia_intervalo || 1,
       recurrencia_fecha_fin: t.recurrencia_fecha_fin || "",
@@ -327,6 +329,8 @@ export default function TareasPage() {
       cliente_id: form.cliente_id || null,
       asignado_a: form.asignado_a || null,
       fecha_limite: form.fecha_limite || null,
+      hora_inicio: form.hora_inicio || null,
+      hora_fin: form.hora_fin || null,
       fecha_completada: form.estado === "completada" ? new Date().toISOString() : null,
       frecuencia: form.frecuencia,
       recurrencia_intervalo: Number(form.recurrencia_intervalo || 1),
@@ -483,6 +487,36 @@ export default function TareasPage() {
     return `Vence en ${diff} día${diff !== 1 ? "s" : ""}`
   }
 
+  function abrirGoogleCalendar(t: any) {
+    if (!t?.fecha_limite) {
+      alert("Esta tarea necesita fecha límite para poder agendarse.")
+      return
+    }
+
+    const inicio = t.hora_inicio || "09:00"
+    const fin = t.hora_fin || "10:00"
+    const fecha = String(t.fecha_limite).replaceAll("-", "")
+
+    const horaInicio = inicio.replace(":", "") + "00"
+    const horaFin = fin.replace(":", "") + "00"
+
+    const titulo = encodeURIComponent(`Tarea: ${t.titulo || "Sin título"}`)
+    const descripcion = encodeURIComponent(
+      [
+        t.descripcion || "",
+        "",
+        `Proyecto: ${t.proyecto?.codigo || ""} ${t.proyecto?.nombre || ""}`.trim(),
+        `Cliente: ${t.cliente?.razon_social || "—"}`,
+        `Responsable: ${t.asignado ? nombreUsuario(t.asignado) : "Sin responsable"}`,
+        "",
+        `ERP Izango 360: ${window.location.origin}/tareas?tarea_id=${t.id}`,
+      ].filter(Boolean).join("\n")
+    )
+
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${titulo}&details=${descripcion}&dates=${fecha}T${horaInicio}/${fecha}T${horaFin}`
+
+    window.open(url, "_blank", "noopener,noreferrer")
+  }
   function toggleParticipante(id: string) {
     setForm(prev => {
       const exists = prev.participante_ids.includes(id)
@@ -895,6 +929,17 @@ export default function TareasPage() {
               )}
             </div>
           </div>
+          <div style={{ marginBottom: 14 }}>
+            <button
+              onClick={() => abrirGoogleCalendar(selected)}
+              className="btn-secondary"
+              style={{ width: "100%", fontSize: 13, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+            >
+              <CalendarDays size={16} />
+              Agendar en Google Calendar
+            </button>
+          </div>
+
 
           {/* Info */}
           <div style={{ display: "grid", gap: 10, marginBottom: 16 }}>
@@ -1116,6 +1161,17 @@ export default function TareasPage() {
                 <label style={lbl}>FECHA LÍMITE</label>
                 <input type="date" style={inp} value={form.fecha_limite} onChange={e => setForm({ ...form, fecha_limite: e.target.value })} />
               </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={lbl}>HORA INICIO</label>
+                  <input type="time" style={inp} value={form.hora_inicio || ""} onChange={e => setForm({ ...form, hora_inicio: e.target.value })} />
+                </div>
+                <div>
+                  <label style={lbl}>HORA FIN</label>
+                  <input type="time" style={inp} value={form.hora_fin || ""} onChange={e => setForm({ ...form, hora_fin: e.target.value })} />
+                </div>
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>FRECUENCIA</label>
@@ -1177,6 +1233,13 @@ export default function TareasPage() {
     </div>
   )
 }
+
+
+
+
+
+
+
 
 
 
