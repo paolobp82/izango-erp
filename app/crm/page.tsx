@@ -144,6 +144,10 @@ export default function CRMPage() {
   const totalPipeline = leads.filter(l => !["ganado","perdido"].includes(l.estado)).reduce((s, l) => s + (l.presupuesto_estimado || 0), 0)
   const totalGanado = leads.filter(l => l.estado === "ganado").reduce((s, l) => s + (l.presupuesto_estimado || 0), 0)
   const tasaConversion = leads.length > 0 ? Math.round((leads.filter(l => l.estado === "ganado").length / leads.length) * 100) : 0
+  const leadsActivos = leads.filter(l => !["ganado","perdido"].includes(l.estado))
+  const leadsCalientes = leads.filter(l => l.temperatura === "caliente")
+  const propuestasAbiertas = leads.filter(l => ["propuesta","negociacion"].includes(l.estado))
+  const cierreEsperado = leadsActivos.reduce((s, l) => s + ((Number(l.presupuesto_estimado) || 0) * ((Number(l.probabilidad_cierre) || 0) / 100)), 0)
   const estadosPipeline = ["nuevo", "contactado", "reunion", "propuesta", "negociacion", "ganado", "perdido"]
 
   const leadsPorEstado = (estado: string) => filtrados.filter(l => l.estado === estado)
@@ -151,9 +155,7 @@ export default function CRMPage() {
   const valorPorEstado = (estado: string) =>
     leadsPorEstado(estado).reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)
 
-  const cierreEsperado = leads
-    .filter(l => !["ganado", "perdido"].includes(l.estado))
-    .reduce((s, l) => s + ((Number(l.presupuesto_estimado) || 0) * ((Number(l.probabilidad_cierre) || 0) / 100)), 0)
+
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -168,27 +170,25 @@ export default function CRMPage() {
           <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-        <div className="card" style={{ borderLeft: "4px solid #2563eb" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Pipeline total</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#1e40af" }}>{fmt(totalPipeline)}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>{leads.filter(l => !["ganado","perdido"].includes(l.estado)).length} activos</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #059669" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Ganados</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#059669" }}>{fmt(totalGanado)}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>{leads.filter(l => l.estado === "ganado").length} clientes</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #f59e0b" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tasa conversion</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#d97706" }}>{tasaConversion}%</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>De leads a clientes</div>
-        </div>
-        <div className="card" style={{ borderLeft: "4px solid #ef4444" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Calientes</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#ef4444" }}>{leads.filter(l => l.temperatura === "caliente").length}</div>
-          <div style={{ fontSize: 11, color: "#9ca3af" }}>Requieren atencion</div>
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
+        {[
+          { label: "Pipeline activo", value: fmt(totalPipeline), sub: `${leadsActivos.length} oportunidades activas`, icon: "◈", bg: "#eaf8f2", color: "#0F6E56" },
+          { label: "Cierre esperado", value: fmt(cierreEsperado), sub: "Presupuesto x probabilidad", icon: "↗", bg: "#eef4ff", color: "#2563eb" },
+          { label: "Propuestas abiertas", value: propuestasAbiertas.length, sub: fmt(propuestasAbiertas.reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)), icon: "▤", bg: "#fff7ed", color: "#f97316" },
+          { label: "Ganados", value: fmt(totalGanado), sub: `${leads.filter(l => l.estado === "ganado").length} clientes`, icon: "✓", bg: "#ecfdf5", color: "#059669" },
+          { label: "Leads calientes", value: leadsCalientes.length, sub: "Requieren atención", icon: "●", bg: "#fef2f2", color: "#ef4444" },
+        ].map(k => (
+          <div key={k.label} className="card" style={{ display: "flex", alignItems: "center", gap: 16, minHeight: 104, border: "1px solid #e5e7eb", boxShadow: "0 10px 25px rgba(15,23,42,.04)" }}>
+            <div style={{ width: 52, height: 52, borderRadius: 16, background: k.bg, color: k.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 900 }}>
+              {k.icon}
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 900, color: "#111827", textTransform: "uppercase", letterSpacing: "-0.01em" }}>{k.label}</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: k.color, marginTop: 4 }}>{k.value}</div>
+              <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{k.sub}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {showForm && (
@@ -254,7 +254,7 @@ export default function CRMPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 380px" : "1fr", gap: 20 }}>
         <div>
-          <div className="card" style={{ marginBottom: 12, padding: "10px 14px" }}>
+          <div className="card" style={{ marginBottom: 16, padding: "14px 16px", border: "1px solid #e5e7eb", boxShadow: "0 8px 20px rgba(15,23,42,.03)" }}>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
               <input style={{ ...inp, width: 220 }} placeholder="Buscar lead..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
               <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
@@ -274,20 +274,20 @@ export default function CRMPage() {
           </div>
 
           <div style={{ overflowX: "auto", paddingBottom: 8 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(230px, 1fr))", gap: 14, minWidth: 1680 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(260px, 1fr))", gap: 16, minWidth: 1900 }}>
               {estadosPipeline.map(estado => {
                 const ec = ESTADOS[estado] || { bg: "#f3f4f6", color: "#6b7280", label: estado }
                 const lista = leadsPorEstado(estado)
                 return (
-                  <div key={estado} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 14, overflow: "hidden" }}>
+                  <div key={estado} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 18, overflow: "hidden", boxShadow: "0 12px 28px rgba(15,23,42,.04)" }}>
                     <div style={{
-                      padding: "12px 14px",
+                      padding: "14px 16px",
                       borderTop: "4px solid " + ec.color,
                       borderBottom: "1px solid #e5e7eb",
-                      background: "#fff"
+                      background: "linear-gradient(180deg,#fff,#fafafa)"
                     }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>{ec.label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 900, color: "#111827" }}>{ec.label}</div>
                         <span style={{ fontSize: 11, fontWeight: 800, color: ec.color, background: ec.bg, padding: "3px 8px", borderRadius: 99 }}>
                           {lista.length}
                         </span>
@@ -295,7 +295,7 @@ export default function CRMPage() {
                       <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{fmt(valorPorEstado(estado))}</div>
                     </div>
 
-                    <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10, minHeight: 280 }}>
+                    <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10, minHeight: 360 }}>
                       {lista.length === 0 ? (
                         <div style={{ border: "1px dashed #d1d5db", borderRadius: 12, padding: "24px 12px", textAlign: "center", color: "#9ca3af", fontSize: 12 }}>
                           Sin leads
@@ -308,14 +308,14 @@ export default function CRMPage() {
                             style={{
                               background: selected?.id === lead.id ? "#ecfdf5" : "#fff",
                               border: selected?.id === lead.id ? "1px solid #03E373" : "1px solid #e5e7eb",
-                              borderRadius: 12,
-                              padding: 12,
-                              boxShadow: "0 8px 20px rgba(15,23,42,.05)",
+                              borderRadius: 14,
+                              padding: 14,
+                              boxShadow: "0 10px 24px rgba(15,23,42,.06)",
                               cursor: "pointer"
                             }}>
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
                               <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                <div style={{ fontSize: 14, fontWeight: 900, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                   {lead.razon_social}
                                 </div>
                                 {lead.industria && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{lead.industria}</div>}
@@ -437,4 +437,6 @@ export default function CRMPage() {
     </div>
   )
 }
+
+
 
