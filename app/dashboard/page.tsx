@@ -70,7 +70,7 @@ export default function DashboardPage() {
 
     const dashboardResults = await Promise.all([
       supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
-      supabase.from("proyectos").select("id, estado, codigo, nombre").is("deleted_at", null),
+      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at").is("deleted_at", null),
       supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at, fecha_emision, proyecto_id"),
       supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id"),
       supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id"),
@@ -388,6 +388,7 @@ export default function DashboardPage() {
     </div>
   )
 }
+
 
 
 
