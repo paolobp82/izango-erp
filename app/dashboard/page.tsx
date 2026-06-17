@@ -126,7 +126,7 @@ export default function DashboardPage() {
     setCotsProyState(cotsProyActivas)
 
     // Métricas base
-    const activos = allProv.filter(p => ["aprobado","aprobado_produccion","en_curso"].includes(p.estado))
+    const activos = allProv.filter(p => p.estado === "en_curso")
     const pendientes = allProv.filter(p => p.estado === "pendiente_aprobacion")
     const terminadosSinLiquidar = allProv.filter(p => p.estado === "terminado")
     const fechaFactura = (factura: any) => new Date(factura.fecha_emision || factura.created_at)
@@ -253,13 +253,13 @@ export default function DashboardPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 20 }}>
         <KpiCard icon="money" label="Presupuestos Pendientes" value={fmt(metricas.presupuestosPendientes || 0)} sub={(metricas.pendientes || 0) + " esperando aprobación"} borderColor="#10B981" valueColor="#059669" />
 
-        <KpiCard icon="shield" label="Presupuestos en Curso" value={fmt(metricas.presupuestosAprobados || 0)} sub="Proyectos en curso" borderColor="#3B82F6" valueColor="#1D4ED8" />
+        <KpiCard icon="shield" label="Presupuestos en Curso" value={fmt(metricas.presupuestosAprobados || 0)} sub={`${metricas.activos || 0} proyectos en ejecución`} borderColor="#3B82F6" valueColor="#1D4ED8" />
 
         <KpiCard icon="chart" label="Facturado Este Mes" value={fmtShort(metricas.factMesAct || 0)} sub="0% vs. mes ant." borderColor="#14B8A6" valueColor="#0D9488" />
 
         <KpiCard icon="wallet" label="Por Cobrar" value={fmtShort(metricas.porCobrar || 0)} sub={"Cobrados: " + fmtShort(metricas.totalCobrado || 0)} borderColor="#8B5CF6" valueColor="#5B21B6" />
 
-        <KpiCard icon="folder" label="Proyectos Activos" value={String(metricas.activos || 0)} sub={(metricas.pendientes || 0) + " pendientes aprobación"} borderColor="#F97316" valueColor="#EA580C" />
+        <KpiCard icon="folder" label="Proyectos en Curso" value={String(metricas.activos || 0)} sub="Actualmente en ejecución" borderColor="#F97316" valueColor="#EA580C" />
 
         <KpiCard icon="file" label="Cotizaciones Mes" value={String(metricas.cotMes || 0)} sub="Versiones generadas" borderColor="#10B981" valueColor="#059669" />
       </div>
@@ -381,6 +381,8 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+
 
 
 
