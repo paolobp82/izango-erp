@@ -25,7 +25,7 @@ const ROLES_APROBADOR = ["controller", "gerente_general", "superadmin"]
 const formVacio = {
   concepto: "", monto_debe: "", monto_haber: "", fecha: "",
   tipo_comprobante: "boleta", numero_operacion: "",
-  proyecto_id: "", rq_id: "", categoria: "", observaciones: "",
+  proyecto_id: "", rq_id: "", categoria: "", observaciones: "", voucher_url: "",
   destinatario: "",
 }
 
@@ -91,6 +91,7 @@ export default function CajaChicaPage() {
         categoria: form.categoria || null,
         destinatario: form.destinatario || null,
         observaciones: form.observaciones || null,
+        voucher_url: form.voucher_url || null,
       }).eq("id", editando.id)
       if (error) { alert("Error: " + error.message); setSaving(false); return }
     } else {
@@ -106,6 +107,7 @@ export default function CajaChicaPage() {
         categoria: form.categoria || null,
         destinatario: form.destinatario || null,
         observaciones: form.observaciones || null,
+        voucher_url: form.voucher_url || null,
         solicitado_por: perfil?.id || null,
         estado: "pendiente",
         entidad: "peru",
@@ -198,6 +200,26 @@ export default function CajaChicaPage() {
   })
 
   const registrosParaTotales = registrosFiltrados
+  const puedeEditarPagoCaja = perfil && ["controller", "superadmin"].includes(perfil.perfil)
+
+  async function guardarDatosOperacionCaja(registro: any) {
+    const payload = {
+      numero_operacion: (document.getElementById("cc-numop-" + registro.id) as HTMLInputElement)?.value || null,
+      banco_origen: (document.getElementById("cc-banco-" + registro.id) as HTMLInputElement)?.value || null,
+      tipo_transferencia: (document.getElementById("cc-tipo-" + registro.id) as HTMLSelectElement)?.value || null,
+      voucher_url: (document.getElementById("cc-voucher-" + registro.id) as HTMLInputElement)?.value || null,
+      nota_pago: (document.getElementById("cc-nota-" + registro.id) as HTMLInputElement)?.value || null,
+    }
+
+    const { error } = await supabase.from("caja_chica").update(payload).eq("id", registro.id)
+    if (error) { alert("Error guardando datos de operación: " + error.message); return }
+
+    setSelected((prev: any) => ({ ...prev, ...payload }))
+    setRegistros(prev => prev.map(r => r.id === registro.id ? { ...r, ...payload } : r))
+    await registrarAccion({ accion: "editar", modulo: "caja_chica", entidad_id: registro.id, entidad_tipo: "caja_chica", descripcion: "Datos de operación actualizados: " + registro.concepto })
+    alert("Datos de operación guardados")
+  }
+
   const totalDebe = registrosParaTotales.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_debe || 0), 0)
   const totalHaber = registrosParaTotales.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_haber || 0), 0)
   const totalPendiente = registrosParaTotales.filter(r => r.estado === "pendiente").reduce((s, r) => s + (r.monto_debe || 0), 0)
@@ -347,7 +369,7 @@ export default function CajaChicaPage() {
                             </>
                           )}
                           {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (
-                            <button onClick={e => { e.stopPropagation(); setEditando(r); setForm({ concepto: r.concepto||"", monto_debe: r.monto_debe||"", monto_haber: r.monto_haber||"", fecha: r.fecha||"", tipo_comprobante: r.tipo_comprobante||"boleta", numero_operacion: r.numero_operacion||"", proyecto_id: r.proyecto_id||"", rq_id: r.rq_id||"", categoria: r.categoria||"", observaciones: r.observaciones||"", destinatario: r.destinatario||"" }); setShowForm(true) }}
+                            <button onClick={e => { e.stopPropagation(); setEditando(r); setForm({ concepto: r.concepto||"", monto_debe: r.monto_debe||"", monto_haber: r.monto_haber||"", fecha: r.fecha||"", tipo_comprobante: r.tipo_comprobante||"boleta", numero_operacion: r.numero_operacion||"", proyecto_id: r.proyecto_id||"", rq_id: r.rq_id||"", categoria: r.categoria||"", observaciones: r.observaciones||"", voucher_url: r.voucher_url||"", destinatario: r.destinatario||"" }); setShowForm(true) }}
                               style={{ fontSize: 11, padding: "3px 8px", background: "#fff", color: "#374151", border: "1px solid #e5e7eb", borderRadius: 6, cursor: "pointer" }}>✏️</button>
                           )}
                           {(perfil?.id === r.solicitado_por || esAprobador) && r.estado === "pendiente" && (
@@ -399,6 +421,59 @@ export default function CajaChicaPage() {
                 <span style={{ color: "#374151", textAlign: "right", maxWidth: 180 }}>{r.value}</span>
               </div>
             ))}
+            {selected.voucher_url && (
+              <div style={{ marginBottom: 12 }}>
+                <a href={selected.voucher_url} target="_blank" rel="noreferrer" className="btn-secondary" style={{ fontSize: 12 }}>
+                  📎 Ver voucher
+                </a>
+              </div>
+            )}
+
+            <div style={{ background: "#ecfdf5", border: "1px solid #86efac", borderRadius: 12, padding: 14, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 900, color: "#0F6E56", marginBottom: 12 }}>DATOS DE OPERACIÓN</div>
+
+              <div style={{ marginBottom: 10 }}>
+                <label style={lbl}>N° OPERACIÓN / REFERENCIA</label>
+                <input id={"cc-numop-" + selected.id} disabled={!puedeEditarPagoCaja} style={inp} defaultValue={selected.numero_operacion || ""} placeholder="Ej: 123456789" />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                <div>
+                  <label style={lbl}>BANCO ORIGEN</label>
+                  <input id={"cc-banco-" + selected.id} disabled={!puedeEditarPagoCaja} style={inp} defaultValue={selected.banco_origen || ""} placeholder="Seleccionar" />
+                </div>
+                <div>
+                  <label style={lbl}>TIPO TRANSFERENCIA</label>
+                  <select id={"cc-tipo-" + selected.id} disabled={!puedeEditarPagoCaja} style={inp} defaultValue={selected.tipo_transferencia || "transferencia_bancaria"}>
+                    <option value="transferencia_bancaria">Transferencia bancaria</option>
+                    <option value="yape">Yape</option>
+                    <option value="plin">Plin</option>
+                    <option value="tarjeta">Tarjeta</option>
+                    <option value="efectivo">Efectivo</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 10 }}>
+                <label style={lbl}>LINK VOUCHER (GOOGLE DRIVE)</label>
+                <input id={"cc-voucher-" + selected.id} disabled={!puedeEditarPagoCaja} style={inp} defaultValue={selected.voucher_url || ""} placeholder="https://drive.google.com/..." />
+              </div>
+
+              <div style={{ marginBottom: 10 }}>
+                <label style={lbl}>NOTA DE PAGO</label>
+                <input id={"cc-nota-" + selected.id} disabled={!puedeEditarPagoCaja} style={inp} defaultValue={selected.nota_pago || ""} placeholder="Observaciones opcionales..." />
+              </div>
+
+              {selected.voucher_url && (
+                <a href={selected.voucher_url} target="_blank" rel="noreferrer" className="btn-secondary" style={{ fontSize: 12, marginRight: 8 }}>📎 Ver voucher</a>
+              )}
+
+              {puedeEditarPagoCaja && (
+                <button onClick={() => guardarDatosOperacionCaja(selected)} className="btn-primary" style={{ fontSize: 12 }}>Guardar datos operación</button>
+              )}
+            </div>
+
             {selected.observaciones && (
               <div style={{ padding: 10, background: "#f9fafb", borderRadius: 8 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>OBSERVACIONES</div>
@@ -548,6 +623,8 @@ export default function CajaChicaPage() {
     </div>
   )
 }
+
+
 
 
 
