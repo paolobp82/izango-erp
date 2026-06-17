@@ -1,7 +1,10 @@
 "use client"
-import { usePathname, useRouter } from "next/navigation"
+
 import { useEffect, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
+
+const LOGO = "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
 
 const ENTIDAD: Record<string,string> = { peru: "Izango Peru", selva: "Izango Selva" }
 
@@ -35,59 +38,59 @@ const ACCESO: Record<string, string[]> = {
 
 const ALL_NAV = [
   { section: "Inicio", items: [
-    { label: "Dashboard", href: "/dashboard" },
-    { label: "Mi trabajo", href: "/tareas" },
-    { label: "Calendario", href: "/calendario" },
-    { label: "Alertas", href: "/alertas" },
+    { label: "Dashboard", href: "/dashboard", icon: "⌂" },
+    { label: "Mi trabajo", href: "/tareas", icon: "☑" },
+    { label: "Calendario", href: "/calendario", icon: "▣" },
+    { label: "Alertas", href: "/alertas", icon: "⌁" },
   ]},
   { section: "Comercial", items: [
-    { label: "CRM", href: "/crm" },
-    { label: "Clientes", href: "/clientes" },
-    { label: "Cotizaciones y Proformas", href: "/proformas" },
-    { label: "Buscar ítems cotizados", href: "/buscar-items" },
-    { label: "Biblioteca", href: "/biblioteca" },
-    { label: "Biblioteca de Medios", href: "/biblioteca-medios" },
+    { label: "CRM", href: "/crm", icon: "◎" },
+    { label: "Clientes", href: "/clientes", icon: "◉" },
+    { label: "Cotizaciones y Proformas", href: "/proformas", icon: "▤" },
+    { label: "Buscar ítems cotizados", href: "/buscar-items", icon: "⌕" },
+    { label: "Biblioteca", href: "/biblioteca", icon: "▱" },
+    { label: "Biblioteca de Medios", href: "/biblioteca-medios", icon: "▧" },
   ]},
   { section: "Operación", items: [
-    { label: "Proyectos", href: "/proyectos" },
-    { label: "Gestor", href: "/gestor" },
-    { label: "Req. Audiovisuales", href: "/audiovisual/requerimientos" },
+    { label: "Proyectos", href: "/proyectos", icon: "▣" },
+    { label: "Gestor", href: "/gestor", icon: "◌" },
+    { label: "Req. Audiovisuales", href: "/audiovisual/requerimientos", icon: "▻" },
   ]},
   { section: "Compras y Logística", items: [
-    { label: "Proveedores", href: "/proveedores" },
-    { label: "Requerimientos de Pago", href: "/rq" },
-    { label: "Inventario", href: "/inventario" },
-    { label: "Órdenes", href: "/inventario/ordenes" },
-    { label: "Envíos de Materiales", href: "/envios-materiales" },
+    { label: "Proveedores", href: "/proveedores", icon: "▥" },
+    { label: "Requerimientos de Pago", href: "/rq", icon: "▤" },
+    { label: "Inventario", href: "/inventario", icon: "◈" },
+    { label: "Órdenes", href: "/inventario/ordenes", icon: "☷" },
+    { label: "Envíos de Materiales", href: "/envios-materiales", icon: "✈" },
   ]},
   { section: "Finanzas", items: [
-    { label: "Facturación", href: "/facturacion" },
-    { label: "Liquidaciones", href: "/liquidaciones" },
-    { label: "Caja Chica", href: "/caja-chica" },
-    { label: "Gastos de Oficina", href: "/gastos-oficina" },
-    { label: "Flujo de Caja", href: "/flujo-caja" },
-    { label: "Conciliación", href: "/conciliacion" },
-    { label: "Centros de Costo", href: "/centro-costos" },
+    { label: "Facturación", href: "/facturacion", icon: "$" },
+    { label: "Liquidaciones", href: "/liquidaciones", icon: "∑" },
+    { label: "Caja Chica", href: "/caja-chica", icon: "◫" },
+    { label: "Gastos de Oficina", href: "/gastos-oficina", icon: "◍" },
+    { label: "Flujo de Caja", href: "/flujo-caja", icon: "↗" },
+    { label: "Conciliación", href: "/conciliacion", icon: "⇄" },
+    { label: "Centros de Costo", href: "/centro-costos", icon: "◆" },
   ]},
   { section: "Personas", items: [
-    { label: "Trabajadores", href: "/rrhh/trabajadores" },
-    { label: "Planilla", href: "/rrhh/planilla" },
-    { label: "Solicitudes", href: "/rrhh/permisos#solicitudes" },
-    { label: "Horas Extras", href: "/rrhh/horas-extras" },
-    { label: "Vacaciones", href: "/rrhh/vacaciones" },
-    { label: "Permisos", href: "/rrhh/permisos" },
-    { label: "Faltas Médicas", href: "/rrhh/faltas-medicas" },
+    { label: "Trabajadores", href: "/rrhh/trabajadores", icon: "♙" },
+    { label: "Planilla", href: "/rrhh/planilla", icon: "▦" },
+    { label: "Solicitudes", href: "/rrhh/permisos#solicitudes", icon: "☰" },
+    { label: "Horas Extras", href: "/rrhh/horas-extras", icon: "◷" },
+    { label: "Vacaciones", href: "/rrhh/vacaciones", icon: "☀" },
+    { label: "Permisos", href: "/rrhh/permisos", icon: "✓" },
+    { label: "Faltas Médicas", href: "/rrhh/faltas-medicas", icon: "+" },
   ]},
   { section: "Analítica", items: [
-    { label: "Analítica y Reportes", href: "/reporteria" },
-    { label: "Trazabilidad", href: "/trazabilidad" },
+    { label: "Analítica y Reportes", href: "/reporteria", icon: "▥" },
+    { label: "Trazabilidad", href: "/trazabilidad", icon: "⌬" },
   ]},
   { section: "Administración", items: [
-    { label: "Usuarios", href: "/admin/usuarios" },
+    { label: "Usuarios", href: "/admin/usuarios", icon: "⚙" },
   ]},
   { section: "Cuenta", items: [
-    { label: "Mi Perfil", href: "/perfil" },
-    { label: "Asistente IA", href: "/ia" },
+    { label: "Mi Perfil", href: "/perfil", icon: "◉" },
+    { label: "Asistente IA", href: "/ia", icon: "✦" },
   ]},
 ]
 
@@ -102,8 +105,6 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
-  async function logout() { await supabase.auth.signOut(); router.push("/login") }
-  const initials = `${perfil.nombre?.[0] || ""}${perfil.apellido?.[0] || ""}`.toUpperCase()
   const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
@@ -112,58 +113,119 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
   }, [])
 
   useEffect(() => {
-    const width = collapsed ? "76px" : "260px"
-    document.documentElement.style.setProperty("--sidebar-width", width)
+    document.documentElement.style.setProperty("--sidebar-width", collapsed ? "76px" : "260px")
     localStorage.setItem("sidebar_collapsed", String(collapsed))
   }, [collapsed])
-  const isActiveRoute = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href + "/"))
 
+  async function logout() {
+    await supabase.auth.signOut()
+    router.push("/login")
+  }
+
+  const initials = `${perfil.nombre?.[0] || ""}${perfil.apellido?.[0] || ""}`.toUpperCase()
   const acceso = ACCESO[perfil.perfil] || []
   const esAdmin = acceso.includes("*")
+  const isActiveRoute = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href + "/"))
 
   const navItems = ALL_NAV.map(section => ({
     ...section,
-    items: section.items.filter(item =>
-      esAdmin || acceso.some(a => item.href.startsWith(a))
-    )
+    items: section.items.filter(item => esAdmin || acceso.some(a => item.href.startsWith(a)))
   })).filter(section => section.items.length > 0)
 
   return (
-    <aside style={{width:224,background:"#fff",borderRight:"1px solid #f3f4f6",display:"flex",flexDirection:"column",height:"100vh",position:"fixed",left:0,top:0}}>
-      <a href="/dashboard" style={{padding:"16px",borderBottom:"1px solid #f3f4f6",display:"flex",alignItems:"center",gap:12,textDecoration:"none"}}>
-        <div style={{background:"#03E373",borderRadius:10,padding:"6px 8px",flexShrink:0}}>
-          <img src="https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png" alt="Izango" style={{height:32,objectFit:"contain",display:"block"}} />
-        </div>
-        <div style={{minWidth:0}}>
-          <div style={{fontSize:13,fontWeight:700,color:"#111827"}}>Izango 360 SAC</div>
-          <div style={{fontSize:11,color:"#9ca3af"}}>{ENTIDAD[perfil.entidad || ""] || ""}</div>
-        </div>
-      </a>
-      <nav style={{flex:1,overflowY:"auto",padding:"16px 12px"}}>
-        {navItems.map(s => (
-          <div key={s.section} style={{marginBottom:16}}>
-            <div style={{fontSize:10,fontWeight:500,color:"#9ca3af",textTransform:"uppercase",letterSpacing:"0.07em",padding:"0 8px",marginBottom:4}}>{s.section}</div>
-            {s.items.map(item => (
-              <a key={`${s.section}-${item.label}-${item.href}`} href={item.href}
-                className={`sidebar-item${isActiveRoute(item.href) ? " active" : ""}`}>
-                {item.label}
-              </a>
-            ))}
+    <aside style={{
+      width: collapsed ? 76 : 260,
+      background: "linear-gradient(180deg,#080c0b 0%,#0b1110 60%,#070909 100%)",
+      borderRight: "1px solid rgba(255,255,255,.08)",
+      display: "flex",
+      flexDirection: "column",
+      height: "100vh",
+      position: "fixed",
+      left: 0,
+      top: 0,
+      zIndex: 200,
+      color: "#fff",
+      transition: "width .22s ease",
+      boxShadow: "8px 0 30px rgba(0,0,0,.18)"
+    }}>
+      <div style={{ padding: collapsed ? "16px 10px" : "18px 18px", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+        <a href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", justifyContent: collapsed ? "center" : "flex-start" }}>
+          <div style={{ background: "#03E373", borderRadius: 12, padding: "7px 9px", flexShrink: 0 }}>
+            <img src={LOGO} alt="Izango" style={{ height: 30, objectFit: "contain", display: "block" }} />
+          </div>
+          {!collapsed && (
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>Izango 360 SAC</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,.5)", marginTop: 4 }}>{ENTIDAD[perfil.entidad || ""] || ""}</div>
+            </div>
+          )}
+        </a>
+      </div>
+
+      <nav style={{ flex: 1, overflowY: "auto", padding: collapsed ? "14px 10px" : "18px 14px" }}>
+        {navItems.map(section => (
+          <div key={section.section} style={{ marginBottom: collapsed ? 16 : 22 }}>
+            {!collapsed && (
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#03E373", textTransform: "uppercase", letterSpacing: ".08em", padding: "0 10px", marginBottom: 8 }}>
+                {section.section}
+              </div>
+            )}
+            {collapsed && <div style={{ height: 1, background: "rgba(255,255,255,.10)", margin: "10px 8px" }} />}
+            {section.items.map(item => {
+              const active = isActiveRoute(item.href)
+              return (
+                <a key={`${section.section}-${item.label}`} href={item.href} title={collapsed ? item.label : ""}
+                  style={{
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: collapsed ? "center" : "flex-start",
+                    gap: 12,
+                    minHeight: 42,
+                    padding: collapsed ? 0 : "0 12px",
+                    marginBottom: 4,
+                    borderRadius: 10,
+                    textDecoration: "none",
+                    color: active ? "#03E373" : "rgba(255,255,255,.86)",
+                    background: active ? "linear-gradient(90deg,rgba(3,227,115,.22),rgba(3,227,115,.06))" : "transparent",
+                    fontSize: 13,
+                    fontWeight: active ? 800 : 500,
+                  }}>
+                  {active && <span style={{ position: "absolute", left: collapsed ? -10 : -14, top: 8, bottom: 8, width: 4, borderRadius: 99, background: "#03E373" }} />}
+                  <span style={{ width: collapsed ? 42 : 22, height: collapsed ? 42 : 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: collapsed ? 20 : 17 }}>
+                    {item.icon}
+                  </span>
+                  {!collapsed && <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>}
+                </a>
+              )
+            })}
           </div>
         ))}
       </nav>
-      <div style={{padding:"12px",borderTop:"1px solid #f3f4f6"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,padding:"0 8px",marginBottom:8}}>
-          <div style={{width:32,height:32,borderRadius:"50%",background:"#e6fff4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:"#04342C",flexShrink:0}}>{initials}</div>
-          <div style={{minWidth:0}}>
-            <div style={{fontSize:12,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{perfil.nombre} {perfil.apellido}</div>
-            <div style={{fontSize:11,color:"#9ca3af",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{PERFIL[perfil.perfil]}</div>
+
+      <div style={{ padding: collapsed ? "12px 10px" : "14px", borderTop: "1px solid rgba(255,255,255,.08)" }}>
+        <button onClick={() => setCollapsed(!collapsed)}
+          style={{ width: "100%", height: 40, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.07)", color: "#fff", borderRadius: 12, cursor: "pointer", marginBottom: 14, fontSize: collapsed ? 20 : 12, fontWeight: 700 }}>
+          {collapsed ? "›" : "‹  Colapsar navegación"}
+        </button>
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start", gap: 12, marginBottom: 10 }}>
+          <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#03E373", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, color: "#04342C", flexShrink: 0 }}>
+            {initials}
           </div>
+          {!collapsed && (
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#fff" }}>{perfil.nombre} {perfil.apellido}</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,.5)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{PERFIL[perfil.perfil]}</div>
+            </div>
+          )}
         </div>
-        <button onClick={logout} style={{width:"100%",textAlign:"left",fontSize:12,color:"#9ca3af",background:"none",border:"none",cursor:"pointer",padding:"4px 8px",borderRadius:6}}>Cerrar sesion</button>
+
+        <button onClick={logout} title={collapsed ? "Cerrar sesión" : ""}
+          style={{ width: "100%", textAlign: collapsed ? "center" : "left", fontSize: collapsed ? 20 : 12, color: "rgba(255,255,255,.62)", background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: 8 }}>
+          {collapsed ? "↪" : "Cerrar sesión"}
+        </button>
       </div>
     </aside>
   )
 }
-
-
