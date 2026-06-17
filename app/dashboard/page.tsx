@@ -22,7 +22,7 @@ const ESTADO_COLOR: Record<string, any> = {
 const DONA_COLORS = ["#f59e0b","#3b82f6","#10b981","#6b7280","#8b5cf6","#059669"]
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
 const COTIZACION_APROBADA_ESTADOS = ["aprobado_cliente", "aprobada_cliente"]
-const PROYECTO_APROBADO_ESTADOS = ["aprobado_produccion", "aprobado_gerencia", "aprobada_cliente", "aprobado", "en_curso", "terminado", "facturado", "liquidado"]
+const PROYECTO_APROBADO_ESTADOS = ["en_curso"]
 const FACTURA_ANULADA_ESTADOS = ["anulada", "cancelada"]
 const FACTURA_COBRADA_ESTADOS = ["cobrada", "pagada"]
 const FACTURA_POR_COBRAR_ESTADOS = ["emitida", "pendiente", "pendiente_cobro"]
@@ -253,7 +253,7 @@ export default function DashboardPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 20 }}>
         <KpiCard icon="money" label="Presupuestos Pendientes" value={fmt(metricas.presupuestosPendientes || 0)} sub={(metricas.pendientes || 0) + " esperando aprobación"} borderColor="#10B981" valueColor="#059669" />
 
-        <KpiCard icon="shield" label="Presupuestos Aprobados" value={fmt(metricas.presupuestosAprobados || 0)} sub="En proceso de ejecución" borderColor="#3B82F6" valueColor="#1D4ED8" />
+        <KpiCard icon="shield" label="Presupuestos en Curso" value={fmt(metricas.presupuestosAprobados || 0)} sub="Proyectos en curso" borderColor="#3B82F6" valueColor="#1D4ED8" />
 
         <KpiCard icon="chart" label="Facturado Este Mes" value={fmtShort(metricas.factMesAct || 0)} sub="0% vs. mes ant." borderColor="#14B8A6" valueColor="#0D9488" />
 
@@ -381,6 +381,7 @@ export default function DashboardPage() {
     </div>
   )
 }
+
 
 
 
