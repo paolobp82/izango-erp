@@ -740,7 +740,7 @@ useEffect(() => { itemsRef.current = items }, [items])
         </div>
       )}
 
-      {concurrencyBlocked && (
+      {false && concurrencyBlocked && (
         <div style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
           <div style={{ fontWeight: 800, color: "#991B1B", fontSize: 13 }}>Autoguardado pausado</div>
           <div style={{ color: "#7F1D1D", fontSize: 12, marginTop: 4 }}>
@@ -867,7 +867,7 @@ useEffect(() => { itemsRef.current = items }, [items])
           </div>
           <div>
             <label style={{ display: "block", fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Margen objetivo (%)</label>
-            <input type="number" style={{ ...inp, width: "100%" }} value={cotizacion?.margen_objetivo || 40}
+            <input type="number" style={{ ...inp, width: "100%" }} value={cotizacion?.margen_objetivo ?? 40}
               onChange={e => setCotizacion({ ...cotizacion, margen_objetivo: Number(e.target.value) })} />
           </div>
           <div>
@@ -1278,6 +1278,8 @@ useEffect(() => { itemsRef.current = items }, [items])
     </div>
   )
 }
+
+
 
 
 

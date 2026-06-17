@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useEffect, useState, useRef, useCallback } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams } from "next/navigation"
@@ -248,7 +248,8 @@ export default function PreviewCotizacionPage() {
   const igvMonto = subtotalConFee * (igvPct / 100)
   const totalFinal = subtotalConFee + igvMonto
 
-  const pdfProps = { ag, proyecto, cotizacion, items, fmt, today, feePct, feeMonto, subtotalConFee, igvPct, igvMonto, totalFinal, contactoCliente }
+  const itemsPdf = items.filter(i => i.tipo === "familia" || (i.tipo !== "celda_extra" && i.incluir_en_total !== false))
+  const pdfProps = { ag, proyecto, cotizacion, items: itemsPdf, fmt, today, feePct, feeMonto, subtotalConFee, igvPct, igvMonto, totalFinal, contactoCliente }
 
   const descargarPDF = async () => {
     setGenerando(true)
@@ -342,7 +343,7 @@ a.download = `${proyecto?.codigo}-${nombreProyecto}-V${cotizacion?.version}.pdf`
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => {
+              {itemsPdf.map((item) => {
                 if (item.tipo === "celda_extra") return null
                 if (item.tipo === "familia") {
                   return (
@@ -424,3 +425,4 @@ a.download = `${proyecto?.codigo}-${nombreProyecto}-V${cotizacion?.version}.pdf`
     </div>
   )
 }
+
