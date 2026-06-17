@@ -1,5 +1,6 @@
 "use client"
 import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 
 const ENTIDAD: Record<string,string> = { peru: "Izango Peru", selva: "Izango Selva" }
@@ -103,6 +104,18 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
   const supabase = createClient()
   async function logout() { await supabase.auth.signOut(); router.push("/login") }
   const initials = `${perfil.nombre?.[0] || ""}${perfil.apellido?.[0] || ""}`.toUpperCase()
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar_collapsed")
+    if (saved === "true") setCollapsed(true)
+  }, [])
+
+  useEffect(() => {
+    const width = collapsed ? "76px" : "260px"
+    document.documentElement.style.setProperty("--sidebar-width", width)
+    localStorage.setItem("sidebar_collapsed", String(collapsed))
+  }, [collapsed])
   const isActiveRoute = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href + "/"))
 
   const acceso = ACCESO[perfil.perfil] || []
@@ -152,3 +165,5 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
     </aside>
   )
 }
+
+

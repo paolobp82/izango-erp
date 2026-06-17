@@ -54,7 +54,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{display:"flex",minHeight:"100vh"}}>
       <Sidebar perfil={perfil} />
-      <div style={{marginLeft:224,flex:1,display:"flex",flexDirection:"column",minHeight:"100vh"}}>
+      <div style={{marginLeft:"var(--sidebar-width, 260px)",flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",transition:"margin-left .22s ease"}}>
         <header style={{background:"#fff",borderBottom:"1px solid #f3f4f6",padding:"12px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
           <BusquedaGlobal />
           <Notificaciones usuarioId={perfil.id} />
@@ -64,3 +64,4 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </div>
   )
 }
+
