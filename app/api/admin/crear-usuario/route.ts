@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     })
     if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
     const { error: perfilError } = await supabaseAdmin.from("perfiles").insert({
-      id: authData.user.id, nombre, apellido, perfil, entidad: entidad || "peru",
+      id: authData.user.id, email, nombre, apellido, perfil, entidad: entidad || "peru",
     })
     if (perfilError) return NextResponse.json({ error: perfilError.message }, { status: 400 })
     return NextResponse.json({ success: true, user_id: authData.user.id })
@@ -25,3 +25,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 })
   }
 }
+
