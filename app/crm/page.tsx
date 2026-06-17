@@ -8,9 +8,9 @@ import ImportExport from "@/components/ImportExport"
 const ESTADOS: Record<string, any> = {
   nuevo:        { bg: "#dbeafe", color: "#1e40af", label: "Nuevo" },
   contactado:   { bg: "#fef9c3", color: "#92400e", label: "Contactado" },
-  reunion:      { bg: "#fed7aa", color: "#9a3412", label: "Reunion" },
+  reunion:      { bg: "#fed7aa", color: "#9a3412", label: "Reunión" },
   propuesta:    { bg: "#f5f3ff", color: "#6d28d9", label: "Propuesta" },
-  negociacion:  { bg: "#fce7f3", color: "#9d174d", label: "Negociacion" },
+  negociacion:  { bg: "#fce7f3", color: "#9d174d", label: "Negociación" },
   ganado:       { bg: "#dcfce7", color: "#15803d", label: "Ganado" },
   perdido:      { bg: "#fee2e2", color: "#991b1b", label: "Perdido" },
 }
@@ -83,7 +83,7 @@ export default function CRMPage() {
   }
 
   async function guardar() {
-    if (!form.razon_social) { alert("Razon social es obligatoria"); return }
+    if (!form.razon_social) { alert("Razón social es obligatoria"); return }
     setSaving(true)
     const payload = { ...form, presupuesto_estimado: form.presupuesto_estimado ? Number(form.presupuesto_estimado) : null }
     if (editando) {
@@ -155,7 +155,7 @@ export default function CRMPage() {
   const leadsCalientes = leads.filter(l => l.temperatura === "caliente")
   const propuestasAbiertas = leads.filter(l => ["propuesta","negociacion"].includes(l.estado))
   const cierreEsperado = leadsActivos.reduce((s, l) => s + ((Number(l.presupuesto_estimado) || 0) * ((Number(l.probabilidad_cierre) || 0) / 100)), 0)
-  const estadosPipeline = ["nuevo", "contactado", "reunion", "propuesta", "negociacion", "ganado", "perdido"]
+  const estadosPipeline = ["nuevo", "contactado", "propuesta", "negociacion", "ganado"]
 
   const leadsPorEstado = (estado: string) => filtrados.filter(l => l.estado === estado)
 
@@ -171,18 +171,18 @@ export default function CRMPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>CRM</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Seguimiento de clientes potenciales · {leads.length} leads</p>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Gestión de oportunidades comerciales · {leads.length} leads</p>
         </div>
-        <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razon social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Telefono"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"}]} datos={leads} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("crm_leads").insert({...r,entidad:"peru",estado:"nuevo",temperatura:r.temperatura||"frio"}); if(error)errores.push(r.razon_social+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
+        <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"}]} datos={leads} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("crm_leads").insert({...r,entidad:"peru",estado:"nuevo",temperatura:r.temperatura||"frio"}); if(error)errores.push(r.razon_social+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
           <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
         {[
-          { label: "Pipeline activo", value: fmt(totalPipeline), sub: `${leadsActivos.length} oportunidades activas`, icon: "◈", bg: "#eaf8f2", color: "#0F6E56" },
+          { label: "Pipeline Comercial", value: fmt(totalPipeline), sub: `${leadsActivos.length} oportunidades activas`, icon: "◈", bg: "#eaf8f2", color: "#0F6E56" },
           { label: "Cierre esperado", value: fmt(cierreEsperado), sub: "Presupuesto x probabilidad", icon: "↗", bg: "#eef4ff", color: "#2563eb" },
           { label: "Propuestas abiertas", value: propuestasAbiertas.length, sub: fmt(propuestasAbiertas.reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)), icon: "▤", bg: "#fff7ed", color: "#f97316" },
-          { label: "Ganados", value: fmt(totalGanado), sub: `${leads.filter(l => l.estado === "ganado").length} clientes`, icon: "✓", bg: "#ecfdf5", color: "#059669" },
+          { label: "Negocios Ganados", value: fmt(totalGanado), sub: `${leads.filter(l => l.estado === "ganado").length} clientes`, icon: "✓", bg: "#ecfdf5", color: "#059669" },
           { label: "Leads calientes", value: leadsCalientes.length, sub: "Requieren atención", icon: "●", bg: "#fef2f2", color: "#ef4444" },
         ].map(k => (
           <div key={k.label} className="card" style={{ display: "flex", alignItems: "center", gap: 16, minHeight: 104, border: "1px solid #e5e7eb", boxShadow: "0 10px 25px rgba(15,23,42,.04)" }}>
@@ -207,13 +207,13 @@ export default function CRMPage() {
             </div>
             <div style={{ display: "grid", gap: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>Razon social *</label><input style={inp} value={form.razon_social} onChange={e => setForm({ ...form, razon_social: e.target.value })} /></div>
+                <div><label style={lbl}>Razón social *</label><input style={inp} value={form.razon_social} onChange={e => setForm({ ...form, razon_social: e.target.value })} /></div>
                 <div><label style={lbl}>RUC</label><input style={inp} value={form.ruc} onChange={e => setForm({ ...form, ruc: e.target.value })} /></div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div><label style={lbl}>Nombre contacto</label><input style={inp} value={form.nombre_contacto} onChange={e => setForm({ ...form, nombre_contacto: e.target.value })} /></div>
                 <div><label style={lbl}>Email</label><input style={inp} value={form.email_contacto} onChange={e => setForm({ ...form, email_contacto: e.target.value })} /></div>
-                <div><label style={lbl}>Telefono</label><input style={inp} value={form.telefono_contacto} onChange={e => setForm({ ...form, telefono_contacto: e.target.value })} /></div>
+                <div><label style={lbl}>Teléfono</label><input style={inp} value={form.telefono_contacto} onChange={e => setForm({ ...form, telefono_contacto: e.target.value })} /></div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div><label style={lbl}>Cargo</label><input style={inp} value={form.cargo_contacto} onChange={e => setForm({ ...form, cargo_contacto: e.target.value })} /></div>
@@ -248,7 +248,7 @@ export default function CRMPage() {
                 <div><label style={lbl}>Presupuesto est.</label><input type="number" style={inp} value={form.presupuesto_estimado} onChange={e => setForm({ ...form, presupuesto_estimado: e.target.value })} /></div>
                 <div><label style={lbl}>Probabilidad %</label><input type="number" min={0} max={100} style={inp} value={form.probabilidad_cierre} onChange={e => setForm({ ...form, probabilidad_cierre: Number(e.target.value) })} /></div>
               </div>
-              <div><label style={lbl}>Proximo contacto</label><input type="date" style={inp} value={form.fecha_proximo_contacto} onChange={e => setForm({ ...form, fecha_proximo_contacto: e.target.value })} /></div>
+              <div><label style={lbl}>Próximo contacto</label><input type="date" style={inp} value={form.fecha_proximo_contacto} onChange={e => setForm({ ...form, fecha_proximo_contacto: e.target.value })} /></div>
               <div><label style={lbl}>Notas</label><textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} /></div>
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
@@ -282,7 +282,7 @@ export default function CRMPage() {
           </div>
 
           <div style={{ overflowX: "auto", paddingBottom: 8 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(260px, 1fr))", gap: 16, minWidth: 1900 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(260px, 1fr))", gap: 16, minWidth: 1340 }}>
               {estadosPipeline.map(estado => {
                 const ec = ESTADOS[estado] || { bg: "#f3f4f6", color: "#6b7280", label: estado }
                 const lista = leadsPorEstado(estado)
@@ -382,7 +382,7 @@ export default function CRMPage() {
                 {selected.email_contacto && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Email: </span>{selected.email_contacto}</div>}
                 {selected.telefono_contacto && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Tel: </span>{selected.telefono_contacto}</div>}
                 {selected.origen && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Origen: </span>{selected.origen}</div>}
-                {selected.fecha_proximo_contacto && <div style={{ fontSize: 13, color: "#d97706", fontWeight: 600 }}>Proximo contacto: {selected.fecha_proximo_contacto}</div>}
+                {selected.fecha_proximo_contacto && <div style={{ fontSize: 13, color: "#d97706", fontWeight: 600 }}>Próximo contacto: {selected.fecha_proximo_contacto}</div>}
               </div>
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>CAMBIAR ESTADO</div>
@@ -453,6 +453,8 @@ export default function CRMPage() {
     </div>
   )
 }
+
+
 
 
 
