@@ -33,7 +33,7 @@ const formVacio = {
   descripcion: "", tipo: "alquiler", monto: "", fecha: "", estado_pago: "pendiente",
   recurrente: false, frecuencia: "mensual", fecha_vencimiento: "",
   proveedor_id: "", proveedor_nombre: "", tipo_comprobante: "factura",
-  numero_comprobante: "", categoria_costo: "", observaciones: "",
+  numero_comprobante: "", categoria_costo: "", observaciones: "", numero_operacion: "", banco_origen: "", tipo_transferencia: "transferencia_bancaria", voucher_url: "", nota_pago: "",
 }
 
 export default function GastosOficinaPage() {
@@ -90,6 +90,11 @@ export default function GastosOficinaPage() {
       numero_comprobante: g.numero_comprobante || "",
       categoria_costo: g.categoria_costo || "",
       observaciones: g.observaciones || "",
+      numero_operacion: g.numero_operacion || "",
+      banco_origen: g.banco_origen || "",
+      tipo_transferencia: g.tipo_transferencia || "transferencia_bancaria",
+      voucher_url: g.voucher_url || "",
+      nota_pago: g.nota_pago || "",
     })
     setShowForm(true)
   }
@@ -114,6 +119,11 @@ export default function GastosOficinaPage() {
       numero_comprobante: form.numero_comprobante || null,
       categoria_costo: form.categoria_costo || null,
       observaciones: form.observaciones || null,
+      numero_operacion: form.numero_operacion || null,
+      banco_origen: form.banco_origen || null,
+      tipo_transferencia: form.tipo_transferencia || null,
+      voucher_url: form.voucher_url || null,
+      nota_pago: form.nota_pago || null,
       registrado_por: perfil?.id || null,
       entidad: "peru",
     }
@@ -141,6 +151,7 @@ export default function GastosOficinaPage() {
   }
 
   const puedeRegistrar = perfil && ROLES_REGISTRO.includes(perfil.perfil)
+  const puedeEditarPago = perfil && ["controller", "superadmin"].includes(perfil.perfil)
 
   const gastosFiltrados = gastos.filter(g => {
     if (filtroEstado !== "todos" && g.estado_pago !== filtroEstado) return false
@@ -276,8 +287,8 @@ export default function GastosOficinaPage() {
                     <td style={{ padding: "12px 16px", textAlign: "right" }}>
                       {puedeRegistrar && (
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                          <button onClick={() => abrirEditar(g)} className="btn-secondary" style={{ fontSize: 11, padding: "3px 8px" }}>Editar</button>
-                          <button onClick={() => eliminar(g.id)}
+                      <button onClick={() => abrirEditar(g)} className="btn-secondary" style={{ fontSize: 11, padding: "3px 8px" }}>Editar</button>
+                      <button onClick={() => eliminar(g.id)}
                             style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
                         </div>
                       )}
@@ -305,7 +316,7 @@ export default function GastosOficinaPage() {
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 580, maxHeight: "92vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>{editando ? "Editar gasto" : "Nuevo gasto de oficina"}</h2>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
+                      <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
             </div>
 
             <div style={{ display: "grid", gap: 14 }}>
@@ -393,8 +404,8 @@ export default function GastosOficinaPage() {
             </div>
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
+                      <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+                      <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
                 {saving ? "Guardando..." : editando ? "Actualizar" : "Registrar gasto"}
               </button>
             </div>
@@ -404,4 +415,9 @@ export default function GastosOficinaPage() {
     </div>
   )
 }
+
+
+
+
+
 
