@@ -111,6 +111,13 @@ export default function CRMPage() {
     if (selected?.id === leadId) setSelected((prev: any) => ({ ...prev, estado }))
   }
 
+  async function eliminarLead(lead: any) {
+    if (!confirm("¿Eliminar lead " + lead.razon_social + "?")) return
+    await supabase.from("crm_leads").delete().eq("id", lead.id)
+    if (selected?.id === lead.id) setSelected(null)
+    setLeads(prev => prev.filter(l => l.id !== lead.id))
+    await registrarAccion({ accion: "eliminar", modulo: "crm", entidad_tipo: "lead", descripcion: "Lead eliminado: " + lead.razon_social })
+  }
   async function convertirACliente() {
     if (!selected) return
     if (!confirm("Convertir " + selected.razon_social + " a cliente?")) return
@@ -270,6 +277,7 @@ export default function CRMPage() {
                   style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>Limpiar</button>
               )}
               <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: "auto" }}>{filtrados.length} resultados</span>
+              <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>
             </div>
           </div>
 
@@ -282,12 +290,14 @@ export default function CRMPage() {
                   <div key={estado} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 18, overflow: "hidden", boxShadow: "0 12px 28px rgba(15,23,42,.04)" }}>
                     <div style={{
                       padding: "14px 16px",
-                      borderTop: "4px solid " + ec.color,
                       borderBottom: "1px solid #e5e7eb",
-                      background: "linear-gradient(180deg,#fff,#fafafa)"
+                      background: "#fff"
                     }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        <div style={{ fontSize: 14, fontWeight: 900, color: "#111827" }}>{ec.label}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 99, background: ec.color }} />
+                          <div style={{ fontSize: 14, fontWeight: 900, color: "#111827" }}>{ec.label}</div>
+                        </div>
                         <span style={{ fontSize: 11, fontWeight: 800, color: ec.color, background: ec.bg, padding: "3px 8px", borderRadius: 99 }}>
                           {lista.length}
                         </span>
@@ -320,10 +330,16 @@ export default function CRMPage() {
                                 </div>
                                 {lead.industria && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{lead.industria}</div>}
                               </div>
-                              <button onClick={e => { e.stopPropagation(); abrirEditar(lead) }}
-                                style={{ border: "1px solid #e5e7eb", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#374151" }}>
-                                Editar
-                              </button>
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <button onClick={e => { e.stopPropagation(); abrirEditar(lead) }}
+                                  style={{ border: "1px solid #e5e7eb", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#374151" }}>
+                                  Editar
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); eliminarLead(lead) }}
+                                  style={{ border: "1px solid #fecaca", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#dc2626" }}>
+                                  Eliminar
+                                </button>
+                              </div>
                             </div>
 
                             <div style={{ display: "grid", gap: 6, fontSize: 12, color: "#4b5563" }}>
@@ -437,6 +453,8 @@ export default function CRMPage() {
     </div>
   )
 }
+
+
 
 
 
