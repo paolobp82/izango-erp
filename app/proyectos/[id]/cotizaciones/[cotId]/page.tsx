@@ -612,7 +612,7 @@ if (idsAEliminar.length > 0) {
     try {
       const idle = await waitForSaveIdle()
       if (!idle) throw new Error("El autoguardado sigue en proceso. Intenta nuevamente en unos segundos.")
-      const guardado = await guardar(true)
+      const guardado = await guardar(true, true)
       if (!guardado) {
         previewWindow?.close()
         return
@@ -639,7 +639,7 @@ if (idsAEliminar.length > 0) {
       return
     }
     if (!confirm("¿Confirmas que el cliente aprobó formalmente esta proforma?")) return
-    const guardado = await guardar(true)
+    const guardado = await guardar(true, true)
     if (!guardado) return
     setSaving(true)
     const estadoAnterior = cotizacion?.estado || "borrador"
@@ -1278,6 +1278,7 @@ useEffect(() => { itemsRef.current = items }, [items])
     </div>
   )
 }
+
 
 
 
