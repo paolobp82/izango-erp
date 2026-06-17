@@ -44,6 +44,7 @@ export default function GastosOficinaPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
+  const [selected, setSelected] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [filtroEstado, setFiltroEstado] = useState("todos")
   const [filtroTipo, setFiltroTipo] = useState("todos")
@@ -139,6 +140,23 @@ export default function GastosOficinaPage() {
     load()
   }
 
+  async function guardarDatosOperacionGasto(registro: any) {
+    const payload = {
+      numero_operacion: (document.getElementById("go-numop-" + registro.id) as HTMLInputElement)?.value || null,
+      banco_origen: (document.getElementById("go-banco-" + registro.id) as HTMLInputElement)?.value || null,
+      tipo_transferencia: (document.getElementById("go-tipo-" + registro.id) as HTMLSelectElement)?.value || null,
+      voucher_url: (document.getElementById("go-voucher-" + registro.id) as HTMLInputElement)?.value || null,
+      nota_pago: (document.getElementById("go-nota-" + registro.id) as HTMLInputElement)?.value || null,
+    }
+
+    const { error } = await supabase.from("gastos_oficina").update(payload).eq("id", registro.id)
+    if (error) { alert("Error guardando datos de operación: " + error.message); return }
+
+    setSelected((prev: any) => ({ ...prev, ...payload }))
+    setGastos(prev => prev.map(g => g.id === registro.id ? { ...g, ...payload } : g))
+    await registrarAccion({ accion: "editar", modulo: "gastos_oficina", entidad_id: registro.id, entidad_tipo: "gasto_oficina", descripcion: "Datos de operación actualizados: " + registro.descripcion })
+    alert("Datos de operación guardados")
+  }
   async function cambiarEstado(id: string, estado_pago: string) {
     await supabase.from("gastos_oficina").update({ estado_pago }).eq("id", id)
     setGastos(prev => prev.map(g => g.id === id ? { ...g, estado_pago } : g))
@@ -151,6 +169,7 @@ export default function GastosOficinaPage() {
   }
 
   const puedeRegistrar = perfil && ROLES_REGISTRO.includes(perfil.perfil)
+  const puedeEditarPagoGasto = perfil && ["controller", "superadmin"].includes(perfil.perfil)
   const puedeEditarPago = perfil && ["controller", "superadmin"].includes(perfil.perfil)
 
   const gastosFiltrados = gastos.filter(g => {
@@ -245,7 +264,7 @@ export default function GastosOficinaPage() {
               {gastosFiltrados.map((g, idx) => {
                 const ep = ESTADOS_PAGO[g.estado_pago] || ESTADOS_PAGO.pendiente
                 return (
-                  <tr key={g.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                  <tr key={g.id} onClick={() => setSelected(g)} style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === g.id ? "#ecfdf5" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
                     <td style={{ padding: "12px 16px", fontSize: 12, color: "#6b7280" }}>{g.fecha}</td>
                     <td style={{ padding: "12px" }}>
                       <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{g.descripcion}</div>
@@ -268,7 +287,7 @@ export default function GastosOficinaPage() {
                         <select
                           style={{ padding: "3px 8px", border: `1px solid ${ep.color}44`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: ep.bg, color: ep.color, cursor: "pointer", fontWeight: 600 }}
                           value={g.estado_pago}
-                          onChange={e => cambiarEstado(g.id, e.target.value)}>
+                          onClick={e => e.stopPropagation()} onChange={e => cambiarEstado(g.id, e.target.value)}>
                           {Object.entries(ESTADOS_PAGO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                         </select>
                       ) : (
@@ -287,8 +306,8 @@ export default function GastosOficinaPage() {
                     <td style={{ padding: "12px 16px", textAlign: "right" }}>
                       {puedeRegistrar && (
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                      <button onClick={() => abrirEditar(g)} className="btn-secondary" style={{ fontSize: 11, padding: "3px 8px" }}>Editar</button>
-                      <button onClick={() => eliminar(g.id)}
+                      <button onClick={e => { e.stopPropagation(); abrirEditar(g) }} className="btn-secondary" style={{ fontSize: 11, padding: "3px 8px" }}>Editar</button>
+                      <button onClick={e => { e.stopPropagation(); eliminar(g.id) }}
                             style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
                         </div>
                       )}
@@ -415,6 +434,9 @@ export default function GastosOficinaPage() {
     </div>
   )
 }
+
+
+
 
 
 
