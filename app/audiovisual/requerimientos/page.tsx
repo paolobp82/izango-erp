@@ -236,6 +236,36 @@ export default function AudiovisualRequerimientosPage() {
     })
   }
 
+
+  function estadoTareaDesdeAudiovisual(estado: string) {
+    if (estado === "completado") return "completada"
+    if (estado === "cancelado") return "cancelada"
+    if (estado === "en_revision") return "en_revision"
+    if (estado === "en_progreso") return "en_progreso"
+    return "pendiente"
+  }
+
+  async function sincronizarTareaAudiovisual(reqId: string, datos: any) {
+    const proyectoTarea = datos.proyecto_id ? proyectos.find(p => p.id === datos.proyecto_id) : null
+    const tituloTarea = `Req. audiovisual - ${proyectoTarea?.codigo || datos.detalle_otro_proyecto || "Sin proyecto"}`
+
+    await supabase
+      .from("tareas")
+      .update({
+        titulo: tituloTarea,
+        descripcion: datos.brief || "Requerimiento audiovisual generado desde el modulo audiovisual.",
+        estado: estadoTareaDesdeAudiovisual(datos.estado || "pendiente"),
+        prioridad: datos.prioridad || "media",
+        proyecto_id: datos.proyecto_id || null,
+        asignado_a: datos.responsable_audiovisual_id || datos.productor_id || perfil?.id || null,
+        fecha_limite: datos.fecha_entrega_solicitada || null,
+        origen_url: `/audiovisual/requerimientos?requerimiento_id=${reqId}`,
+        origen_label: "Req. Audiovisual",
+      })
+      .eq("origen", "audiovisual")
+      .eq("origen_id", reqId)
+  }
+
   async function guardar() {
     const esEdicion = Boolean(editando?.id)
     if (esEdicion && !puedeAbrirEdicion(editando)) { alert("No tienes permiso para editar este requerimiento"); return }
@@ -870,6 +900,9 @@ export default function AudiovisualRequerimientosPage() {
     </div>
   )
 }
+
+
+
 
 
 
