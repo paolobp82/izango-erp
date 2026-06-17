@@ -155,7 +155,14 @@ export default function DashboardPage() {
       rqsPendientes: rqsPendientes.length, rqsPendientesMonto,
       totalFacturado, totalCobrado, porCobrar, margenPromedio,
       cotMes: cotMes||0, leadsCalientes, pipelineCRM, factMesAct, varFacturacion,
-      presupuestosPendientes: allProv.filter((p: any) => p.estado === "pendiente_aprobacion").reduce((s: number, p: any) => { const cots = cotsProyActivas.filter((c: any) => c.proyecto_id === p.id && totalCotizacion(c) > 0); const maxCot = cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; return s + totalCotizacion(maxCot) }, 0),
+      presupuestosPendientes: allProv.filter((p: any) => {
+        const creado = p.created_at ? new Date(p.created_at) : null
+        return p.estado === "pendiente_aprobacion" && creado && creado >= inicioMes && creado <= hoy
+      }).reduce((s: number, p: any) => { const cots = cotsProyActivas.filter((c: any) => c.proyecto_id === p.id && totalCotizacion(c) > 0); const maxCot = cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; return s + totalCotizacion(maxCot) }, 0),
+      pendientesMes: allProv.filter((p: any) => {
+        const creado = p.created_at ? new Date(p.created_at) : null
+        return p.estado === "pendiente_aprobacion" && creado && creado >= inicioMes && creado <= hoy
+      }).length,
       presupuestosAprobados: allProv.filter((p: any) => PROYECTO_APROBADO_ESTADOS.includes(p.estado)).reduce((s: number, p: any) => { const cots = cotsProyActivas.filter((c: any) => c.proyecto_id === p.id && totalCotizacion(c) > 0); const aprobada = cots.find((c: any) => COTIZACION_APROBADA_ESTADOS.includes(c.estado)) || cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; return s + totalCotizacion(aprobada) }, 0),
     })
 
@@ -251,7 +258,7 @@ export default function DashboardPage() {
         </div>
       )}      {/* KPIs principales */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 20 }}>
-        <KpiCard icon="money" label="Presupuestos Pendientes" value={fmt(metricas.presupuestosPendientes || 0)} sub={(metricas.pendientes || 0) + " esperando aprobación"} borderColor="#10B981" valueColor="#059669" />
+        <KpiCard icon="money" label="Presupuestos Pendientes" value={fmt(metricas.presupuestosPendientes || 0)} sub={(metricas.pendientesMes || 0) + " oportunidades abiertas este mes"} borderColor="#10B981" valueColor="#059669" />
 
         <KpiCard icon="shield" label="Presupuestos en Curso" value={fmt(metricas.presupuestosAprobados || 0)} sub={`${metricas.activos || 0} proyectos en ejecución`} borderColor="#3B82F6" valueColor="#1D4ED8" />
 
@@ -381,6 +388,7 @@ export default function DashboardPage() {
     </div>
   )
 }
+
 
 
 
