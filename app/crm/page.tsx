@@ -144,6 +144,16 @@ export default function CRMPage() {
   const totalPipeline = leads.filter(l => !["ganado","perdido"].includes(l.estado)).reduce((s, l) => s + (l.presupuesto_estimado || 0), 0)
   const totalGanado = leads.filter(l => l.estado === "ganado").reduce((s, l) => s + (l.presupuesto_estimado || 0), 0)
   const tasaConversion = leads.length > 0 ? Math.round((leads.filter(l => l.estado === "ganado").length / leads.length) * 100) : 0
+  const estadosPipeline = ["nuevo", "contactado", "reunion", "propuesta", "negociacion", "ganado", "perdido"]
+
+  const leadsPorEstado = (estado: string) => filtrados.filter(l => l.estado === estado)
+
+  const valorPorEstado = (estado: string) =>
+    leadsPorEstado(estado).reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)
+
+  const cierreEsperado = leads
+    .filter(l => !["ganado", "perdido"].includes(l.estado))
+    .reduce((s, l) => s + ((Number(l.presupuesto_estimado) || 0) * ((Number(l.probabilidad_cierre) || 0) / 100)), 0)
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -263,58 +273,81 @@ export default function CRMPage() {
             </div>
           </div>
 
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "#f9fafb" }}>
-                  <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>EMPRESA</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONTACTO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TEMP.</th>
-                  <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRESUPUESTO</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROB.</th>
-                  <th style={{ padding: "10px 20px", width: 80 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtrados.length === 0 ? (
-                  <tr><td colSpan={7} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af" }}>No hay leads. Crea el primero.</td></tr>
-                ) : filtrados.map((lead, idx) => {
-                  const ec = ESTADOS[lead.estado] || { bg: "#f3f4f6", color: "#6b7280", label: lead.estado }
-                  const tc = TEMPERATURAS[lead.temperatura] || { color: "#6b7280", label: lead.temperatura }
-                  return (
-                    <tr key={lead.id} onClick={() => { setSelected(lead); loadNotas(lead.id) }}
-                      style={{ borderTop: "1px solid #f3f4f6", background: selected?.id === lead.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
-                      <td style={{ padding: "12px 20px" }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{lead.razon_social}</div>
-                        {lead.industria && <div style={{ fontSize: 11, color: "#9ca3af" }}>{lead.industria}</div>}
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        <div style={{ fontSize: 13, color: "#374151" }}>{lead.nombre_contacto || "—"}</div>
-                        {lead.email_contacto && <div style={{ fontSize: 11, color: "#9ca3af" }}>{lead.email_contacto}</div>}
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        <span style={{ background: ec.bg, color: ec.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{ec.label}</span>
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        <span style={{ color: tc.color, fontWeight: 700, fontSize: 13 }}>● {tc.label}</span>
-                      </td>
-                      <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: "#374151" }}>
-                        {lead.presupuesto_estimado ? fmt(lead.presupuesto_estimado) : "—"}
-                      </td>
-                      <td style={{ padding: "12px", textAlign: "center" }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: lead.probabilidad_cierre >= 70 ? "#0F6E56" : lead.probabilidad_cierre >= 40 ? "#ca8a04" : "#6b7280" }}>
-                          {lead.probabilidad_cierre || 0}%
+          <div style={{ overflowX: "auto", paddingBottom: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(230px, 1fr))", gap: 14, minWidth: 1680 }}>
+              {estadosPipeline.map(estado => {
+                const ec = ESTADOS[estado] || { bg: "#f3f4f6", color: "#6b7280", label: estado }
+                const lista = leadsPorEstado(estado)
+                return (
+                  <div key={estado} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 14, overflow: "hidden" }}>
+                    <div style={{
+                      padding: "12px 14px",
+                      borderTop: "4px solid " + ec.color,
+                      borderBottom: "1px solid #e5e7eb",
+                      background: "#fff"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>{ec.label}</div>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: ec.color, background: ec.bg, padding: "3px 8px", borderRadius: 99 }}>
+                          {lista.length}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{fmt(valorPorEstado(estado))}</div>
+                    </div>
+
+                    <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10, minHeight: 280 }}>
+                      {lista.length === 0 ? (
+                        <div style={{ border: "1px dashed #d1d5db", borderRadius: 12, padding: "24px 12px", textAlign: "center", color: "#9ca3af", fontSize: 12 }}>
+                          Sin leads
                         </div>
-                      </td>
-                      <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                        <button onClick={e => { e.stopPropagation(); abrirEditar(lead) }} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                      ) : lista.map(lead => {
+                        const tc = TEMPERATURAS[lead.temperatura] || { color: "#6b7280", label: lead.temperatura }
+                        return (
+                          <div key={lead.id}
+                            onClick={() => { setSelected(lead); loadNotas(lead.id) }}
+                            style={{
+                              background: selected?.id === lead.id ? "#ecfdf5" : "#fff",
+                              border: selected?.id === lead.id ? "1px solid #03E373" : "1px solid #e5e7eb",
+                              borderRadius: 12,
+                              padding: 12,
+                              boxShadow: "0 8px 20px rgba(15,23,42,.05)",
+                              cursor: "pointer"
+                            }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {lead.razon_social}
+                                </div>
+                                {lead.industria && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{lead.industria}</div>}
+                              </div>
+                              <button onClick={e => { e.stopPropagation(); abrirEditar(lead) }}
+                                style={{ border: "1px solid #e5e7eb", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#374151" }}>
+                                Editar
+                              </button>
+                            </div>
+
+                            <div style={{ display: "grid", gap: 6, fontSize: 12, color: "#4b5563" }}>
+                              {lead.nombre_contacto && <div>👤 {lead.nombre_contacto}</div>}
+                              {lead.telefono_contacto && <div>📞 {lead.telefono_contacto}</div>}
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                <span>💰 {lead.presupuesto_estimado ? fmt(lead.presupuesto_estimado) : "Sin presupuesto"}</span>
+                                <strong style={{ color: lead.probabilidad_cierre >= 70 ? "#0F6E56" : lead.probabilidad_cierre >= 40 ? "#ca8a04" : "#6b7280" }}>
+                                  {lead.probabilidad_cierre || 0}%
+                                </strong>
+                              </div>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                                <span style={{ color: tc.color, fontWeight: 800 }}>● {tc.label}</span>
+                                {lead.fecha_proximo_contacto && <span style={{ color: "#d97706", fontSize: 11 }}>Próx. {lead.fecha_proximo_contacto}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
 
@@ -404,3 +437,4 @@ export default function CRMPage() {
     </div>
   )
 }
+
