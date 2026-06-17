@@ -306,6 +306,7 @@ export default function GastosOficinaPage() {
                     <td style={{ padding: "12px 16px", textAlign: "right" }}>
                       {puedeRegistrar && (
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <button onClick={e => { e.stopPropagation(); setSelected(g) }} className="btn-secondary" style={{ fontSize: 11, padding: "3px 8px" }}>Ver detalle</button>
                       <button onClick={e => { e.stopPropagation(); abrirEditar(g) }} className="btn-secondary" style={{ fontSize: 11, padding: "3px 8px" }}>Editar</button>
                       <button onClick={e => { e.stopPropagation(); eliminar(g.id) }}
                             style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
@@ -329,6 +330,69 @@ export default function GastosOficinaPage() {
         )}
       </div>
 
+      {/* OFFICE_EXPENSE_PAYMENT_DRAWER_START */}
+      {selected && (
+        <aside style={{ position: "fixed", right: 0, top: 70, bottom: 0, width: 390, background: "#fff", borderLeft: "1px solid #e5e7eb", boxShadow: "-12px 0 30px rgba(15,23,42,.10)", zIndex: 900, overflowY: "auto", padding: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
+            <div>
+              <h2 style={{ fontSize: 18, fontWeight: 900, margin: 0, color: "#111827" }}>Detalle del gasto</h2>
+              <p style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{selected.descripcion}</p>
+            </div>
+            <button onClick={() => setSelected(null)} style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 22 }}>×</button>
+          </div>
+
+          <div style={{ display: "grid", gap: 9, marginBottom: 16 }}>
+            <div><b>Proveedor:</b> {selected.proveedor?.nombre || selected.proveedor_nombre || "—"}</div>
+            <div><b>Fecha:</b> {selected.fecha || "—"}</div>
+            <div><b>Monto:</b> {fmt(selected.monto)}</div>
+            <div><b>Estado:</b> {ESTADOS_PAGO[selected.estado_pago]?.label || selected.estado_pago}</div>
+            <div><b>Comprobante:</b> {selected.tipo_comprobante || "—"} {selected.numero_comprobante || ""}</div>
+            <div><b>Categoría:</b> {selected.categoria_costo || "—"}</div>
+          </div>
+
+          <div style={{ background: "#ecfdf5", border: "1px solid #86efac", borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: "#0F6E56", marginBottom: 12 }}>DATOS DE OPERACIÓN</div>
+
+            <label style={lbl}>N° OPERACIÓN / REFERENCIA</label>
+            <input id={"go-numop-" + selected.id} disabled={!puedeEditarPagoGasto} style={{ ...inp, marginBottom: 10 }} defaultValue={selected.numero_operacion || ""} placeholder="Ej: 123456789" />
+
+            <label style={lbl}>BANCO ORIGEN</label>
+            <input id={"go-banco-" + selected.id} disabled={!puedeEditarPagoGasto} style={{ ...inp, marginBottom: 10 }} defaultValue={selected.banco_origen || ""} placeholder="Seleccionar" />
+
+            <label style={lbl}>TIPO TRANSFERENCIA</label>
+            <select id={"go-tipo-" + selected.id} disabled={!puedeEditarPagoGasto} style={{ ...inp, marginBottom: 10 }} defaultValue={selected.tipo_transferencia || "transferencia_bancaria"}>
+              <option value="transferencia_bancaria">Transferencia bancaria</option>
+              <option value="yape">Yape</option>
+              <option value="plin">Plin</option>
+              <option value="tarjeta">Tarjeta</option>
+              <option value="efectivo">Efectivo</option>
+              <option value="otro">Otro</option>
+            </select>
+
+            <label style={lbl}>LINK VOUCHER (GOOGLE DRIVE)</label>
+            <input id={"go-voucher-" + selected.id} disabled={!puedeEditarPagoGasto} style={{ ...inp, marginBottom: 10 }} defaultValue={selected.voucher_url || ""} placeholder="https://drive.google.com/..." />
+
+            <label style={lbl}>NOTA DE PAGO</label>
+            <input id={"go-nota-" + selected.id} disabled={!puedeEditarPagoGasto} style={{ ...inp, marginBottom: 12 }} defaultValue={selected.nota_pago || ""} placeholder="Observaciones opcionales..." />
+
+            {selected.voucher_url && (
+              <a href={selected.voucher_url} target="_blank" rel="noreferrer" className="btn-secondary" style={{ fontSize: 12, marginRight: 8 }}>📎 Ver voucher</a>
+            )}
+
+            {puedeEditarPagoGasto && (
+              <button onClick={() => guardarDatosOperacionGasto(selected)} className="btn-primary" style={{ width: "100%", fontSize: 12 }}>Guardar datos operación</button>
+            )}
+          </div>
+
+          {selected.observaciones && (
+            <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#64748b", marginBottom: 4 }}>OBSERVACIONES</div>
+              <div style={{ fontSize: 13, color: "#334155" }}>{selected.observaciones}</div>
+            </div>
+          )}
+        </aside>
+      )}
+      {/* OFFICE_EXPENSE_PAYMENT_DRAWER_END */}
       {/* Modal form */}
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -434,6 +498,7 @@ export default function GastosOficinaPage() {
     </div>
   )
 }
+
 
 
 
