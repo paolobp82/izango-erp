@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase"
 import { rqCodigo } from "@/lib/rq-code"
 import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import { puedeVerInformacionSensible } from "@/lib/permissions"
 
 const MODULOS = [
   { key: "proyectos",     label: "Proyectos",       icon: "📁" },
@@ -140,6 +141,9 @@ export default function ReporteriaPage() {
   const [camposSeleccionados, setCamposSeleccionados] = useState<string[]>(CAMPOS.proyectos.map(c => c.key))
   const [datos, setDatos] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [perfil, setPerfil] = useState<any>(null)
+  const [autorizado, setAutorizado] = useState(false)
+  const [checkingAccess, setCheckingAccess] = useState(true)
   const [generado, setGenerado] = useState(false)
   const [filtros, setFiltros] = useState({ fechaDesde: "", fechaHasta: "", estado: "", busqueda: "" })
   const [clientes, setClientes] = useState<any[]>([])
@@ -154,10 +158,40 @@ export default function ReporteriaPage() {
   }, [moduloActivo])
 
   useEffect(() => {
-    supabase.from("clientes").select("id, razon_social").order("razon_social").then(({ data }) => setClientes(data || []))
+    validarAcceso()
   }, [])
 
+  async function validarAcceso() {
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      setAutorizado(false)
+      setCheckingAccess(false)
+      return
+    }
+
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const puedeVer = puedeVerInformacionSensible(p?.perfil)
+    setAutorizado(puedeVer)
+
+    if (!puedeVer) {
+      setCheckingAccess(false)
+      return
+    }
+
+    const { data } = await supabase
+      .from("clientes")
+      .select("id, razon_social")
+      .order("razon_social")
+
+    setClientes(data || [])
+    setCheckingAccess(false)
+  }
+
   async function generarReporte() {
+    if (!autorizado) return
     setLoading(true)
     let data: any[] = []
 
@@ -309,6 +343,10 @@ export default function ReporteriaPage() {
   })
   const hayTotales = Object.keys(totales).length > 0
 
+  if (checkingAccess) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+
+  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
@@ -450,7 +488,8 @@ export default function ReporteriaPage() {
                         <tr key={idx} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                           {camposActivos.map(c => {
                             const val = row[c.key]
-                            return (
+
+                              return (
                               <td key={c.key} style={{ padding: "9px 12px", textAlign: c.tipo === "monto" ? "right" : "left", color: "#374151", whiteSpace: "nowrap" }}>
                                 {c.tipo === "monto"
                                   ? <span style={{ fontWeight: 600 }}>{fmt(Number(val) || 0)}</span>
@@ -486,3 +525,7 @@ export default function ReporteriaPage() {
     </div>
   )
 }
+
+
+
+
