@@ -6,6 +6,7 @@ import { registrarAccion } from "@/lib/trazabilidad"
 import { rqCodigo } from "@/lib/rq-code"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import { puedeAccederRuta } from "@/lib/permissions"
 
 const ESTADOS: Record<string, any> = {
   pendiente: { label: "Pendiente", bg: "#fef9c3", color: "#92400e" },
@@ -36,6 +37,7 @@ export default function CajaChicaPage() {
   const [rqs, setRqs] = useState<any[]>([])
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [autorizado, setAutorizado] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [filtroEstado, setFiltroEstado] = useState("todos")
@@ -55,26 +57,57 @@ export default function CajaChicaPage() {
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-      setPerfil(p)
+
+    if (!user) {
+      setAutorizado(false)
+      setLoading(false)
+      return
     }
+
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const puedeVer = puedeAccederRuta(p?.perfil, "/caja-chica")
+    setAutorizado(puedeVer)
+
+    if (!puedeVer) {
+      setLoading(false)
+      return
+    }
+
     const { data: r } = await supabase
       .from("caja_chica")
       .select("*, proyecto:proyectos(nombre, codigo, deleted_at), solicitante:perfiles!solicitado_por(nombre, apellido), aprobador:perfiles!aprobado_por(nombre, apellido)")
       .order("created_at", { ascending: false })
+
     setRegistros((r || []).filter((registro: any) => !rowBelongsToDeletedProject(registro)))
-    const { data: pr } = await supabase.from("proyectos").select("id, nombre, codigo").is("deleted_at", null).order("nombre")
-    const { data: rAll } = await supabase.from("caja_chica").select("periodo").not("periodo", "is", null)
+
+    const { data: pr } = await supabase
+      .from("proyectos")
+      .select("id, nombre, codigo")
+      .is("deleted_at", null)
+      .order("nombre")
+
+    const { data: rAll } = await supabase
+      .from("caja_chica")
+      .select("periodo")
+      .not("periodo", "is", null)
+
     const periStr = [...new Set((rAll || []).map((r: any) => r.periodo).filter(Boolean))] as string[]
     setPeriodos(periStr)
     setProyectos(pr || [])
-    const { data: rq } = await supabase.from("requerimientos_pago").select("id, codigo_rq, numero_rq, descripcion").order("created_at", { ascending: false }).limit(50)
+
+    const { data: rq } = await supabase
+      .from("requerimientos_pago")
+      .select("id, codigo_rq, numero_rq, descripcion")
+      .order("created_at", { ascending: false })
+      .limit(50)
+
     setRqs(rq || [])
     setLoading(false)
   }
-
   async function guardar() {
+    if (!autorizado) return
     if (!form.concepto || !form.fecha) { alert("Concepto y fecha son obligatorios"); return }
     if (!form.monto_debe && !form.monto_haber) { alert("Ingresa al menos un monto (debe o haber)"); return }
     setSaving(true)
@@ -124,6 +157,7 @@ export default function CajaChicaPage() {
   }
 
   async function aprobar(id: string) {
+    if (!autorizado || !esAprobador) return
     await supabase.from("caja_chica").update({
       estado: "aprobado",
       aprobado_por: perfil?.id,
@@ -135,6 +169,7 @@ export default function CajaChicaPage() {
   }
 
   async function rechazar(id: string) {
+    if (!autorizado || !esAprobador) return
     await supabase.from("caja_chica").update({
       estado: "rechazado",
       aprobado_por: perfil?.id,
@@ -149,6 +184,7 @@ export default function CajaChicaPage() {
   }
 
   async function cerrarRendicion() {
+    if (!autorizado || !esAprobador) return
     if (!nombrePeriodo.trim()) { alert("Ingresa un nombre para el período"); return }
     await supabase.from("caja_chica").update({ archivada: true, periodo: nombrePeriodo }).is("archivada", null).neq("archivada", true)
     await supabase.from("caja_chica").update({ archivada: true, periodo: nombrePeriodo }).eq("archivada", false)
@@ -158,6 +194,7 @@ export default function CajaChicaPage() {
   }
 
   async function abrirNuevaCaja() {
+    if (!autorizado || !esAprobador) return
     if (!montoApertura || Number(montoApertura) <= 0) { alert("Ingresa un monto de apertura válido"); return }
     const hoy = new Date().toISOString().split("T")[0]
     await supabase.from("caja_chica").insert({
@@ -183,6 +220,7 @@ export default function CajaChicaPage() {
   }
 
   async function eliminar(id: string) {
+    if (!autorizado || !esAprobador) return
     if (!confirm("¿Eliminar este registro?")) return
     await supabase.from("caja_chica").delete().eq("id", id)
     if (selected?.id === id) setSelected(null)
@@ -232,6 +270,8 @@ export default function CajaChicaPage() {
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+
+  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
 
   return (
     <div style={{ display: "flex", gap: 20, height: "calc(100vh - 80px)" }}>
@@ -623,6 +663,7 @@ export default function CajaChicaPage() {
     </div>
   )
 }
+
 
 
 
