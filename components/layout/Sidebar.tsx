@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
+import { ACCESO } from "@/lib/permissions"
 
 const LOGO = "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
 
@@ -19,19 +20,6 @@ const PERFIL: Record<string,string> = {
   logistica:"Logistica",
   comercial:"Comercial",
   practicante:"Practicante",
-}
-
-const ACCESO: Record<string, string[]> = {
-  superadmin: ["*"],
-  gerente_general: ["*"],
-  controller: ["*"],
-  administrador: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/buscar-items","/proveedores","/biblioteca","/biblioteca-medios","/rq","/facturacion","/liquidaciones","/inventario","/envios-materiales","/audiovisual","/rrhh/planilla","/rrhh/permisos","/rrhh/horas-extras","/rrhh/vacaciones","/rrhh/faltas-medicas","/ia","/alertas","/perfil","/tareas"],
-  gerente_produccion: ["/dashboard","/tareas","/calendario","/alertas","/crm","/clientes","/proformas","/buscar-items","/biblioteca","/biblioteca-medios","/proyectos","/gestor","/audiovisual","/proveedores","/rq","/inventario","/inventario/ordenes","/envios-materiales","/facturacion","/liquidaciones","/rrhh/planilla","/rrhh/permisos","/rrhh/horas-extras","/rrhh/vacaciones","/rrhh/faltas-medicas","/perfil","/ia"],
-  productor: ["/dashboard","/tareas","/calendario","/alertas","/crm","/clientes","/proformas","/buscar-items","/biblioteca","/biblioteca-medios","/proyectos","/gestor","/audiovisual","/proveedores","/rq","/inventario","/inventario/ordenes","/envios-materiales","/liquidaciones","/rrhh/planilla","/rrhh/permisos","/rrhh/horas-extras","/rrhh/vacaciones","/rrhh/faltas-medicas","/perfil","/ia"],
-  audiovisual: ["/dashboard","/tareas","/audiovisual","/biblioteca-medios","/perfil"],
-  logistica: ["/dashboard","/calendario","/clientes","/inventario","/envios-materiales","/rq","/caja-chica","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
-  comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/buscar-items","/biblioteca-medios","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
-  practicante: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/crm","/proformas","/buscar-items","/biblioteca","/biblioteca-medios","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
 }
 
 const ALL_NAV = [
@@ -279,5 +267,7 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
     </aside>
   )
 }
+
+
 
 
