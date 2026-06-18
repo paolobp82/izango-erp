@@ -2,13 +2,13 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 
-const PERFILES = ["superadmin","gerente_general","administrador","controller","productor","logistica","practicante","comercial","gerente_produccion","gerente_finanzas"]
+const PERFILES = ["superadmin","gerente_general","administrador","controller","productor","logistica","practicante","comercial","gerente_produccion"]
 const PERFIL_LABEL: any = {
   superadmin:"Super Administrador", gerente_general:"Gerente General",
   administrador:"Administrador", controller:"Controller",
   productor:"Productor", logistica:"Logística",
   practicante:"Practicante", comercial:"Comercial",
-  gerente_produccion:"Gerente de Producción", gerente_finanzas:"Gerente de Finanzas",
+  gerente_produccion:"Gerente de Producción",
 }
 
 export default function AdminUsuariosPage() {
@@ -19,6 +19,7 @@ export default function AdminUsuariosPage() {
   const [showPass, setShowPass] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [perfil, setPerfil] = useState<any>(null)
+  const [autorizado, setAutorizado] = useState(false)
   const [msg, setMsg] = useState("")
   const [error, setError] = useState("")
   const [newPass, setNewPass] = useState("")
@@ -30,16 +31,30 @@ export default function AdminUsuariosPage() {
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-      setPerfil(p)
+
+    if (!user) {
+      setAutorizado(false)
+      setLoading(false)
+      return
     }
+
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const puedeVer = ["superadmin", "gerente_general", "controller"].includes(p?.perfil)
+    setAutorizado(puedeVer)
+
+    if (!puedeVer) {
+      setLoading(false)
+      return
+    }
+
     const { data } = await supabase.from("perfiles").select("*").order("apellido")
     setUsuarios(data || [])
     setLoading(false)
   }
-
   async function crearUsuario() {
+    if (perfil?.perfil !== "superadmin") return
     if (!form.nombre || !form.apellido || !form.email || !form.password) { setError("Todos los campos son obligatorios"); return }
     if (form.password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres"); return }
     setSaving(true)
@@ -62,6 +77,7 @@ export default function AdminUsuariosPage() {
   }
 
   async function cambiarPassword() {
+    if (perfil?.perfil !== "superadmin") return
     if (!newPass || newPass.length < 6) { setError("Mínimo 6 caracteres"); return }
     setSaving(true)
     setMsg("")
@@ -78,6 +94,7 @@ export default function AdminUsuariosPage() {
   }
 
   async function cambiarPerfil(id: string, nuevoPerfil: string) {
+    if (perfil?.perfil !== "superadmin") return
     setSaving(true)
     setMsg("")
     setError("")
@@ -100,7 +117,7 @@ export default function AdminUsuariosPage() {
     setSaving(false)
   }
 
-  const esAdmin = perfil?.perfil === "superadmin" || perfil?.perfil === "gerente_general"
+  const esAdmin = autorizado
   const puedeCambiarRoles = perfil?.perfil === "superadmin"
 
   const inp: any = { padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none", boxSizing: "border-box" }
@@ -233,5 +250,6 @@ export default function AdminUsuariosPage() {
     </div>
   )
 }
+
 
 
