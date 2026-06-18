@@ -54,7 +54,7 @@ export default function TareasPage() {
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [pagina, setPagina] = useState(1)
-  const POR_PAGINA = 10
+  const [porPagina, setPorPagina] = useState(10)
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [selected, setSelected] = useState<any>(null)
@@ -613,8 +613,8 @@ export default function TareasPage() {
     { key: "participo", label: "En las que participo", count: tareasParticipa.length, icon: Eye },
     { key: "todos", label: "Todas", count: tareasRelacionadas.length, icon: Grid2X2 },
   ]
-  const tareasPagina = tareasFiltradas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
-  const totalPaginas = Math.max(1, Math.ceil(tareasFiltradas.length / POR_PAGINA))
+  const tareasPagina = tareasFiltradas.slice((pagina - 1) * porPagina, pagina * porPagina)
+  const totalPaginas = Math.max(1, Math.ceil(tareasFiltradas.length / porPagina))
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -889,10 +889,22 @@ export default function TareasPage() {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid #e5e7eb", background: "#fff" }}>
-          <div style={{ fontSize: 12, color: "#334155" }}>Mostrando {tareasFiltradas.length === 0 ? 0 : (pagina - 1) * POR_PAGINA + 1} de {tareasFiltradas.length} tarea{tareasFiltradas.length !== 1 ? "s" : ""}</div>
+          <div style={{ fontSize: 12, color: "#334155" }}>Mostrando {tareasFiltradas.length === 0 ? 0 : (pagina - 1) * porPagina + 1} de {tareasFiltradas.length} tarea{tareasFiltradas.length !== 1 ? "s" : ""}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 12, color: "#334155" }}>Filas por página:</span>
-            <select style={{ ...inp, width: 84 }} value={POR_PAGINA} disabled><option>10</option></select>
+            <select
+              style={{ ...inp, width: 84 }}
+              value={porPagina}
+              onChange={(e) => {
+                setPorPagina(Number(e.target.value))
+                setPagina(1)
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
             <button disabled={pagina <= 1} onClick={() => setPagina(p => Math.max(1, p - 1))} style={{ width: 34, height: 34, border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: pagina <= 1 ? "not-allowed" : "pointer", color: "#334155" }}>‹</button>
             <div style={{ minWidth: 34, height: 34, border: "1px solid #2563eb", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb", fontWeight: 800, fontSize: 13 }}>{pagina}</div>
             <button disabled={pagina >= totalPaginas} onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} style={{ width: 34, height: 34, border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: pagina >= totalPaginas ? "not-allowed" : "pointer", color: "#334155" }}>›</button>
@@ -1254,6 +1266,7 @@ export default function TareasPage() {
     </div>
   )
 }
+
 
 
 
