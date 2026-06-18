@@ -6,12 +6,15 @@ import { rqCodigo } from "@/lib/rq-code"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import { puedeAccederRuta } from "@/lib/permissions"
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
 
 export default function FlujoCajaPage() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
+  const [perfil, setPerfil] = useState<any>(null)
+  const [autorizado, setAutorizado] = useState(false)
   const [rqs, setRqs] = useState<any[]>([])
   const [facturas, setFacturas] = useState<any[]>([])
   const [vista, setVista] = useState<"mensual" | "detalle">("mensual")
@@ -20,6 +23,25 @@ export default function FlujoCajaPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      setAutorizado(false)
+      setLoading(false)
+      return
+    }
+
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const puedeVer = puedeAccederRuta(p?.perfil, "/flujo-caja")
+    setAutorizado(puedeVer)
+
+    if (!puedeVer) {
+      setLoading(false)
+      return
+    }
+
     const [{ data: rqsData }, { data: facturasData }] = await Promise.all([
       supabase.from("requerimientos_pago")
         .select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
@@ -30,11 +52,11 @@ export default function FlujoCajaPage() {
         .not("estado", "eq", "anulada")
         .order("fecha_emision"),
     ])
+
     setRqs((rqsData || []).filter((rq: any) => !rowBelongsToDeletedProject(rq)))
     setFacturas((facturasData || []).filter((factura: any) => !rowBelongsToDeletedProject(factura)))
     setLoading(false)
   }
-
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
   const fmtFull = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -104,6 +126,8 @@ export default function FlujoCajaPage() {
   const totalPorCobrar = facturasPorCobrar.reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+
+  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
 
   return (
     <div>
@@ -296,5 +320,6 @@ export default function FlujoCajaPage() {
     </div>
   )
 }
+
 
 
