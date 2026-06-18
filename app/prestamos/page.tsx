@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { puedeAccederRuta } from "@/lib/permissions"
 
 const TIPOS_PRESTAMISTA: Record<string, string> = {
   banco: "Banco", entidad_financiera: "Entidad financiera",
@@ -113,6 +114,7 @@ export default function PrestamosPage() {
   const [empleados, setEmpleados] = useState<any[]>([])
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [autorizado, setAutorizado] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState<any>(null)
@@ -131,20 +133,40 @@ export default function PrestamosPage() {
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-      setPerfil(p)
+
+    if (!user) {
+      setAutorizado(false)
+      setLoading(false)
+      return
     }
+
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const puedeVer = puedeAccederRuta(p?.perfil, "/prestamos")
+    setAutorizado(puedeVer)
+
+    if (!puedeVer) {
+      setLoading(false)
+      return
+    }
+
     const { data: pr } = await supabase
       .from("prestamos")
       .select("*, empleado:rrhh_trabajadores(nombre, apellido), registrador:perfiles!registrado_por(nombre, apellido)")
       .order("created_at", { ascending: false })
+
     setPrestamos(pr || [])
-    const { data: em } = await supabase.from("rrhh_trabajadores").select("id, nombre, apellido").eq("activo", true).order("apellido")
+
+    const { data: em } = await supabase
+      .from("rrhh_trabajadores")
+      .select("id, nombre, apellido")
+      .eq("activo", true)
+      .order("apellido")
+
     setEmpleados(em || [])
     setLoading(false)
   }
-
   async function loadDetalle(prestamo: any) {
     setSelected(prestamo)
     const { data: c } = await supabase.from("prestamo_cuotas").select("*").eq("prestamo_id", prestamo.id).order("numero_cuota")
@@ -154,6 +176,7 @@ export default function PrestamosPage() {
   }
 
   async function guardar() {
+    if (!autorizado || !puedeGestionar) return
     if (!form.nombre || !form.prestamista || !form.monto_original || !form.num_cuotas || !form.fecha_inicio) {
       alert("Nombre, prestamista, monto, cuotas y fecha son obligatorios"); return
     }
@@ -195,6 +218,7 @@ export default function PrestamosPage() {
   }
 
   async function registrarPago() {
+    if (!autorizado || !puedeGestionar) return
     if (!formPago.monto || !formPago.fecha_pago) { alert("Monto y fecha son obligatorios"); return }
     const monto = Number(formPago.monto)
     await supabase.from("prestamo_pagos").insert({
@@ -228,6 +252,7 @@ export default function PrestamosPage() {
   }
 
   async function cambiarEstadoPrestamo(id: string, estado: string) {
+    if (!autorizado || !puedeGestionar) return
     await supabase.from("prestamos").update({ estado }).eq("id", id)
     setSelected((prev: any) => ({ ...prev, estado }))
     load()
@@ -252,6 +277,8 @@ export default function PrestamosPage() {
   const proximaCuota = cuotas.find(c => c.estado !== "pagado")
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+
+  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
 
   return (
     <div style={{ display: "flex", gap: 20, height: "calc(100vh - 80px)" }}>
@@ -673,3 +700,5 @@ export default function PrestamosPage() {
     </div>
   )
 }
+
+
