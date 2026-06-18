@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import { puedeAccederRuta } from "@/lib/permissions"
 
 const ESTADO_COLOR: Record<string, any> = {
   pendiente:   { bg: "#fef9c3", color: "#92400e", label: "Pendiente" },
@@ -23,25 +24,41 @@ export default function ConciliacionPage() {
   const [editando, setEditando] = useState<any>(null)
   const [form, setForm] = useState({ fecha_deposito: "", referencia_deposito: "" })
   const [perfil, setPerfil] = useState<any>(null)
+  const [autorizado, setAutorizado] = useState(false)
 
   useEffect(() => { load() }, [])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-      setPerfil(p)
+
+    if (!user) {
+      setAutorizado(false)
+      setLoading(false)
+      return
     }
+
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const puedeVer = puedeAccederRuta(p?.perfil, "/conciliacion")
+    setAutorizado(puedeVer)
+
+    if (!puedeVer) {
+      setLoading(false)
+      return
+    }
+
     const { data } = await supabase
       .from("facturas")
       .select("*, proyecto:proyectos(nombre, codigo, deleted_at, cliente:clientes(razon_social))")
       .not("estado", "eq", "anulada")
       .order("fecha_emision", { ascending: false })
+
     setFacturas((data || []).filter((factura: any) => !rowBelongsToDeletedProject(factura)))
     setLoading(false)
   }
-
   async function conciliar(factura: any) {
+    if (!autorizado) return
     if (!form.fecha_deposito) { alert("Fecha de depósito es obligatoria"); return }
     setSaving(factura.id)
     const { data: { user } } = await supabase.auth.getUser()
@@ -60,6 +77,7 @@ export default function ConciliacionPage() {
   }
 
   async function desconciliar(facturaId: string) {
+    if (!autorizado) return
     if (!confirm("¿Deshacer la conciliación de esta factura?")) return
     await supabase.from("facturas").update({
       conciliado: false,
@@ -90,6 +108,8 @@ export default function ConciliacionPage() {
   const pendientesConciliar = facturas.filter(f => !f.conciliado && f.estado === "cobrada").length
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+
+  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
 
   return (
     <div>
@@ -260,4 +280,5 @@ export default function ConciliacionPage() {
     </div>
   )
 }
+
 
