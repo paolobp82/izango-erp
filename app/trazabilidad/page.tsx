@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import { puedeVerInformacionSensible } from "@/lib/permissions"
 
 const MODULO_COLOR: Record<string, any> = {
   proyectos:    { bg: "#dbeafe", color: "#1e40af" },
@@ -35,6 +36,8 @@ export default function TrazabilidadPage() {
   const supabase = createClient()
   const [registros, setRegistros] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [perfil, setPerfil] = useState<any>(null)
+  const [autorizado, setAutorizado] = useState(false)
   const [filtroModulo, setFiltroModulo] = useState("")
   const [filtroUsuario, setFiltroUsuario] = useState("")
   const [filtroAccion, setFiltroAccion] = useState("")
@@ -48,11 +51,31 @@ export default function TrazabilidadPage() {
   useEffect(() => { load() }, [pagina])
 
   async function load() {
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      setAutorizado(false)
+      setLoading(false)
+      return
+    }
+
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const puedeVer = puedeVerInformacionSensible(p?.perfil)
+    setAutorizado(puedeVer)
+
+    if (!puedeVer) {
+      setLoading(false)
+      return
+    }
+
     const { data } = await supabase
       .from("trazabilidad")
       .select("*")
       .order("created_at", { ascending: false })
       .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1)
+
     setRegistros(data || [])
     const us = [...new Set((data || []).map((r: any) => r.usuario_nombre).filter(Boolean))]
     const ms = [...new Set((data || []).map((r: any) => r.modulo).filter(Boolean))]
@@ -60,7 +83,6 @@ export default function TrazabilidadPage() {
     setModulos(ms as string[])
     setLoading(false)
   }
-
   const filtrados = registros.filter(r => {
     if (filtroModulo && r.modulo !== filtroModulo) return false
     if (filtroUsuario && r.usuario_nombre !== filtroUsuario) return false
@@ -75,6 +97,8 @@ export default function TrazabilidadPage() {
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none" }
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+
+  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
 
   return (
     <div>
@@ -257,5 +281,6 @@ export default function TrazabilidadPage() {
     </div>
   )
 }
+
 
 
