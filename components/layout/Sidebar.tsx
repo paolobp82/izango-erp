@@ -58,6 +58,9 @@ const ALL_NAV = [
     { label: "Conciliación", href: "/conciliacion", icon: "⇄" },
     { label: "Centros de Costo", href: "/centro-costos", icon: "◆" },
   ]},
+  { section: "Finanzas Corporativas", items: [
+    { label: "Deudas y Financiamientos", href: "/prestamos", icon: "▰" },
+  ]},
   { section: "Personas", items: [
     { label: "Trabajadores", href: "/rrhh/trabajadores", icon: "♙" },
     { label: "Planilla", href: "/rrhh/planilla", icon: "▦" },
@@ -267,6 +270,7 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
     </aside>
   )
 }
+
 
 
 
