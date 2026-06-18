@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import { puedeAccederRuta } from "@/lib/permissions"
 
 const TIPOS: Record<string, string> = {
   alquiler: "Alquiler",
@@ -42,6 +43,7 @@ export default function GastosOficinaPage() {
   const [proveedores, setProveedores] = useState<any[]>([])
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [autorizado, setAutorizado] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [selected, setSelected] = useState<any>(null)
@@ -54,27 +56,44 @@ export default function GastosOficinaPage() {
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-      setPerfil(p)
+
+    if (!user) {
+      setAutorizado(false)
+      setLoading(false)
+      return
     }
+
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const puedeVer = puedeAccederRuta(p?.perfil, "/gastos-oficina")
+    setAutorizado(puedeVer)
+
+    if (!puedeVer) {
+      setLoading(false)
+      return
+    }
+
     const { data: g } = await supabase
       .from("gastos_oficina")
       .select("*, proveedor:proveedores(nombre), registrador:perfiles!registrado_por(nombre, apellido)")
       .order("fecha", { ascending: false })
     setGastos(g || [])
+
     const { data: pr } = await supabase.from("proveedores").select("id, nombre").order("nombre")
     setProveedores(pr || [])
+
     setLoading(false)
   }
-
   function abrirNuevo() {
+    if (!autorizado) return
     setEditando(null)
     setForm({ ...formVacio })
     setShowForm(true)
   }
 
   function abrirEditar(g: any) {
+    if (!autorizado) return
     setEditando(g)
     setForm({
       descripcion: g.descripcion || "",
@@ -101,6 +120,7 @@ export default function GastosOficinaPage() {
   }
 
   async function guardar() {
+    if (!autorizado || !puedeRegistrar) return
     if (!form.descripcion || !form.monto || !form.fecha) {
       alert("Descripción, monto y fecha son obligatorios"); return
     }
@@ -141,6 +161,7 @@ export default function GastosOficinaPage() {
   }
 
   async function guardarDatosOperacionGasto(registro: any) {
+    if (!autorizado || !puedeEditarPagoGasto) return
     const payload = {
       numero_operacion: (document.getElementById("go-numop-" + registro.id) as HTMLInputElement)?.value || null,
       banco_origen: (document.getElementById("go-banco-" + registro.id) as HTMLInputElement)?.value || null,
@@ -158,11 +179,13 @@ export default function GastosOficinaPage() {
     alert("Datos de operación guardados")
   }
   async function cambiarEstado(id: string, estado_pago: string) {
+    if (!autorizado || !puedeRegistrar) return
     await supabase.from("gastos_oficina").update({ estado_pago }).eq("id", id)
     setGastos(prev => prev.map(g => g.id === id ? { ...g, estado_pago } : g))
   }
 
   async function eliminar(id: string) {
+    if (!autorizado || !puedeRegistrar) return
     if (!confirm("¿Eliminar este gasto?")) return
     await supabase.from("gastos_oficina").delete().eq("id", id)
     load()
@@ -187,6 +210,8 @@ export default function GastosOficinaPage() {
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+
+  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
 
   return (
     <div>
@@ -498,6 +523,7 @@ export default function GastosOficinaPage() {
     </div>
   )
 }
+
 
 
 
