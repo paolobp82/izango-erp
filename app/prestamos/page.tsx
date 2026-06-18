@@ -287,11 +287,11 @@ export default function PrestamosPage() {
       <div style={{ flex: 1, overflowY: "auto", paddingRight: 4 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Préstamos</h1>
-            <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{prestamos.length} préstamos · Deuda activa: {fmt(totalDeuda)}</p>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Deudas y Financiamientos</h1>
+            <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{prestamos.length} obligaciones registradas · Deuda activa: {fmt(totalDeuda)}</p>
           </div>
           {puedeGestionar && (
-            <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo préstamo</button>
+            <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva obligación</button>
           )}
         </div>
 
@@ -308,10 +308,10 @@ export default function PrestamosPage() {
           </select>
         </div>
 
-        {/* Lista préstamos */}
+        {/* Lista deudas y financiamientos */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {prestamosFiltrados.length === 0 ? (
-            <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay préstamos registrados</div>
+            <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay deudas o financiamientos registrados</div>
           ) : prestamosFiltrados.map(p => {
             const es = ESTADOS[p.estado] || ESTADOS.activo
             const activo = selected?.id === p.id
@@ -547,7 +547,7 @@ export default function PrestamosPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 640, maxHeight: "92vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>Nuevo préstamo</h2>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>Nueva deuda o financiamiento</h2>
               <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
             </div>
             <div style={{ display: "grid", gap: 14 }}>
@@ -700,5 +700,6 @@ export default function PrestamosPage() {
     </div>
   )
 }
+
 
 
