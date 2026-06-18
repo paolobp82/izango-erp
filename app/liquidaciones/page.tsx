@@ -9,6 +9,7 @@ import { rowBelongsToDeletedProject } from "@/lib/projects"
 import KpiCard from "@/components/ui/KpiCard"
 import SectionCard from "@/components/ui/SectionCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import { puedeAccederRuta } from "@/lib/permissions"
 
 export default function LiquidacionesPage() {
   const supabase = createClient()
@@ -21,22 +22,39 @@ export default function LiquidacionesPage() {
   const [items, setItems] = useState<any[]>([])
   const [loadingItems, setLoadingItems] = useState(false)
   const [perfil, setPerfil] = useState<any>(null)
+  const [autorizado, setAutorizado] = useState(false)
 
   useEffect(() => { load() }, [])
 
   async function load() {
     const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-      setPerfil(p)
+
+    if (!user) {
+      setAutorizado(false)
+      setLoading(false)
+      return
     }
+
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const puedeVer = puedeAccederRuta(p?.perfil, "/liquidaciones")
+    setAutorizado(puedeVer)
+
+    if (!puedeVer) {
+      setLoading(false)
+      return
+    }
+
     const { data: liqs } = await supabase
       .from("liquidaciones")
       .select("*, proyecto:proyectos(nombre, codigo, deleted_at, cliente:clientes(razon_social))")
       .order("created_at", { ascending: false })
+
     const liqsActivas = (liqs || []).filter((liq: any) => !rowBelongsToDeletedProject(liq))
     setLiquidaciones(liqsActivas)
+
     const liqProyecto = proyectoIdParam ? liqsActivas.find((liq: any) => liq.proyecto_id === proyectoIdParam) : null
     if (liqProyecto) await abrirLiquidacion(liqProyecto)
 
@@ -45,11 +63,12 @@ export default function LiquidacionesPage() {
       .select("id, nombre, codigo")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
+
     setProyectos(provs || [])
     setLoading(false)
   }
-
   async function crearLiquidacion(proyectoId: string) {
+    if (!autorizado) return
     const proyectoActivo = proyectos.find((p: any) => p.id === proyectoId)
     if (!proyectoActivo) {
       alert("No se puede liquidar un proyecto eliminado o no disponible.")
@@ -103,6 +122,7 @@ export default function LiquidacionesPage() {
   }
 
   async function abrirLiquidacion(liq: any) {
+    if (!autorizado) return
     if (rowBelongsToDeletedProject(liq)) {
       alert("Esta liquidacion pertenece a un proyecto eliminado y no puede abrirse como activa.")
       return
@@ -273,6 +293,7 @@ export default function LiquidacionesPage() {
   }
 
   async function cerrarLiquidacion() {
+    if (!autorizado) return
     if (!confirm("¿Cerrar esta liquidación? Ya no se podrá editar.")) return
     await supabase.from("liquidaciones").update({ cerrada: true, aprobada_por: perfil?.id, fecha_cierre: new Date().toISOString() }).eq("id", selected.id)
     setSelected({ ...selected, cerrada: true })
@@ -316,6 +337,8 @@ export default function LiquidacionesPage() {
   const inp: any = { padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", width: "100%" }
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+
+  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
 
   return (
     <div>
@@ -612,6 +635,7 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
 
 
 
