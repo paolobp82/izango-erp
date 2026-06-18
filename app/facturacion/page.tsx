@@ -7,6 +7,7 @@ import { enviarAlerta } from "@/lib/alertas"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import { puedeAccederRuta } from "@/lib/permissions"
 
 const ESTADOS: Record<string, any> = {
   pendiente:  { bg: "#fef9c3", color: "#92400e",  label: "Pendiente" },
@@ -22,6 +23,8 @@ export default function FacturacionPage() {
   const [facturas, setFacturas] = useState<any[]>([])
   const [proyectos, setProyectos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [perfil, setPerfil] = useState<any>(null)
+  const [autorizado, setAutorizado] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState<any>(null)
@@ -37,14 +40,42 @@ export default function FacturacionPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      setAutorizado(false)
+      setLoading(false)
+      return
+    }
+
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const puedeVer = puedeAccederRuta(p?.perfil, "/facturacion")
+    setAutorizado(puedeVer)
+
+    if (!puedeVer) {
+      setLoading(false)
+      return
+    }
+
     const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
+
     const { data: facts } = await supabase
       .from("facturas")
       .select("*, proyecto:proyectos(nombre, codigo, deleted_at, cliente:clientes(razon_social))")
       .order("created_at", { ascending: false })
+
     setFacturas((facts || []).filter((factura: any) => !rowBelongsToDeletedProject(factura)))
-    const { data: provs } = await supabase.from("proyectos").select("id, nombre, codigo").is("deleted_at", null).order("created_at", { ascending: false })
+
+    const { data: provs } = await supabase
+      .from("proyectos")
+      .select("id, nombre, codigo")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+
     setProyectos(provs || [])
+
     if (proyectoIdParam) {
       const proyectoActivo = (provs || []).some((p: any) => p.id === proyectoIdParam)
       if (proyectoActivo) {
@@ -52,9 +83,9 @@ export default function FacturacionPage() {
         setShowForm(true)
       }
     }
+
     setLoading(false)
   }
-
   function calcularMontos() {
     const subtotal = Number(form.subtotal) || 0
     const igvMonto = subtotal * (Number(form.igv) / 100)
@@ -67,6 +98,7 @@ export default function FacturacionPage() {
   }
 
   async function guardar() {
+    if (!autorizado) return
     if (!form.proyecto_id || !form.numero_factura || !form.subtotal) {
       alert("Proyecto, número de factura y subtotal son obligatorios")
       return
@@ -106,6 +138,7 @@ export default function FacturacionPage() {
   }
 
   async function cambiarEstado(id: string, estado: string) {
+    if (!autorizado) return
     const facturaActual = facturas.find(f => f.id === id)
     if (rowBelongsToDeletedProject(facturaActual)) {
       alert("Esta factura pertenece a un proyecto eliminado y no puede procesarse.")
@@ -143,6 +176,8 @@ export default function FacturacionPage() {
   const totalFiltradoDetraccion = facturasFiltradas.filter(f => f.estado !== "anulada").reduce((s, f) => s + (f.detraccion_monto || 0), 0)
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+
+  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
 
   return (
     <div>
@@ -399,6 +434,7 @@ export default function FacturacionPage() {
     </div>
   )
 }
+
 
 
 
