@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import { puedeAccederRuta } from "@/lib/permissions"
 
 const TIPOS = ["evento", "cliente", "campaña", "linea_negocio", "produccion", "movilidad", "personal", "materiales", "otro"]
 const TIPO_COLOR: Record<string, any> = {
@@ -21,6 +22,8 @@ const TIPO_COLOR: Record<string, any> = {
 export default function CentroCostosPage() {
   const supabase = createClient()
   const [centros, setCentros] = useState<any[]>([])
+  const [perfil, setPerfil] = useState<any>(null)
+  const [autorizado, setAutorizado] = useState(false)
   const [loading, setLoading] = useState(true)
   const [filtroDesde, setFiltroDesde] = useState("")
   const [filtroHasta, setFiltroHasta] = useState("")
@@ -57,17 +60,36 @@ export default function CentroCostosPage() {
   }
 
   async function load() {
-    // Traer centros con suma ejecutado desde cotizacion_items aprobados
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      setAutorizado(false)
+      setLoading(false)
+      return
+    }
+
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+
+    const puedeVer = puedeAccederRuta(p?.perfil, "/centro-costos")
+    setAutorizado(puedeVer)
+
+    if (!puedeVer) {
+      setLoading(false)
+      return
+    }
+
     const { data: cs } = await supabase
       .from("centro_costos")
       .select("*")
       .eq("activo", true)
       .order("nombre")
+
     setCentros(cs || [])
     setLoading(false)
   }
-
   async function loadDetalle(centroId: string) {
+    if (!autorizado) return
     const { data } = await supabase
       .from("cotizacion_items")
       .select("*, cotizacion:cotizaciones(version, estado, proyecto_id, proyecto:proyectos(nombre, codigo, deleted_at))")
@@ -78,6 +100,7 @@ export default function CentroCostosPage() {
   }
 
   async function guardarCentro() {
+    if (!autorizado) return
     if (!form.nombre) { alert("Nombre es obligatorio"); return }
     setSaving(true)
     if (editando) {
@@ -93,6 +116,7 @@ export default function CentroCostosPage() {
   }
 
   async function eliminarCentro(id: string) {
+    if (!autorizado) return
     if (!confirm("¿Eliminar este centro de costos?")) return
     await supabase.from("centro_costos").update({ activo: false }).eq("id", id)
     if (selected?.id === id) setSelected(null)
@@ -100,6 +124,7 @@ export default function CentroCostosPage() {
   }
 
   function abrirEditar(centro: any) {
+    if (!autorizado) return
     setEditando(centro)
     setForm({ nombre: centro.nombre, tipo: centro.tipo, descripcion: centro.descripcion || "", presupuesto: centro.presupuesto || "" })
     setShowForm(true)
@@ -114,6 +139,8 @@ export default function CentroCostosPage() {
   const totalSaldo = totalPresupuesto - totalEjecutado
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+
+  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
 
   return (
     <div>
@@ -343,4 +370,5 @@ export default function CentroCostosPage() {
     </div>
   )
 }
+
 
