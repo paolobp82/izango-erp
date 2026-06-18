@@ -14,7 +14,6 @@ const PERFIL: Record<string,string> = {
   administrador:"Administrador",
   controller:"Controller",
   gerente_produccion:"Gerente de Produccion",
-  gerente_finanzas:"Gerente de Finanzas",
   productor:"Productor",
   audiovisual:"Audiovisual",
   logistica:"Logistica",
@@ -25,11 +24,10 @@ const PERFIL: Record<string,string> = {
 const ACCESO: Record<string, string[]> = {
   superadmin: ["*"],
   gerente_general: ["*"],
-  administrador: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/buscar-items","/proveedores","/biblioteca","/biblioteca-medios","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/inventario","/envios-materiales","/audiovisual","/rrhh","/ia","/trazabilidad","/alertas","/admin","/perfil","/tareas","/reporteria"],
-  controller: ["/dashboard","/proyectos","/calendario","/clientes","/proformas","/buscar-items","/proveedores","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/inventario","/envios-materiales","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas","/reporteria"],
-  gerente_produccion: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/proformas","/buscar-items","/proveedores","/biblioteca","/biblioteca-medios","/rq","/liquidaciones","/caja-chica","/inventario","/envios-materiales","/audiovisual","/rrhh","/ia","/trazabilidad","/alertas","/perfil","/tareas"],
-  gerente_finanzas: ["/dashboard","/proyectos","/clientes","/rq","/facturacion","/liquidaciones","/conciliacion","/flujo-caja","/centro-costos","/caja-chica","/gastos-oficina","/prestamos","/clientes","/ia","/alertas","/perfil","/tareas","/reporteria"],
-  productor: ["/dashboard","/proyectos","/calendario","/gestor","/clientes","/proformas","/buscar-items","/proveedores","/biblioteca","/biblioteca-medios","/rq","/liquidaciones","/caja-chica","/envios-materiales","/audiovisual","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
+  controller: ["*"],
+  administrador: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/buscar-items","/proveedores","/biblioteca","/biblioteca-medios","/rq","/facturacion","/liquidaciones","/inventario","/envios-materiales","/audiovisual","/rrhh/planilla","/rrhh/permisos","/rrhh/horas-extras","/rrhh/vacaciones","/rrhh/faltas-medicas","/ia","/alertas","/perfil","/tareas"],
+  gerente_produccion: ["/dashboard","/tareas","/calendario","/alertas","/crm","/clientes","/proformas","/buscar-items","/biblioteca","/biblioteca-medios","/proyectos","/gestor","/audiovisual","/proveedores","/rq","/inventario","/inventario/ordenes","/envios-materiales","/facturacion","/liquidaciones","/rrhh/planilla","/rrhh/permisos","/rrhh/horas-extras","/rrhh/vacaciones","/rrhh/faltas-medicas","/perfil","/ia"],
+  productor: ["/dashboard","/tareas","/calendario","/alertas","/crm","/clientes","/proformas","/buscar-items","/biblioteca","/biblioteca-medios","/proyectos","/gestor","/audiovisual","/proveedores","/rq","/inventario","/inventario/ordenes","/envios-materiales","/liquidaciones","/rrhh/planilla","/rrhh/permisos","/rrhh/horas-extras","/rrhh/vacaciones","/rrhh/faltas-medicas","/perfil","/ia"],
   audiovisual: ["/dashboard","/tareas","/audiovisual","/biblioteca-medios","/perfil"],
   logistica: ["/dashboard","/calendario","/clientes","/inventario","/envios-materiales","/rq","/caja-chica","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
   comercial: ["/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/buscar-items","/biblioteca-medios","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"],
@@ -281,3 +279,5 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
     </aside>
   )
 }
+
+
