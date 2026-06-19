@@ -2,22 +2,25 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { puedeAccederRuta } from "@/lib/permissions"
+import KpiCard from "@/components/ui/KpiCard"
+import SectionCard from "@/components/ui/SectionCard"
+import StatusBadge from "@/components/ui/StatusBadge"
 
 const ESTADOS: Record<string, any> = {
-  borrador: { label: "Borrador", bg: "#f3f4f6", color: "#6b7280" },
-  pendiente: { label: "Pendiente", bg: "#fef9c3", color: "#92400e" },
-  programado: { label: "Programado", bg: "#dbeafe", color: "#1e40af" },
-  aprobada: { label: "Aprobada", bg: "#dbeafe", color: "#1e40af" },
-  aprobado: { label: "Aprobado", bg: "#dbeafe", color: "#1e40af" },
-  en_proceso: { label: "En proceso", bg: "#e0f2fe", color: "#0369a1" },
-  en_transito: { label: "En tránsito", bg: "#fef9c3", color: "#92400e" },
-  ejecutada: { label: "Ejecutada", bg: "#dcfce7", color: "#15803d" },
-  entregado: { label: "Entregado", bg: "#dcfce7", color: "#15803d" },
-  retornado: { label: "Retornado", bg: "#f5f3ff", color: "#6d28d9" },
-  observado: { label: "Observado", bg: "#fed7aa", color: "#9a3412" },
-  cerrada: { label: "Cerrada", bg: "#e5e7eb", color: "#374151" },
-  cancelada: { label: "Cancelada", bg: "#fee2e2", color: "#991b1b" },
-  cancelado: { label: "Cancelado", bg: "#fee2e2", color: "#991b1b" },
+  borrador: { label: "Borrador", type: "pendiente" },
+  pendiente: { label: "Pendiente", type: "pendiente" },
+  programado: { label: "Programado", type: "programado" },
+  aprobada: { label: "Aprobada", type: "aprobado" },
+  aprobado: { label: "Aprobado", type: "aprobado" },
+  en_proceso: { label: "En proceso", type: "en_progreso" },
+  en_transito: { label: "En tránsito", type: "en_progreso" },
+  ejecutada: { label: "Ejecutada", type: "completado" },
+  entregado: { label: "Entregado", type: "completado" },
+  retornado: { label: "Retornado", type: "completado" },
+  observado: { label: "Observado", type: "revision" },
+  cerrada: { label: "Cerrada", type: "completado" },
+  cancelada: { label: "Cancelada", type: "cancelado" },
+  cancelado: { label: "Cancelado", type: "cancelado" },
 }
 
 export default function MiTrabajoLogisticaPage() {
@@ -71,7 +74,7 @@ export default function MiTrabajoLogisticaPage() {
         id: o.id,
         origen: "orden",
         origenLabel: "Orden Inventario",
-        titulo: `${o.tipo || "Orden"} ${o.proyecto ? "· " + o.proyecto.codigo : ""}`,
+        titulo: `${o.tipo || "Orden"}${o.proyecto ? " · " + o.proyecto.codigo : ""}`,
         estado: o.estado,
         fecha: o.fecha_entrega || o.created_at,
         destino: o.direccion_destino || "—",
@@ -86,7 +89,7 @@ export default function MiTrabajoLogisticaPage() {
         id: e.id,
         origen: "envio",
         origenLabel: "Envío Materiales",
-        titulo: `${e.tipo || "Envío"} ${e.proyecto ? "· " + e.proyecto.codigo : ""}`,
+        titulo: `${e.tipo || "Envío"}${e.proyecto ? " · " + e.proyecto.codigo : ""}`,
         estado: e.estado,
         fecha: e.fecha_salida || e.fecha_entrega_estimada || e.created_at,
         destino: e.direccion_destino || "—",
@@ -125,84 +128,102 @@ export default function MiTrabajoLogisticaPage() {
   const entregados = tareas.filter(t => ["entregado","ejecutada","cerrada","retornado"].includes(t.estado)).length
   const observados = tareas.filter(t => t.estado === "observado").length
 
-  const inp: any = { padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, background: "#fff" }
+  const inp: any = {
+    padding: "8px 10px",
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    fontSize: 13,
+    background: "#fff",
+    fontFamily: "inherit",
+    outline: "none",
+  }
 
   if (loading) return <div style={{ padding: 24, color: "#6b7280" }}>Cargando...</div>
   if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "#111827" }}>Mi Trabajo Logística</h1>
-          <p style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Vista consolidada de órdenes, envíos y traslados pendientes de atención.</p>
+          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "#0f172a" }}>Mi Trabajo Logística</h1>
+          <p style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>Vista consolidada de órdenes, envíos y traslados pendientes de atención.</p>
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <a href="/inventario/ordenes" className="btn-secondary" style={{ fontSize: 13, textDecoration: "none" }}>+ Nueva orden</a>
-          <a href="/envios-materiales" className="btn-secondary" style={{ fontSize: 13, textDecoration: "none" }}>+ Nuevo envío</a>
-          <a href="/logistica/traslados" className="btn-primary" style={{ fontSize: 13, textDecoration: "none" }}>+ Nuevo traslado</a>
+          <a href="/inventario/ordenes" className="btn-secondary" style={{ fontSize: 13, textDecoration: "none" }}>▤ Nueva orden</a>
+          <a href="/envios-materiales" className="btn-secondary" style={{ fontSize: 13, textDecoration: "none" }}>✈ Nuevo envío</a>
+          <a href="/logistica/traslados" className="btn-primary" style={{ fontSize: 13, textDecoration: "none" }}>＋ Nuevo traslado</a>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14, marginBottom: 18 }}>
-        <div style={{ background:"#fff", border:"1px solid #e5e7eb", borderRadius:14, padding:16 }}><div style={{ fontSize:12, color:"#64748b" }}>Total tareas</div><div style={{ fontSize:26, fontWeight:800 }}>{tareas.length}</div></div>
-        <div style={{ background:"#fff", border:"1px solid #e5e7eb", borderRadius:14, padding:16 }}><div style={{ fontSize:12, color:"#64748b" }}>Pendientes / tránsito</div><div style={{ fontSize:26, fontWeight:800, color:"#92400e" }}>{pendientes}</div></div>
-        <div style={{ background:"#fff", border:"1px solid #e5e7eb", borderRadius:14, padding:16 }}><div style={{ fontSize:12, color:"#64748b" }}>Entregadas / cerradas</div><div style={{ fontSize:26, fontWeight:800, color:"#15803d" }}>{entregados}</div></div>
-        <div style={{ background:"#fff", border:"1px solid #e5e7eb", borderRadius:14, padding:16 }}><div style={{ fontSize:12, color:"#64748b" }}>Observadas</div><div style={{ fontSize:26, fontWeight:800, color:"#9a3412" }}>{observados}</div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
+        <KpiCard icon="tasks" label="Total tareas" value={String(tareas.length)} sub="Órdenes, envíos y traslados" borderColor="#E2E8F0" valueColor="#0f172a" />
+        <KpiCard icon="truck" label="Pendientes / tránsito" value={String(pendientes)} sub="Por atender" borderColor="#F59E0B" valueColor="#92400e" />
+        <KpiCard icon="eye" label="En revisión / observadas" value={String(observados)} sub="Con incidencias" borderColor="#8B5CF6" valueColor="#6d28d9" />
+        <KpiCard icon="check" label="Entregadas / cerradas" value={String(entregados)} sub="Finalizadas" borderColor="#10B981" valueColor="#15803d" />
       </div>
 
-      <div style={{ display:"flex", gap:10, marginBottom:14 }}>
-        <select style={inp} value={filtroOrigen} onChange={e => setFiltroOrigen(e.target.value)}>
-          <option value="">Todos los orígenes</option>
-          <option value="orden">Órdenes</option>
-          <option value="envio">Envíos de materiales</option>
-          <option value="traslado">Traslados y movimientos</option>
-        </select>
-        <select style={inp} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
-          <option value="">Todos los estados</option>
-          {Object.entries(ESTADOS).map(([k,v]: any) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-      </div>
+      <SectionCard>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
+          <select style={{ ...inp, minWidth: 220 }} value={filtroOrigen} onChange={e => setFiltroOrigen(e.target.value)}>
+            <option value="">Todos los orígenes</option>
+            <option value="orden">Órdenes</option>
+            <option value="envio">Envíos de materiales</option>
+            <option value="traslado">Traslados y movimientos</option>
+          </select>
 
-      <div style={{ background:"#fff", border:"1px solid #e5e7eb", borderRadius:14, overflow:"hidden" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse" }}>
-          <thead>
-            <tr style={{ background:"#f8fafc" }}>
-              <th style={{ padding:"10px 12px", textAlign:"left", fontSize:11, color:"#64748b" }}>ORIGEN</th>
-              <th style={{ padding:"10px 12px", textAlign:"left", fontSize:11, color:"#64748b" }}>TAREA</th>
-              <th style={{ padding:"10px 12px", textAlign:"left", fontSize:11, color:"#64748b" }}>DESTINO</th>
-              <th style={{ padding:"10px 12px", textAlign:"left", fontSize:11, color:"#64748b" }}>CONTACTO</th>
-              <th style={{ padding:"10px 12px", textAlign:"left", fontSize:11, color:"#64748b" }}>FECHA</th>
-              <th style={{ padding:"10px 12px", textAlign:"left", fontSize:11, color:"#64748b" }}>ESTADO</th>
-              <th style={{ padding:"10px 12px", textAlign:"right", fontSize:11, color:"#64748b" }}>ACCIÓN</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtradas.map(t => {
-              const e = ESTADOS[t.estado] || { label: t.estado, bg:"#f3f4f6", color:"#374151" }
-              return (
-                <tr key={t.origen + t.id} style={{ borderTop:"1px solid #f1f5f9" }}>
-                  <td style={{ padding:"12px", fontSize:12, fontWeight:700 }}>{t.origenLabel}</td>
-                  <td style={{ padding:"12px", fontSize:13, color:"#111827" }}>{t.titulo}</td>
-                  <td style={{ padding:"12px", fontSize:12, color:"#475569" }}>{t.destino}</td>
-                  <td style={{ padding:"12px", fontSize:12, color:"#475569" }}>{t.contacto}</td>
-                  <td style={{ padding:"12px", fontSize:12, color:"#64748b" }}>{t.fecha ? String(t.fecha).slice(0,10) : "—"}</td>
-                  <td style={{ padding:"12px" }}>
-                    <span style={{ background:e.bg, color:e.color, padding:"4px 8px", borderRadius:999, fontSize:11, fontWeight:700 }}>{e.label}</span>
-                  </td>
-                  <td style={{ padding:"12px", textAlign:"right" }}>
-                    <a href={t.href} className="btn-secondary" style={{ fontSize:12, textDecoration:"none" }}>Abrir</a>
+          <select style={{ ...inp, minWidth: 220 }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
+            <option value="">Todos los estados</option>
+            {Object.entries(ESTADOS).map(([k,v]: any) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#f8fafc" }}>
+                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>ORIGEN</th>
+                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>TAREA</th>
+                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>DESTINO</th>
+                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>CONTACTO</th>
+                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>FECHA</th>
+                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>ESTADO</th>
+                <th style={{ padding: "10px 12px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "#64748b" }}>ACCIÓN</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtradas.map(t => {
+                const e = ESTADOS[t.estado] || { label: t.estado, type: "pendiente" }
+                return (
+                  <tr key={t.origen + t.id} style={{ borderTop: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "12px", fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{t.origenLabel}</td>
+                    <td style={{ padding: "12px", fontSize: 13, color: "#111827" }}>{t.titulo}</td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#475569" }}>{t.destino}</td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#475569" }}>{t.contacto}</td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#64748b" }}>{t.fecha ? String(t.fecha).slice(0,10) : "—"}</td>
+                    <td style={{ padding: "12px" }}>
+                      <StatusBadge label={e.label} type={e.type} />
+                    </td>
+                    <td style={{ padding: "12px", textAlign: "right" }}>
+                      <a href={t.href} className="btn-secondary" style={{ fontSize: 12, textDecoration: "none" }}>Abrir</a>
+                    </td>
+                  </tr>
+                )
+              })}
+
+              {filtradas.length === 0 && (
+                <tr>
+                  <td colSpan={7} style={{ padding: 46, textAlign: "center", color: "#94a3b8" }}>
+                    <div style={{ fontSize: 40, marginBottom: 10 }}>▱</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#64748b" }}>No hay tareas logísticas con estos filtros</div>
+                    <div style={{ fontSize: 13, marginTop: 4 }}>Intenta cambiar los filtros o crea una nueva orden, envío o traslado.</div>
                   </td>
                 </tr>
-              )
-            })}
-            {filtradas.length === 0 && (
-              <tr><td colSpan={7} style={{ padding:36, textAlign:"center", color:"#94a3b8" }}>No hay tareas logísticas con estos filtros</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
     </div>
   )
 }
