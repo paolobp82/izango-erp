@@ -149,10 +149,23 @@ export default function GastosOficinaPage() {
       entidad: "peru",
     }
     if (editando) {
-      await supabase.from("gastos_oficina").update(payload).eq("id", editando.id)
+      const { error } = await supabase.from("gastos_oficina").update(payload).eq("id", editando.id)
+      if (error) {
+        alert("ERROR UPDATE: " + error.message)
+        console.error(error)
+        setSaving(false)
+        return
+      }
       await registrarAccion({ accion: "editar", modulo: "gastos_oficina", entidad_tipo: "gasto_oficina", descripcion: "Gasto editado: " + form.descripcion })
     } else {
-      await supabase.from("gastos_oficina").insert(payload)
+      const { data, error } = await supabase.from("gastos_oficina").insert(payload).select()
+      console.log("INSERT GASTO OFICINA", data)
+      if (error) {
+        alert("ERROR INSERT: " + error.message)
+        console.error(error)
+        setSaving(false)
+        return
+      }
       await registrarAccion({ accion: "crear", modulo: "gastos_oficina", entidad_tipo: "gasto_oficina", descripcion: "Gasto creado: " + form.descripcion })
     }
     setSaving(false)
