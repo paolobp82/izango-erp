@@ -6,7 +6,7 @@ export const ACCESO: Record<string, string[]> = {
   administrador: [
     "/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/buscar-items",
     "/proveedores","/biblioteca","/biblioteca-medios","/rq","/facturacion","/liquidaciones",
-    "/inventario","/envios-materiales","/audiovisual","/rrhh/planilla","/rrhh/permisos",
+    "/inventario","/envios-materiales","/logistica/traslados","/logistica/mi-trabajo","/audiovisual","/rrhh/planilla","/rrhh/permisos",
     "/rrhh/horas-extras","/rrhh/vacaciones","/rrhh/faltas-medicas","/ia","/alertas",
     "/perfil","/tareas"
   ],
@@ -14,7 +14,7 @@ export const ACCESO: Record<string, string[]> = {
   gerente_produccion: [
     "/dashboard","/tareas","/calendario","/alertas","/crm","/clientes","/proformas",
     "/buscar-items","/biblioteca","/biblioteca-medios","/proyectos","/gestor","/audiovisual",
-    "/proveedores","/rq","/inventario","/inventario/ordenes","/envios-materiales",
+    "/proveedores","/rq","/inventario","/inventario/ordenes","/envios-materiales","/logistica/traslados","/logistica/mi-trabajo",
     "/facturacion","/liquidaciones","/rrhh/planilla","/rrhh/permisos","/rrhh/horas-extras",
     "/rrhh/vacaciones","/rrhh/faltas-medicas","/perfil","/ia"
   ],
@@ -22,7 +22,7 @@ export const ACCESO: Record<string, string[]> = {
   productor: [
     "/dashboard","/tareas","/calendario","/alertas","/crm","/clientes","/proformas",
     "/buscar-items","/biblioteca","/biblioteca-medios","/proyectos","/gestor","/audiovisual",
-    "/proveedores","/rq","/inventario","/inventario/ordenes","/envios-materiales",
+    "/proveedores","/rq","/inventario","/inventario/ordenes","/envios-materiales","/logistica/traslados","/logistica/mi-trabajo",
     "/liquidaciones","/rrhh/planilla","/rrhh/permisos","/rrhh/horas-extras",
     "/rrhh/vacaciones","/rrhh/faltas-medicas","/perfil","/ia"
   ],
@@ -30,7 +30,7 @@ export const ACCESO: Record<string, string[]> = {
   audiovisual: ["/dashboard","/tareas","/audiovisual","/biblioteca-medios","/perfil"],
 
   logistica: [
-    "/dashboard","/calendario","/clientes","/inventario","/envios-materiales","/rq",
+    "/dashboard","/calendario","/clientes","/inventario","/envios-materiales","/logistica/traslados","/logistica/mi-trabajo","/rq",
     "/caja-chica","/ia","/alertas","/rrhh/vacaciones","/rrhh/horas-extras",
     "/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"
   ],
@@ -75,3 +75,4 @@ export function puedeVerInformacionSensible(perfil?: string | null) {
 export function esRolOperativo(perfil?: string | null) {
   return ["gerente_produccion", "productor", "logistica", "comercial", "audiovisual", "practicante"].includes(perfil || "")
 }
+

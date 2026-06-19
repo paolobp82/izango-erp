@@ -46,8 +46,10 @@ const ALL_NAV = [
     { label: "Proveedores", href: "/proveedores", icon: "▥" },
     { label: "Requerimientos de Pago", href: "/rq", icon: "▤" },
     { label: "Inventario", href: "/inventario", icon: "◈" },
+    { label: "Mi Trabajo Logística", href: "/logistica/mi-trabajo", icon: "☑" },
     { label: "Órdenes", href: "/inventario/ordenes", icon: "☷" },
     { label: "Envíos de Materiales", href: "/envios-materiales", icon: "✈" },
+    { label: "Traslados y Movimientos", href: "/logistica/traslados", icon: "⇄" },
   ]},
   { section: "Finanzas", items: [
     { label: "Facturación", href: "/facturacion", icon: "$" },
@@ -270,6 +272,7 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
     </aside>
   )
 }
+
 
 
 
