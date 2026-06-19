@@ -269,11 +269,23 @@ export default function CajaChicaPage() {
   const totalHaber = registrosParaTotales.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_haber || 0), 0)
   const totalPendiente = registrosParaTotales.filter(r => r.estado === "pendiente").reduce((s, r) => s + (r.monto_debe || 0), 0)
 
-  const saldoHistorico = filtroPeriodo === "actual"
-    ? registros
-        .filter(r => r.archivada && r.estado === "aprobado")
+  const fechasPeriodoActual = registrosParaTotales
+    .map(r => r.fecha)
+    .filter(Boolean)
+    .sort()
+
+  const fechaInicioPeriodoActual = fechasPeriodoActual[0] || null
+
+  const saldoHistorico = filtroPeriodo === "todos"
+    ? 0
+    : registros
+        .filter(r => {
+          if (!r.archivada || r.estado !== "aprobado") return false
+          if (filtroPeriodo === "actual") return true
+          if (!fechaInicioPeriodoActual) return false
+          return r.periodo !== filtroPeriodo && r.fecha <= fechaInicioPeriodoActual
+        })
         .reduce((s, r) => s + (r.monto_haber || 0) - (r.monto_debe || 0), 0)
-    : 0
 
   const saldoCaja = saldoHistorico + totalHaber - totalDebe
   const montoInicialCaja = registrosParaTotales.find(r => r.categoria === "Apertura")?.monto_inicial || 0
@@ -469,6 +481,8 @@ export default function CajaChicaPage() {
               { label: "Tipo comprobante", value: selected.tipo_comprobante || "—" },
               { label: "N° operación", value: selected.numero_operacion || "—" },
               { label: "Proveedor", value: selected.proveedor_nombre || "—" },
+              { label: "Proveedor", value: selected.proveedor_nombre || "—" },
+              { label: "Destinatario / Para quién", value: selected.destinatario || "—" },
               { label: "Categoría", value: selected.categoria || "—" },
               { label: "Proyecto", value: selected.proyecto ? selected.proyecto.codigo + " — " + selected.proyecto.nombre : "—" },
               { label: "Solicitante", value: selected.solicitante ? selected.solicitante.nombre + " " + selected.solicitante.apellido : "—" },
@@ -682,6 +696,7 @@ export default function CajaChicaPage() {
     </div>
   )
 }
+
 
 
 
