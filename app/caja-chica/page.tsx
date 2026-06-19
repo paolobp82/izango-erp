@@ -23,7 +23,7 @@ const CATEGORIAS = [
 
 const ROLES_APROBADOR = ["controller", "gerente_general", "superadmin"]
 
-const formVacio = {
+const formVacio: any = {
   concepto: "", monto_debe: "", monto_haber: "", fecha: "",
   tipo_comprobante: "boleta", numero_operacion: "",
   proyecto_id: "", rq_id: "", categoria: "", observaciones: "", voucher_url: "",
@@ -34,6 +34,7 @@ export default function CajaChicaPage() {
   const supabase = createClient()
   const [registros, setRegistros] = useState<any[]>([])
   const [proyectos, setProyectos] = useState<any[]>([])
+  const [proveedores, setProveedores] = useState<any[]>([])
   const [rqs, setRqs] = useState<any[]>([])
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -94,8 +95,14 @@ export default function CajaChicaPage() {
       .not("periodo", "is", null)
 
     const periStr = [...new Set((rAll || []).map((r: any) => r.periodo).filter(Boolean))] as string[]
+    const { data: proveedoresData } = await supabase
+      .from("proveedores")
+      .select("id, nombre")
+      .order("nombre")
+
     setPeriodos(periStr)
     setProyectos(pr || [])
+    setProveedores(proveedoresData || [])
 
     const { data: rq } = await supabase
       .from("requerimientos_pago")
@@ -261,7 +268,14 @@ export default function CajaChicaPage() {
   const totalDebe = registrosParaTotales.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_debe || 0), 0)
   const totalHaber = registrosParaTotales.filter(r => r.estado === "aprobado").reduce((s, r) => s + (r.monto_haber || 0), 0)
   const totalPendiente = registrosParaTotales.filter(r => r.estado === "pendiente").reduce((s, r) => s + (r.monto_debe || 0), 0)
-  const saldoCaja = totalHaber - totalDebe
+
+  const saldoHistorico = filtroPeriodo === "actual"
+    ? registros
+        .filter(r => r.archivada && r.estado === "aprobado")
+        .reduce((s, r) => s + (r.monto_haber || 0) - (r.monto_debe || 0), 0)
+    : 0
+
+  const saldoCaja = saldoHistorico + totalHaber - totalDebe
   const montoInicialCaja = registrosParaTotales.find(r => r.categoria === "Apertura")?.monto_inicial || 0
   const pctUsado = montoInicialCaja > 0 ? ((totalDebe / montoInicialCaja) * 100) : 0
 
@@ -368,6 +382,7 @@ export default function CajaChicaPage() {
                   <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FECHA</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONCEPTO</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>SOLICITANTE</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DEBE</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>HABER</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
@@ -409,7 +424,7 @@ export default function CajaChicaPage() {
                             </>
                           )}
                           {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (
-                            <button onClick={e => { e.stopPropagation(); setEditando(r); setForm({ concepto: r.concepto||"", monto_debe: r.monto_debe||"", monto_haber: r.monto_haber||"", fecha: r.fecha||"", tipo_comprobante: r.tipo_comprobante||"boleta", numero_operacion: r.numero_operacion||"", proyecto_id: r.proyecto_id||"", rq_id: r.rq_id||"", categoria: r.categoria||"", observaciones: r.observaciones||"", voucher_url: r.voucher_url||"", destinatario: r.destinatario||"" }); setShowForm(true) }}
+                            <button onClick={e => { e.stopPropagation(); setEditando(r); setForm({ concepto: r.concepto||"", monto_debe: r.monto_debe||"", monto_haber: r.monto_haber||"", fecha: r.fecha||"", tipo_comprobante: r.tipo_comprobante||"boleta", numero_operacion: r.numero_operacion||"", proyecto_id: r.proyecto_id||"", rq_id: r.rq_id||"", proveedor_id: r.proveedor_id||"", proveedor_nombre: r.proveedor_nombre||"", categoria: r.categoria||"", observaciones: r.observaciones||"", voucher_url: r.voucher_url||"", destinatario: r.destinatario||"" }); setShowForm(true) }}
                               style={{ fontSize: 11, padding: "3px 8px", background: "#fff", color: "#374151", border: "1px solid #e5e7eb", borderRadius: 6, cursor: "pointer" }}>✏️</button>
                           )}
                           {(perfil?.id === r.solicitado_por || esAprobador) && r.estado === "pendiente" && (
@@ -450,6 +465,7 @@ export default function CajaChicaPage() {
               { label: "Haber", value: selected.monto_haber > 0 ? fmt(selected.monto_haber) : "—" },
               { label: "Tipo comprobante", value: selected.tipo_comprobante || "—" },
               { label: "N° operación", value: selected.numero_operacion || "—" },
+              { label: "Proveedor", value: selected.proveedor_nombre || "—" },
               { label: "Categoría", value: selected.categoria || "—" },
               { label: "Proyecto", value: selected.proyecto ? selected.proyecto.codigo + " — " + selected.proyecto.nombre : "—" },
               { label: "Solicitante", value: selected.solicitante ? selected.solicitante.nombre + " " + selected.solicitante.apellido : "—" },
@@ -663,6 +679,10 @@ export default function CajaChicaPage() {
     </div>
   )
 }
+
+
+
+
 
 
 
