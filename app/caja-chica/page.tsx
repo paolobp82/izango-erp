@@ -404,6 +404,9 @@ export default function CajaChicaPage() {
                       <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>
                         {r.solicitante ? r.solicitante.nombre + " " + r.solicitante.apellido : "—"}
                       </td>
+                      <td style={{ padding: "12px", fontSize: 12, color: "#374151", fontWeight: 500 }}>
+                        {r.proveedor_nombre || "—"}
+                      </td>
                       <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: r.monto_debe > 0 ? "#991b1b" : "#9ca3af" }}>
                         {r.monto_debe > 0 ? fmt(r.monto_debe) : "—"}
                       </td>
@@ -679,6 +682,7 @@ export default function CajaChicaPage() {
     </div>
   )
 }
+
 
 
 
