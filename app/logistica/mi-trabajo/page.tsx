@@ -132,9 +132,17 @@ export default function MiTrabajoLogisticaPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "#111827" }}>Mi Trabajo Logística</h1>
-        <p style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Vista consolidada de órdenes, envíos y traslados pendientes de atención.</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "#111827" }}>Mi Trabajo Logística</h1>
+          <p style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Vista consolidada de órdenes, envíos y traslados pendientes de atención.</p>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <a href="/inventario/ordenes" className="btn-secondary" style={{ fontSize: 13, textDecoration: "none" }}>+ Nueva orden</a>
+          <a href="/envios-materiales" className="btn-secondary" style={{ fontSize: 13, textDecoration: "none" }}>+ Nuevo envío</a>
+          <a href="/logistica/traslados" className="btn-primary" style={{ fontSize: 13, textDecoration: "none" }}>+ Nuevo traslado</a>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14, marginBottom: 18 }}>
@@ -198,3 +206,4 @@ export default function MiTrabajoLogisticaPage() {
     </div>
   )
 }
+
