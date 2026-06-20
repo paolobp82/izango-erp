@@ -59,6 +59,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  if (pathname === "/finanzas" || pathname.startsWith("/finanzas/")) {
+    const { data: profile } = await supabase
+      .from("perfiles")
+      .select("perfil")
+      .eq("id", user.id)
+      .single()
+
+    if (!["superadmin", "controller", "gerente_general"].includes(profile?.perfil || "")) {
+      return NextResponse.redirect(new URL("/dashboard", request.url))
+    }
+  }
+
   return response
 }
 
