@@ -130,6 +130,156 @@ export default function OrdenesInventarioPage() {
     await supabase.from("inventario_ordenes").update({ cantidad_despachada: orden.inventario_orden_items[0]?.cantidad_solicitada }).eq("id", ordenId)
   }
 
+  function escapeHtml(value: any) {
+    return String(value ?? "-")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;")
+  }
+
+  function imprimirCargoInventario(orden: any) {
+    const filas = (orden.inventario_orden_items || []).map((oi: any) => `
+      <tr>
+        <td>${escapeHtml(oi.item?.nombre)}</td>
+        <td>${escapeHtml(oi.cantidad_solicitada || 0)}</td>
+        <td>${escapeHtml(oi.observacion || "")}</td>
+      </tr>
+    `).join("")
+
+    const html = `
+  <html>
+  <head>
+    <title>Cargo Orden Inventario</title>
+    <style>
+      body{font-family:Arial;padding:30px;color:#111}
+      h1{margin:0 0 6px;font-size:22px}
+      .sub{font-size:12px;color:#555;margin-bottom:22px}
+      table{width:100%;border-collapse:collapse;margin-top:20px}
+      th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:12px}
+      th{background:#f3f4f6}
+      .box{margin-bottom:20px;line-height:1.7;font-size:13px}
+      .firma{margin-top:80px;display:flex;justify-content:space-between}
+      .firma div{width:40%;text-align:center;font-size:12px}
+    </style>
+  </head>
+  <body>
+    <h1>CARGO DE ENTREGA - ORDEN DE INVENTARIO</h1>
+    <div class="sub">Documento de control logístico Izango 360</div>
+
+    <div class="box">
+      <b>N° Orden:</b> ${escapeHtml(orden.numero_orden)}<br/>
+      <b>Tipo:</b> ${escapeHtml(orden.tipo)}<br/>
+      <b>Proyecto:</b> ${escapeHtml(orden.proyecto ? `${orden.proyecto.codigo} - ${orden.proyecto.nombre}` : "Sin proyecto")}<br/>
+      <b>Origen:</b> ${escapeHtml(orden.ubicacion_origen?.nombre)}<br/>
+      <b>Destino:</b> ${escapeHtml(orden.direccion_destino || orden.ubicacion_destino?.nombre)}<br/>
+      <b>Receptor:</b> ${escapeHtml(orden.contacto_receptor)}<br/>
+      <b>DNI:</b> ${escapeHtml(orden.dni_receptor)}<br/>
+      <b>Teléfono:</b> ${escapeHtml(orden.telefono_receptor)}<br/>
+      <b>Transportista:</b> ${escapeHtml(orden.transportista)}<br/>
+      <b>Placa:</b> ${escapeHtml(orden.vehiculo_placa)}<br/>
+      <b>Fecha programada:</b> ${escapeHtml(orden.fecha_entrega)}<br/>
+      <b>Notas:</b> ${escapeHtml(orden.notas)}
+    </div>
+
+    <p>Se deja constancia de la entrega/recepción de los materiales detallados en la presente orden logística.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Material</th>
+          <th>Cantidad</th>
+          <th>Observaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filas || `<tr><td colspan="3">Sin items registrados</td></tr>`}
+      </tbody>
+    </table>
+
+    <div class="firma">
+      <div>
+        _______________________<br/>
+        Entrega<br/>
+        Nombre / DNI
+      </div>
+      <div>
+        _______________________<br/>
+        Recibe<br/>
+        Nombre / DNI
+      </div>
+    </div>
+  </body>
+  </html>
+    `
+
+    const w = window.open("", "_blank")
+    if (!w) return
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    w.print()
+  }
+
+  function seleccionarArchivo(accept: string) {
+    return new Promise<File | null>((resolve) => {
+      const input = document.createElement("input")
+      input.type = "file"
+      input.accept = accept
+      input.onchange = () => resolve(input.files?.[0] || null)
+      input.click()
+    })
+  }
+
+  async function subirArchivoOrden(file: File, carpeta: string) {
+    const nombreSeguro = file.name.replace(/[^a-zA-Z0-9._-]/g, "-")
+    const path = `inventario-ordenes/${carpeta}/${Date.now()}-${nombreSeguro}`
+    const { error } = await supabase.storage.from("assets").upload(path, file, { upsert: true })
+    if (error) throw error
+    const { data } = supabase.storage.from("assets").getPublicUrl(path)
+    return data.publicUrl
+  }
+
+  async function registrarEntregaOrden(orden: any) {
+    const recibidoPor = prompt("¿Quién recibió la orden?", orden.contacto_receptor || "")
+    if (!recibidoPor) return
+
+    const fechaReal = prompt("Fecha real de entrega (YYYY-MM-DD)", new Date().toISOString().slice(0, 10))
+    if (!fechaReal) return
+
+    alert("Selecciona el cargo firmado en PDF/JPG/PNG.")
+    const cargoFirmado = await seleccionarArchivo(".pdf,.jpg,.jpeg,.png")
+    if (!cargoFirmado) return
+
+    alert("Selecciona la evidencia fotográfica o archivo adicional. Puedes cancelar si no aplica.")
+    const evidencia = await seleccionarArchivo(".pdf,.jpg,.jpeg,.png")
+
+    try {
+      const cargoUrl = await subirArchivoOrden(cargoFirmado, "cargos-firmados")
+      const evidenciaUrl = evidencia ? await subirArchivoOrden(evidencia, "evidencias") : null
+
+      const { error } = await supabase.from("inventario_ordenes").update({
+        cargo_firmado_url: cargoUrl,
+        evidencia_url: evidenciaUrl,
+        fecha_entrega_real: fechaReal,
+        recibido_por: recibidoPor,
+        estado: "cerrada",
+        updated_at: new Date().toISOString(),
+      }).eq("id", orden.id)
+
+      if (error) {
+        alert("Error registrando entrega: " + error.message)
+        return
+      }
+
+      alert("Entrega registrada y orden cerrada correctamente.")
+      load()
+    } catch (error: any) {
+      alert("Error subiendo evidencia: " + (error?.message || error))
+    }
+  }
+
   const ESTADO_COLOR: any = {
     borrador: { bg: "#f3f4f6", color: "#6b7280" },
     aprobada: { bg: "#dbeafe", color: "#1e40af" },
@@ -226,6 +376,12 @@ export default function OrdenesInventarioPage() {
                       <div style={{ fontWeight: 700, fontSize: 13, color: "#111827", fontFamily: "monospace" }}>{orden.numero_orden}</div>
                       <div style={{ fontSize: 11, color: "#9ca3af" }}>{new Date(orden.created_at).toLocaleDateString("es-PE")}</div>
                       {orden.fecha_entrega && <div style={{ fontSize: 11, color: "#6b7280" }}>Entrega: {orden.fecha_entrega}</div>}
+                      {orden.fecha_entrega_real && <div style={{ fontSize: 11, color: "#15803d" }}>Real: {orden.fecha_entrega_real}</div>}
+                      {orden.recibido_por && <div style={{ fontSize: 11, color: "#15803d" }}>Recibió: {orden.recibido_por}</div>}
+                      <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                        {orden.cargo_firmado_url && <a href={orden.cargo_firmado_url} target="_blank" style={{ fontSize: 11, color: "#2563eb", textDecoration: "none" }}>Cargo firmado</a>}
+                        {orden.evidencia_url && <a href={orden.evidencia_url} target="_blank" style={{ fontSize: 11, color: "#2563eb", textDecoration: "none" }}>Evidencia</a>}
+                      </div>
                     </td>
                     <td style={{ padding: "12px" }}>
                       <span style={{ fontSize: 13 }}>{TIPO_ICON[orden.tipo]} {orden.tipo}</span>
@@ -247,6 +403,8 @@ export default function OrdenesInventarioPage() {
                     </td>
                     <td style={{ padding: "12px 20px" }}>
                       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                        <button onClick={() => imprimirCargoInventario(orden)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer" }}>Cargo</button>
+                        {orden.estado === "ejecutada" && <button onClick={() => registrarEntregaOrden(orden)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Entrega</button>}
                         {orden.estado === "borrador" && <button onClick={() => cambiarEstado(orden.id, "aprobada")} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", color: "#1e40af", cursor: "pointer" }}>Aprobar</button>}
                         {orden.estado === "aprobada" && <button onClick={() => cambiarEstado(orden.id, "ejecutada")} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Ejecutar</button>}
                         {orden.estado === "ejecutada" && orden.tipo === "salida" && <button onClick={() => cambiarEstado(orden.id, "cerrada")} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#15803d", cursor: "pointer" }}>Cerrar</button>}
@@ -383,3 +541,4 @@ export default function OrdenesInventarioPage() {
     </div>
   )
 }
+
