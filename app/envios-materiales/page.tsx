@@ -170,6 +170,82 @@ export default function EnviosMaterialesPage() {
     load()
   }
 
+  function seleccionarArchivoEntrega(accept: string) {
+    return new Promise<File | null>((resolve) => {
+      const input = document.createElement("input")
+      input.type = "file"
+      input.accept = accept
+      input.onchange = () => resolve(input.files?.[0] || null)
+      input.click()
+    })
+  }
+
+  async function subirArchivoEnvio(file: File, carpeta: string) {
+    const nombreSeguro = file.name.replace(/[^a-zA-Z0-9._-]/g, "-")
+    const path = `envios-materiales/${carpeta}/${Date.now()}-${nombreSeguro}`
+    const { error } = await supabase.storage.from("assets").upload(path, file, { upsert: true })
+    if (error) throw error
+    const { data } = supabase.storage.from("assets").getPublicUrl(path)
+    return data.publicUrl
+  }
+
+  async function registrarEntregaEnvio(envio: any) {
+    const recibidoPor = prompt("¿Quién recibió el envío?", envio.contacto_receptor || "")
+    if (!recibidoPor) return
+
+    const fechaReal = prompt("Fecha real de entrega (YYYY-MM-DD)", new Date().toISOString().slice(0, 10))
+    if (!fechaReal) return
+
+    alert("Selecciona el cargo firmado en PDF/JPG/PNG.")
+    const cargoFirmado = await seleccionarArchivoEntrega(".pdf,.jpg,.jpeg,.png")
+    if (!cargoFirmado) return
+
+    alert("Selecciona la evidencia fotográfica o archivo adicional. Puedes cancelar si no aplica.")
+    const evidencia = await seleccionarArchivoEntrega(".pdf,.jpg,.jpeg,.png")
+
+    try {
+      const cargoUrl = await subirArchivoEnvio(cargoFirmado, "cargos-firmados")
+      const evidenciaUrl = evidencia ? await subirArchivoEnvio(evidencia, "evidencias") : null
+
+      const { error } = await supabase.from("envios_materiales").update({
+        cargo_firmado_url: cargoUrl,
+        evidencia_url: evidenciaUrl,
+        recibido_por: recibidoPor,
+        fecha_entrega_real: fechaReal,
+        estado: "entregado",
+        updated_at: new Date().toISOString(),
+      }).eq("id", envio.id)
+
+      if (error) {
+        alert("Error registrando entrega: " + error.message)
+        return
+      }
+
+      await registrarAccion({
+        accion: "registrar_entrega",
+        modulo: "envios_materiales",
+        entidad_id: envio.id,
+        entidad_tipo: "envio",
+        descripcion: "Entrega registrada con cargo firmado y evidencia"
+      })
+
+      alert("Entrega registrada correctamente.")
+      load()
+      if (selected?.id === envio.id) {
+        setSelected((p: any) => ({
+          ...p,
+          cargo_firmado_url: cargoUrl,
+          evidencia_url: evidenciaUrl,
+          recibido_por: recibidoPor,
+          fecha_entrega_real: fechaReal,
+          estado: "entregado",
+        }))
+      }
+    } catch (error: any) {
+      alert("Error subiendo evidencia: " + (error?.message || error))
+    }
+  }
+
   function imprimirCargo(envio: any) {
     const html = `
   <html>
@@ -342,6 +418,14 @@ export default function EnviosMaterialesPage() {
                         <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", flexWrap: "wrap" }}>
                           <button onClick={() => imprimirCargo(e)}
                             style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer" }}>PDF</button>
+                          {["aprobado", "en_transito", "entregado"].includes(e.estado) && (
+                            <button onClick={() => registrarEntregaEnvio(e)}
+                              style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Entrega</button>
+                          )}
+                          {["aprobado", "en_transito", "entregado"].includes(e.estado) && (
+                            <button onClick={() => registrarEntregaEnvio(e)}
+                              style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Entrega</button>
+                          )}
                           {puedeAprobar && e.estado === "borrador" && (
                             <button onClick={() => cambiarEstado(e.id, "aprobado")}
                               style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", color: "#1e40af", cursor: "pointer" }}>Aprobar</button>
@@ -622,4 +706,6 @@ export default function EnviosMaterialesPage() {
     </div>
   )
 }
+
+
 
