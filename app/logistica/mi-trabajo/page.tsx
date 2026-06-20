@@ -224,8 +224,66 @@ export default function MiTrabajoLogisticaPage() {
           </table>
         </div>
       </SectionCard>
+
+      <div style={{ marginTop: 22 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 800, margin: "0 0 12px", color: "#0f172a" }}>Accesos rápidos</h2>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16 }}>
+          <SectionCard>
+            <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+              <div style={{ width: 54, height: 54, borderRadius: 14, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>
+                ▤
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 6px", color: "#0f172a" }}>Órdenes de Inventario</h3>
+                <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 14px", lineHeight: 1.45 }}>
+                  Crea y gestiona órdenes de salida, ingreso, devolución y traslado.
+                </p>
+                <a href="/inventario/ordenes" style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", textDecoration: "none" }}>
+                  Ir a órdenes →
+                </a>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard>
+            <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+              <div style={{ width: 54, height: 54, borderRadius: 14, background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>
+                ✈
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 6px", color: "#0f172a" }}>Envíos de Materiales</h3>
+                <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 14px", lineHeight: 1.45 }}>
+                  Gestiona envíos, retornos, entregas y seguimiento de materiales.
+                </p>
+                <a href="/envios-materiales" style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", textDecoration: "none" }}>
+                  Ir a envíos →
+                </a>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard>
+            <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+              <div style={{ width: 54, height: 54, borderRadius: 14, background: "#f3e8ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>
+                ⇄
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 6px", color: "#0f172a" }}>Traslados y Movimientos</h3>
+                <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 14px", lineHeight: 1.45 }}>
+                  Registra movimientos menores entre puntos, con o sin proyecto.
+                </p>
+                <a href="/logistica/traslados" style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", textDecoration: "none" }}>
+                  Ir a traslados →
+                </a>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+      </div>
     </div>
   )
 }
+
 
 
