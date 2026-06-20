@@ -53,7 +53,7 @@ export default function RQPage() {
   const supabase = createClient()
   const [rqs, setRqs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [filtroEstado, setFiltroEstado] = useState("")
+  const [filtroEstados, setFiltroEstados] = useState<string[]>([])
   const [busquedaRQ, setBusquedaRQ] = useState("")
   const [filtroProveedor, setFiltroProveedor] = useState("")
   const [filtroProyecto, setFiltroProyecto] = useState("")
@@ -84,11 +84,11 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   useEffect(() => {
     setPagina(1)
-  }, [busquedaRQ, filtroEstado, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
+  }, [busquedaRQ, filtroEstados, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
 
   useEffect(() => {
     setPagina(1)
-  }, [busquedaRQ, filtroEstado, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
+  }, [busquedaRQ, filtroEstados, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
 
   async function load() {
     const params = new URLSearchParams(window.location.search)
@@ -505,7 +505,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       if (!searchable.includes(textoBusqueda) && (!textoNumerico || !searchableNumerico.includes(textoNumerico))) return false
     }
 
-    if (filtroEstado && r.estado !== filtroEstado) return false
+    if (filtroEstados.length > 0 && !filtroEstados.includes(r.estado)) return false
     if (filtroProveedor && r.proveedor_id !== filtroProveedor) return false
     if (filtroProyecto) {
       const proyectoFiltro = proyectos.find((p: any) => p.id === filtroProyecto)
@@ -608,12 +608,31 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   placeholder="Buscar RQ, número, proyecto, proveedor o concepto..."
   style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", minWidth: 360, flex: "1 1 360px" }}
 />
-          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
-            value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
-            <option value="">Todos los estados</option>
-            {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            {Object.entries(ESTADOS).map(([k, v]: any) => {
+              const activo = filtroEstados.includes(k)
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setFiltroEstados(prev => activo ? prev.filter(e => e !== k) : [...prev, k])}
+                  style={{
+                    fontSize: 12,
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    border: activo ? `1px solid ${v.color}` : "1px solid #e5e7eb",
+                    background: activo ? v.bg : "#fff",
+                    color: activo ? v.color : "#6b7280",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {activo ? "✓ " : ""}{v.label}
+                </button>
+              )
+            })}
+          </div>          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
             value={filtroProveedor} onChange={e => setFiltroProveedor(e.target.value)}>
             <option value="">Todos los proveedores</option>
             {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
@@ -634,8 +653,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
             <input type="checkbox" checked={incluirProyectosEliminados} onChange={e => setIncluirProyectosEliminados(e.target.checked)} />
             Incluir proyectos eliminados
           </label>
-          {(filtroEstado || filtroProveedor || filtroTipoPago || filtroProyecto || incluirProyectosEliminados) && (
-            <button onClick={() => { setFiltroEstado(""); setFiltroProveedor(""); setFiltroTipoPago(""); setFiltroProyecto(""); setIncluirProyectosEliminados(false) }}
+          {(filtroEstados.length > 0 || filtroProveedor || filtroTipoPago || filtroProyecto || incluirProyectosEliminados) && (
+            <button onClick={() => { setFiltroEstados([]); setFiltroProveedor(""); setFiltroTipoPago(""); setFiltroProyecto(""); setIncluirProyectosEliminados(false) }}
               style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
               Limpiar filtros
             </button>
@@ -1086,6 +1105,9 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
+
+
 
 
 
