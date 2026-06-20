@@ -164,6 +164,74 @@ export default function TrasladosPage() {
     load()
   }
 
+  function seleccionarArchivoEntrega(accept: string) {
+    return new Promise<File | null>((resolve) => {
+      const input = document.createElement("input")
+      input.type = "file"
+      input.accept = accept
+      input.onchange = () => resolve(input.files?.[0] || null)
+      input.click()
+    })
+  }
+
+  async function subirArchivoTraslado(file: File, carpeta: string) {
+    const nombreSeguro = file.name.replace(/[^a-zA-Z0-9._-]/g, "-")
+    const path = `logistica-traslados/${carpeta}/${Date.now()}-${nombreSeguro}`
+    const { error } = await supabase.storage.from("assets").upload(path, file, { upsert: true })
+    if (error) throw error
+    const { data } = supabase.storage.from("assets").getPublicUrl(path)
+    return data.publicUrl
+  }
+
+  async function registrarEntregaTraslado(t: any) {
+    const recibidoPor = prompt("¿Quién recibió el traslado?", t.contacto_receptor || "")
+    if (!recibidoPor) return
+
+    const fechaReal = prompt("Fecha real de entrega (YYYY-MM-DD)", new Date().toISOString().slice(0, 10))
+    if (!fechaReal) return
+
+    alert("Selecciona el cargo firmado en PDF/JPG/PNG.")
+    const cargoFirmado = await seleccionarArchivoEntrega(".pdf,.jpg,.jpeg,.png")
+    if (!cargoFirmado) return
+
+    alert("Selecciona la evidencia fotográfica o archivo adicional. Puedes cancelar si no aplica.")
+    const evidencia = await seleccionarArchivoEntrega(".pdf,.jpg,.jpeg,.png")
+
+    try {
+      const cargoUrl = await subirArchivoTraslado(cargoFirmado, "cargos-firmados")
+      const evidenciaUrl = evidencia ? await subirArchivoTraslado(evidencia, "evidencias") : null
+
+      const { error } = await supabase.from("logistica_traslados").update({
+        cargo_firmado_url: cargoUrl,
+        evidencia_url: evidenciaUrl,
+        recibido_por: recibidoPor,
+        fecha_entrega_real: fechaReal,
+        estado: "entregado",
+        updated_at: new Date().toISOString(),
+      }).eq("id", t.id)
+
+      if (error) {
+        alert("Error registrando entrega: " + error.message)
+        return
+      }
+
+      alert("Entrega registrada correctamente.")
+      load()
+      if (selected?.id === t.id) {
+        setSelected((p: any) => ({
+          ...p,
+          cargo_firmado_url: cargoUrl,
+          evidencia_url: evidenciaUrl,
+          recibido_por: recibidoPor,
+          fecha_entrega_real: fechaReal,
+          estado: "entregado",
+        }))
+      }
+    } catch (error: any) {
+      alert("Error subiendo evidencia: " + (error?.message || error))
+    }
+  }
+
   function imprimirCargo(t: any) {
     const filas = (t.logistica_traslado_items || []).map((i:any) => `
       <tr>
@@ -265,7 +333,10 @@ export default function TrasladosPage() {
                     </select>
                   </td>
                   <td style={{ padding:"12px", textAlign:"right" }}>
-                    <button onClick={ev => { ev.stopPropagation(); imprimirCargo(t) }} className="btn-secondary" style={{ fontSize:12 }}>PDF / Imprimir</button>
+                                        <button onClick={ev => { ev.stopPropagation(); imprimirCargo(t) }} className="btn-secondary" style={{ fontSize:12 }}>PDF / Imprimir</button>
+                    {["programado", "en_proceso", "en_transito", "entregado"].includes(t.estado) && (
+                      <button onClick={ev => { ev.stopPropagation(); registrarEntregaTraslado(t) }} className="btn-secondary" style={{ fontSize:12, marginLeft:6 }}>Entrega</button>
+                    )}
                   </td>
                 </tr>
               )
@@ -282,7 +353,10 @@ export default function TrasladosPage() {
           <p><b>Entrega:</b> {selected.punto_entrega}</p>
           <p><b>Receptor:</b> {selected.contacto_receptor || "—"} / {selected.dni_receptor || "—"} / {selected.telefono_receptor || "—"}</p>
           <p><b>Notas:</b> {selected.notas || "—"}</p>
+                    <p><b>Fecha real entrega:</b> {selected.fecha_entrega_real || "—"}</p>
+          <p><b>Recibido por:</b> {selected.recibido_por || "—"}</p>
           <p><b>Cargo firmado:</b> {selected.cargo_firmado_url ? <a href={selected.cargo_firmado_url} target="_blank">Ver archivo</a> : "Pendiente"}</p>
+          <p><b>Evidencia:</b> {selected.evidencia_url ? <a href={selected.evidencia_url} target="_blank">Ver archivo</a> : "Pendiente"}</p>
         </div>
       )}
 
@@ -359,3 +433,4 @@ export default function TrasladosPage() {
     </div>
   )
 }
+
