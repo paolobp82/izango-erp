@@ -170,6 +170,76 @@ export default function EnviosMaterialesPage() {
     load()
   }
 
+  function imprimirCargo(envio: any) {
+    const html = `
+  <html>
+  <head>
+    <title>Cargo Logístico</title>
+    <style>
+      body{font-family:Arial;padding:30px;color:#111}
+      h1{margin:0 0 20px}
+      table{width:100%;border-collapse:collapse;margin-top:20px}
+      th,td{border:1px solid #ddd;padding:8px;text-align:left}
+      .box{margin-bottom:20px;line-height:1.7}
+      .firma{margin-top:80px;display:flex;justify-content:space-between}
+      .firma div{width:40%;text-align:center}
+    </style>
+  </head>
+  <body>
+    <h1>CARGO DE ENTREGA DE MATERIALES</h1>
+
+    <div class="box">
+      <b>N° Envío:</b> ${envio.numero_envio || "-"}<br/>
+      <b>Proyecto:</b> ${envio.proyecto?.codigo || "-"}<br/>
+      <b>Dirección:</b> ${envio.direccion_destino || "-"}<br/>
+      <b>Receptor:</b> ${envio.contacto_receptor || "-"}<br/>
+      <b>DNI:</b> ${envio.dni_receptor || "-"}<br/>
+      <b>Teléfono:</b> ${envio.telefono_receptor || "-"}<br/>
+      <b>Fecha:</b> ${envio.fecha_salida || "-"}
+    </div>
+
+    <p>Se deja constancia de la recepción de los materiales detallados en la presente guía logística.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Descripción</th>
+          <th>Cantidad</th>
+          <th>Observaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(envio.envio_items || []).map((i:any)=>`
+          <tr>
+            <td>${i.item?.nombre || "-"}</td>
+            <td>${i.cantidad_enviada || 0}</td>
+            <td>${i.observacion || ""}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+
+    <div class="firma">
+      <div>
+        _______________________<br/>
+        Entregado por
+      </div>
+      <div>
+        _______________________<br/>
+        Recibido por
+      </div>
+    </div>
+  </body>
+  </html>
+    `
+
+    const w = window.open("", "_blank")
+    if (!w) return
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    w.print()
+  }
   async function abrirDetalle(envio: any) {
     setSelected(envio)
     const { data } = await supabase.from("envio_items").select("*, item:inventario_items(nombre), variante:inventario_variantes(nombre)").eq("envio_id", envio.id)
@@ -270,6 +340,8 @@ export default function EnviosMaterialesPage() {
                       </td>
                       <td style={{ padding: "12px 16px" }} onClick={ev => ev.stopPropagation()}>
                         <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                          <button onClick={() => imprimirCargo(e)}
+                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer" }}>PDF</button>
                           {puedeAprobar && e.estado === "borrador" && (
                             <button onClick={() => cambiarEstado(e.id, "aprobado")}
                               style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", color: "#1e40af", cursor: "pointer" }}>Aprobar</button>
@@ -550,3 +622,4 @@ export default function EnviosMaterialesPage() {
     </div>
   )
 }
+
