@@ -69,7 +69,7 @@ export default function FinanzasDashboardPage() {
     const gastosPagados = data.gastos.filter((g: any) => g.estado_pago === "pagado").reduce((s: number, g: any) => s + financeNumber(g.monto), 0)
     const cajaNeta = data.caja.filter((c: any) => c.estado === "aprobado").reduce((s: number, c: any) => s + financeNumber(c.monto_haber) - financeNumber(c.monto_debe), 0)
     const pagosDeuda = data.pagos.reduce((s: number, p: any) => s + financeNumber(p.monto), 0)
-    const cajaDisponible = cobrado + cajaNeta - rqPagado - gastosPagados - pagosDeuda
+    const cajaEstimada = cobrado + cajaNeta - rqPagado - gastosPagados - pagosDeuda
     const cuentasCobrar = data.facturas.filter((f: any) => FACTURAS_PENDIENTES.includes(f.estado)).reduce((s: number, f: any) => s + financeNumber(f.monto_final_abonado), 0)
     const rqsPagar = data.rqs.filter((r: any) => RQS_POR_PAGAR.includes(r.estado)).reduce((s: number, r: any) => s + financeNumber(r.monto_solicitado), 0)
     const cajaPagar = data.caja.filter((c: any) => c.estado === "pendiente").reduce((s: number, c: any) => s + financeNumber(c.monto_debe), 0)
@@ -83,7 +83,7 @@ export default function FinanzasDashboardPage() {
     const ventasMes = data.facturas.filter((f: any) => !["anulada", "cancelada"].includes(f.estado) && String(f.fecha_emision || "").startsWith(currentMonth)).reduce((s: number, f: any) => s + financeNumber(f.subtotal) + financeNumber(f.igv), 0)
     const costosMes = data.rqs.filter((r: any) => r.estado === "pagado" && String(r.fecha_pago || r.updated_at || "").startsWith(currentMonth)).reduce((s: number, r: any) => s + financeNumber(r.monto_solicitado), 0)
     const rentabilidadMes = ventasMes > 0 ? ((ventasMes - costosMes) / ventasMes) * 100 : 0
-    return { cajaDisponible, cuentasCobrar, cuentasPagar, deudaFinanciera, margenPromedio, rentabilidadMes }
+    return { cajaEstimada, cuentasCobrar, cuentasPagar, deudaFinanciera, margenPromedio, rentabilidadMes }
   }, [data])
 
   const monthly = useMemo(() => {
@@ -129,13 +129,13 @@ export default function FinanzasDashboardPage() {
     <div>
       <div style={{ marginBottom: 18 }}>
         <h1 style={{ margin: 0, fontSize: 22, color: "#0F172A" }}>Finanzas Corporativas</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>Vista ejecutiva de liquidez, obligaciones y rentabilidad</p>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>Vista ejecutiva estimada de liquidez, obligaciones y rentabilidad</p>
       </div>
       <FinanceNav />
       {error && <div style={{ padding: 12, marginBottom: 16, background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA", borderRadius: 8 }}>{error}</div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
-        <KpiCard icon="wallet" label="CAJA DISPONIBLE" value={financeShort(metrics.cajaDisponible)} sub="Neto de movimientos registrados" borderColor={metrics.cajaDisponible >= 0 ? "#16A34A" : "#DC2626"} valueColor={metrics.cajaDisponible >= 0 ? "#15803D" : "#DC2626"} />
+        <KpiCard icon="wallet" label="CAJA ESTIMADA" value={financeShort(metrics.cajaEstimada)} sub="Estimación según cobros y egresos registrados" borderColor={metrics.cajaEstimada >= 0 ? "#16A34A" : "#DC2626"} valueColor={metrics.cajaEstimada >= 0 ? "#15803D" : "#DC2626"} />
         <KpiCard icon="money" label="CUENTAS POR COBRAR" value={financeShort(metrics.cuentasCobrar)} sub="Facturas pendientes" borderColor="#2563EB" valueColor="#1D4ED8" />
         <KpiCard icon="file" label="CUENTAS POR PAGAR" value={financeShort(metrics.cuentasPagar)} sub="RQ, caja chica y oficina" borderColor="#DC2626" valueColor="#B91C1C" />
         <KpiCard icon="shield" label="DEUDA FINANCIERA" value={financeShort(metrics.deudaFinanciera)} sub="Saldo de obligaciones activas" borderColor="#7C3AED" valueColor="#6D28D9" />
@@ -174,3 +174,4 @@ export default function FinanzasDashboardPage() {
     </div>
   )
 }
+

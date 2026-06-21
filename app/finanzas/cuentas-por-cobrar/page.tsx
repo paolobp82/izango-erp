@@ -37,17 +37,17 @@ export default function CuentasPorCobrarPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 18 }}><h1 style={{ margin: 0, fontSize: 22 }}>Cuentas por Cobrar</h1><p style={{ margin: "4px 0 0", color: "#64748B", fontSize: 13 }}>Seguimiento de facturas pendientes y antigüedad de saldos</p></div>
+      <div style={{ marginBottom: 18 }}><h1 style={{ margin: 0, fontSize: 22 }}>Cuentas por Cobrar</h1><p style={{ margin: "4px 0 0", color: "#64748B", fontSize: 13 }}>Seguimiento de facturas pendientes y antigüedad según fecha de emisión</p></div>
       <FinanceNav />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
         <KpiCard icon="money" label="TOTAL POR COBRAR" value={financeMoney(total)} sub={`${facturas.length} facturas`} borderColor="#2563EB" valueColor="#1D4ED8" />
-        <KpiCard icon="wallet" label="SALDO VENCIDO" value={financeMoney(vencidas.reduce((s, f) => s + financeNumber(f.monto_final_abonado), 0))} sub={`${vencidas.length} facturas > 30 días`} borderColor="#DC2626" valueColor="#B91C1C" />
+        <KpiCard icon="wallet" label="SALDO VENCIDO" value={financeMoney(vencidas.reduce((s, f) => s + financeNumber(f.monto_final_abonado), 0))} sub={`${vencidas.length} facturas emitidas > 30 días`} borderColor="#DC2626" valueColor="#B91C1C" />
         <KpiCard icon="chart" label="POR VENCER" value={financeMoney(porVencer.reduce((s, f) => s + financeNumber(f.monto_final_abonado), 0))} sub={`${porVencer.length} facturas`} borderColor="#16A34A" valueColor="#15803D" />
       </div>
       <SectionCard title="Cartera de clientes" action={<select value={filtro} onChange={e => setFiltro(e.target.value)} style={{ padding: "7px 10px", border: "1px solid #CBD5E1", borderRadius: 7 }}><option value="todas">Todas</option><option value="vencidas">Vencidas</option><option value="por_vencer">Por vencer</option></select>}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead><tr style={{ background: "#F8FAFC" }}>{["FACTURA","CLIENTE / PROYECTO","EMISIÓN","AGING","ESTADO","MONTO"].map(h => <th key={h} style={{ padding: "10px 12px", textAlign: h === "MONTO" ? "right" : "left", fontSize: 11, color: "#64748B" }}>{h}</th>)}</tr></thead>
+            <thead><tr style={{ background: "#F8FAFC" }}>{["FACTURA","CLIENTE / PROYECTO","EMISIÓN","ANTIGÜEDAD","ESTADO","MONTO"].map(h => <th key={h} style={{ padding: "10px 12px", textAlign: h === "MONTO" ? "right" : "left", fontSize: 11, color: "#64748B" }}>{h}</th>)}</tr></thead>
             <tbody>{filtradas.map(f => <tr key={f.id} style={{ borderTop: "1px solid #E2E8F0" }}>
               <td style={{ padding: 12, fontWeight: 800 }}>{f.numero_factura}</td>
               <td style={{ padding: 12 }}><div style={{ fontWeight: 700 }}>{f.proyecto?.cliente?.razon_social || "Sin cliente"}</div><div style={{ fontSize: 11, color: "#94A3B8" }}>{f.proyecto?.codigo} · {f.proyecto?.nombre}</div></td>
@@ -62,3 +62,4 @@ export default function CuentasPorCobrarPage() {
     </div>
   )
 }
+
