@@ -27,6 +27,10 @@ export function dateValue(value?: string | null) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+export function dueDateValue(factura: { fecha_vencimiento?: string | null; fecha_emision?: string | null }) {
+  return factura.fecha_vencimiento || factura.fecha_emision || null
+}
+
 export function daysFromToday(value?: string | null) {
   const date = dateValue(value)
   if (!date) return 0

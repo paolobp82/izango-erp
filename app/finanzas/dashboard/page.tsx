@@ -14,6 +14,7 @@ import {
   FACTURAS_PENDIENTES,
   RQS_POR_PAGAR,
   agingBucket,
+  dueDateValue,
   financeNumber,
   financeShort,
   monthKey,
@@ -35,7 +36,7 @@ export default function FinanzasDashboardPage() {
 
     async function load() {
       const results = await Promise.all([
-        supabase.from("facturas").select("id,numero_factura,estado,monto_final_abonado,subtotal,igv,fecha_emision,fecha_abono,proyecto_id"),
+        supabase.from("facturas").select("id,numero_factura,estado,monto_final_abonado,subtotal,igv,fecha_emision,fecha_vencimiento,fecha_abono,proyecto_id"),
         supabase.from("requerimientos_pago").select("id,estado,monto_solicitado,fecha_pago,created_at,updated_at,proyecto_id"),
         supabase.from("caja_chica").select("id,estado,monto_debe,monto_haber,fecha"),
         supabase.from("gastos_oficina").select("id,estado_pago,monto,fecha,fecha_vencimiento"),
@@ -103,7 +104,7 @@ export default function FinanzasDashboardPage() {
       const date = new Date()
       date.setMonth(date.getMonth() + index, 1)
       const key = monthKey(date)
-      const ingresos = data.facturas.filter((f: any) => FACTURAS_PENDIENTES.includes(f.estado) && String(f.fecha_emision || "").startsWith(key)).reduce((s: number, f: any) => s + financeNumber(f.monto_final_abonado), 0)
+      const ingresos = data.facturas.filter((f: any) => FACTURAS_PENDIENTES.includes(f.estado) && String(dueDateValue(f) || "").startsWith(key)).reduce((s: number, f: any) => s + financeNumber(f.monto_final_abonado), 0)
       const egresosRq = data.rqs.filter((r: any) => RQS_POR_PAGAR.includes(r.estado) && String(r.fecha_pago || r.created_at || "").startsWith(key)).reduce((s: number, r: any) => s + financeNumber(r.monto_solicitado), 0)
       const egresosGasto = data.gastos.filter((g: any) => ["pendiente", "vencido"].includes(g.estado_pago) && String(g.fecha_vencimiento || g.fecha || "").startsWith(key)).reduce((s: number, g: any) => s + financeNumber(g.monto), 0)
       const deuda = data.cuotas.filter((c: any) => c.estado !== "pagado" && String(c.fecha_vencimiento || "").startsWith(key)).reduce((s: number, c: any) => s + Math.max(financeNumber(c.monto_total) - financeNumber(c.monto_pagado), 0), 0)
@@ -113,7 +114,7 @@ export default function FinanzasDashboardPage() {
 
   const agingCxc = AGING_ORDER.map(bucket => ({
     name: bucket,
-    value: data.facturas.filter((f: any) => FACTURAS_PENDIENTES.includes(f.estado) && agingBucket(f.fecha_emision) === bucket).reduce((s: number, f: any) => s + financeNumber(f.monto_final_abonado), 0),
+    value: data.facturas.filter((f: any) => FACTURAS_PENDIENTES.includes(f.estado) && agingBucket(dueDateValue(f)) === bucket).reduce((s: number, f: any) => s + financeNumber(f.monto_final_abonado), 0),
   }))
   const agingCxp = AGING_ORDER.map(bucket => ({
     name: bucket,

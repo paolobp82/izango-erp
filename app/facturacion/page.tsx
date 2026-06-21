@@ -18,6 +18,14 @@ const ESTADOS: Record<string, any> = {
 
 const BANCOS = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha"]
 
+function calcularFechaVencimiento(fechaEmision: string, diasCredito: string) {
+  if (!fechaEmision) return ""
+  const [year, month, day] = fechaEmision.split("-").map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  date.setUTCDate(date.getUTCDate() + Math.max(0, Number(diasCredito) || 0))
+  return date.toISOString().slice(0, 10)
+}
+
 export default function FacturacionPage() {
   const supabase = createClient()
   const [facturas, setFacturas] = useState<any[]>([])
@@ -34,7 +42,7 @@ export default function FacturacionPage() {
     subtotal: "", igv: "18",
     detraccion_pct: "0", retencion_pct: "0",
     pronto_pago_entidad: "", pronto_pago_pct: "0",
-    banco_receptor: "", fecha_emision: "", fecha_abono: "", link_reporte: "",
+    banco_receptor: "", fecha_emision: "", dias_credito: "30", fecha_vencimiento: "", fecha_abono: "", link_reporte: "",
   })
 
   useEffect(() => { load() }, [])
@@ -126,6 +134,8 @@ export default function FacturacionPage() {
       monto_final_abonado: m.montoFinal,
       banco_receptor: form.banco_receptor || null,
       fecha_emision: form.fecha_emision || null,
+      dias_credito: Number(form.dias_credito) || 30,
+      fecha_vencimiento: form.fecha_vencimiento || (form.fecha_emision ? calcularFechaVencimiento(form.fecha_emision, form.dias_credito) : null),
       fecha_abono: form.fecha_abono || null,
       link_reporte: form.link_reporte || null,
     })
@@ -133,7 +143,7 @@ export default function FacturacionPage() {
     await registrarAccion({ accion: "crear", modulo: "facturacion", entidad_tipo: "factura", descripcion: "Factura creada: " + form.numero_factura })
     setSaving(false)
     setShowForm(false)
-    setForm({ proyecto_id: "", numero_factura: "", estado: "pendiente", subtotal: "", igv: "18", detraccion_pct: "0", retencion_pct: "0", pronto_pago_entidad: "", pronto_pago_pct: "0", banco_receptor: "", fecha_emision: "", fecha_abono: "", link_reporte: "" })
+    setForm({ proyecto_id: "", numero_factura: "", estado: "pendiente", subtotal: "", igv: "18", detraccion_pct: "0", retencion_pct: "0", pronto_pago_entidad: "", pronto_pago_pct: "0", banco_receptor: "", fecha_emision: "", dias_credito: "30", fecha_vencimiento: "", fecha_abono: "", link_reporte: "" })
     load()
   }
 
@@ -186,7 +196,7 @@ export default function FacturacionPage() {
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Facturación</h1>
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{facturas.length} facturas registradas</p>
         </div>
-        <ImportExport modulo="facturas" campos={[{key:"numero_factura",label:"N factura",requerido:true},{key:"subtotal",label:"Subtotal"},{key:"detraccion_pct",label:"Detraccion %"},{key:"retencion_pct",label:"Retencion %"},{key:"banco_receptor",label:"Banco"},{key:"fecha_emision",label:"Fecha emision"},{key:"fecha_abono",label:"Fecha abono"}]} datos={facturas} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("facturas").insert({...r,estado:"pendiente",igv:(Number(r.subtotal)||0)*0.18,monto_final_abonado:Number(r.subtotal)||0}); if(error)errores.push(r.numero_factura+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
+        <ImportExport modulo="facturas" campos={[{key:"numero_factura",label:"N factura",requerido:true},{key:"subtotal",label:"Subtotal"},{key:"detraccion_pct",label:"Detraccion %"},{key:"retencion_pct",label:"Retencion %"},{key:"banco_receptor",label:"Banco"},{key:"fecha_emision",label:"Fecha emision"},{key:"dias_credito",label:"Dias credito"},{key:"fecha_vencimiento",label:"Fecha vencimiento"},{key:"fecha_abono",label:"Fecha abono"}]} datos={facturas} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const diasCredito=Number(r.dias_credito)||30; const fechaVencimiento=r.fecha_vencimiento||(r.fecha_emision?calcularFechaVencimiento(r.fecha_emision,String(diasCredito)):null); const{error}=await supabase.from("facturas").insert({...r,dias_credito:diasCredito,fecha_vencimiento:fechaVencimiento,estado:"pendiente",igv:(Number(r.subtotal)||0)*0.18,monto_final_abonado:Number(r.subtotal)||0}); if(error)errores.push(r.numero_factura+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
         <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva factura</button>
       </div>
 
@@ -267,7 +277,7 @@ export default function FacturacionPage() {
                   <input style={inp} value={form.numero_factura} placeholder="F001-00001" onChange={e => setForm({ ...form, numero_factura: e.target.value })} />
                 </div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>SUBTOTAL S/ *</label>
                   <input type="number" style={inp} value={form.subtotal} placeholder="0.00" onChange={e => setForm({ ...form, subtotal: e.target.value })} />
@@ -313,7 +323,17 @@ export default function FacturacionPage() {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>FECHA EMISIÓN</label>
-                  <input type="date" style={inp} value={form.fecha_emision} onChange={e => setForm({ ...form, fecha_emision: e.target.value })} />
+                  <input type="date" style={inp} value={form.fecha_emision} onChange={e => { const fecha_emision = e.target.value; setForm({ ...form, fecha_emision, fecha_vencimiento: calcularFechaVencimiento(fecha_emision, form.dias_credito) }) }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>DÍAS CRÉDITO</label>
+                  <input type="number" min="0" style={inp} value={form.dias_credito} onChange={e => { const dias_credito = e.target.value; setForm({ ...form, dias_credito, fecha_vencimiento: calcularFechaVencimiento(form.fecha_emision, dias_credito) }) }} />
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>FECHA VENCIMIENTO</label>
+                  <input type="date" style={inp} value={form.fecha_vencimiento} onChange={e => setForm({ ...form, fecha_vencimiento: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>FECHA ABONO</label>
@@ -371,6 +391,8 @@ export default function FacturacionPage() {
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>A ABONAR</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>EMISIÓN</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>VENCIMIENTO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ABONO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>REPORTE</th>
                 <th style={{ padding: "10px 20px", width: 120 }}></th>
               </tr>
@@ -403,6 +425,8 @@ export default function FacturacionPage() {
                       <StatusBadge label={ec.label} type={f.estado} />
                     </td>
                     <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{f.fecha_emision || "—"}</td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{f.fecha_vencimiento || "—"}</td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{f.fecha_abono || "—"}</td>
                     <td style={{ padding: "12px" }}>
                       {f.link_reporte ? <a href={f.link_reporte} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#0F6E56", fontWeight: 600 }}>📁 Ver</a> : <span style={{ fontSize: 12, color: "#9ca3af" }}>—</span>}
                     </td>
@@ -425,7 +449,7 @@ export default function FacturacionPage() {
                 <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#374151" }}>{fmt(totalFiltradoFactura)}</td>
                 <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#6d28d9" }}>- {fmt(totalFiltradoDetraccion)}</td>
                 <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#0F6E56" }}>{fmt(totalFiltradoAbonado)}</td>
-                <td colSpan={4}></td>
+                <td colSpan={6}></td>
               </tr>
             </tfoot>
           </table>
