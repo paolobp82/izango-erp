@@ -7,6 +7,7 @@ const ITEMS = [
   { href: "/finanzas/cuentas-por-cobrar", label: "Cuentas por cobrar" },
   { href: "/finanzas/cuentas-por-pagar", label: "Cuentas por pagar" },
   { href: "/finanzas/rentabilidad", label: "Rentabilidad" },
+  { href: "/finanzas/centro-costos", label: "Centro de costos" },
   { href: "/finanzas/flujo-ejecutivo", label: "Flujo ejecutivo" },
 ]
 
