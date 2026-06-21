@@ -35,6 +35,7 @@ export default function FacturacionPage() {
   const [autorizado, setAutorizado] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [vencimientoManual, setVencimientoManual] = useState(false)
   const [selected, setSelected] = useState<any>(null)
   const [filtroEstado, setFiltroEstado] = useState("todos")
   const [form, setForm] = useState({
@@ -143,6 +144,7 @@ export default function FacturacionPage() {
     await registrarAccion({ accion: "crear", modulo: "facturacion", entidad_tipo: "factura", descripcion: "Factura creada: " + form.numero_factura })
     setSaving(false)
     setShowForm(false)
+    setVencimientoManual(false)
     setForm({ proyecto_id: "", numero_factura: "", estado: "pendiente", subtotal: "", igv: "18", detraccion_pct: "0", retencion_pct: "0", pronto_pago_entidad: "", pronto_pago_pct: "0", banco_receptor: "", fecha_emision: "", dias_credito: "30", fecha_vencimiento: "", fecha_abono: "", link_reporte: "" })
     load()
   }
@@ -197,7 +199,7 @@ export default function FacturacionPage() {
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{facturas.length} facturas registradas</p>
         </div>
         <ImportExport modulo="facturas" campos={[{key:"numero_factura",label:"N factura",requerido:true},{key:"subtotal",label:"Subtotal"},{key:"detraccion_pct",label:"Detraccion %"},{key:"retencion_pct",label:"Retencion %"},{key:"banco_receptor",label:"Banco"},{key:"fecha_emision",label:"Fecha emision"},{key:"dias_credito",label:"Dias credito"},{key:"fecha_vencimiento",label:"Fecha vencimiento"},{key:"fecha_abono",label:"Fecha abono"}]} datos={facturas} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const diasCredito=Number(r.dias_credito)||30; const fechaVencimiento=r.fecha_vencimiento||(r.fecha_emision?calcularFechaVencimiento(r.fecha_emision,String(diasCredito)):null); const{error}=await supabase.from("facturas").insert({...r,dias_credito:diasCredito,fecha_vencimiento:fechaVencimiento,estado:"pendiente",igv:(Number(r.subtotal)||0)*0.18,monto_final_abonado:Number(r.subtotal)||0}); if(error)errores.push(r.numero_factura+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
-        <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva factura</button>
+        <button onClick={() => { setVencimientoManual(false); setShowForm(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva factura</button>
       </div>
 
       {/* Cards resumen global */}
@@ -323,17 +325,17 @@ export default function FacturacionPage() {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>FECHA EMISIÓN</label>
-                  <input type="date" style={inp} value={form.fecha_emision} onChange={e => { const fecha_emision = e.target.value; setForm({ ...form, fecha_emision, fecha_vencimiento: calcularFechaVencimiento(fecha_emision, form.dias_credito) }) }} />
+                  <input type="date" style={inp} value={form.fecha_emision} onChange={e => { const fecha_emision = e.target.value; setForm({ ...form, fecha_emision, fecha_vencimiento: vencimientoManual ? form.fecha_vencimiento : calcularFechaVencimiento(fecha_emision, form.dias_credito) }) }} />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>DÍAS CRÉDITO</label>
-                  <input type="number" min="0" style={inp} value={form.dias_credito} onChange={e => { const dias_credito = e.target.value; setForm({ ...form, dias_credito, fecha_vencimiento: calcularFechaVencimiento(form.fecha_emision, dias_credito) }) }} />
+                  <input type="number" min="0" style={inp} value={form.dias_credito} onChange={e => { const dias_credito = e.target.value; setForm({ ...form, dias_credito, fecha_vencimiento: vencimientoManual ? form.fecha_vencimiento : calcularFechaVencimiento(form.fecha_emision, dias_credito) }) }} />
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>FECHA VENCIMIENTO</label>
-                  <input type="date" style={inp} value={form.fecha_vencimiento} onChange={e => setForm({ ...form, fecha_vencimiento: e.target.value })} />
+                  <input type="date" style={inp} value={form.fecha_vencimiento} onChange={e => { setVencimientoManual(true); setForm({ ...form, fecha_vencimiento: e.target.value }) }} />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>FECHA ABONO</label>
@@ -458,6 +460,9 @@ export default function FacturacionPage() {
     </div>
   )
 }
+
+
+
 
 
 
