@@ -7,6 +7,7 @@ import KpiCard from "@/components/ui/KpiCard"
 import SectionCard from "@/components/ui/SectionCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceNav from "@/components/finanzas/FinanceNav"
+import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { useFinanceAccess } from "@/components/finanzas/useFinanceAccess"
 import {
   AGING_ORDER,
@@ -35,30 +36,36 @@ export default function FinanzasDashboardPage() {
     }
 
     async function load() {
-      const results = await Promise.all([
-        supabase.from("facturas").select("id,numero_factura,estado,monto_final_abonado,subtotal,igv,fecha_emision,fecha_vencimiento,fecha_abono,proyecto_id"),
-        supabase.from("requerimientos_pago").select("id,estado,monto_solicitado,fecha_pago,created_at,updated_at,proyecto_id"),
-        supabase.from("caja_chica").select("id,estado,monto_debe,monto_haber,fecha"),
-        supabase.from("gastos_oficina").select("id,estado_pago,monto,fecha,fecha_vencimiento"),
-        supabase.from("liquidaciones").select("id,cerrada,margen_real_pct,precio_cliente_real,costo_real,fecha_cierre,created_at,proyecto_id"),
-        supabase.from("prestamos").select("id,estado,monto_original"),
-        supabase.from("prestamo_pagos").select("prestamo_id,monto,fecha_pago"),
-        supabase.from("prestamo_cuotas").select("prestamo_id,estado,monto_total,monto_pagado,fecha_vencimiento"),
-      ])
+      setError("")
+      try {
+        const results = await Promise.all([
+          supabase.from("facturas").select("id,numero_factura,estado,monto_final_abonado,subtotal,igv,fecha_emision,fecha_vencimiento,fecha_abono,proyecto_id"),
+          supabase.from("requerimientos_pago").select("id,estado,monto_solicitado,fecha_pago,created_at,updated_at,proyecto_id"),
+          supabase.from("caja_chica").select("id,estado,monto_debe,monto_haber,fecha"),
+          supabase.from("gastos_oficina").select("id,estado_pago,monto,fecha,fecha_vencimiento"),
+          supabase.from("liquidaciones").select("id,cerrada,margen_real_pct,precio_cliente_real,costo_real,fecha_cierre,created_at,proyecto_id"),
+          supabase.from("prestamos").select("id,estado,monto_original"),
+          supabase.from("prestamo_pagos").select("prestamo_id,monto,fecha_pago"),
+          supabase.from("prestamo_cuotas").select("prestamo_id,estado,monto_total,monto_pagado,fecha_vencimiento"),
+        ])
 
-      const errors = results.map(result => result.error?.message).filter(Boolean)
-      if (errors.length) setError(errors.join(" · "))
-      setData({
-        facturas: results[0].data || [],
-        rqs: results[1].data || [],
-        caja: results[2].data || [],
-        gastos: results[3].data || [],
-        liquidaciones: results[4].data || [],
-        prestamos: results[5].data || [],
-        pagos: results[6].data || [],
-        cuotas: results[7].data || [],
-      })
-      setLoading(false)
+        const errors = results.map(result => result.error?.message).filter(Boolean)
+        if (errors.length) setError(errors.join(" · "))
+        setData({
+          facturas: results[0].data || [],
+          rqs: results[1].data || [],
+          caja: results[2].data || [],
+          gastos: results[3].data || [],
+          liquidaciones: results[4].data || [],
+          prestamos: results[5].data || [],
+          pagos: results[6].data || [],
+          cuotas: results[7].data || [],
+        })
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : "Error inesperado al cargar el dashboard")
+      } finally {
+        setLoading(false)
+      }
     }
 
     load()
@@ -133,7 +140,7 @@ export default function FinanzasDashboardPage() {
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>Vista ejecutiva estimada de liquidez, obligaciones y rentabilidad</p>
       </div>
       <FinanceNav />
-      {error && <div style={{ padding: 12, marginBottom: 16, background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA", borderRadius: 8 }}>{error}</div>}
+      <FinanceDataError detail={error} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
         <KpiCard icon="wallet" label="CAJA ESTIMADA" value={financeShort(metrics.cajaEstimada)} sub="Estimación según cobros y egresos registrados" borderColor={metrics.cajaEstimada >= 0 ? "#16A34A" : "#DC2626"} valueColor={metrics.cajaEstimada >= 0 ? "#15803D" : "#DC2626"} />

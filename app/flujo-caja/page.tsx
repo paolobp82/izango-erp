@@ -7,6 +7,7 @@ import { rowBelongsToDeletedProject } from "@/lib/projects"
 import { FACTURAS_COBRADAS, FACTURAS_PENDIENTES, dueDateValue } from "@/lib/finance"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { puedeAccederRuta } from "@/lib/permissions"
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
@@ -20,10 +21,12 @@ export default function FlujoCajaPage() {
   const [facturas, setFacturas] = useState<any[]>([])
   const [vista, setVista] = useState<"mensual" | "detalle">("mensual")
   const [mesSeleccionado, setMesSeleccionado] = useState<string | null>(null)
+  const [error, setError] = useState("")
 
   useEffect(() => { load() }, [])
 
   async function load() {
+    setError("")
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -43,7 +46,7 @@ export default function FlujoCajaPage() {
       return
     }
 
-    const [{ data: rqsData }, { data: facturasData }] = await Promise.all([
+    const [rqsResult, facturasResult] = await Promise.all([
       supabase.from("requerimientos_pago")
         .select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
         .not("estado", "in", "(rechazado,cancelado,cerrado)")
@@ -54,6 +57,10 @@ export default function FlujoCajaPage() {
         .order("fecha_emision"),
     ])
 
+    const loadErrors = [rqsResult.error?.message, facturasResult.error?.message].filter(Boolean)
+    if (loadErrors.length) setError(loadErrors.join(" · "))
+    const rqsData = rqsResult.data
+    const facturasData = facturasResult.data
     setRqs((rqsData || []).filter((rq: any) => !rowBelongsToDeletedProject(rq)))
     setFacturas((facturasData || []).filter((factura: any) => !rowBelongsToDeletedProject(factura)))
     setLoading(false)
@@ -150,7 +157,9 @@ export default function FlujoCajaPage() {
             </button>
           ))}
         </div>
-      </div>      {/* KPIs */}
+      </div>
+      <FinanceDataError detail={error} />
+      {/* KPIs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 16, marginBottom: 24 }}>
         <KpiCard
           label="POR COBRAR"

@@ -7,6 +7,7 @@ import KpiCard from "@/components/ui/KpiCard"
 import SectionCard from "@/components/ui/SectionCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceNav from "@/components/finanzas/FinanceNav"
+import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { useFinanceAccess } from "@/components/finanzas/useFinanceAccess"
 import { financeMoney, financeNumber } from "@/lib/finance"
 
@@ -15,6 +16,7 @@ export default function RentabilidadPage() {
   const { loadingAccess, authorized } = useFinanceAccess()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<any[]>([])
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (!authorized) {
@@ -22,10 +24,13 @@ export default function RentabilidadPage() {
       return
     }
 
+    setError("")
     Promise.all([
       supabase.from("liquidaciones").select("id,proyecto_id,cerrada,costo_real,precio_cliente_real,margen_real_pct,desvio_costo,proyecto:proyectos(codigo,nombre,deleted_at,cliente:clientes(razon_social))").order("created_at", { ascending: false }),
       supabase.from("facturas").select("proyecto_id,subtotal,igv,estado"),
     ]).then(([liqResult, factResult]) => {
+      const errors = [liqResult.error?.message, factResult.error?.message].filter(Boolean)
+      if (errors.length) setError(errors.join(" · "))
       const facturas = factResult.data || []
       const liquidaciones = (liqResult.data || []).filter((l: any) => !l.proyecto?.deleted_at).map((liq: any) => {
         const facturado = facturas.filter((f: any) => f.proyecto_id === liq.proyecto_id && !["anulada", "cancelada"].includes(f.estado)).reduce((s: number, f: any) => s + financeNumber(f.subtotal) + financeNumber(f.igv), 0)
@@ -36,6 +41,9 @@ export default function RentabilidadPage() {
         return { ...liq, ingreso, costo, utilidad, margen }
       })
       setRows(liquidaciones)
+      setLoading(false)
+    }).catch((loadError: unknown) => {
+      setError(loadError instanceof Error ? loadError.message : "Error inesperado al cargar rentabilidad")
       setLoading(false)
     })
   }, [authorized, loadingAccess, supabase])
@@ -54,6 +62,7 @@ export default function RentabilidadPage() {
     <div>
       <div style={{ marginBottom: 18 }}><h1 style={{ margin: 0, fontSize: 22 }}>Rentabilidad</h1><p style={{ margin: "4px 0 0", color: "#64748B", fontSize: 13 }}>Resultado económico por proyecto y liquidación</p></div>
       <FinanceNav />
+      <FinanceDataError detail={error} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
         <KpiCard icon="money" label="INGRESOS LIQUIDADOS" value={financeMoney(ingresos)} sub={`${cerradas.length} proyectos cerrados`} borderColor="#2563EB" valueColor="#1D4ED8" />
         <KpiCard icon="wallet" label="COSTO REAL" value={financeMoney(costos)} sub="Costo consolidado" borderColor="#F97316" valueColor="#C2410C" />

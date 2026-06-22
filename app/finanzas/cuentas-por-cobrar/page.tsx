@@ -6,6 +6,7 @@ import KpiCard from "@/components/ui/KpiCard"
 import SectionCard from "@/components/ui/SectionCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceNav from "@/components/finanzas/FinanceNav"
+import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { useFinanceAccess } from "@/components/finanzas/useFinanceAccess"
 import { FACTURAS_PENDIENTES, agingBucket, daysFromToday, dueDateValue, financeMoney, financeNumber } from "@/lib/finance"
 
@@ -15,16 +16,27 @@ export default function CuentasPorCobrarPage() {
   const [loading, setLoading] = useState(true)
   const [facturas, setFacturas] = useState<any[]>([])
   const [filtro, setFiltro] = useState("todas")
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (!authorized) {
       if (!loadingAccess) setLoading(false)
       return
     }
-    supabase.from("facturas").select("*, proyecto:proyectos(codigo,nombre,deleted_at,cliente:clientes(razon_social))").in("estado", FACTURAS_PENDIENTES).order("fecha_vencimiento", { ascending: true, nullsFirst: false }).then(({ data }) => {
-      setFacturas((data || []).filter((f: any) => !f.proyecto?.deleted_at))
-      setLoading(false)
-    })
+    async function load() {
+      setError("")
+      try {
+        const { data, error: loadError } = await supabase.from("facturas").select("*, proyecto:proyectos(codigo,nombre,deleted_at,cliente:clientes(razon_social))").in("estado", FACTURAS_PENDIENTES).order("fecha_vencimiento", { ascending: true, nullsFirst: false })
+        if (loadError) setError(loadError.message)
+        setFacturas((data || []).filter((f: any) => !f.proyecto?.deleted_at))
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : "Error inesperado al cargar facturas")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
   }, [authorized, loadingAccess, supabase])
 
   const total = facturas.reduce((s, f) => s + financeNumber(f.monto_final_abonado), 0)
@@ -39,6 +51,7 @@ export default function CuentasPorCobrarPage() {
     <div>
       <div style={{ marginBottom: 18 }}><h1 style={{ margin: 0, fontSize: 22 }}>Cuentas por Cobrar</h1><p style={{ margin: "4px 0 0", color: "#64748B", fontSize: 13 }}>Seguimiento de facturas pendientes y aging según fecha de vencimiento</p></div>
       <FinanceNav />
+      <FinanceDataError detail={error} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
         <KpiCard icon="money" label="TOTAL POR COBRAR" value={financeMoney(total)} sub={`${facturas.length} facturas`} borderColor="#2563EB" valueColor="#1D4ED8" />
         <KpiCard icon="wallet" label="VENCIDO" value={financeMoney(vencidas.reduce((s, f) => s + financeNumber(f.monto_final_abonado), 0))} sub={`${vencidas.length} facturas vencidas`} borderColor="#DC2626" valueColor="#B91C1C" />

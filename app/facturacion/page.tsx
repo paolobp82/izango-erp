@@ -7,6 +7,7 @@ import { enviarAlerta } from "@/lib/alertas"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { puedeAccederRuta } from "@/lib/permissions"
 
 const ESTADOS: Record<string, any> = {
@@ -38,6 +39,7 @@ export default function FacturacionPage() {
   const [vencimientoManual, setVencimientoManual] = useState(false)
   const [selected, setSelected] = useState<any>(null)
   const [filtroEstado, setFiltroEstado] = useState("todos")
+  const [error, setError] = useState("")
   const [form, setForm] = useState({
     proyecto_id: "", numero_factura: "", estado: "pendiente",
     subtotal: "", igv: "18",
@@ -49,6 +51,7 @@ export default function FacturacionPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
+    setError("")
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -70,20 +73,22 @@ export default function FacturacionPage() {
 
     const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
 
-    const { data: facts } = await supabase
+    const { data: facts, error: facturasError } = await supabase
       .from("facturas")
       .select("*, proyecto:proyectos(nombre, codigo, deleted_at, cliente:clientes(razon_social))")
       .order("created_at", { ascending: false })
 
     setFacturas((facts || []).filter((factura: any) => !rowBelongsToDeletedProject(factura)))
 
-    const { data: provs } = await supabase
+    const { data: provs, error: proyectosError } = await supabase
       .from("proyectos")
       .select("id, nombre, codigo")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
 
     setProyectos(provs || [])
+    const loadErrors = [facturasError?.message, proyectosError?.message].filter(Boolean)
+    if (loadErrors.length) setError(loadErrors.join(" · "))
 
     if (proyectoIdParam) {
       const proyectoActivo = (provs || []).some((p: any) => p.id === proyectoIdParam)
@@ -201,6 +206,7 @@ export default function FacturacionPage() {
         <ImportExport modulo="facturas" campos={[{key:"numero_factura",label:"N factura",requerido:true},{key:"subtotal",label:"Subtotal"},{key:"detraccion_pct",label:"Detraccion %"},{key:"retencion_pct",label:"Retencion %"},{key:"banco_receptor",label:"Banco"},{key:"fecha_emision",label:"Fecha emision"},{key:"dias_credito",label:"Dias credito"},{key:"fecha_vencimiento",label:"Fecha vencimiento"},{key:"fecha_abono",label:"Fecha abono"}]} datos={facturas} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const diasCredito=Number(r.dias_credito)||30; const fechaVencimiento=r.fecha_vencimiento||(r.fecha_emision?calcularFechaVencimiento(r.fecha_emision,String(diasCredito)):null); const{error}=await supabase.from("facturas").insert({...r,dias_credito:diasCredito,fecha_vencimiento:fechaVencimiento,estado:"pendiente",igv:(Number(r.subtotal)||0)*0.18,monto_final_abonado:Number(r.subtotal)||0}); if(error)errores.push(r.numero_factura+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
         <button onClick={() => { setVencimientoManual(false); setShowForm(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva factura</button>
       </div>
+      <FinanceDataError detail={error} />
 
       {/* Cards resumen global */}
       <div

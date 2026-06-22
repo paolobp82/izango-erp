@@ -6,6 +6,7 @@ import KpiCard from "@/components/ui/KpiCard"
 import SectionCard from "@/components/ui/SectionCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceNav from "@/components/finanzas/FinanceNav"
+import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { useFinanceAccess } from "@/components/finanzas/useFinanceAccess"
 import { RQS_POR_PAGAR, agingBucket, financeMoney, financeNumber } from "@/lib/finance"
 import { rqCodigo } from "@/lib/rq-code"
@@ -16,6 +17,7 @@ export default function CuentasPorPagarPage() {
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<any[]>([])
   const [source, setSource] = useState("todas")
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (!authorized) {
@@ -23,15 +25,21 @@ export default function CuentasPorPagarPage() {
       return
     }
 
+    setError("")
     Promise.all([
       supabase.from("requerimientos_pago").select("id,codigo_rq,numero_rq,descripcion,proveedor_nombre,monto_solicitado,estado,fecha_pago,created_at").in("estado", RQS_POR_PAGAR),
       supabase.from("caja_chica").select("id,concepto,monto_debe,estado,fecha,destinatario").in("estado", ["pendiente", "aprobado"]),
       supabase.from("gastos_oficina").select("id,descripcion,proveedor_nombre,monto,estado_pago,fecha,fecha_vencimiento").in("estado_pago", ["pendiente", "vencido"]),
     ]).then(results => {
+      const errors = results.map(result => result.error?.message).filter(Boolean)
+      if (errors.length) setError(errors.join(" · "))
       const rqs = (results[0].data || []).map((r: any) => ({ ...r, source: "rq", label: rqCodigo(r), tercero: r.proveedor_nombre, monto: r.monto_solicitado, fecha_ref: r.fecha_pago || r.created_at }))
       const caja = (results[1].data || []).map((r: any) => ({ ...r, source: "caja", label: "Caja chica", descripcion: r.concepto, tercero: r.destinatario, monto: r.monto_debe, fecha_ref: r.fecha }))
       const gastos = (results[2].data || []).map((r: any) => ({ ...r, source: "oficina", label: "Gasto oficina", tercero: r.proveedor_nombre, estado: r.estado_pago, fecha_ref: r.fecha_vencimiento || r.fecha }))
       setRows([...rqs, ...caja, ...gastos])
+      setLoading(false)
+    }).catch((loadError: unknown) => {
+      setError(loadError instanceof Error ? loadError.message : "Error inesperado al cargar obligaciones")
       setLoading(false)
     })
   }, [authorized, loadingAccess, supabase])
@@ -47,6 +55,7 @@ export default function CuentasPorPagarPage() {
     <div>
       <div style={{ marginBottom: 18 }}><h1 style={{ margin: 0, fontSize: 22 }}>Cuentas por Pagar</h1><p style={{ margin: "4px 0 0", color: "#64748B", fontSize: 13 }}>Obligaciones operativas pendientes de programación o pago</p></div>
       <FinanceNav />
+      <FinanceDataError detail={error} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
         <KpiCard icon="wallet" label="TOTAL POR PAGAR" value={financeMoney(total)} sub={`${rows.length} obligaciones`} borderColor="#DC2626" valueColor="#B91C1C" />
         <KpiCard icon="file" label="REQUERIMIENTOS" value={financeMoney(bySource("rq"))} sub="Flujo de aprobación RQ" borderColor="#F97316" valueColor="#C2410C" />
