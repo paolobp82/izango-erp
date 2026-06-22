@@ -32,7 +32,6 @@ const ALL_NAV = [
   { section: "Comercial", items: [
     { label: "CRM", href: "/crm", icon: "◎" },
     { label: "Clientes", href: "/clientes", icon: "◉" },
-    { label: "Cotizaciones y Proformas", href: "/proformas", icon: "▤" },
     { label: "Buscar ítems cotizados", href: "/buscar-items", icon: "⌕" },
     { label: "Biblioteca", href: "/biblioteca", icon: "▱" },
     { label: "Biblioteca de Medios", href: "/biblioteca-medios", icon: "▧" },
@@ -278,6 +277,7 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
     </aside>
   )
 }
+
 
 
 

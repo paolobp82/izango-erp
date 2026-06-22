@@ -4,7 +4,7 @@ export const ACCESO: Record<string, string[]> = {
   controller: ["*"],
 
   administrador: [
-    "/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/buscar-items",
+    "/dashboard","/proyectos","/calendario","/clientes","/crm","/buscar-items",
     "/proveedores","/biblioteca","/biblioteca-medios","/rq","/facturacion","/liquidaciones",
     "/inventario","/envios-materiales","/logistica/traslados","/logistica/mi-trabajo","/audiovisual","/rrhh/planilla","/rrhh/permisos",
     "/rrhh/horas-extras","/rrhh/vacaciones","/rrhh/faltas-medicas","/ia","/alertas",
@@ -12,7 +12,7 @@ export const ACCESO: Record<string, string[]> = {
   ],
 
   gerente_produccion: [
-    "/dashboard","/tareas","/calendario","/alertas","/crm","/clientes","/proformas",
+    "/dashboard","/tareas","/calendario","/alertas","/crm","/clientes",
     "/buscar-items","/biblioteca","/biblioteca-medios","/proyectos","/gestor","/audiovisual",
     "/proveedores","/rq","/inventario","/inventario/ordenes","/envios-materiales","/logistica/traslados","/logistica/mi-trabajo",
     "/facturacion","/liquidaciones","/rrhh/planilla","/rrhh/permisos","/rrhh/horas-extras",
@@ -20,7 +20,7 @@ export const ACCESO: Record<string, string[]> = {
   ],
 
   productor: [
-    "/dashboard","/tareas","/calendario","/alertas","/crm","/clientes","/proformas",
+    "/dashboard","/tareas","/calendario","/alertas","/crm","/clientes",
     "/buscar-items","/biblioteca","/biblioteca-medios","/proyectos","/gestor","/audiovisual",
     "/proveedores","/rq","/inventario","/inventario/ordenes","/envios-materiales","/logistica/traslados","/logistica/mi-trabajo",
     "/liquidaciones","/rrhh/planilla","/rrhh/permisos","/rrhh/horas-extras",
@@ -36,13 +36,13 @@ export const ACCESO: Record<string, string[]> = {
   ],
 
   comercial: [
-    "/dashboard","/proyectos","/calendario","/clientes","/crm","/proformas","/buscar-items",
+    "/dashboard","/proyectos","/calendario","/clientes","/crm","/buscar-items",
     "/biblioteca-medios","/caja-chica","/ia","/rrhh/vacaciones","/rrhh/horas-extras",
     "/rrhh/permisos","/rrhh/faltas-medicas","/rrhh/trabajadores","/perfil","/tareas"
   ],
 
   practicante: [
-    "/dashboard","/proyectos","/calendario","/gestor","/clientes","/crm","/proformas",
+    "/dashboard","/proyectos","/calendario","/gestor","/clientes","/crm",
     "/buscar-items","/biblioteca","/biblioteca-medios","/caja-chica","/ia",
     "/rrhh/vacaciones","/rrhh/horas-extras","/rrhh/permisos","/rrhh/faltas-medicas",
     "/rrhh/trabajadores","/perfil","/tareas"
@@ -75,4 +75,5 @@ export function puedeVerInformacionSensible(perfil?: string | null) {
 export function esRolOperativo(perfil?: string | null) {
   return ["gerente_produccion", "productor", "logistica", "comercial", "audiovisual", "practicante"].includes(perfil || "")
 }
+
 
