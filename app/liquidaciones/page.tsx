@@ -9,6 +9,7 @@ import { rowBelongsToDeletedProject } from "@/lib/projects"
 import KpiCard from "@/components/ui/KpiCard"
 import SectionCard from "@/components/ui/SectionCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { puedeAccederRuta } from "@/lib/permissions"
 
 export default function LiquidacionesPage() {
@@ -24,10 +25,13 @@ export default function LiquidacionesPage() {
   const [loadingItems, setLoadingItems] = useState(false)
   const [perfil, setPerfil] = useState<any>(null)
   const [autorizado, setAutorizado] = useState(false)
+  const [error, setError] = useState("")
+  const [detailError, setDetailError] = useState("")
 
   useEffect(() => { load() }, [])
 
   async function load() {
+    setError("")
     const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -48,7 +52,7 @@ export default function LiquidacionesPage() {
       return
     }
 
-    const { data: liqs } = await supabase
+    const { data: liqs, error: liquidacionesError } = await supabase
       .from("liquidaciones")
       .select("*, proyecto:proyectos(nombre, codigo, deleted_at, cliente:clientes(razon_social))")
       .order("created_at", { ascending: false })
@@ -59,13 +63,15 @@ export default function LiquidacionesPage() {
     const liqProyecto = proyectoIdParam ? liqsActivas.find((liq: any) => liq.proyecto_id === proyectoIdParam) : null
     if (liqProyecto) await abrirLiquidacion(liqProyecto)
 
-    const { data: provs } = await supabase
+    const { data: provs, error: proyectosError } = await supabase
       .from("proyectos")
       .select("id, nombre, codigo")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
 
     setProyectos(provs || [])
+    const loadErrors = [liquidacionesError?.message, proyectosError?.message].filter(Boolean)
+    if (loadErrors.length) setError(loadErrors.join(" · "))
     setLoading(false)
   }
   async function crearLiquidacion(proyectoId: string) {
@@ -131,27 +137,31 @@ export default function LiquidacionesPage() {
 
     setSelected(liq)
     setLoadingItems(true)
+    setDetailError("")
 
-    const { data: liqItems } = await supabase
+    const { data: liqItems, error: itemsError } = await supabase
       .from("liquidacion_items")
       .select("*")
       .eq("liquidacion_id", liq.id)
 
-    const { data: cotItems } = await supabase
+    const { data: cotItems, error: cotizacionItemsError } = await supabase
       .from("cotizacion_items")
       .select("id, proveedor_id, proveedor_nombre")
       .in("id", (liqItems || []).map((i: any) => i.cotizacion_item_id).filter(Boolean))
 
-    const { data: rqs } = await supabase
+    const { data: rqs, error: rqsError } = await supabase
       .from("requerimientos_pago")
       .select("id, codigo_rq, numero_rq, estado, proveedor_id, proveedor_nombre, descripcion, monto_solicitado, cotizacion_item_id, es_adicional")
       .eq("proyecto_id", liq.proyecto_id)
 
-    const { data: facturasProyecto } = await supabase
+    const { data: facturasProyecto, error: facturasError } = await supabase
       .from("facturas")
       .select("id, estado, subtotal, igv, monto_final_abonado")
       .eq("proyecto_id", liq.proyecto_id)
       .not("estado", "eq", "anulada")
+
+    const detailErrors = [itemsError?.message, cotizacionItemsError?.message, rqsError?.message, facturasError?.message].filter(Boolean)
+    if (detailErrors.length) setDetailError(detailErrors.join(" · "))
 
     const facturado = (facturasProyecto || []).reduce((s: number, f: any) => s + Number(f.subtotal || 0) + Number(f.igv || 0), 0)
     const cobrado = (facturasProyecto || []).filter((f: any) => f.estado === "cobrada").reduce((s: number, f: any) => s + Number(f.monto_final_abonado || 0), 0)
@@ -375,6 +385,7 @@ export default function LiquidacionesPage() {
           <ImportExport modulo="liquidaciones" campos={[{key:"proyecto_nombre",label:"Proyecto"},{key:"costo_presupuestado",label:"Costo presupuestado"},{key:"precio_cliente_presupuestado",label:"Precio cliente"},{key:"margen_presupuestado_pct",label:"Margen %"},{key:"margen_real_pct",label:"Margen real %"}]} datos={liquidaciones.map((l:any)=>({...l,proyecto_nombre:l.proyecto?.nombre,proyecto_codigo:l.proyecto?.codigo}))} onImportar={async () => ({ exitosos: 0, errores: ["Las liquidaciones se generan automaticamente"] })} />
         </div>
       </div>
+      <FinanceDataError detail={[error, detailError].filter(Boolean).join(" · ")} />
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "320px 1fr" : "1fr", gap: 16 }}>
         <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>

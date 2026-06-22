@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase"
 import KpiCard from "@/components/ui/KpiCard"
 import SectionCard from "@/components/ui/SectionCard"
 import FinanceNav from "@/components/finanzas/FinanceNav"
+import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { useFinanceAccess } from "@/components/finanzas/useFinanceAccess"
 import { FACTURAS_COBRADAS, FACTURAS_PENDIENTES, RQS_POR_PAGAR, dueDateValue, financeMoney, financeNumber, monthKey, monthLabel } from "@/lib/finance"
 
@@ -14,19 +15,26 @@ export default function FlujoEjecutivoPage() {
   const { loadingAccess, authorized } = useFinanceAccess()
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any>({ facturas: [], rqs: [], gastos: [], cuotas: [] })
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (!authorized) {
       if (!loadingAccess) setLoading(false)
       return
     }
+    setError("")
     Promise.all([
       supabase.from("facturas").select("estado,monto_final_abonado,fecha_emision,fecha_vencimiento,fecha_abono"),
       supabase.from("requerimientos_pago").select("estado,monto_solicitado,fecha_pago,created_at,updated_at"),
       supabase.from("gastos_oficina").select("estado_pago,monto,fecha,fecha_vencimiento"),
       supabase.from("prestamo_cuotas").select("estado,monto_total,monto_pagado,fecha_vencimiento"),
     ]).then(results => {
+      const errors = results.map(result => result.error?.message).filter(Boolean)
+      if (errors.length) setError(errors.join(" · "))
       setData({ facturas: results[0].data || [], rqs: results[1].data || [], gastos: results[2].data || [], cuotas: results[3].data || [] })
+      setLoading(false)
+    }).catch((loadError: unknown) => {
+      setError(loadError instanceof Error ? loadError.message : "Error inesperado al cargar el flujo")
       setLoading(false)
     })
   }, [authorized, loadingAccess, supabase])
@@ -54,6 +62,7 @@ export default function FlujoEjecutivoPage() {
     <div>
       <div style={{ marginBottom: 18 }}><h1 style={{ margin: 0, fontSize: 22 }}>Flujo Ejecutivo</h1><p style={{ margin: "4px 0 0", color: "#64748B", fontSize: 13 }}>Posición histórica y proyección de caja a nueve meses</p></div>
       <FinanceNav />
+      <FinanceDataError detail={error} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
         <KpiCard icon="money" label="INGRESOS TOTALES" value={financeMoney(totalIngresos)} sub="Reales y proyectados" borderColor="#16A34A" valueColor="#15803D" />
         <KpiCard icon="wallet" label="EGRESOS TOTALES" value={financeMoney(totalEgresos)} sub="Operativos y deuda" borderColor="#DC2626" valueColor="#B91C1C" />

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import FinanceNav from "@/components/finanzas/FinanceNav"
+import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { useFinanceAccess } from "@/components/finanzas/useFinanceAccess"
 import KpiCard from "@/components/ui/KpiCard"
 import SectionCard from "@/components/ui/SectionCard"
@@ -73,30 +74,35 @@ export default function CentroCostosFinancieroPage() {
       setLoading(true)
       setError("")
 
-      const results = await Promise.all([
-        supabase
-          .from("proyectos")
-          .select("id,codigo,nombre,deleted_at,cliente_id,cliente:clientes(id,razon_social)")
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("facturas")
-          .select("id,proyecto_id,subtotal,igv,monto_final_abonado,estado"),
-        supabase
-          .from("requerimientos_pago")
-          .select("id,proyecto_id,monto_solicitado,estado"),
-        supabase
-          .from("caja_chica")
-          .select("id,proyecto_id,monto_debe,estado"),
-      ])
+      try {
+        const results = await Promise.all([
+          supabase
+            .from("proyectos")
+            .select("id,codigo,nombre,deleted_at,cliente_id,cliente:clientes(id,razon_social)")
+            .is("deleted_at", null)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("facturas")
+            .select("id,proyecto_id,subtotal,igv,monto_final_abonado,estado"),
+          supabase
+            .from("requerimientos_pago")
+            .select("id,proyecto_id,monto_solicitado,estado"),
+          supabase
+            .from("caja_chica")
+            .select("id,proyecto_id,monto_debe,estado"),
+        ])
 
-      const errors = results.map(result => result.error?.message).filter(Boolean)
-      if (errors.length) setError(errors.join(" · "))
-      setProjects(results[0].data || [])
-      setInvoices(results[1].data || [])
-      setPaymentRequests(results[2].data || [])
-      setPettyCash(results[3].data || [])
-      setLoading(false)
+        const errors = results.map(result => result.error?.message).filter(Boolean)
+        if (errors.length) setError(errors.join(" · "))
+        setProjects(results[0].data || [])
+        setInvoices(results[1].data || [])
+        setPaymentRequests(results[2].data || [])
+        setPettyCash(results[3].data || [])
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : "Error inesperado al cargar el centro de costos")
+      } finally {
+        setLoading(false)
+      }
     }
 
     load()
@@ -215,12 +221,7 @@ export default function CentroCostosFinancieroPage() {
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>Facturación, cobranza y costos operativos consolidados por proyecto</p>
       </div>
       <FinanceNav />
-
-      {error && (
-        <div style={{ padding: 12, marginBottom: 16, background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA", borderRadius: 8 }}>
-          No se pudieron cargar todos los datos: {error}
-        </div>
-      )}
+      <FinanceDataError detail={error} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 16, marginBottom: 20 }}>
         <KpiCard icon="money" label="FACTURACIÓN TOTAL" value={financeMoney(metrics.facturacion)} sub={`${filteredRows.length} proyectos visibles`} borderColor="#2563EB" valueColor="#1D4ED8" />
