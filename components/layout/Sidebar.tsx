@@ -65,6 +65,7 @@ const ALL_NAV = [
     { label: "Cuentas por Cobrar", href: "/finanzas/cuentas-por-cobrar", icon: "↙" },
     { label: "Cuentas por Pagar", href: "/finanzas/cuentas-por-pagar", icon: "↗" },
     { label: "Rentabilidad", href: "/finanzas/rentabilidad", icon: "∿" },
+    { label: "Centro de Costos", href: "/finanzas/centro-costos", icon: "◆" },
     { label: "Flujo Ejecutivo", href: "/finanzas/flujo-ejecutivo", icon: "▥" },
     { label: "Deudas y Financiamientos", href: "/prestamos", icon: "▰" },
   ]},
