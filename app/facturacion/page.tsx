@@ -166,8 +166,8 @@ export default function FacturacionPage() {
     if (estado === "cobrada") {
       const factura = facturas.find(f => f.id === id)
       if (factura?.proyecto_id) {
-        await supabase.from("proyectos").update({ estado: "cancelado" }).eq("id", factura.proyecto_id)
-        await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: factura.proyecto_id, entidad_tipo: "proyecto", descripcion: "Proyecto marcado como Pagado por cobro de factura", datos_nuevos: { estado: "cancelado" } })
+        await supabase.from("proyectos").update({ estado: "cerrado_financiero" }).eq("id", factura.proyecto_id)
+        await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: factura.proyecto_id, entidad_tipo: "proyecto", descripcion: "Proyecto marcado como cerrado financiero por cobro de factura", datos_nuevos: { estado: "cerrado_financiero" } })
       }
     }
     load()
