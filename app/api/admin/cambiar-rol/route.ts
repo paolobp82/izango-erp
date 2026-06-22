@@ -1,21 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getErrorMessage, requireAdminProfile } from "@/lib/auth-server"
-
-const ROLES_VALIDOS = new Set([
-  "superadmin",
-  "gerente_general",
-  "administrador",
-  "controller",
-  "productor",
-  "logistica",
-  "practicante",
-  "comercial",
-  "gerente_produccion",
-  "gerente_finanzas",
-  "audiovisual",
-  "operativo",
-  "finanzas",
-])
+import { esRolValido } from "@/lib/roles"
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 })
     }
 
-    if (!ROLES_VALIDOS.has(nuevo_perfil)) {
+    if (!esRolValido(nuevo_perfil)) {
       return NextResponse.json({ error: "Rol no válido" }, { status: 400 })
     }
 
@@ -81,3 +66,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 })
   }
 }
+

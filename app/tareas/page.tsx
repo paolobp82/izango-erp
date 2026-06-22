@@ -426,7 +426,7 @@ export default function TareasPage() {
     await loadComentarios(selected.id)
   }
 
-  const rolesGerenciales = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager", "controller"]
+  const rolesGerenciales = ["superadmin", "gerente_general", "gerente_produccion", "controller"]
   const puedeVerEquipo = rolesGerenciales.includes(perfil?.perfil)
 
   const tareasFiltradas = tareas.filter(t => {
@@ -1266,18 +1266,4 @@ export default function TareasPage() {
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
