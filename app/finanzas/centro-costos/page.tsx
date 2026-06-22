@@ -28,6 +28,7 @@ type CostCenterRow = {
   rqPagado: number
   rqPendiente: number
   cajaChica: number
+  traslados: number
   costoReal: number
   utilidad: number
   margen: number
@@ -60,6 +61,7 @@ export default function CentroCostosFinancieroPage() {
   const [invoices, setInvoices] = useState<any[]>([])
   const [paymentRequests, setPaymentRequests] = useState<any[]>([])
   const [pettyCash, setPettyCash] = useState<any[]>([])
+  const [transfers, setTransfers] = useState<any[]>([])
   const [clientFilter, setClientFilter] = useState("")
   const [trafficFilter, setTrafficFilter] = useState("")
   const [sortBy, setSortBy] = useState("mayor_facturacion")
@@ -90,6 +92,9 @@ export default function CentroCostosFinancieroPage() {
           supabase
             .from("caja_chica")
             .select("id,proyecto_id,monto_debe,estado"),
+          supabase
+            .from("logistica_traslados")
+            .select("id,proyecto_id,costo_real,estado,afecta_rentabilidad"),
         ])
 
         const errors = results.map(result => result.error?.message).filter(Boolean)
@@ -98,6 +103,7 @@ export default function CentroCostosFinancieroPage() {
         setInvoices(results[1].data || [])
         setPaymentRequests(results[2].data || [])
         setPettyCash(results[3].data || [])
+        setTransfers(results[4].data || [])
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Error inesperado al cargar el centro de costos")
       } finally {
@@ -112,6 +118,7 @@ export default function CentroCostosFinancieroPage() {
     const invoicesByProject = new Map<string, any[]>()
     const requestsByProject = new Map<string, any[]>()
     const cashByProject = new Map<string, any[]>()
+    const transfersByProject = new Map<string, any[]>()
 
     invoices.forEach(invoice => {
       if (!invoice.proyecto_id) return
@@ -125,12 +132,17 @@ export default function CentroCostosFinancieroPage() {
       if (!entry.proyecto_id) return
       cashByProject.set(entry.proyecto_id, [...(cashByProject.get(entry.proyecto_id) || []), entry])
     })
+    transfers.forEach(transfer => {
+      if (!transfer.proyecto_id) return
+      transfersByProject.set(transfer.proyecto_id, [...(transfersByProject.get(transfer.proyecto_id) || []), transfer])
+    })
 
     return projects.map(project => {
       const client = relationOne<any>(project.cliente)
       const projectInvoices = invoicesByProject.get(project.id) || []
       const projectRequests = requestsByProject.get(project.id) || []
       const projectCash = cashByProject.get(project.id) || []
+      const projectTransfers = transfersByProject.get(project.id) || []
 
       const totalFacturado = projectInvoices
         .filter(invoice => !FACTURAS_ANULADAS.includes(invoice.estado))
@@ -147,7 +159,10 @@ export default function CentroCostosFinancieroPage() {
       const cajaChica = projectCash
         .filter(entry => entry.estado === "aprobado")
         .reduce((sum, entry) => sum + financeNumber(entry.monto_debe), 0)
-      const costoReal = rqPagado + cajaChica
+      const traslados = projectTransfers
+        .filter(transfer => transfer.afecta_rentabilidad !== false && !["cancelado", "rechazado"].includes(transfer.estado))
+        .reduce((sum, transfer) => sum + financeNumber(transfer.costo_real), 0)
+      const costoReal = rqPagado + cajaChica + traslados
       const utilidad = totalFacturado - costoReal
       const margen = totalFacturado > 0 ? (utilidad / totalFacturado) * 100 : 0
 
@@ -161,6 +176,7 @@ export default function CentroCostosFinancieroPage() {
         rqPagado,
         rqPendiente,
         cajaChica,
+        traslados,
         costoReal,
         utilidad,
         margen,
@@ -225,7 +241,7 @@ export default function CentroCostosFinancieroPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 16, marginBottom: 20 }}>
         <KpiCard icon="money" label="FACTURACIÓN TOTAL" value={financeMoney(metrics.facturacion)} sub={`${filteredRows.length} proyectos visibles`} borderColor="#2563EB" valueColor="#1D4ED8" />
-        <KpiCard icon="wallet" label="COSTOS TOTALES" value={financeMoney(metrics.costos)} sub="RQ pagados y caja chica" borderColor="#F97316" valueColor="#C2410C" />
+        <KpiCard icon="wallet" label="COSTOS TOTALES" value={financeMoney(metrics.costos)} sub="RQ pagados, caja chica y traslados" borderColor="#F97316" valueColor="#C2410C" />
         <KpiCard icon="chart" label="UTILIDAD TOTAL" value={financeMoney(metrics.utilidad)} sub="Facturación menos costos reales" borderColor={metrics.utilidad >= 0 ? "#16A34A" : "#DC2626"} valueColor={metrics.utilidad >= 0 ? "#15803D" : "#B91C1C"} />
         <KpiCard icon="shield" label="MARGEN PROMEDIO" value={`${metrics.margenPromedio.toFixed(1)}%`} sub="Promedio de proyectos facturados" borderColor={metrics.margenPromedio >= 20 ? "#16A34A" : metrics.margenPromedio >= 10 ? "#F59E0B" : "#DC2626"} valueColor={metrics.margenPromedio >= 20 ? "#15803D" : metrics.margenPromedio >= 10 ? "#B45309" : "#B91C1C"} />
       </div>
@@ -258,8 +274,8 @@ export default function CentroCostosFinancieroPage() {
           <table style={{ width: "100%", minWidth: 1500, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F8FAFC" }}>
-                {["CÓDIGO","PROYECTO","CLIENTE","TOTAL FACTURADO","TOTAL COBRADO","RQ PAGADO","RQ PENDIENTE","CAJA CHICA","COSTO REAL TOTAL","UTILIDAD","MARGEN","SEMÁFORO"].map(header => (
-                  <th key={header} style={{ padding: "10px 12px", textAlign: ["TOTAL FACTURADO","TOTAL COBRADO","RQ PAGADO","RQ PENDIENTE","CAJA CHICA","COSTO REAL TOTAL","UTILIDAD","MARGEN"].includes(header) ? "right" : "left", fontSize: 11, color: "#64748B", whiteSpace: "nowrap" }}>
+                {["CÓDIGO","PROYECTO","CLIENTE","TOTAL FACTURADO","TOTAL COBRADO","RQ PAGADO","RQ PENDIENTE","CAJA CHICA","TRASLADOS","COSTO REAL TOTAL","UTILIDAD","MARGEN","SEMÁFORO"].map(header => (
+                  <th key={header} style={{ padding: "10px 12px", textAlign: ["TOTAL FACTURADO","TOTAL COBRADO","RQ PAGADO","RQ PENDIENTE","CAJA CHICA","TRASLADOS","COSTO REAL TOTAL","UTILIDAD","MARGEN"].includes(header) ? "right" : "left", fontSize: 11, color: "#64748B", whiteSpace: "nowrap" }}>
                     {header}
                   </th>
                 ))}
@@ -286,6 +302,7 @@ export default function CentroCostosFinancieroPage() {
                     <td style={{ padding: 12, textAlign: "right" }}>{financeMoney(row.rqPagado)}</td>
                     <td style={{ padding: 12, textAlign: "right", color: "#B45309" }}>{financeMoney(row.rqPendiente)}</td>
                     <td style={{ padding: 12, textAlign: "right" }}>{financeMoney(row.cajaChica)}</td>
+                    <td style={{ padding: 12, textAlign: "right" }}>{financeMoney(row.traslados)}</td>
                     <td style={{ padding: 12, textAlign: "right", fontWeight: 700 }}>{financeMoney(row.costoReal)}</td>
                     <td style={{ padding: 12, textAlign: "right", fontWeight: 800, color: row.utilidad >= 0 ? "#15803D" : "#B91C1C" }}>{financeMoney(row.utilidad)}</td>
                     <td style={{ padding: 12, textAlign: "right", fontWeight: 800, color: signal.color }}>{row.margen.toFixed(1)}%</td>
@@ -305,4 +322,5 @@ export default function CentroCostosFinancieroPage() {
     </div>
   )
 }
+
 

@@ -16,6 +16,9 @@ const ESTADOS: Record<string, any> = {
 const formVacio: any = {
   titulo: "",
   proyecto_id: "",
+  costo_estimado: "",
+  costo_real: "",
+  afecta_rentabilidad: true,
   punto_recojo: "",
   punto_entrega: "",
   contacto_receptor: "",
@@ -135,6 +138,9 @@ export default function TrasladosPage() {
         solicitado_por: user?.id || null,
         notas: form.notas || null,
         entidad: "peru",
+        costo_estimado: Number(form.costo_estimado) || 0,
+        costo_real: Number(form.costo_real) || 0,
+        afecta_rentabilidad: form.afecta_rentabilidad !== false,
       })
       .select()
       .single()
@@ -353,6 +359,9 @@ export default function TrasladosPage() {
           <p><b>Entrega:</b> {selected.punto_entrega}</p>
           <p><b>Receptor:</b> {selected.contacto_receptor || "—"} / {selected.dni_receptor || "—"} / {selected.telefono_receptor || "—"}</p>
           <p><b>Notas:</b> {selected.notas || "—"}</p>
+          <p><b>Costo estimado:</b> S/ {Number(selected.costo_estimado || 0).toFixed(2)}</p>
+          <p><b>Costo real:</b> S/ {Number(selected.costo_real || 0).toFixed(2)}</p>
+          <p><b>Afecta rentabilidad:</b> {selected.afecta_rentabilidad ? "Sí" : "No"}</p>
                     <p><b>Fecha real entrega:</b> {selected.fecha_entrega_real || "—"}</p>
           <p><b>Recibido por:</b> {selected.recibido_por || "—"}</p>
           <p><b>Cargo firmado:</b> {selected.cargo_firmado_url ? <a href={selected.cargo_firmado_url} target="_blank">Ver archivo</a> : "Pendiente"}</p>
@@ -382,6 +391,23 @@ export default function TrasladosPage() {
                 </select>
               </div>
 
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div>
+                  <label style={lbl}>COSTO ESTIMADO (S/)</label>
+                  <input type="number" step="0.01" style={inp} value={form.costo_estimado} onChange={e => setForm({ ...form, costo_estimado:e.target.value })} />
+                </div>
+                <div>
+                  <label style={lbl}>COSTO REAL (S/)</label>
+                  <input type="number" step="0.01" style={inp} value={form.costo_real} onChange={e => setForm({ ...form, costo_real:e.target.value })} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display:"flex", gap:8, alignItems:"center", fontSize:13 }}>
+                  <input type="checkbox" checked={form.afecta_rentabilidad !== false} onChange={e => setForm({ ...form, afecta_rentabilidad:e.target.checked })} />
+                  Afecta rentabilidad del proyecto
+                </label>
+              </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                 <div>
                   <label style={lbl}>PUNTO DE RECOJO *</label>
@@ -433,4 +459,5 @@ export default function TrasladosPage() {
     </div>
   )
 }
+
 
