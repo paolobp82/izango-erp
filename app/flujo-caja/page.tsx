@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from "recharts"
 import { rqCodigo } from "@/lib/rq-code"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import { FACTURAS_COBRADAS, FACTURAS_PENDIENTES, dueDateValue } from "@/lib/finance"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import { puedeAccederRuta } from "@/lib/permissions"
@@ -69,19 +70,21 @@ export default function FlujoCajaPage() {
     const key = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}`
     const label = MESES[fecha.getMonth()] + " " + String(fecha.getFullYear()).slice(2)
 
-    // Ingresos: facturas cobradas o emitidas en ese mes
+    // Ingresos reales: solo facturas cobradas/pagadas en ese mes
     const ingresos = facturas.filter(f => {
+      if (!FACTURAS_COBRADAS.includes(f.estado)) return false
       const d = f.fecha_abono || f.fecha_emision
       if (!d) return false
       return d.startsWith(key)
     }).reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
 
+    // Ingresos proyectados: facturas pendientes según vencimiento real
     const ingresosProyectados = facturas.filter(f => {
-      const d = f.fecha_emision
-      if (!d || f.estado === "cobrada") return false
+      if (!FACTURAS_PENDIENTES.includes(f.estado)) return false
+      const d = dueDateValue(f)
+      if (!d) return false
       return d.startsWith(key)
     }).reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
-
     // Egresos: RQs programados o pagados en ese mes
     const egresos = rqs.filter(r => {
       if (r.estado !== "pagado") return false
@@ -116,13 +119,16 @@ export default function FlujoCajaPage() {
 
   // Detalle del mes seleccionado
   const mesDetalle = mesSeleccionado ? mesesData.find(m => m.key === mesSeleccionado) : null
-  const facturasMes = mesSeleccionado ? facturas.filter(f => (f.fecha_abono || f.fecha_emision || "").startsWith(mesSeleccionado)) : []
+  const facturasMes = mesSeleccionado ? facturas.filter(f => {
+    const d = FACTURAS_COBRADAS.includes(f.estado) ? (f.fecha_abono || f.fecha_emision) : dueDateValue(f)
+    return String(d || "").startsWith(mesSeleccionado)
+  }) : []
   const rqsMes = mesSeleccionado ? rqs.filter(r => (r.created_at || "").startsWith(mesSeleccionado) && !["rechazado"].includes(r.estado)) : []
 
   // RQs pendientes sin fecha
   const rqsPendientes = rqs.filter(r => ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "programado"].includes(r.estado))
   const totalPendiente = rqsPendientes.reduce((s, r) => s + (r.monto_solicitado || 0), 0)
-  const facturasPorCobrar = facturas.filter(f => f.estado === "emitida")
+  const facturasPorCobrar = facturas.filter(f => FACTURAS_PENDIENTES.includes(f.estado))
   const totalPorCobrar = facturasPorCobrar.reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
@@ -320,6 +326,9 @@ export default function FlujoCajaPage() {
     </div>
   )
 }
+
+
+
 
 
 

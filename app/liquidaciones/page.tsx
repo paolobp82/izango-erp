@@ -20,6 +20,7 @@ export default function LiquidacionesPage() {
   const [creando, setCreando] = useState(false)
   const [selected, setSelected] = useState<any>(null)
   const [items, setItems] = useState<any[]>([])
+  const [facturacionResumen, setFacturacionResumen] = useState<any>({ facturado: 0, cobrado: 0, pendiente: 0, facturas: 0 })
   const [loadingItems, setLoadingItems] = useState(false)
   const [perfil, setPerfil] = useState<any>(null)
   const [autorizado, setAutorizado] = useState(false)
@@ -145,6 +146,17 @@ export default function LiquidacionesPage() {
       .from("requerimientos_pago")
       .select("id, codigo_rq, numero_rq, estado, proveedor_id, proveedor_nombre, descripcion, monto_solicitado, cotizacion_item_id, es_adicional")
       .eq("proyecto_id", liq.proyecto_id)
+
+    const { data: facturasProyecto } = await supabase
+      .from("facturas")
+      .select("id, estado, subtotal, igv, monto_final_abonado")
+      .eq("proyecto_id", liq.proyecto_id)
+      .not("estado", "eq", "anulada")
+
+    const facturado = (facturasProyecto || []).reduce((s: number, f: any) => s + Number(f.subtotal || 0) + Number(f.igv || 0), 0)
+    const cobrado = (facturasProyecto || []).filter((f: any) => f.estado === "cobrada").reduce((s: number, f: any) => s + Number(f.monto_final_abonado || 0), 0)
+    const pendiente = (facturasProyecto || []).filter((f: any) => ["pendiente", "emitida", "pendiente_cobro"].includes(f.estado)).reduce((s: number, f: any) => s + Number(f.monto_final_abonado || 0), 0)
+    setFacturacionResumen({ facturado, cobrado, pendiente, facturas: (facturasProyecto || []).length })
 
     const cotItemMap = new Map((cotItems || []).map((c: any) => [c.id, c]))
     const rqByCotizacionItemId = new Map(
@@ -274,16 +286,13 @@ export default function LiquidacionesPage() {
       updates.aprobado_produccion = true
       updates.aprobado_produccion_por = perfil.id
       updates.aprobado_produccion_at = new Date().toISOString()
-    } else if (rol === "gerente_general" && selected.aprobado_produccion && !selected.aprobado_gg) {
-      updates.aprobado_gg = true
-      updates.aprobado_gg_por = perfil.id
-      updates.aprobado_gg_at = new Date().toISOString()
+    } else if (rol === "controller" && selected.aprobado_produccion && !selected.aprobado_controller) {
+      updates.aprobado_controller = true
+      updates.aprobado_controller_por = perfil.id
+      updates.aprobado_controller_at = new Date().toISOString()
       updates.cerrada = true
       await enviarAlerta("proyecto_liquidado", { nombre: selected?.proyecto?.nombre || "Proyecto", codigo: selected?.proyecto?.codigo || "", margen: selected?.margen_real_pct?.toFixed(1) || "0" })
       updates.fecha_cierre = new Date().toISOString()
-      if (selected.proyecto_id) {
-        await supabase.from("proyectos").update({ estado: "facturado" }).eq("id", selected.proyecto_id)
-      }
     }
     if (Object.keys(updates).length > 0) {
       await supabase.from("liquidaciones").update(updates).eq("id", selected.id)
@@ -314,6 +323,16 @@ export default function LiquidacionesPage() {
   const desvioMargenLive = margenRealLive - margenInicialLive
   const utilidadProyectadaLive = precioClientePresupuestadoLive - totalPresupuestadoLive
   const utilidadRealLive = precioClienteRealLive - totalRealLive
+  const precioFacturadoLive = Number(facturacionResumen.facturado || 0)
+  const precioBaseFinancieroLive = precioFacturadoLive > 0 ? precioFacturadoLive : precioClienteRealLive
+  const utilidadFinancieraLive = precioBaseFinancieroLive - totalRealLive
+  const margenFinancieroLive = precioBaseFinancieroLive > 0 ? (utilidadFinancieraLive / precioBaseFinancieroLive) * 100 : 0
+  const variacionFacturacionLive = precioFacturadoLive > 0 ? precioFacturadoLive - precioClientePresupuestadoLive : 0
+  const estadoFinancieroLive =
+    margenFinancieroLive < 0 ? { label: "Pérdida", color: "#111827", bg: "#F3F4F6" } :
+    margenFinancieroLive < 10 ? { label: "Crítico", color: "#DC2626", bg: "#FEF2F2" } :
+    margenFinancieroLive < 20 ? { label: "Atención", color: "#D97706", bg: "#FFFBEB" } :
+    { label: "Saludable", color: "#15803D", bg: "#F0FDF4" }
 
   const itemsLiquidacionOrdenados = [...items].sort((a:any, b:any) => {
     const aRealizado = Number(a.costo_real || 0) > 0 || ["pagado", "programado", "aprobado", "aprobado_produccion"].includes(a.rq_estado)
@@ -402,11 +421,14 @@ export default function LiquidacionesPage() {
                   {!selected.cerrada && perfil?.perfil === "gerente_produccion" && !selected.aprobado_produccion && (
                   <button onClick={aprobarLiquidacion} className="btn-primary" style={{ fontSize: 12 }}>Aprobar (Produccion)</button>
                 )}
-                {!selected.cerrada && perfil?.perfil === "gerente_general" && selected.aprobado_produccion && !selected.aprobado_gg && (
-                  <button onClick={aprobarLiquidacion} className="btn-primary" style={{ fontSize: 12 }}>Aprobar GG - Pasar a Facturacion</button>
+                {!selected.cerrada && perfil?.perfil === "controller" && selected.aprobado_produccion && !selected.aprobado_controller && (
+                  <button onClick={aprobarLiquidacion} className="btn-primary" style={{ fontSize: 12 }}>Aprobar Controller - Cerrar liquidación</button>
                 )}
-                {selected.aprobado_produccion && !selected.aprobado_gg && (
-                  <span style={{ fontSize: 11, color: "#15803d" }}>✓ Aprobado Produccion</span>
+                {selected.aprobado_produccion && !selected.aprobado_controller && (
+                  <span style={{ fontSize: 11, color: "#15803d" }}>✓ Aprobado Producción · Pendiente Controller</span>
+                )}
+                {selected.aprobado_controller && (
+                  <span style={{ fontSize: 11, color: "#15803d" }}>✓ Aprobado Controller</span>
                 )}
                 {selected.cerrada && (
                   <span style={{ fontSize: 11, color: "#15803d", fontWeight: 600 }}>✓ Liquidacion cerrada y aprobada</span>
@@ -414,7 +436,7 @@ export default function LiquidacionesPage() {
                 {!selected.cerrada && (
                     <>
                       <button onClick={guardarItems} className="btn-secondary" style={{ fontSize: 12 }}>Guardar</button>
-                      <button onClick={cerrarLiquidacion} className="btn-primary" style={{ fontSize: 12 }}>Cerrar liquidación</button>
+
                     </>
                   )}
                   {selected.cerrada && <span style={{ fontSize: 12, color: "#15803d", fontWeight: 600 }}>✓ Liquidación cerrada</span>}
@@ -499,6 +521,35 @@ export default function LiquidacionesPage() {
                 />
               </div>
             </div>
+
+            <SectionCard title="Facturación del proyecto" action={<span style={{ background: estadoFinancieroLive.bg, color: estadoFinancieroLive.color, border: `1px solid ${estadoFinancieroLive.color}`, borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 900 }}>Estado: {estadoFinancieroLive.label}</span>}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: 12 }}>
+                {[
+                  { label: "Presupuestado", value: fmt(precioClientePresupuestadoLive), color: "#1E40AF" },
+                  { label: "Facturado", value: fmt(precioFacturadoLive), color: precioFacturadoLive >= precioClientePresupuestadoLive ? "#15803D" : "#D97706" },
+                  { label: "Cobrado", value: fmt(facturacionResumen.cobrado), color: "#15803D" },
+                  { label: "Pendiente", value: fmt(facturacionResumen.pendiente), color: facturacionResumen.pendiente > 0 ? "#DC2626" : "#15803D" },
+                  { label: "Variación", value: fmt(variacionFacturacionLive), color: variacionFacturacionLive >= 0 ? "#15803D" : "#DC2626" },
+                ].map((item: any) => (
+                  <div key={item.label} style={{ border: "1px solid #E2E8F0", borderRadius: 14, padding: 12, background: "#FFFFFF" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>{item.label}</div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: item.color }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: "#F8FAFC", border: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0F172A" }}>Margen financiero · {estadoFinancieroLive.label}</div>
+                  <div style={{ fontSize: 11, color: "#64748B" }}>Calculado con facturación real si existe; si no, usa precio cliente de la liquidación.</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: margenFinancieroLive >= 15 ? "#15803D" : "#DC2626" }}>{fmtPct(margenFinancieroLive)}</div>
+                  <div style={{ fontSize: 11, color: "#64748B" }}>{facturacionResumen.facturas} factura(s)</div>
+                </div>
+              </div>
+            </SectionCard>
+
+            <div style={{ height: 16 }} />
 
             <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
               <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6" }}>
@@ -635,6 +686,10 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
+
+
+
 
 
 
