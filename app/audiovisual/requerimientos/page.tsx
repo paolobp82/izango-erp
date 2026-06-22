@@ -31,6 +31,11 @@ const ROLES_ELIMINACION_FINALIZADO = ["superadmin", "gerente_general"]
 const ESTADOS_FINALIZADOS = ["completado", "cancelado"]
 const ESTADOS_PEDIDO_EDITABLE = ["pendiente", "en_progreso"]
 
+function uuidOrNull(value: any) {
+  if (!value || value === "__OTRO__") return null
+  return value
+}
+
 const formVacio = {
   proyecto_id: "",
   cotizacion_id: "",
@@ -187,6 +192,16 @@ export default function AudiovisualRequerimientosPage() {
   }
 
   async function handleProyectoChange(proyectoId: string) {
+    if (proyectoId === "__OTRO__") {
+      setCotizaciones([])
+      setForm(prev => ({
+        ...prev,
+        proyecto_id: proyectoId,
+        cotizacion_id: "",
+      }))
+      return
+    }
+
     const proyecto = proyectos.find(p => p.id === proyectoId)
     setForm(prev => ({ ...prev, proyecto_id: proyectoId, cotizacion_id: "", productor_id: proyecto?.productor_id || prev.productor_id }))
     await loadCotizaciones(proyectoId)
@@ -256,7 +271,7 @@ export default function AudiovisualRequerimientosPage() {
         descripcion: datos.brief || "Requerimiento audiovisual generado desde el modulo audiovisual.",
         estado: estadoTareaDesdeAudiovisual(datos.estado || "pendiente"),
         prioridad: datos.prioridad || "media",
-        proyecto_id: datos.proyecto_id || null,
+        proyecto_id: uuidOrNull(datos.proyecto_id),
         asignado_a: datos.responsable_audiovisual_id || datos.productor_id || perfil?.id || null,
         fecha_limite: datos.fecha_entrega_solicitada || null,
         origen_url: `/audiovisual/requerimientos?requerimiento_id=${reqId}`,
@@ -330,7 +345,7 @@ export default function AudiovisualRequerimientosPage() {
         descripcion: payload.brief || "Requerimiento audiovisual generado desde el modulo audiovisual.",
         estado: "pendiente",
         prioridad: payload.prioridad || "media",
-        proyecto_id: payload.proyecto_id || null,
+        proyecto_id: uuidOrNull(payload.proyecto_id),
         asignado_a: payload.responsable_audiovisual_id || payload.productor_id || perfil?.id || null,
         creado_por: perfil?.id || null,
         fecha_limite: payload.fecha_entrega_solicitada || null,
@@ -900,6 +915,7 @@ export default function AudiovisualRequerimientosPage() {
     </div>
   )
 }
+
 
 
 
