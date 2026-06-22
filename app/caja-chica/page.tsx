@@ -203,11 +203,20 @@ export default function CajaChicaPage() {
   async function abrirNuevaCaja() {
     if (!autorizado || !esAprobador) return
     if (!montoApertura || Number(montoApertura) <= 0) { alert("Ingresa un monto de apertura válido"); return }
+
     const hoy = new Date().toISOString().split("T")[0]
+    const montoNuevo = Number(montoApertura) || 0
+
+    const saldoAnterior = registros
+      .filter(r => r.estado === "aprobado")
+      .reduce((s, r) => s + (Number(r.monto_haber) || 0) - (Number(r.monto_debe) || 0), 0)
+
+    const montoInicialReal = saldoAnterior + montoNuevo
+
     await supabase.from("caja_chica").insert({
       concepto: "Apertura de caja chica",
       monto_debe: 0,
-      monto_haber: Number(montoApertura),
+      monto_haber: montoNuevo,
       fecha: hoy,
       tipo_comprobante: "deposito",
       solicitado_por: perfil?.id || null,
@@ -216,16 +225,16 @@ export default function CajaChicaPage() {
       aprobado_at: new Date().toISOString(),
       entidad: "peru",
       fecha_apertura: hoy,
-      monto_inicial: Number(montoApertura),
+      monto_inicial: montoInicialReal,
       categoria: "Apertura",
-      observaciones: "Apertura de caja con monto S/ " + montoApertura,
+      observaciones: "Apertura de caja con fondo nuevo S/ " + montoNuevo.toFixed(2) + " + saldo anterior S/ " + saldoAnterior.toFixed(2) + " = fondo real S/ " + montoInicialReal.toFixed(2),
     })
-    await registrarAccion({ accion: "crear", modulo: "caja_chica", entidad_tipo: "caja_chica", descripcion: "Apertura de caja: S/ " + montoApertura })
+
+    await registrarAccion({ accion: "crear", modulo: "caja_chica", entidad_tipo: "caja_chica", descripcion: "Apertura de caja: fondo nuevo S/ " + montoNuevo.toFixed(2) + " + saldo anterior S/ " + saldoAnterior.toFixed(2) })
     setShowAbrirCaja(false)
     setMontoApertura("")
     load()
   }
-
   async function eliminar(id: string) {
     if (!autorizado || !esAprobador) return
     if (!confirm("¿Eliminar este registro?")) return
@@ -288,8 +297,8 @@ export default function CajaChicaPage() {
         .reduce((s, r) => s + (r.monto_haber || 0) - (r.monto_debe || 0), 0)
 
   const saldoCaja = saldoHistorico + totalHaber - totalDebe
-  const montoInicialCaja = registrosParaTotales.find(r => r.categoria === "Apertura")?.monto_inicial || 0
-  const pctUsado = montoInicialCaja > 0 ? ((totalDebe / montoInicialCaja) * 100) : 0
+  const montoInicialCaja = registrosParaTotales.filter(r => r.categoria === "Apertura").reduce((s, r) => Math.max(s, Number(r.monto_inicial) || 0), 0)
+  const pctUsado = montoInicialCaja > 0 ? Math.min(100, (totalDebe / montoInicialCaja) * 100) : 0
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
@@ -696,6 +705,8 @@ export default function CajaChicaPage() {
     </div>
   )
 }
+
+
 
 
 
