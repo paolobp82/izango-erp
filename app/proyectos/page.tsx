@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
@@ -46,7 +46,7 @@ export default function ProyectosPage() {
   const [loading, setLoading] = useState(true)
   const [eliminando, setEliminando] = useState<string | null>(null)
   const [showEliminados, setShowEliminados] = useState(false)
-  const [filtroEstado, setFiltroEstado] = useState("")
+  const [filtrosEstado, setFiltrosEstado] = useState<string[]>([])
   const [filtroEntidad, setFiltroEntidad] = useState("")
   const [filtroProductor, setFiltroProductor] = useState("")
   const [filtroCliente, setFiltroCliente] = useState("")
@@ -149,7 +149,7 @@ export default function ProyectosPage() {
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   const filtrados = proyectos.filter(p =>
-    (!filtroEstado || p.estado === filtroEstado) &&
+    (filtrosEstado.length === 0 || filtrosEstado.includes(p.estado)) &&
     (!filtroEntidad || p.entidad === filtroEntidad) &&
     (!filtroProductor || p.productor_id === filtroProductor) &&
     (!filtroCliente || p.cliente_id === filtroCliente)
@@ -191,14 +191,38 @@ export default function ProyectosPage() {
             </button>
           </div>
         )}
-        <select value={filtroEstado} onChange={e => { setFiltroEstado(e.target.value); setPagina(1) }}
-          style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
-          <option value="">Todos los estados</option>
-          {Object.entries(ESTADO_LABEL).map(([key, label]) => (
-            <option key={key} value={key}>{label}</option>
-          ))}
-        </select>
-        <select value={filtroEntidad} onChange={e => { setFiltroEntidad(e.target.value); setPagina(1) }}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {Object.entries(ESTADO_LABEL).map(([key, label]) => {
+            const activo = filtrosEstado.includes(key)
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setFiltrosEstado(prev =>
+                    prev.includes(key)
+                      ? prev.filter(e => e !== key)
+                      : [...prev, key]
+                  )
+                  setPagina(1)
+                }}
+                style={{
+                  padding: "7px 10px",
+                  border: activo ? "1px solid #0F6E56" : "1px solid #e5e7eb",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: activo ? 800 : 600,
+                  fontFamily: "inherit",
+                  background: activo ? "#F0FDF4" : "#fff",
+                  color: activo ? "#0F6E56" : "#374151",
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>        <select value={filtroEntidad} onChange={e => { setFiltroEntidad(e.target.value); setPagina(1) }}
           style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
           <option value="">Todas las entidades</option>
           <option value="peru">Izango Peru (IZ)</option>
@@ -211,8 +235,8 @@ export default function ProyectosPage() {
             <option key={pid} value={pid}>{prod.nombre} {prod.apellido}</option>
           ))}
         </select>
-        {(filtroEstado || filtroEntidad || filtroProductor || filtroCliente) && (
-          <button onClick={() => { setFiltroEstado(""); setFiltroEntidad(""); setFiltroProductor(""); setFiltroCliente(""); setPagina(1); router.push("/proyectos") }}
+        {(filtrosEstado.length > 0 || filtroEntidad || filtroProductor || filtroCliente) && (
+          <button onClick={() => { setFiltrosEstado([]); setFiltroEntidad(""); setFiltroProductor(""); setFiltroCliente(""); setPagina(1); router.push("/proyectos") }}
             style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
             Limpiar filtros
           </button>
@@ -334,3 +358,5 @@ export default function ProyectosPage() {
     </div>
   )
 }
+
+
