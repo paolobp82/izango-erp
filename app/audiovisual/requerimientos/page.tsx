@@ -31,6 +31,15 @@ const ROLES_ELIMINACION_FINALIZADO = ["superadmin", "gerente_general"]
 const ESTADOS_FINALIZADOS = ["completado", "cancelado"]
 const ESTADOS_PEDIDO_EDITABLE = ["pendiente", "en_progreso"]
 
+function uuidOrNull(value: unknown) {
+  if (!value || value === "__OTRO__") return null
+  return String(value)
+}
+
+function esOtroProyecto(value: unknown) {
+  return value === "__OTRO__"
+}
+
 const formVacio = {
   proyecto_id: "",
   cotizacion_id: "",
@@ -121,7 +130,10 @@ export default function AudiovisualRequerimientosPage() {
   }
 
   async function loadCotizaciones(proyectoId: string) {
-    if (!proyectoId) { setCotizaciones([]); return }
+    if (!proyectoId || esOtroProyecto(proyectoId)) {
+      setCotizaciones([])
+      return
+    }
     const { data } = await supabase
       .from("cotizaciones")
       .select("id,version,estado,total_cliente")
@@ -163,8 +175,9 @@ export default function AudiovisualRequerimientosPage() {
       return
     }
     setEditando(req)
+    const proyectoFormulario = req.proyecto_id || (req.detalle_otro_proyecto ? "__OTRO__" : "")
     setForm({
-      proyecto_id: req.proyecto_id || "",
+      proyecto_id: proyectoFormulario,
       cotizacion_id: req.cotizacion_id || "",
       detalle_otro_proyecto: req.detalle_otro_proyecto || "",
       ubicacion: req.ubicacion || "",
@@ -182,11 +195,20 @@ export default function AudiovisualRequerimientosPage() {
       artes_url: req.artes_url || "",
       estado: req.estado || "pendiente",
     })
-    await loadCotizaciones(req.proyecto_id)
+    await loadCotizaciones(proyectoFormulario)
     setShowForm(true)
   }
 
   async function handleProyectoChange(proyectoId: string) {
+    if (esOtroProyecto(proyectoId)) {
+      setCotizaciones([])
+      setForm(prev => ({
+        ...prev,
+        proyecto_id: "__OTRO__",
+        cotizacion_id: "",
+      }))
+      return
+    }
     const proyecto = proyectos.find(p => p.id === proyectoId)
     setForm(prev => ({ ...prev, proyecto_id: proyectoId, cotizacion_id: "", productor_id: proyecto?.productor_id || prev.productor_id }))
     await loadCotizaciones(proyectoId)
@@ -246,7 +268,8 @@ export default function AudiovisualRequerimientosPage() {
   }
 
   async function sincronizarTareaAudiovisual(reqId: string, datos: any) {
-    const proyectoTarea = datos.proyecto_id ? proyectos.find(p => p.id === datos.proyecto_id) : null
+    const proyectoIdLimpio = uuidOrNull(datos.proyecto_id)
+    const proyectoTarea = proyectoIdLimpio ? proyectos.find(p => p.id === proyectoIdLimpio) : null
     const tituloTarea = `Req. audiovisual - ${proyectoTarea?.codigo || datos.detalle_otro_proyecto || "Sin proyecto"}`
 
     await supabase
@@ -256,7 +279,7 @@ export default function AudiovisualRequerimientosPage() {
         descripcion: datos.brief || "Requerimiento audiovisual generado desde el modulo audiovisual.",
         estado: estadoTareaDesdeAudiovisual(datos.estado || "pendiente"),
         prioridad: datos.prioridad || "media",
-        proyecto_id: datos.proyecto_id || null,
+        proyecto_id: proyectoIdLimpio,
         asignado_a: datos.responsable_audiovisual_id || datos.productor_id || perfil?.id || null,
         fecha_limite: datos.fecha_entrega_solicitada || null,
         origen_url: `/audiovisual/requerimientos?requerimiento_id=${reqId}`,
@@ -282,11 +305,14 @@ export default function AudiovisualRequerimientosPage() {
     }
     setSaving(true)
     const payload: any = { updated_at: new Date().toISOString() }
+    const proyectoIdLimpio = uuidOrNull(form.proyecto_id)
+    const cotizacionIdLimpio = esOtroProyecto(form.proyecto_id) ? null : uuidOrNull(form.cotizacion_id)
 
     if (!esEdicion || puedeEditarPedidoFormulario) {
       Object.assign(payload, {
-        proyecto_id: form.proyecto_id,
-        cotizacion_id: form.cotizacion_id || null,
+        proyecto_id: proyectoIdLimpio,
+        cotizacion_id: cotizacionIdLimpio,
+        detalle_otro_proyecto: esOtroProyecto(form.proyecto_id) ? form.detalle_otro_proyecto.trim() : null,
         ubicacion: form.ubicacion || null,
         productor_id: form.productor_id || null,
         fecha_entrega_solicitada: form.fecha_entrega_solicitada || null,
@@ -317,12 +343,14 @@ export default function AudiovisualRequerimientosPage() {
     if (esEdicion) {
       const { error } = await supabase.from("audiovisual_requerimientos").update(payload).eq("id", editando.id)
       if (error) { alert("Error: " + error.message); setSaving(false); return }
+      await sincronizarTareaAudiovisual(editando.id, { ...editando, ...payload })
       await registrarAccion({ accion: "editar", modulo: "audiovisual", entidad_tipo: "requerimiento_audiovisual", entidad_id: editando.id, descripcion: "Requerimiento audiovisual editado" })
     } else {
       const { data, error } = await supabase.from("audiovisual_requerimientos").insert(payload).select().single()
       if (error) { alert("Error: " + error.message); setSaving(false); return }
 
-      const proyectoTarea = payload.proyecto_id ? proyectos.find(p => p.id === payload.proyecto_id) : null
+      const proyectoTareaId = uuidOrNull(payload.proyecto_id)
+      const proyectoTarea = proyectoTareaId ? proyectos.find(p => p.id === proyectoTareaId) : null
       const tituloTarea = `Req. audiovisual - ${proyectoTarea?.codigo || payload.detalle_otro_proyecto || "Sin proyecto"}`
 
       const { error: tareaError } = await supabase.from("tareas").insert({
@@ -330,7 +358,7 @@ export default function AudiovisualRequerimientosPage() {
         descripcion: payload.brief || "Requerimiento audiovisual generado desde el modulo audiovisual.",
         estado: "pendiente",
         prioridad: payload.prioridad || "media",
-        proyecto_id: payload.proyecto_id || null,
+        proyecto_id: proyectoTareaId,
         asignado_a: payload.responsable_audiovisual_id || payload.productor_id || perfil?.id || null,
         creado_por: perfil?.id || null,
         fecha_limite: payload.fecha_entrega_solicitada || null,
