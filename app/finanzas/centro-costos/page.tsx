@@ -217,8 +217,8 @@ export default function CentroCostosFinancieroPage() {
   return (
     <div>
       <div style={{ marginBottom: 18 }}>
-        <h1 style={{ margin: 0, fontSize: 22, color: "#0F172A" }}>Centro de Costos Financiero</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>Facturación, cobranza y costos operativos consolidados por proyecto</p>
+        <h1 style={{ margin: 0, fontSize: 22, color: "#0F172A" }}>Rentabilidad por Proyecto</h1>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>Rentabilidad real por proyecto basada en facturación, RQ pagados y caja chica.</p>
       </div>
       <FinanceNav />
       <FinanceDataError detail={error} />
@@ -305,3 +305,4 @@ export default function CentroCostosFinancieroPage() {
     </div>
   )
 }
+
