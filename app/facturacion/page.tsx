@@ -163,7 +163,7 @@ export default function FacturacionPage() {
     }
     await supabase.from("facturas").update({ estado }).eq("id", id)
     // Si cobrada → proyecto pasa a Pagado
-    if (estado === "cobrada") {
+    if (estado === "cobrada" && facturaActual?.tipo_factura === "final") {
       const factura = facturas.find(f => f.id === id)
       if (factura?.proyecto_id) {
         await supabase.from("proyectos").update({ estado: "cerrado_financiero" }).eq("id", factura.proyecto_id)
