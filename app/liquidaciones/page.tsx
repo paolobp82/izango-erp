@@ -151,7 +151,7 @@ export default function LiquidacionesPage() {
 
     const { data: rqs, error: rqsError } = await supabase
       .from("requerimientos_pago")
-      .select("id, codigo_rq, numero_rq, estado, proveedor_id, proveedor_nombre, descripcion, monto_solicitado, cotizacion_item_id, es_adicional")
+      .select("id, codigo_rq, numero_rq, estado, proveedor_id, proveedor_nombre, descripcion, monto_solicitado, monto_rendido, monto_devolucion, fecha_rendicion, observacion_rendicion, cotizacion_item_id, es_adicional")
       .eq("proyecto_id", liq.proyecto_id)
 
     const { data: facturasProyecto, error: facturasError } = await supabase
@@ -211,7 +211,7 @@ export default function LiquidacionesPage() {
         return mismoProveedor || descripcionParecida
       })
 
-      const montoRq = Number(rqMatch?.monto_solicitado || 0)
+      const montoRq = Number(rqMatch?.monto_rendido || 0) > 0 ? Number(rqMatch?.monto_rendido || 0) : Number(rqMatch?.monto_solicitado || 0)
       const costoRealActual = Number(item.costo_real || 0)
       const costoRealCalculado = costoRealActual > 0 ? costoRealActual : montoRq
       const costoPresupuestado = Number(item.costo_presupuestado || 0)
@@ -266,8 +266,8 @@ export default function LiquidacionesPage() {
         proveedor_id: rq.proveedor_id || null,
         proveedor_nombre: rq.proveedor_nombre || null,
         costo_presupuestado: 0,
-        costo_real: rq.monto_solicitado || 0,
-        desvio: rq.monto_solicitado || 0,
+        costo_real: Number(rq.monto_rendido || 0) > 0 ? Number(rq.monto_rendido || 0) : Number(rq.monto_solicitado || 0),
+        desvio: Number(rq.monto_rendido || 0) > 0 ? Number(rq.monto_rendido || 0) : Number(rq.monto_solicitado || 0),
         desvio_pct: 100,
         es_adicional_rq: true,
         rq_id: rq.id,
@@ -730,6 +730,7 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
 
 
 
