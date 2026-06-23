@@ -160,7 +160,13 @@ export default function LiquidacionesPage() {
       .eq("proyecto_id", liq.proyecto_id)
       .not("estado", "eq", "anulada")
 
-    const detailErrors = [itemsError?.message, cotizacionItemsError?.message, rqsError?.message, facturasError?.message].filter(Boolean)
+    const { data: cajaChicaProyecto, error: cajaChicaError } = await supabase
+      .from("caja_chica")
+      .select("id, concepto, categoria, monto_debe, monto_haber, estado, fecha, observaciones, proyecto_id")
+      .eq("proyecto_id", liq.proyecto_id)
+      .eq("estado", "aprobado")
+
+    const detailErrors = [itemsError?.message, cotizacionItemsError?.message, rqsError?.message, facturasError?.message, cajaChicaError?.message].filter(Boolean)
     if (detailErrors.length) setDetailError(detailErrors.join(" · "))
 
     const facturado = (facturasProyecto || []).reduce((s: number, f: any) => s + Number(f.subtotal || 0) + Number(f.igv || 0), 0)
@@ -226,6 +232,26 @@ export default function LiquidacionesPage() {
 
     const idsRqYaMostrados = new Set(enriched.map((item: any) => item.rq_id).filter(Boolean))
 
+    const cajaChicaItems = (cajaChicaProyecto || [])
+      .filter((c: any) => Number(c.monto_debe || 0) > 0)
+      .map((c: any) => ({
+        id: `caja_chica_${c.id}`,
+        liquidacion_id: liq.id,
+        cotizacion_item_id: null,
+        descripcion: c.concepto || c.categoria || "Caja chica",
+        proveedor_id: null,
+        proveedor_nombre: c.categoria || "Caja chica",
+        costo_presupuestado: 0,
+        costo_real: Number(c.monto_debe || 0),
+        desvio: Number(c.monto_debe || 0),
+        desvio_pct: 100,
+        es_caja_chica: true,
+        caja_chica_id: c.id,
+        rq_id: null,
+        rq_codigo: null,
+        rq_estado: c.estado || null,
+      }))
+
     const adicionales = (rqs || [])
       .filter((rq: any) =>
         !rq.cotizacion_item_id &&
@@ -249,7 +275,7 @@ export default function LiquidacionesPage() {
         rq_estado: rq.estado || null,
       }))
 
-    setItems([...enriched, ...adicionales])
+    setItems([...enriched, ...adicionales, ...cajaChicaItems])
     setLoadingItems(false)
   }
 
@@ -263,7 +289,7 @@ export default function LiquidacionesPage() {
 
   async function guardarItems() {
     for (const item of items) {
-      if (String(item.id).startsWith("rq_extra_")) continue
+      if (String(item.id).startsWith("rq_extra_") || String(item.id).startsWith("caja_chica_")) continue
       await supabase.from("liquidacion_items").update({
         costo_real: item.costo_real || 0,
         desvio: item.desvio || 0,
@@ -327,7 +353,8 @@ export default function LiquidacionesPage() {
   const totalPresupuestadoLive = items.filter((i:any) => !i.es_adicional_rq).reduce((s:number, i:any) => s + (Number(i.costo_presupuestado) || 0), 0)
   const totalRealPresupuestoLive = items.filter((i:any) => !i.es_adicional_rq).reduce((s:number, i:any) => s + (Number(i.costo_real) || 0), 0)
   const totalRealAdicionalesLive = items.filter((i:any) => i.es_adicional_rq).reduce((s:number, i:any) => s + (Number(i.costo_real) || 0), 0)
-  const totalRealLive = totalRealPresupuestoLive + totalRealAdicionalesLive
+  const totalRealCajaChicaLive = items.filter((i:any) => i.es_caja_chica).reduce((s:number, i:any) => s + (Number(i.costo_real) || 0), 0)
+  const totalRealLive = totalRealPresupuestoLive + totalRealAdicionalesLive + totalRealCajaChicaLive
   const precioClientePresupuestadoLive = Number(selected?.precio_cliente_presupuestado || 0)
   const precioClienteRealLive = Number(selected?.precio_cliente_real || selected?.precio_cliente_presupuestado || 0)
   const margenInicialLive = Number(selected?.margen_presupuestado_pct || 0)
@@ -365,6 +392,9 @@ export default function LiquidacionesPage() {
   const itemsAdicionales = itemsLiquidacionOrdenados
     .filter((i:any) => i.es_adicional_rq)
     .sort((a:any, b:any) => getRqNumber(a) - getRqNumber(b))
+
+  const itemsCajaChica = itemsLiquidacionOrdenados
+    .filter((i:any) => i.es_caja_chica)
 
   const inp: any = { padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", width: "100%" }
 
@@ -700,6 +730,7 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
 
 
 
