@@ -275,9 +275,9 @@ export default function ProyectosPage() {
               <thead>
                 <tr style={{ background: "#f9fafb" }}>
                   <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CÓDIGO</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280", whiteSpace: "nowrap" }}>ENTIDAD</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRODUCTOR</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>V. APROBADA</th>
@@ -292,6 +292,7 @@ export default function ProyectosPage() {
                   return (
                     <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                       <td style={{ padding: "12px 20px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{p.codigo}</td>
+                      <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{p.cliente?.razon_social || "—"}</td>
                       <td style={{ padding: "12px" }}>
                         <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{p.nombre}</div>
                       </td>
@@ -300,7 +301,6 @@ export default function ProyectosPage() {
                           {ENTIDAD_LABEL[p.entidad] || p.entidad || "—"}
                         </span>
                       </td>
-                      <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{p.cliente?.razon_social || "—"}</td>
                       <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{prod}</td>
                       <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
                         <span style={{ background: e.bg, color: e.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
@@ -358,5 +358,6 @@ export default function ProyectosPage() {
     </div>
   )
 }
+
 
 
