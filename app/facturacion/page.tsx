@@ -31,6 +31,7 @@ export default function FacturacionPage() {
   const supabase = createClient()
   const [facturas, setFacturas] = useState<any[]>([])
   const [proyectos, setProyectos] = useState<any[]>([])
+  const [pendientesFacturacion, setPendientesFacturacion] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [perfil, setPerfil] = useState<any>(null)
   const [autorizado, setAutorizado] = useState(false)
@@ -87,6 +88,17 @@ export default function FacturacionPage() {
       .order("created_at", { ascending: false })
 
     setProyectos(provs || [])
+
+    const proyectosFacturados = new Set((facts || [])
+      .filter((f: any) => !["anulada", "cancelada"].includes(f.estado))
+      .map((f: any) => f.proyecto_id)
+      .filter(Boolean))
+
+    const pendientes = (provs || [])
+      .filter((p: any) => p.estado === "pendiente_facturacion")
+      .filter((p: any) => !proyectosFacturados.has(p.id))
+
+    setPendientesFacturacion(pendientes)
     const loadErrors = [facturasError?.message, proyectosError?.message].filter(Boolean)
     if (loadErrors.length) setError(loadErrors.join(" · "))
 
@@ -208,6 +220,45 @@ export default function FacturacionPage() {
       </div>
       <FinanceDataError detail={error} />
 
+      {pendientesFacturacion.length > 0 && (
+        <div className="card" style={{ marginBottom: 20, padding: 18, border: "1px solid #bbf7d0", borderRadius: 18, background: "#f0fdf4" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: "#0F6E56", margin: 0 }}>Pendientes de facturación</h2>
+              <p style={{ fontSize: 12, color: "#166534", margin: "4px 0 0" }}>Proyectos liquidados y aprobados listos para emitir factura.</p>
+            </div>
+            <span style={{ background: "#dcfce7", color: "#15803d", borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 800 }}>
+              {pendientesFacturacion.length} pendiente(s)
+            </span>
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            {pendientesFacturacion.map((p: any) => (
+              <div key={p.id} style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 12, alignItems: "center", background: "#fff", border: "1px solid #dcfce7", borderRadius: 12, padding: "10px 12px" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>{p.codigo} — {p.nombre}</div>
+                  <div style={{ fontSize: 11, color: "#64748B" }}>{p.cliente?.razon_social || "Sin cliente"}</div>
+                </div>
+                <button
+                  className="btn-primary"
+                  style={{ fontSize: 12 }}
+                  onClick={() => {
+                    setVencimientoManual(false)
+                    setForm(prev => ({
+                      ...prev,
+                      proyecto_id: p.id,
+                      estado: "pendiente"
+                    }))
+                    setShowForm(true)
+                  }}
+                >
+                  Crear factura
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {/* Cards resumen global */}
       <div
         style={{
@@ -466,6 +517,7 @@ export default function FacturacionPage() {
     </div>
   )
 }
+
 
 
 
