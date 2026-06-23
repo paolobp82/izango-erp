@@ -77,6 +77,13 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     voucher_url: "", numero_operacion: "", banco_pago: "", tipo_transferencia: "Transferencia bancaria", nota_pago: ""
   })
   const [guardandoPago, setGuardandoPago] = useState(false)
+  const [datosRendicion, setDatosRendicion] = useState({
+    monto_rendido: "",
+    monto_devolucion: "",
+    fecha_rendicion: "",
+    observacion_rendicion: ""
+  })
+  const [guardandoRendicion, setGuardandoRendicion] = useState(false)
   const [pagina, setPagina] = useState(1)
   const POR_PAGINA = 50
 
@@ -130,6 +137,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
           banco_pago: rqSeleccionado.banco_pago || "",
           tipo_transferencia: rqSeleccionado.tipo_transferencia || "Transferencia bancaria",
           nota_pago: rqSeleccionado.nota_pago || "",
+        })
+        setDatosRendicion({
+          monto_rendido: rqSeleccionado.monto_rendido ? String(rqSeleccionado.monto_rendido) : "",
+          monto_devolucion: rqSeleccionado.monto_devolucion ? String(rqSeleccionado.monto_devolucion) : "",
+          fecha_rendicion: rqSeleccionado.fecha_rendicion || "",
+          observacion_rendicion: rqSeleccionado.observacion_rendicion || "",
         })
       }
     }
@@ -269,6 +282,62 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     load()
   }
 
+  async function guardarRendicionRQ() {
+    if (!selected) return
+    if (!["controller", "superadmin"].includes(rolNormalizado())) {
+      alert("Solo Controller o Superadmin pueden registrar rendiciones.")
+      return
+    }
+    if (selected.estado !== "pagado") {
+      alert("Solo se puede registrar rendición en RQs pagados.")
+      return
+    }
+
+    const montoRendido = Number(datosRendicion.monto_rendido) || 0
+    const montoSolicitado = Number(selected.monto_solicitado) || 0
+    const montoDevolucion = datosRendicion.monto_devolucion !== ""
+      ? Number(datosRendicion.monto_devolucion) || 0
+      : Math.max(0, montoSolicitado - montoRendido)
+
+    if (montoRendido < 0 || montoDevolucion < 0) {
+      alert("Los montos de rendición no pueden ser negativos.")
+      return
+    }
+
+    const updates = {
+      monto_rendido: montoRendido,
+      monto_devolucion: montoDevolucion,
+      fecha_rendicion: datosRendicion.fecha_rendicion || new Date().toISOString().split("T")[0],
+      observacion_rendicion: datosRendicion.observacion_rendicion || null,
+    }
+
+    setGuardandoRendicion(true)
+    const { error } = await supabase.from("requerimientos_pago").update(updates).eq("id", selected.id)
+    if (error) {
+      alert("No se pudo guardar la rendición: " + error.message)
+      setGuardandoRendicion(false)
+      return
+    }
+
+    await registrarAccion({
+      accion: "registrar_rendicion",
+      modulo: "rq",
+      entidad_id: selected.id,
+      entidad_tipo: "rq",
+      descripcion: "Rendición registrada: " + rqCodigo(selected),
+      datos_nuevos: updates,
+    })
+
+    setDatosRendicion({
+      monto_rendido: String(updates.monto_rendido || ""),
+      monto_devolucion: String(updates.monto_devolucion || ""),
+      fecha_rendicion: updates.fecha_rendicion || "",
+      observacion_rendicion: updates.observacion_rendicion || "",
+    })
+    setSelected((prev: any) => prev ? { ...prev, ...updates } : prev)
+    setGuardandoRendicion(false)
+    load()
+  }
   function esCreadorRQ(rq: any) {
     if (!perfil?.id || !rq) return false
     if (rq.solicitado_por === perfil.id) return true
@@ -701,6 +770,12 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                         tipo_transferencia: rq.tipo_transferencia || "Transferencia bancaria",
                         nota_pago: rq.nota_pago || "",
                       })
+                      setDatosRendicion({
+                        monto_rendido: rq.monto_rendido ? String(rq.monto_rendido) : "",
+                        monto_devolucion: rq.monto_devolucion ? String(rq.monto_devolucion) : "",
+                        fecha_rendicion: rq.fecha_rendicion || "",
+                        observacion_rendicion: rq.observacion_rendicion || "",
+                      })
                     }}>
                     <td style={{ padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#0F6E56" }}>{rqCodigo(rq)}</td>
                     <td style={{ padding: "12px" }}>
@@ -952,6 +1027,93 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 </div>
               )}
 
+              {selected.estado === "pagado" && (
+                <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, padding: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#9a3412", textTransform: "uppercase", marginBottom: 10 }}>
+                    Rendición del RQ
+                  </div>
+
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <div>
+                        <label style={lbl}>Monto rendido</label>
+                        <input
+                          type="number"
+                          style={inp}
+                          value={datosRendicion.monto_rendido}
+                          placeholder="Ej: 238.00"
+                          onChange={e => {
+                            const montoRendido = Number(e.target.value) || 0
+                            const montoSolicitado = Number(selected.monto_solicitado) || 0
+                            setDatosRendicion({
+                              ...datosRendicion,
+                              monto_rendido: e.target.value,
+                              monto_devolucion: String(Math.max(0, montoSolicitado - montoRendido))
+                            })
+                          }}
+                          readOnly={!["controller","superadmin"].includes(rolNormalizado()) || rqPerteneceAProyectoEliminado(selected)}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={lbl}>Devolución</label>
+                        <input
+                          type="number"
+                          style={inp}
+                          value={datosRendicion.monto_devolucion}
+                          placeholder="Auto"
+                          onChange={e => setDatosRendicion({ ...datosRendicion, monto_devolucion: e.target.value })}
+                          readOnly={!["controller","superadmin"].includes(rolNormalizado()) || rqPerteneceAProyectoEliminado(selected)}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={lbl}>Fecha rendición</label>
+                      <input
+                        type="date"
+                        style={inp}
+                        value={datosRendicion.fecha_rendicion}
+                        onChange={e => setDatosRendicion({ ...datosRendicion, fecha_rendicion: e.target.value })}
+                        readOnly={!["controller","superadmin"].includes(rolNormalizado()) || rqPerteneceAProyectoEliminado(selected)}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={lbl}>Observación rendición</label>
+                      <textarea
+                        style={{ ...inp, resize: "vertical" }}
+                        rows={2}
+                        value={datosRendicion.observacion_rendicion}
+                        placeholder="Ej: Supervisor rindió S/238 y devolvió S/12"
+                        onChange={e => setDatosRendicion({ ...datosRendicion, observacion_rendicion: e.target.value })}
+                        readOnly={!["controller","superadmin"].includes(rolNormalizado()) || rqPerteneceAProyectoEliminado(selected)}
+                      />
+                    </div>
+
+                    {Number(datosRendicion.monto_rendido || 0) > 0 && (
+                      <div style={{ padding: 10, background: "#fff", border: "1px solid #fed7aa", borderRadius: 8, fontSize: 12, color: "#374151" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span>Solicitado</span><strong>{fmt(Number(selected.monto_solicitado || 0))}</strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span>Rendido real</span><strong>{fmt(Number(datosRendicion.monto_rendido || 0))}</strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span>Devolución</span><strong>{fmt(Number(datosRendicion.monto_devolucion || 0))}</strong>
+                        </div>
+                      </div>
+                    )}
+
+                    {["controller","superadmin"].includes(rolNormalizado()) && !rqPerteneceAProyectoEliminado(selected) && (
+                      <button onClick={guardarRendicionRQ} disabled={guardandoRendicion}
+                        style={{ fontSize: 12, padding: "6px", border: "none", borderRadius: 6, background: "#f97316", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
+                        {guardandoRendicion ? "Guardando..." : "Guardar rendición"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               {/* Fecha de pago */}
               {(selected.estado === "aprobado" || selected.estado === "programado") && getSiguienteAccion(selected) && (
                 <div>
@@ -1105,6 +1267,9 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
+
+
 
 
 
