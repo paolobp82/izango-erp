@@ -442,7 +442,17 @@ export default function ProyectoDetallePage() {
   async function rechazar() {
     if (!confirm("¿Rechazar este proyecto?")) return
     setCambiando(true)
-    await supabase.from("proyectos").update({ estado: "rechazado" }).eq("id", id)
+    const { error } = await supabase
+      .from("proyectos")
+      .update({ estado: "rechazado" })
+      .eq("id", id)
+
+    if (error) {
+      console.error("ERROR RECHAZANDO PROYECTO", error)
+      alert(error.message)
+      setCambiando(false)
+      return
+    }
     await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Proyecto rechazado", datos_nuevos: { estado: "rechazado" } })
     setProyecto({ ...proyecto, estado: "rechazado" })
     setCambiando(false)
@@ -1478,6 +1488,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
