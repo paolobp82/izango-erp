@@ -543,7 +543,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       fee_agencia_pct: fee_pct, fee_activo, igv_pct, total_cliente: 0, margen_pct: 0,
     }).select().single()
     if (nueva && itemsACopiar.length > 0) {
-      const copias = itemsACopiar.map(({ id: _id, cotizacion_id: _cid, ...rest }: any) => ({ ...rest, cotizacion_id: nueva.id }))
+      const copias = itemsACopiar.map(({ id: _id, cotizacion_id: _cid, rq_generado_id: _rqid, estado_rq: _estadoRq, ...rest }: any) => ({ ...rest, cotizacion_id: nueva.id, estado_rq: "pendiente", rq_generado_id: null }))
       const { data: insertados } = await supabase.from("cotizacion_items").insert(copias).select()
       await copiarItemsABiblioteca(nueva, insertados || [])
     }
@@ -1477,6 +1477,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
