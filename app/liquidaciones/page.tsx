@@ -292,6 +292,26 @@ export default function LiquidacionesPage() {
     setItems(prev => prev.map(i => i.id === itemId ? { ...i, costo_real: costoReal, desvio, desvio_pct: desvioPct } : i))
   }
 
+  async function guardarRendicionAdicional(item: any, montoRendido: number) {
+    if (!item?.rq_id || selected?.cerrada) return
+
+    const montoSolicitado = Number(item.monto_solicitado || item.costo_real || 0)
+    const montoDevolucion = Math.max(0, montoSolicitado - (Number(montoRendido) || 0))
+
+    await supabase.from("requerimientos_pago").update({
+      monto_rendido: Number(montoRendido) || 0,
+      monto_devolucion: montoDevolucion,
+      fecha_rendicion: new Date().toISOString().split("T")[0],
+    }).eq("id", item.rq_id)
+
+    setItems(prev => prev.map((i:any) => i.id === item.id ? {
+      ...i,
+      monto_rendido: Number(montoRendido) || 0,
+      monto_devolucion: montoDevolucion,
+      costo_real: Number(montoRendido) || 0,
+      desvio: Number(montoRendido) || 0,
+    } : i))
+  }
   async function guardarItems() {
     for (const item of items) {
       if (String(item.id).startsWith("rq_extra_") || String(item.id).startsWith("caja_chica_")) continue
@@ -726,8 +746,20 @@ export default function LiquidacionesPage() {
                         <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 12, color: "#6b7280" }}>
                           {fmt(item.monto_solicitado || item.costo_real)}
                         </td>
-                        <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 800, color: item.monto_rendido > 0 ? "#DC2626" : "#92400E" }}>
-                          {item.monto_rendido > 0 ? fmt(item.monto_rendido) : "Pendiente"}
+                        <td style={{ padding: "6px 12px", textAlign: "right" }}>
+                          {selected.cerrada ? (
+                            <div style={{ fontSize: 13, fontWeight: 800, color: item.monto_rendido > 0 ? "#DC2626" : "#92400E" }}>
+                              {item.monto_rendido > 0 ? fmt(item.monto_rendido) : "Pendiente"}
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              style={{ ...inp, textAlign: "right", fontWeight: 700 }}
+                              value={item.monto_rendido || ""}
+                              placeholder="Rendir"
+                              onChange={e => guardarRendicionAdicional(item, Number(e.target.value))}
+                            />
+                          )}
                         </td>
                         <td style={{ padding: "10px 16px", textAlign: "right", fontSize: 13, fontWeight: 800, color: item.monto_devolucion > 0 ? "#15803d" : "#9ca3af" }}>
                           {item.monto_devolucion > 0 ? fmt(item.monto_devolucion) : "—"}
@@ -743,6 +775,8 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
+
 
 
 
