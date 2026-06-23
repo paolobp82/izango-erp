@@ -40,6 +40,9 @@ export default function FacturacionPage() {
   const [vencimientoManual, setVencimientoManual] = useState(false)
   const [selected, setSelected] = useState<any>(null)
   const [filtroEstado, setFiltroEstado] = useState("todos")
+  const [filtroCliente, setFiltroCliente] = useState("")
+  const [filtroProyecto, setFiltroProyecto] = useState("")
+  const [filtroTipoCobro, setFiltroTipoCobro] = useState("")
   const [error, setError] = useState("")
   const [form, setForm] = useState({
     proyecto_id: "", numero_factura: "", estado: "pendiente",
@@ -79,7 +82,7 @@ export default function FacturacionPage() {
       .select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
       .order("created_at", { ascending: false })
 
-    setFacturas((facts || []).filter((factura: any) => !rowBelongsToDeletedProject(factura)))
+    const factsVisiblesBase = (facts || []).filter((factura: any) => !rowBelongsToDeletedProject(factura))
 
     const { data: provs, error: proyectosError } = await supabase
       .from("proyectos")
@@ -88,6 +91,16 @@ export default function FacturacionPage() {
       .order("created_at", { ascending: false })
 
     setProyectos(provs || [])
+
+    const proyectoMap = new Map((provs || []).map((p: any) => [p.id, p]))
+    const factsEnriquecidas = factsVisiblesBase.map((f: any) => ({
+      ...f,
+      proyecto: {
+        ...(f.proyecto || {}),
+        ...(proyectoMap.get(f.proyecto_id) || {}),
+      }
+    }))
+    setFacturas(factsEnriquecidas)
 
     const proyectosFacturados = new Set((facts || [])
       .filter((f: any) => !["anulada", "cancelada"].includes(f.estado))
@@ -186,12 +199,55 @@ export default function FacturacionPage() {
     if (selected?.id === id) setSelected({ ...selected, estado })
   }
 
+  async function guardarFacturaSeleccionada() {
+    if (!selected) return
+
+    const total = Number(selected.subtotal || 0) + Number(selected.igv || 0)
+    const costoFactoring = Number(selected.costo_factoring || 0)
+    const otrosDescuentos = Number(selected.otros_descuentos || 0)
+    const detraccion = Number(selected.detraccion_monto || 0)
+    const retencion = Number(selected.retencion_monto || 0)
+    const montoFinal = Number(selected.monto_final_abonado || 0) > 0
+      ? Number(selected.monto_final_abonado || 0)
+      : Math.max(0, total - detraccion - retencion - costoFactoring - otrosDescuentos)
+
+    if (selected.estado === "cobrada" && !selected.fecha_abono) {
+      alert("Para marcar como cobrada debes registrar fecha de abono.")
+      return
+    }
+
+    const updates = {
+      estado: selected.estado,
+      fecha_abono: selected.fecha_abono || null,
+      banco_receptor: selected.banco_receptor || null,
+      tipo_cobro: selected.tipo_cobro || "directo",
+      entidad_factoring: selected.entidad_factoring || null,
+      costo_factoring: costoFactoring,
+      otros_descuentos: otrosDescuentos,
+      monto_final_abonado: montoFinal,
+      observacion_cobro: selected.observacion_cobro || null,
+    }
+
+    const { error } = await supabase.from("facturas").update(updates).eq("id", selected.id)
+    if (error) {
+      alert("No se pudo guardar la factura: " + error.message)
+      return
+    }
+
+    setSelected((prev:any) => prev ? { ...prev, ...updates } : prev)
+    load()
+  }
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const m = calcularMontos()
 
   // Facturas filtradas
-  const facturasFiltradas = facturas.filter(f => filtroEstado === "todos" || f.estado === filtroEstado)
+  const facturasFiltradas = facturas.filter(f =>
+    (filtroEstado === "todos" || f.estado === filtroEstado) &&
+    (!filtroCliente || f.proyecto?.cliente?.razon_social === filtroCliente) &&
+    (!filtroProyecto || f.proyecto_id === filtroProyecto) &&
+    (!filtroTipoCobro || (f.tipo_cobro || "directo") === filtroTipoCobro)
+  )
 
   // Totales globales (sin filtro)
   const totalEmitido = facturas.filter(f => f.estado !== "anulada").reduce((s, f) => s + ((f.subtotal || 0) + (f.igv || 0)), 0)
@@ -461,7 +517,7 @@ export default function FacturacionPage() {
                 const ec = ESTADOS[f.estado] || { bg: "#f3f4f6", color: "#6b7280", label: f.estado }
                 const total = (f.subtotal || 0) + (f.igv || 0)
                 return (
-                  <tr key={f.id} style={{ borderTop: "1px solid #F1F5F9", background: "#FFFFFF" }}>
+                  <tr key={f.id} onClick={() => setSelected(f)} style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === f.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}>
                     <td style={{ padding: "12px 20px", fontSize: 13, fontWeight: 700, color: "#111827" }}>{f.numero_factura}</td>
                     <td style={{ padding: "12px" }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{f.proyecto?.codigo}</div>
@@ -517,6 +573,9 @@ export default function FacturacionPage() {
     </div>
   )
 }
+
+
+
 
 
 
