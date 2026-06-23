@@ -79,7 +79,7 @@ export default function FacturacionPage() {
       .select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
       .order("created_at", { ascending: false })
 
-    setFacturas(facts || [])
+    setFacturas((facts || []).filter((factura: any) => !rowBelongsToDeletedProject(factura)))
 
     const { data: provs, error: proyectosError } = await supabase
       .from("proyectos")
@@ -517,6 +517,7 @@ export default function FacturacionPage() {
     </div>
   )
 }
+
 
 
 
