@@ -273,6 +273,11 @@ export default function LiquidacionesPage() {
         rq_id: rq.id,
         rq_codigo: rq.codigo_rq || (rq.numero_rq ? `RQ-${String(rq.numero_rq).padStart(5, "0")}` : "RQ"),
         rq_estado: rq.estado || null,
+        monto_solicitado: Number(rq.monto_solicitado || 0),
+        monto_rendido: Number(rq.monto_rendido || 0),
+        monto_devolucion: Number(rq.monto_devolucion || 0),
+        fecha_rendicion: rq.fecha_rendicion || null,
+        observacion_rendicion: rq.observacion_rendicion || null,
       }))
 
     setItems([...enriched, ...adicionales, ...cajaChicaItems])
@@ -693,7 +698,9 @@ export default function LiquidacionesPage() {
                       <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
                       <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RQ</th>
                       <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-                      <th style={{ textAlign: "right", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MONTO REAL</th>
+                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>SOLICITADO</th>
+                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RENDIDO</th>
+                      <th style={{ textAlign: "right", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DEVUELTO</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -716,8 +723,14 @@ export default function LiquidacionesPage() {
                             />
                           ) : "—"}
                         </td>
-                        <td style={{ padding: "10px 16px", textAlign: "right", fontSize: 13, fontWeight: 800, color: "#DC2626" }}>
-                          {fmt(item.costo_real)}
+                        <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 12, color: "#6b7280" }}>
+                          {fmt(item.monto_solicitado || item.costo_real)}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 800, color: item.monto_rendido > 0 ? "#DC2626" : "#92400E" }}>
+                          {item.monto_rendido > 0 ? fmt(item.monto_rendido) : "Pendiente"}
+                        </td>
+                        <td style={{ padding: "10px 16px", textAlign: "right", fontSize: 13, fontWeight: 800, color: item.monto_devolucion > 0 ? "#15803d" : "#9ca3af" }}>
+                          {item.monto_devolucion > 0 ? fmt(item.monto_devolucion) : "—"}
                         </td>
                       </tr>
                     ))}
@@ -730,6 +743,8 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
+
 
 
 
