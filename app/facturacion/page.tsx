@@ -95,7 +95,7 @@ export default function FacturacionPage() {
       .filter(Boolean))
 
     const pendientes = (provs || [])
-      .filter((p: any) => p.estado === "pendiente_facturacion")
+      .filter((p: any) => ["terminado","liquidado"].includes(p.estado))
       .filter((p: any) => !proyectosFacturados.has(p.id))
 
     setPendientesFacturacion(pendientes)
@@ -225,7 +225,7 @@ export default function FacturacionPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: "#0F6E56", margin: 0 }}>Pendientes de facturación</h2>
-              <p style={{ fontSize: 12, color: "#166534", margin: "4px 0 0" }}>Proyectos liquidados y aprobados listos para emitir factura.</p>
+              <p style={{ fontSize: 12, color: "#166534", margin: "4px 0 0" }}>Proyectos terminados o liquidados disponibles para emitir factura.</p>
             </div>
             <span style={{ background: "#dcfce7", color: "#15803d", borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 800 }}>
               {pendientesFacturacion.length} pendiente(s)
@@ -517,6 +517,7 @@ export default function FacturacionPage() {
     </div>
   )
 }
+
 
 
 
