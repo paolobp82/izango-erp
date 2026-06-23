@@ -83,7 +83,7 @@ export default function FacturacionPage() {
 
     const { data: provs, error: proyectosError } = await supabase
       .from("proyectos")
-      .select("id, nombre, codigo")
+      .select("id, nombre, codigo, estado, cliente:clientes(razon_social)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
 
@@ -517,6 +517,8 @@ export default function FacturacionPage() {
     </div>
   )
 }
+
+
 
 
 
