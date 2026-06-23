@@ -18,14 +18,15 @@ const FLUJO: Record<string, any> = {
   aprobado:             { label: "Aprobado",              bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Iniciar proyecto",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   en_curso:             { label: "En curso",              bg: "#dcfce7", color: "#15803d", siguiente: "terminado",           accion: "Marcar terminado",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   terminado:            { label: "Terminado",             bg: "#f3f4f6", color: "#6b7280", siguiente: "liquidado",           accion: "Pasar a liquidación",     roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
-  liquidado:            { label: "Liquidado",             bg: "#f5f3ff", color: "#6d28d9", siguiente: "facturado",           accion: "Marcar facturado",        roles: ["controller", "gerente_general", "superadmin"] },
+  liquidado:            { label: "Liquidado",             bg: "#f5f3ff", color: "#6d28d9", siguiente: "pendiente_facturacion", accion: "Pasar a facturación", roles: ["controller", "gerente_general", "superadmin"] },
+  pendiente_facturacion:{ label: "Pendiente facturación", bg: "#e0f2fe", color: "#0369a1", siguiente: "facturado",           accion: "Marcar facturado",        roles: ["controller", "gerente_general", "superadmin"] },
   facturado:            { label: "Facturado",             bg: "#e0f2fe", color: "#0369a1", siguiente: "cerrado_financiero",  accion: "Marcar pagado",           roles: ["controller", "gerente_general", "superadmin"] },
   cerrado_financiero:   { label: "Pagado",                bg: "#f0fdf4", color: "#166534", siguiente: null,                  accion: null,                      roles: [] },
   cancelado:            { label: "Cancelado",             bg: "#fee2e2", color: "#991b1b", siguiente: null,                  accion: null,                      roles: [] },
   rechazado:            { label: "Rechazado",             bg: "#fde8d8", color: "#c2410c", siguiente: null,                  accion: null,                      roles: [] },
 }
 
-const FLUJO_BREADCRUMB = ["pendiente_aprobacion", "aprobado_produccion", "aprobado_gerencia", "aprobado_cliente", "en_curso", "terminado", "liquidado", "facturado", "cerrado_financiero"]
+const FLUJO_BREADCRUMB = ["pendiente_aprobacion", "aprobado_produccion", "aprobado_gerencia", "aprobado_cliente", "en_curso", "terminado", "liquidado", "pendiente_facturacion", "facturado", "cerrado_financiero"]
 
 const ENTIDADES = [
   { value: "peru", label: "Izango Peru" },
@@ -921,7 +922,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             <tbody>
               {cotizaciones.map((cot, idx) => {
                 const e = ecCot[cot.estado] || { bg: "#f3f4f6", color: "#6b7280" }
-                const esAprobada = (cot.id === proyecto?.cotizacion_aprobada_id || cot.estado === "aprobada_cliente") && ["en_curso","terminado","liquidado","facturado","cerrado_financiero"].includes(proyecto?.estado)
+                const esAprobada = (cot.id === proyecto?.cotizacion_aprobada_id || cot.estado === "aprobada_cliente") && ["en_curso","terminado","liquidado","pendiente_facturacion","facturado","cerrado_financiero"].includes(proyecto?.estado)
                 return (
                   <tr key={cot.id} style={{ borderTop: "1px solid #f3f4f6", background: esAprobada ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                     <td style={{ padding: "12px 20px" }}>
@@ -1477,6 +1478,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 

@@ -306,6 +306,9 @@ export default function LiquidacionesPage() {
     }
     if (Object.keys(updates).length > 0) {
       await supabase.from("liquidaciones").update(updates).eq("id", selected.id)
+      if (updates.cerrada && selected?.proyecto_id) {
+        await supabase.from("proyectos").update({ estado: "pendiente_facturacion" }).eq("id", selected.proyecto_id)
+      }
       setSelected({ ...selected, ...updates })
       load()
     }
@@ -433,7 +436,7 @@ export default function LiquidacionesPage() {
                   <button onClick={aprobarLiquidacion} className="btn-primary" style={{ fontSize: 12 }}>Aprobar (Produccion)</button>
                 )}
                 {!selected.cerrada && perfil?.perfil === "controller" && selected.aprobado_produccion && !selected.aprobado_controller && (
-                  <button onClick={aprobarLiquidacion} className="btn-primary" style={{ fontSize: 12 }}>Aprobar Controller - Cerrar liquidación</button>
+                  <button onClick={aprobarLiquidacion} className="btn-primary" style={{ fontSize: 12 }}>Aprobar y pasar a facturación</button>
                 )}
                 {selected.aprobado_produccion && !selected.aprobado_controller && (
                   <span style={{ fontSize: 11, color: "#15803d" }}>✓ Aprobado Producción · Pendiente Controller</span>
@@ -697,6 +700,8 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
+
 
 
 
