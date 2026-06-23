@@ -222,7 +222,14 @@ export default function ProyectosPage() {
               </button>
             )
           })}
-        </div>        <select value={filtroEntidad} onChange={e => { setFiltroEntidad(e.target.value); setPagina(1) }}
+        </div>        <select value={filtroCliente} onChange={e => { setFiltroCliente(e.target.value); setPagina(1) }}
+          style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
+          <option value="">Todos los clientes</option>
+          {[...new Map(proyectos.filter((p: any) => p.cliente).map((p: any) => [p.cliente_id, p.cliente])).entries()].map(([cid, cliente]: any) => (
+            <option key={cid} value={cid}>{cliente.razon_social}</option>
+          ))}
+        </select>
+        <select value={filtroEntidad} onChange={e => { setFiltroEntidad(e.target.value); setPagina(1) }}
           style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
           <option value="">Todas las entidades</option>
           <option value="peru">Izango Peru (IZ)</option>
@@ -358,6 +365,7 @@ export default function ProyectosPage() {
     </div>
   )
 }
+
 
 
 
