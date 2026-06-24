@@ -45,7 +45,7 @@ export default function FacturacionPage() {
   const [filtroTipoCobro, setFiltroTipoCobro] = useState("")
   const [error, setError] = useState("")
   const [form, setForm] = useState({
-    proyecto_id: "", numero_factura: "", estado: "pendiente",
+    proyecto_id: "", numero_factura: "", estado: "pendiente", tipo_factura: "final",
     subtotal: "", igv: "18",
     detraccion_pct: "0", retencion_pct: "0",
     pronto_pago_entidad: "", pronto_pago_pct: "0",
@@ -153,6 +153,7 @@ export default function FacturacionPage() {
       proyecto_id: form.proyecto_id,
       numero_factura: form.numero_factura,
       estado: form.estado,
+      tipo_factura: form.tipo_factura || "final",
       subtotal: m.subtotal,
       igv: m.igvMonto,
       detraccion_pct: Number(form.detraccion_pct),
@@ -175,7 +176,7 @@ export default function FacturacionPage() {
     setSaving(false)
     setShowForm(false)
     setVencimientoManual(false)
-    setForm({ proyecto_id: "", numero_factura: "", estado: "pendiente", subtotal: "", igv: "18", detraccion_pct: "0", retencion_pct: "0", pronto_pago_entidad: "", pronto_pago_pct: "0", banco_receptor: "", fecha_emision: "", dias_credito: "30", fecha_vencimiento: "", fecha_abono: "", link_reporte: "" })
+    setForm({ proyecto_id: "", numero_factura: "", estado: "pendiente", tipo_factura: "final", subtotal: "", igv: "18", detraccion_pct: "0", retencion_pct: "0", pronto_pago_entidad: "", pronto_pago_pct: "0", banco_receptor: "", fecha_emision: "", dias_credito: "30", fecha_vencimiento: "", fecha_abono: "", link_reporte: "" })
     load()
   }
 
@@ -259,6 +260,7 @@ export default function FacturacionPage() {
       fecha_abono: selected.fecha_abono || null,
       banco_receptor: selected.banco_receptor || null,
       tipo_cobro: selected.tipo_cobro || "directo",
+      tipo_factura: selected.tipo_factura || "final",
       entidad_factoring: selected.entidad_factoring || null,
       costo_factoring: costoFactoring,
       otros_descuentos: otrosDescuentos,
@@ -725,6 +727,7 @@ export default function FacturacionPage() {
     </div>
   )
 }
+
 
 
 
