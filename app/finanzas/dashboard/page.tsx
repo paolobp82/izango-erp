@@ -43,7 +43,7 @@ export default function FinanzasDashboardPage() {
           supabase.from("requerimientos_pago").select("id,estado,monto_solicitado,fecha_pago,created_at,updated_at,proyecto_id"),
           supabase.from("caja_chica").select("id,estado,monto_debe,monto_haber,fecha"),
           supabase.from("gastos_oficina").select("id,estado_pago,monto,fecha,fecha_vencimiento"),
-          supabase.from("liquidaciones").select("id,cerrada,margen_real_pct,precio_cliente_real,costo_real,fecha_cierre,created_at,proyecto_id"),
+          supabase.from("liquidaciones").select("id,cerrada,aprobado_controller,margen_real_pct,precio_cliente_real,costo_real,fecha_cierre,created_at,proyecto_id"),
           supabase.from("prestamos").select("id,estado,monto_original"),
           supabase.from("prestamo_pagos").select("prestamo_id,monto,fecha_pago"),
           supabase.from("prestamo_cuotas").select("prestamo_id,estado,monto_total,monto_pagado,fecha_vencimiento"),
@@ -85,13 +85,16 @@ export default function FinanzasDashboardPage() {
     const cuentasPagar = rqsPagar + cajaPagar + gastosPagar
     const deudaOriginal = data.prestamos.filter((p: any) => p.estado === "activo").reduce((s: number, p: any) => s + financeNumber(p.monto_original), 0)
     const deudaFinanciera = Math.max(deudaOriginal - pagosDeuda, 0)
-    const cerradas = data.liquidaciones.filter((l: any) => l.cerrada && Number.isFinite(Number(l.margen_real_pct)))
-    const margenPromedio = cerradas.length ? cerradas.reduce((s: number, l: any) => s + financeNumber(l.margen_real_pct), 0) / cerradas.length : 0
+    const liquidacionesAprobadas = data.liquidaciones.filter((l: any) => l.cerrada && l.aprobado_controller && Number.isFinite(Number(l.margen_real_pct)))
+    const margenPromedio = liquidacionesAprobadas.length ? liquidacionesAprobadas.reduce((s: number, l: any) => s + financeNumber(l.margen_real_pct), 0) / liquidacionesAprobadas.length : 0
     const currentMonth = monthKey(new Date())
     const ventasMes = data.facturas.filter((f: any) => !["anulada", "cancelada"].includes(f.estado) && String(f.fecha_emision || "").startsWith(currentMonth)).reduce((s: number, f: any) => s + financeNumber(f.subtotal) + financeNumber(f.igv), 0)
-    const costosMes = data.rqs.filter((r: any) => r.estado === "pagado" && String(r.fecha_pago || r.updated_at || "").startsWith(currentMonth)).reduce((s: number, r: any) => s + financeNumber(r.monto_solicitado), 0)
-    const rentabilidadMes = ventasMes > 0 ? ((ventasMes - costosMes) / ventasMes) * 100 : 0
-    return { cajaEstimada, cuentasCobrar, cuentasPagar, deudaFinanciera, margenPromedio, rentabilidadMes }
+    const costosRqMes = data.rqs.filter((r: any) => r.estado === "pagado" && String(r.fecha_pago || r.updated_at || "").startsWith(currentMonth)).reduce((s: number, r: any) => s + financeNumber(r.monto_solicitado), 0)
+    const cobradoMes = data.facturas.filter((f: any) => FACTURAS_COBRADAS.includes(f.estado) && String(f.fecha_abono || f.fecha_emision || "").startsWith(currentMonth)).reduce((s: number, f: any) => s + financeNumber(f.monto_final_abonado), 0)
+    const costosLiquidacionMes = liquidacionesAprobadas.filter((l: any) => String(l.fecha_cierre || l.created_at || "").startsWith(currentMonth)).reduce((s: number, l: any) => s + financeNumber(l.costo_real), 0)
+    const rentabilidadComercialMes = ventasMes > 0 ? ((ventasMes - costosRqMes) / ventasMes) * 100 : 0
+    const rentabilidadFinancieraMes = cobradoMes > 0 ? ((cobradoMes - costosLiquidacionMes) / cobradoMes) * 100 : 0
+    return { cajaEstimada, cuentasCobrar, cuentasPagar, deudaFinanciera, margenPromedio, rentabilidadComercialMes, rentabilidadFinancieraMes }
   }, [data])
 
   const monthly = useMemo(() => {
@@ -147,8 +150,9 @@ export default function FinanzasDashboardPage() {
         <KpiCard icon="money" label="CUENTAS POR COBRAR" value={financeShort(metrics.cuentasCobrar)} sub="Facturas pendientes" borderColor="#2563EB" valueColor="#1D4ED8" />
         <KpiCard icon="file" label="CUENTAS POR PAGAR" value={financeShort(metrics.cuentasPagar)} sub="RQ, caja chica y oficina" borderColor="#DC2626" valueColor="#B91C1C" />
         <KpiCard icon="shield" label="DEUDA FINANCIERA" value={financeShort(metrics.deudaFinanciera)} sub="Saldo de obligaciones activas" borderColor="#7C3AED" valueColor="#6D28D9" />
-        <KpiCard icon="chart" label="MARGEN PROMEDIO" value={`${metrics.margenPromedio.toFixed(1)}%`} sub="Liquidaciones cerradas" borderColor="#0D9488" valueColor="#0F766E" />
-        <KpiCard icon="chart" label="RENTABILIDAD DEL MES" value={`${metrics.rentabilidadMes.toFixed(1)}%`} sub="Facturación menos RQ pagados" borderColor={metrics.rentabilidadMes >= 0 ? "#16A34A" : "#DC2626"} valueColor={metrics.rentabilidadMes >= 0 ? "#15803D" : "#DC2626"} />
+        <KpiCard icon="chart" label="MARGEN PROMEDIO" value={`${metrics.margenPromedio.toFixed(1)}%`} sub="Liquidaciones aprobadas por Controller" borderColor="#0D9488" valueColor="#0F766E" />
+        <KpiCard icon="chart" label="RENTABILIDAD COMERCIAL" value={`${metrics.rentabilidadComercialMes.toFixed(1)}%`} sub="Facturación emitida menos RQ pagados" borderColor={metrics.rentabilidadComercialMes >= 0 ? "#16A34A" : "#DC2626"} valueColor={metrics.rentabilidadComercialMes >= 0 ? "#15803D" : "#DC2626"} />
+        <KpiCard icon="chart" label="RENTABILIDAD FINANCIERA" value={`${metrics.rentabilidadFinancieraMes.toFixed(1)}%`} sub="Cobranza real menos liquidaciones aprobadas" borderColor={metrics.rentabilidadFinancieraMes >= 0 ? "#16A34A" : "#DC2626"} valueColor={metrics.rentabilidadFinancieraMes >= 0 ? "#15803D" : "#DC2626"} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
@@ -182,4 +186,5 @@ export default function FinanzasDashboardPage() {
     </div>
   )
 }
+
 
