@@ -217,9 +217,9 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       return
     }
 
-    if (!confirm(`¿Cancelar ${rqCodigo(rq)}?`)) return
-
     const codigo = rqCodigo(rq)
+    if (!confirm(`¿Cancelar ${codigo}?`)) return
+
     const updates = {
       estado: "cancelado",
       cancelado_por: perfil?.id || null,
@@ -239,7 +239,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       console.error("Error cancelando RQ", error)
       alert(
         "No se pudo cancelar el RQ." +
-        "\nMensaje: " + (error?.message || "El RQ pudo haber cambiado de estado o no tienes permiso por RLS.") +
+        "\nMensaje: " + (error?.message || "No se actualizó ningún registro. Puede ser RLS, estado cambiado o ID no encontrado.") +
         "\nCódigo: " + (error?.code || "—") +
         "\nDetalle: " + (error?.details || "—") +
         "\nHint: " + (error?.hint || "—")
@@ -247,36 +247,77 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       return
     }
 
-    await registrarAccion({
-      accion: "cancelar",
-      modulo: "rq",
-      entidad_id: rq.id,
-      entidad_tipo: "rq",
-      descripcion: codigo + " cancelado",
-      datos_nuevos: updates
-    })
+    try {
+      await registrarAccion({
+        accion: "cancelar",
+        modulo: "rq",
+        entidad_id: rq.id,
+        entidad_tipo: "rq",
+        descripcion: codigo + " cancelado",
+        datos_nuevos: updates
+      })
+    } catch (traceError) {
+      console.warn("No se pudo registrar trazabilidad de cancelación RQ", traceError)
+    }
 
-    mostrarToast(codigo + " cancelado correctamente", "success")
+    setRqs(prev => prev.map((item: any) => item.id === rq.id ? { ...item, ...updates } : item))
     setSelected((prev: any) => prev?.id === rq.id ? { ...prev, ...updates } : prev)
-    load()
+    mostrarToast(codigo + " cancelado correctamente", "success")
+    await load()
   }
 
   async function eliminarRQ(rq: any) {
-    if (rq.estado !== "pendiente_aprobacion") {
-      alert("No se puede eliminar un RQ que ya ingresó al flujo de aprobación. Utilice Cancelar RQ.")
+    if (!rq?.id) {
+      alert("No hay RQ seleccionado para eliminar.")
       return
     }
-    if (!confirm("¿Eliminar este RQ permanentemente?")) return
-    const { error } = await supabase.from("requerimientos_pago").delete().eq("id", rq.id).eq("estado", "pendiente_aprobacion")
-    if (error) {
-      alert("No se pudo eliminar el RQ")
-      return
-    }
-    await registrarAccion({ accion: "eliminar", modulo: "rq", entidad_id: rq.id, entidad_tipo: "rq", descripcion: "RQ eliminado fisicamente: " + rqCodigo(rq) })
-    setSelected(null)
-    load()
-  }
 
+    const codigo = rqCodigo(rq)
+
+    if (rq.estado !== "pendiente_aprobacion") {
+      alert("No se puede eliminar físicamente un RQ que ya ingresó al flujo de aprobación. Use Cancelar RQ.")
+      return
+    }
+
+    if (!confirm(`¿Eliminar ${codigo} permanentemente? Esta acción no se puede deshacer.`)) return
+
+    const { data: eliminado, error } = await supabase
+      .from("requerimientos_pago")
+      .delete()
+      .eq("id", rq.id)
+      .eq("estado", "pendiente_aprobacion")
+      .select("id")
+      .maybeSingle()
+
+    if (error || !eliminado) {
+      console.error("Error eliminando RQ", error)
+      alert(
+        "No se pudo eliminar el RQ." +
+        "\nMensaje: " + (error?.message || "No se eliminó ningún registro. Puede ser RLS, FK, estado cambiado o ID no encontrado.") +
+        "\nCódigo: " + (error?.code || "—") +
+        "\nDetalle: " + (error?.details || "—") +
+        "\nHint: " + (error?.hint || "—")
+      )
+      return
+    }
+
+    try {
+      await registrarAccion({
+        accion: "eliminar",
+        modulo: "rq",
+        entidad_id: rq.id,
+        entidad_tipo: "rq",
+        descripcion: "RQ eliminado físicamente: " + codigo
+      })
+    } catch (traceError) {
+      console.warn("No se pudo registrar trazabilidad de eliminación RQ", traceError)
+    }
+
+    setRqs(prev => prev.filter((item: any) => item.id !== rq.id))
+    setSelected(null)
+    mostrarToast(codigo + " eliminado correctamente", "success")
+    await load()
+  }
   async function guardarDatosPago() {
     if (!selected) return
     if (rqPerteneceAProyectoEliminado(selected)) {
