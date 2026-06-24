@@ -802,26 +802,35 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16 }}>
               <thead>
                 <tr style={{ background: "#1D2040" }}>
-                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>RQ</th>
-                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Estado</th>
-                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Descripción</th>
-                  <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Monto RQ</th>
-                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Acción sugerida</th>
+                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#fff" }}>RQ</th>
+                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Estado</th>
+                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Item V1</th>
+                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Item V2</th>
+                  <th style={{ textAlign: "right", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Monto V1</th>
+                  <th style={{ textAlign: "right", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Monto V2</th>
+                  <th style={{ textAlign: "right", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Diferencia</th>
+                  <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Acción sugerida</th>
                 </tr>
               </thead>
               <tbody>
                 {(comparacionPendiente.rqsAfectados || []).map((rq: any, idx: number) => {
                   const estadoRq = ESTADOS_RQ[rq.estado] || { bg: "#f3f4f6", color: "#6b7280", label: rq.estado || "Sin estado" }
-                  const accion = rq.estado === "pagado" ? "Mantener histórico y evaluar diferencia" : "Revisar para migración"
+                  const diferencia = Number(rq.diferencia || 0)
+                  const diffColor = Math.abs(diferencia) < 0.01 ? "#6b7280" : diferencia > 0 ? "#dc2626" : "#15803d"
                   return (
                     <tr key={rq.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                      <td style={{ padding: "10px 12px", fontSize: 12, fontWeight: 800, color: "#0F6E56" }}>{rqCodigo(rq)}</td>
-                      <td style={{ padding: "10px 12px" }}>
+                      <td style={{ padding: "10px", fontSize: 12, fontWeight: 800, color: "#0F6E56", whiteSpace: "nowrap" }}>{rqCodigo(rq)}</td>
+                      <td style={{ padding: "10px" }}>
                         <span style={{ background: estadoRq.bg, color: estadoRq.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>{estadoRq.label}</span>
                       </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#374151" }}>{rq.descripcion || "—"}</td>
-                      <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 12, fontWeight: 700, color: "#111827" }}>{fmt(rq.monto_solicitado || 0)}</td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: rq.estado === "pagado" ? "#92400e" : "#0F6E56", fontWeight: 700 }}>{accion}</td>
+                      <td style={{ padding: "10px", fontSize: 12, color: "#374151", maxWidth: 180 }}>{rq.itemAnterior?.descripcion || rq.descripcion || "—"}</td>
+                      <td style={{ padding: "10px", fontSize: 12, color: rq.itemNuevo ? "#374151" : "#dc2626", maxWidth: 180 }}>{rq.itemNuevo?.descripcion || "Item eliminado en V2"}</td>
+                      <td style={{ padding: "10px", textAlign: "right", fontSize: 12, fontWeight: 700, color: "#111827", whiteSpace: "nowrap" }}>{fmt(rq.montoV1 || 0)}</td>
+                      <td style={{ padding: "10px", textAlign: "right", fontSize: 12, fontWeight: 700, color: rq.itemNuevo ? "#111827" : "#dc2626", whiteSpace: "nowrap" }}>{rq.itemNuevo ? fmt(rq.montoV2 || 0) : "—"}</td>
+                      <td style={{ padding: "10px", textAlign: "right", fontSize: 12, fontWeight: 800, color: diffColor, whiteSpace: "nowrap" }}>
+                        {rq.itemNuevo ? (diferencia > 0 ? "+" : "") + fmt(diferencia) : "—"}
+                      </td>
+                      <td style={{ padding: "10px", fontSize: 12, color: rq.estado === "pagado" ? "#92400e" : "#0F6E56", fontWeight: 700 }}>{rq.accionSugerida}</td>
                     </tr>
                   )
                 })}
