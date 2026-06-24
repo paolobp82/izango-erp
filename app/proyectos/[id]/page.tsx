@@ -1451,7 +1451,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>
                           Preview
                         </button>
-                        {puedeAprobarCliente && cot.estado !== "aprobada_cliente" && (
+                        {false && puedeAprobarCliente && cot.estado !== "aprobada_cliente" && (
                           <button onClick={() => marcarCotizacionAprobadaCliente(cot)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#15803d", cursor: "pointer", fontWeight: 600 }}>
                             Marcar aprobado por cliente
                           </button>
@@ -1704,7 +1704,18 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {puedeAvanzar && estadoInfo.siguiente && (
-                    <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando || (proyecto?.estado === "aprobado" && !versionAprobar)}
+                    <button onClick={() => {
+                        if (estadoInfo.siguiente === "aprobado_cliente") {
+                          const cotParaAprobar = cotizaciones.find(cot => cot.id === versionAprobar) || cotizaciones.find(cot => cot.estado === "enviada_cliente") || cotizaciones[cotizaciones.length - 1]
+                          if (!cotParaAprobar) {
+                            alert("No hay una proforma disponible para aprobar por cliente.")
+                            return
+                          }
+                          marcarCotizacionAprobadaCliente(cotParaAprobar)
+                          return
+                        }
+                        cambiarEstado(estadoInfo.siguiente)
+                      }} disabled={cambiando || (proyecto?.estado === "aprobado" && !versionAprobar)}
                       style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado" && !versionAprobar) ? 0.5 : 1 }}>
                       {cambiando ? "..." : estadoInfo.accion}
                     </button>
@@ -1949,6 +1960,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
