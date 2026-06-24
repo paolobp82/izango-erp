@@ -275,64 +275,55 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     const codigo = rqCodigo(rq)
 
     if (rq.estado !== "pendiente_aprobacion") {
-      alert("No se puede eliminar físicamente un RQ que ya ingresó al flujo de aprobación. Use Cancelar RQ.")
+      alert("Solo se puede eliminar operativamente un RQ pendiente. Si ya ingresó al flujo, use Cancelar RQ.")
       return
     }
 
-    if (!confirm(`¿Eliminar ${codigo} permanentemente? Esta acción no se puede deshacer.`)) return
+    if (!confirm(`¿Eliminar ${codigo} de la vista operativa? Quedará registrado como cancelado para auditoría.`)) return
 
-    const { error } = await supabase
+    const updates = {
+      estado: "cancelado",
+      cancelado_por: perfil?.id || null,
+      cancelado_at: new Date().toISOString(),
+      motivo_cancelacion: "Eliminado operativamente desde módulo RQ",
+    }
+
+    const { data: eliminadoOperativo, error } = await supabase
       .from("requerimientos_pago")
-      .delete()
+      .update(updates)
       .eq("id", rq.id)
       .eq("estado", "pendiente_aprobacion")
-
-    if (error) {
-      console.error("Error eliminando RQ", error)
-      alert(
-        "No se pudo eliminar el RQ." +
-        "\nMensaje: " + (error.message || "Error desconocido.") +
-        "\nCódigo: " + (error.code || "—") +
-        "\nDetalle: " + (error.details || "—") +
-        "\nHint: " + (error.hint || "—")
-      )
-      return
-    }
-
-    const { data: sigueExistiendo, error: checkError } = await supabase
-      .from("requerimientos_pago")
       .select("id, estado")
-      .eq("id", rq.id)
       .maybeSingle()
 
-    if (checkError) {
-      console.warn("No se pudo verificar eliminación RQ", checkError)
-    }
-
-    if (sigueExistiendo) {
+    if (error || !eliminadoOperativo) {
+      console.error("Error eliminando operativamente RQ", error)
       alert(
-        "No se eliminó el RQ." +
-        "\nEstado actual: " + (sigueExistiendo.estado || "—") +
-        "\nPosible causa: RLS, estado cambiado o política de borrado en Supabase."
+        "No se pudo eliminar operativamente el RQ." +
+        "\nMensaje: " + (error?.message || "No se actualizó ningún registro. Puede ser RLS, estado cambiado o ID no encontrado.") +
+        "\nCódigo: " + (error?.code || "—") +
+        "\nDetalle: " + (error?.details || "—") +
+        "\nHint: " + (error?.hint || "—")
       )
       return
     }
 
     try {
       await registrarAccion({
-        accion: "eliminar",
+        accion: "eliminar_operativo",
         modulo: "rq",
         entidad_id: rq.id,
         entidad_tipo: "rq",
-        descripcion: "RQ eliminado físicamente: " + codigo
+        descripcion: "RQ eliminado operativamente: " + codigo,
+        datos_nuevos: updates
       })
     } catch (traceError) {
-      console.warn("No se pudo registrar trazabilidad de eliminación RQ", traceError)
+      console.warn("No se pudo registrar trazabilidad de eliminación operativa RQ", traceError)
     }
 
     setRqs(prev => prev.filter((item: any) => item.id !== rq.id))
     setSelected(null)
-    mostrarToast(codigo + " eliminado correctamente", "success")
+    mostrarToast(codigo + " eliminado de la vista operativa", "success")
     await load()
   }
   async function guardarDatosPago() {
@@ -632,7 +623,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const detalleIgv = (rq: any) => rqIgvDetalle(rq)
 
-  const rqsVistaActiva = incluirProyectosEliminados ? rqs : rqs.filter(r => !rqPerteneceAProyectoEliminado(r))
+  const rqsVistaActiva = incluirProyectosEliminados ? rqs : rqs.filter(r => r.estado !== "cancelado" && !rqPerteneceAProyectoEliminado(r))
   const rqsProyectosEliminados = rqs.filter(r => rqPerteneceAProyectoEliminado(r))
   const filtradosBase = rqsVistaActiva.filter(r => {
     const textoBusqueda = busquedaRQ.trim().toLowerCase()
@@ -1350,4 +1341,5 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
 
