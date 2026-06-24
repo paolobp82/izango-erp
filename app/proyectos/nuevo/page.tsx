@@ -42,6 +42,21 @@ export default function NuevoProyectoPage() {
     setProductores(prods || [])
   }
 
+  async function obtenerSiguienteCodigoDisponible() {
+    const { data: todosProj } = await supabase.from("proyectos").select("codigo")
+    const usados = new Set((todosProj || []).map((p: any) => p.codigo).filter(Boolean))
+    const maxNum = (todosProj || []).reduce((max: number, p: any) => {
+      const num = parseInt((p.codigo || "").replace("IZ-", "")) || 0
+      return num > max ? num : max
+    }, 26000)
+
+    for (let n = maxNum + 1; n < maxNum + 200; n++) {
+      const codigo = `IZ-${n}`
+      if (!usados.has(codigo)) return codigo
+    }
+
+    return `IZ-${maxNum + 1}`
+  }
   async function handleEntidadChange(entidad: string) {
     setForm(f => ({ ...f, entidad, cliente_id: "", productor_id: "" }))
     await loadEntidadData(entidad)
@@ -51,7 +66,7 @@ export default function NuevoProyectoPage() {
     e.preventDefault()
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    const { data, error } = await supabase.from("proyectos").insert({
+    const payload = {
       entidad: form.entidad,
       codigo: form.codigo,
       nombre: form.nombre,
@@ -65,8 +80,28 @@ export default function NuevoProyectoPage() {
       fecha_fin_estimada: form.fecha_fin_estimada || null,
       estado: "pendiente_aprobacion",
       created_by: user?.id,
-    }).select().single()
-    if (error) { alert("Error: " + error.message); setLoading(false); return }
+    }
+
+    let { data, error } = await supabase.from("proyectos").insert(payload).select().single()
+
+    if (error?.code === "23505" || error?.message?.includes("proyectos_codigo_key")) {
+      const nuevoCodigo = await obtenerSiguienteCodigoDisponible()
+      const retryPayload = { ...payload, codigo: nuevoCodigo }
+      ;({ data, error } = await supabase.from("proyectos").insert(retryPayload).select().single())
+      if (!error) setForm(f => ({ ...f, codigo: nuevoCodigo }))
+    }
+    if (error) {
+      console.error("Error creando proyecto", error)
+      alert(
+        "Error creando proyecto:" +
+        "\nMensaje: " + (error.message || "—") +
+        "\nCódigo: " + (error.code || "—") +
+        "\nDetalle: " + (error.details || "—") +
+        "\nHint: " + (error.hint || "—")
+      )
+      setLoading(false)
+      return
+    }
     router.push(`/proyectos/${data.id}`)
   }
 
@@ -154,3 +189,5 @@ export default function NuevoProyectoPage() {
     </div>
   )
 }
+
+
