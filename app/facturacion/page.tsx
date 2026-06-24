@@ -361,17 +361,45 @@ export default function FacturacionPage() {
         />
       </div>
 
-      {/* Filtro por estado */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
+      {/* Filtros */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
         <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
           <option value="todos">Todos los estados</option>
           {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        {filtroEstado !== "todos" && (
-          <span style={{ fontSize: 12, color: "#6b7280" }}>
-            {facturasFiltradas.length} facturas · Total: <strong>{fmt(totalFiltradoFactura)}</strong> · A abonar: <strong>{fmt(totalFiltradoAbonado)}</strong> · Detracciones: <strong style={{ color: "#6d28d9" }}>{fmt(totalFiltradoDetraccion)}</strong>
-          </span>
-        )}
+
+        <select style={{ ...inp, width: "auto" }} value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}>
+          <option value="">Todos los clientes</option>
+          {[...new Set(facturas.map(f => f.proyecto?.cliente?.razon_social).filter(Boolean))].map((cliente:any) => (
+            <option key={cliente} value={cliente}>{cliente}</option>
+          ))}
+        </select>
+
+        <select style={{ ...inp, width: "auto" }} value={filtroProyecto} onChange={e => setFiltroProyecto(e.target.value)}>
+          <option value="">Todos los proyectos</option>
+          {proyectos.map((p:any) => (
+            <option key={p.id} value={p.id}>{p.codigo} — {p.nombre}</option>
+          ))}
+        </select>
+
+        <select style={{ ...inp, width: "auto" }} value={filtroTipoCobro} onChange={e => setFiltroTipoCobro(e.target.value)}>
+          <option value="">Todos los tipos de cobro</option>
+          <option value="directo">Directo</option>
+          <option value="factoring_cliente">Factoring cliente</option>
+          <option value="factoring_externo">Factoring externo</option>
+        </select>
+
+        <button
+          onClick={() => { setFiltroEstado("todos"); setFiltroCliente(""); setFiltroProyecto(""); setFiltroTipoCobro("") }}
+          className="btn-secondary"
+          style={{ fontSize: 12 }}
+        >
+          Limpiar
+        </button>
+
+        <span style={{ fontSize: 12, color: "#6b7280" }}>
+          {facturasFiltradas.length} facturas · Total: <strong>{fmt(totalFiltradoFactura)}</strong> · A abonar: <strong>{fmt(totalFiltradoAbonado)}</strong> · Detracciones: <strong style={{ color: "#6d28d9" }}>{fmt(totalFiltradoDetraccion)}</strong>
+        </span>
       </div>
 
       {showForm && (
@@ -570,9 +598,96 @@ export default function FacturacionPage() {
           </table>
         )}
       </div>
+      {selected && (
+        <div className="card" style={{ position: "fixed", right: 24, top: 90, width: 420, maxHeight: "calc(100vh - 120px)", overflowY: "auto", zIndex: 50, padding: 18, border: "1px solid #E2E8F0", borderRadius: 18, background: "#fff", boxShadow: "0 24px 60px rgba(15,23,42,0.18)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 900, color: "#0F172A" }}>{selected.numero_factura}</div>
+              <div style={{ fontSize: 12, color: "#64748B" }}>{selected.proyecto?.codigo} — {selected.proyecto?.nombre}</div>
+              <div style={{ fontSize: 12, color: "#64748B" }}>{selected.proyecto?.cliente?.razon_social || "Sin cliente"}</div>
+            </div>
+            <button onClick={() => setSelected(null)} style={{ border: "none", background: "transparent", fontSize: 20, cursor: "pointer", color: "#94A3B8" }}>×</button>
+          </div>
+
+          <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ padding: 12, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                <span>Total factura</span><strong>{fmt(Number(selected.subtotal || 0) + Number(selected.igv || 0))}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                <span>Detracción</span><strong>{fmt(selected.detraccion_monto || 0)}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                <span>Retención</span><strong>{fmt(selected.retencion_monto || 0)}</strong>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: "#64748B" }}>Estado</label>
+              <select style={inp} value={selected.estado || "pendiente"} onChange={e => setSelected({ ...selected, estado: e.target.value })}>
+                {Object.entries(ESTADOS).map(([k, v]: any) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: "#64748B" }}>Fecha abono</label>
+                <input type="date" style={inp} value={selected.fecha_abono || ""} onChange={e => setSelected({ ...selected, fecha_abono: e.target.value })} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: "#64748B" }}>Banco receptor</label>
+                <input style={inp} value={selected.banco_receptor || ""} onChange={e => setSelected({ ...selected, banco_receptor: e.target.value })} />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: "#64748B" }}>Tipo de cobro</label>
+              <select style={inp} value={selected.tipo_cobro || "directo"} onChange={e => setSelected({ ...selected, tipo_cobro: e.target.value })}>
+                <option value="directo">Directo</option>
+                <option value="factoring_cliente">Factoring cliente</option>
+                <option value="factoring_externo">Factoring externo</option>
+              </select>
+            </div>
+
+            {(selected.tipo_cobro || "directo") !== "directo" && (
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: "#64748B" }}>Entidad factoring</label>
+                <input style={inp} value={selected.entidad_factoring || ""} onChange={e => setSelected({ ...selected, entidad_factoring: e.target.value })} />
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: "#64748B" }}>Costo factoring</label>
+                <input type="number" style={inp} value={selected.costo_factoring || ""} onChange={e => setSelected({ ...selected, costo_factoring: e.target.value })} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: "#64748B" }}>Otros descuentos</label>
+                <input type="number" style={inp} value={selected.otros_descuentos || ""} onChange={e => setSelected({ ...selected, otros_descuentos: e.target.value })} />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: "#64748B" }}>Monto depositado real</label>
+              <input type="number" style={{ ...inp, fontWeight: 800, color: "#0F6E56" }} value={selected.monto_final_abonado || ""} onChange={e => setSelected({ ...selected, monto_final_abonado: e.target.value })} />
+            </div>
+
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: "#64748B" }}>Observación cobranza</label>
+              <textarea rows={3} style={{ ...inp, resize: "vertical" }} value={selected.observacion_cobro || ""} onChange={e => setSelected({ ...selected, observacion_cobro: e.target.value })} />
+            </div>
+
+            <button onClick={guardarFacturaSeleccionada} className="btn-primary" style={{ fontSize: 13 }}>
+              Guardar cobranza
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
+
 
 
 
