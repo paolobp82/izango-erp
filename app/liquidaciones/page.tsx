@@ -166,7 +166,12 @@ export default function LiquidacionesPage() {
       .eq("proyecto_id", liq.proyecto_id)
       .eq("estado", "aprobado")
 
-    const detailErrors = [itemsError?.message, cotizacionItemsError?.message, rqsError?.message, facturasError?.message, cajaChicaError?.message].filter(Boolean)
+    const { data: trasladosLogistica, error: trasladosError } = await supabase
+      .from("logistica_traslados")
+      .select("id,codigo,titulo,estado,costo_real,afecta_rentabilidad,punto_recojo,punto_entrega,fecha_salida,fecha_entrega,fecha_entrega_real,proyecto_id")
+      .eq("proyecto_id", liq.proyecto_id)
+
+    const detailErrors = [itemsError?.message, cotizacionItemsError?.message, rqsError?.message, facturasError?.message, cajaChicaError?.message, trasladosError?.message].filter(Boolean)
     if (detailErrors.length) setDetailError(detailErrors.join(" · "))
 
     const facturado = (facturasProyecto || []).reduce((s: number, f: any) => s + Number(f.subtotal || 0) + Number(f.igv || 0), 0)
@@ -252,6 +257,35 @@ export default function LiquidacionesPage() {
         rq_estado: c.estado || null,
       }))
 
+    const trasladosItems = (trasladosLogistica || [])
+      .filter((t: any) =>
+        t.afecta_rentabilidad !== false &&
+        !["cancelado", "rechazado"].includes(t.estado) &&
+        Number(t.costo_real || 0) > 0
+      )
+      .map((t: any) => {
+        const costoReal = Number(t.costo_real || 0)
+
+        return {
+          id: `traslado_logistica_${t.id}`,
+          liquidacion_id: liq.id,
+          cotizacion_item_id: null,
+          descripcion: `Traslado/logística: ${t.codigo ? `${t.codigo} - ` : ""}${t.titulo || `${t.punto_recojo || "Origen"} → ${t.punto_entrega || "Destino"}`}`,
+          proveedor_id: null,
+          proveedor_nombre: "Logística",
+          costo_presupuestado: 0,
+          costo_real: costoReal,
+          desvio: costoReal,
+          desvio_pct: 100,
+          es_traslado_logistica: true,
+          traslado_logistica_id: t.id,
+          rq_id: null,
+          rq_codigo: null,
+          rq_estado: t.estado || null,
+          fecha_traslado: t.fecha_entrega_real || t.fecha_entrega || t.fecha_salida || null,
+        }
+      })
+
     const adicionales = (rqs || [])
       .filter((rq: any) =>
         !rq.cotizacion_item_id &&
@@ -280,7 +314,7 @@ export default function LiquidacionesPage() {
         observacion_rendicion: rq.observacion_rendicion || null,
       }))
 
-    setItems([...enriched, ...adicionales, ...cajaChicaItems])
+    setItems([...enriched, ...adicionales, ...cajaChicaItems, ...trasladosItems])
     setLoadingItems(false)
   }
 
@@ -314,7 +348,7 @@ export default function LiquidacionesPage() {
   }
   async function guardarItems() {
     for (const item of items) {
-      if (String(item.id).startsWith("rq_extra_") || String(item.id).startsWith("caja_chica_")) continue
+      if (String(item.id).startsWith("rq_extra_") || String(item.id).startsWith("caja_chica_") || String(item.id).startsWith("traslado_logistica_")) continue
       await supabase.from("liquidacion_items").update({
         costo_real: item.costo_real || 0,
         desvio: item.desvio || 0,
@@ -772,6 +806,7 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
 
 
 
