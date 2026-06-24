@@ -203,7 +203,7 @@ export default function ProyectoDetallePage() {
     const [{ data: itemsAnterior }, { data: itemsNueva }, { data: rqs }] = await Promise.all([
       supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotAnterior.id).order("orden"),
       supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotNueva.id).order("orden"),
-      supabase.from("requerimientos_pago").select("id,codigo_rq,numero_rq,estado,cotizacion_item_id,monto_solicitado,descripcion").eq("proyecto_id", id),
+      supabase.from("requerimientos_pago").select("id,proyecto_id,codigo_rq,numero_rq,estado,cotizacion_item_id,monto_solicitado,monto_presupuestado,descripcion,proveedor_id,proveedor_nombre,proveedor_banco,proveedor_cuenta,proveedor_tipo_pago,tipo_pago,dias_credito,tratamiento_igv,solicitado_por").eq("proyecto_id", id),
     ])
 
     const activosAnterior = (itemsAnterior || []).filter((i: any) => i.tipo !== "celda_extra")
@@ -337,6 +337,146 @@ export default function ProyectoDetallePage() {
     await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, codigo: proyecto?.codigo, version: cot.version, total: cot.total_cliente || 0, proyecto_id: id })
     alert("Proforma marcada como aprobada por cliente")
     load()
+  }
+
+  async function ejecutarMigracionRQVersion(comparacion: any, cot: any) {
+    if (!comparacion || !cot) return
+
+    for (const rq of comparacion.rqsAfectados || []) {
+      const codigo = rqCodigo(rq)
+      const estadoFinal = ["cancelado", "rechazado", "cerrado"].includes(rq.estado)
+      const pagado = rq.estado === "pagado"
+      const tieneNuevoItem = !!rq.itemNuevo
+      const diferencia = Number(rq.diferencia || 0)
+      const diferenciaAbs = Math.abs(diferencia)
+
+      if (estadoFinal) continue
+
+      if (!tieneNuevoItem) {
+        if (pagado) {
+          await registrarAccion({
+            accion: "mantener_historico_rq",
+            modulo: "rq",
+            entidad_id: rq.id,
+            entidad_tipo: "rq",
+            descripcion: codigo + " se mantiene histórico porque el item fue eliminado en V" + cot.version,
+            datos_nuevos: { cotizacion_nueva_id: cot.id, motivo: "item_eliminado_rq_pagado" }
+          })
+          continue
+        }
+
+        await supabase.from("requerimientos_pago").update({
+          estado: "cancelado",
+          cancelado_por: perfil?.id || null,
+          cancelado_at: new Date().toISOString(),
+          motivo_cancelacion: "Cancelado por cambio de versión de cotización: item eliminado en V" + cot.version,
+        }).eq("id", rq.id)
+
+        await registrarAccion({
+          accion: "cancelar_rq_por_version",
+          modulo: "rq",
+          entidad_id: rq.id,
+          entidad_tipo: "rq",
+          descripcion: codigo + " cancelado por item eliminado en V" + cot.version,
+          datos_nuevos: { cotizacion_nueva_id: cot.id, item_anterior_id: rq.itemAnterior?.id || null }
+        })
+        continue
+      }
+
+      await supabase.from("requerimientos_pago").update({
+        cotizacion_item_id: rq.itemNuevo.id,
+        monto_presupuestado: Number(rq.montoV2 || rq.montoV1 || 0),
+      }).eq("id", rq.id)
+
+      await registrarAccion({
+        accion: pagado ? "migrar_referencia_rq_pagado" : "migrar_rq_version",
+        modulo: "rq",
+        entidad_id: rq.id,
+        entidad_tipo: "rq",
+        descripcion: codigo + " migrado a item V" + cot.version,
+        datos_nuevos: {
+          cotizacion_nueva_id: cot.id,
+          item_anterior_id: rq.itemAnterior?.id || null,
+          item_nuevo_id: rq.itemNuevo?.id || null,
+          monto_v1: rq.montoV1,
+          monto_v2: rq.montoV2,
+          diferencia,
+        }
+      })
+
+      if (!pagado && diferencia < -0.01) {
+        await supabase.from("requerimientos_pago").update({
+          monto_solicitado: Number(rq.montoV2 || 0),
+          monto_presupuestado: Number(rq.montoV2 || 0),
+        }).eq("id", rq.id)
+
+        await registrarAccion({
+          accion: "ajustar_rq_monto_menor",
+          modulo: "rq",
+          entidad_id: rq.id,
+          entidad_tipo: "rq",
+          descripcion: codigo + " ajustado por monto menor en V" + cot.version,
+          datos_nuevos: { diferencia, monto_nuevo: rq.montoV2 }
+        })
+      }
+
+      if (diferencia > 0.01) {
+        const { data: nuevoRq, error: diffError } = await supabase.from("requerimientos_pago").insert({
+          proyecto_id: id,
+          cotizacion_item_id: rq.itemNuevo.id,
+          es_adicional: true,
+          dias_credito: rq.dias_credito || null,
+          tipo_pago: rq.tipo_pago || "contado",
+          estado: "pendiente_aprobacion",
+          proveedor_id: rq.proveedor_id || null,
+          proveedor_nombre: rq.proveedor_nombre || "",
+          proveedor_banco: rq.proveedor_banco || "",
+          proveedor_cuenta: rq.proveedor_cuenta || "",
+          proveedor_tipo_pago: rq.proveedor_tipo_pago || null,
+          tratamiento_igv: rq.tratamiento_igv || "incluye_igv",
+          monto_solicitado: diferencia,
+          monto_presupuestado: diferencia,
+          descripcion: "Diferencia por cambio de versión: " + (rq.itemNuevo?.descripcion || rq.descripcion || codigo),
+          solicitado_por: perfil?.id || rq.solicitado_por || null,
+        }).select("id,codigo_rq,numero_rq").single()
+
+        if (diffError) {
+          alert("No se pudo generar el RQ por diferencia de " + codigo + ": " + diffError.message)
+          return
+        }
+
+        await registrarAccion({
+          accion: "generar_rq_diferencia_version",
+          modulo: "rq",
+          entidad_id: nuevoRq?.id || rq.id,
+          entidad_tipo: "rq",
+          descripcion: "RQ por diferencia generado desde " + codigo,
+          datos_nuevos: {
+            rq_origen_id: rq.id,
+            cotizacion_nueva_id: cot.id,
+            diferencia,
+            rq_diferencia_id: nuevoRq?.id || null,
+          }
+        })
+      }
+
+      if (pagado && diferencia < -0.01) {
+        await registrarAccion({
+          accion: "registrar_reembolso_pendiente_version",
+          modulo: "rq",
+          entidad_id: rq.id,
+          entidad_tipo: "rq",
+          descripcion: codigo + " requiere reembolso/ajuste por monto menor en V" + cot.version,
+          datos_nuevos: {
+            cotizacion_nueva_id: cot.id,
+            diferencia,
+            monto_reembolso_sugerido: Math.abs(diferencia),
+          }
+        })
+      }
+    }
+
+    await aprobarCotizacionClienteFinal(cot)
   }
 
   async function marcarCotizacionAprobadaCliente(cot: any) {
@@ -769,28 +909,66 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               <button onClick={() => { setShowMigracionRQ(false); setComparacionPendiente(null); setCotizacionPendienteAprobar(null) }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>×</button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 16 }}>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fafafa" }}>
-                <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Versión anterior</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>V{comparacionPendiente.cotAnterior?.version}</div>
-              </div>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#f0fdf4" }}>
-                <div style={{ fontSize: 10, color: "#15803d", fontWeight: 700, textTransform: "uppercase" }}>Nueva versión</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#15803d" }}>V{comparacionPendiente.cotNueva?.version}</div>
-              </div>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
-                <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Modificados</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#92400e" }}>{comparacionPendiente.modificados?.length || 0}</div>
-              </div>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
-                <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Eliminados</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#dc2626" }}>{comparacionPendiente.eliminados?.length || 0}</div>
-              </div>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
-                <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>RQs afectados</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#0F6E56" }}>{comparacionPendiente.rqsAfectados?.length || 0}</div>
-              </div>
-            </div>
+            {(() => {
+              const rqsImpacto = comparacionPendiente.rqsAfectados || []
+              const montoV1Total = rqsImpacto.reduce((sum: number, rq: any) => sum + Number(rq.montoV1 || 0), 0)
+              const montoV2Total = rqsImpacto.reduce((sum: number, rq: any) => sum + Number(rq.itemNuevo ? rq.montoV2 || 0 : 0), 0)
+              const impactoNeto = montoV2Total - montoV1Total
+              const rqsDiferencia = rqsImpacto.filter((rq: any) => rq.itemNuevo && Number(rq.diferencia || 0) > 0.01).length
+              const rqsCancelar = rqsImpacto.filter((rq: any) => !rq.itemNuevo && rq.estado !== "pagado").length
+              const reembolsos = rqsImpacto.filter((rq: any) => rq.estado === "pagado" && Number(rq.diferencia || 0) < -0.01).length
+              const impactoColor = Math.abs(impactoNeto) < 0.01 ? "#6b7280" : impactoNeto > 0 ? "#dc2626" : "#15803d"
+
+              return (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 12 }}>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fafafa" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Versión anterior</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>V{comparacionPendiente.cotAnterior?.version}</div>
+                    </div>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#f0fdf4" }}>
+                      <div style={{ fontSize: 10, color: "#15803d", fontWeight: 700, textTransform: "uppercase" }}>Nueva versión</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#15803d" }}>V{comparacionPendiente.cotNueva?.version}</div>
+                    </div>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Modificados</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#92400e" }}>{comparacionPendiente.modificados?.length || 0}</div>
+                    </div>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Eliminados</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#dc2626" }}>{comparacionPendiente.eliminados?.length || 0}</div>
+                    </div>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>RQs afectados</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#0F6E56" }}>{rqsImpacto.length}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 16 }}>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Monto V1</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: "#111827" }}>{fmt(montoV1Total)}</div>
+                    </div>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Monto V2</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: "#111827" }}>{fmt(montoV2Total)}</div>
+                    </div>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Impacto neto</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: impactoColor }}>{impactoNeto > 0 ? "+" : ""}{fmt(impactoNeto)}</div>
+                    </div>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>RQ diferencia</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: "#dc2626" }}>{rqsDiferencia}</div>
+                    </div>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Ajustes/reembolsos</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: "#92400e" }}>{rqsCancelar + reembolsos}</div>
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
 
             <div style={{ border: "1px solid #fde68a", borderRadius: 10, background: "#fffbeb", padding: 12, marginBottom: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#92400e", marginBottom: 4 }}>Revisión requerida</div>
@@ -845,7 +1023,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   const pendiente = cotizacionPendienteAprobar
                   setComparacionPendiente(null)
                   setCotizacionPendienteAprobar(null)
-                  aprobarCotizacionClienteFinal(pendiente)
+                  ejecutarMigracionRQVersion(comparacionPendiente, pendiente)
                 }
               }} style={{ padding: "8px 20px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 Continuar aprobación
@@ -1722,6 +1900,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
