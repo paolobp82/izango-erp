@@ -281,22 +281,39 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
     if (!confirm(`¿Eliminar ${codigo} permanentemente? Esta acción no se puede deshacer.`)) return
 
-    const { data: eliminado, error } = await supabase
+    const { error } = await supabase
       .from("requerimientos_pago")
       .delete()
       .eq("id", rq.id)
       .eq("estado", "pendiente_aprobacion")
-      .select("id")
-      .maybeSingle()
 
-    if (error || !eliminado) {
+    if (error) {
       console.error("Error eliminando RQ", error)
       alert(
         "No se pudo eliminar el RQ." +
-        "\nMensaje: " + (error?.message || "No se eliminó ningún registro. Puede ser RLS, FK, estado cambiado o ID no encontrado.") +
-        "\nCódigo: " + (error?.code || "—") +
-        "\nDetalle: " + (error?.details || "—") +
-        "\nHint: " + (error?.hint || "—")
+        "\nMensaje: " + (error.message || "Error desconocido.") +
+        "\nCódigo: " + (error.code || "—") +
+        "\nDetalle: " + (error.details || "—") +
+        "\nHint: " + (error.hint || "—")
+      )
+      return
+    }
+
+    const { data: sigueExistiendo, error: checkError } = await supabase
+      .from("requerimientos_pago")
+      .select("id, estado")
+      .eq("id", rq.id)
+      .maybeSingle()
+
+    if (checkError) {
+      console.warn("No se pudo verificar eliminación RQ", checkError)
+    }
+
+    if (sigueExistiendo) {
+      alert(
+        "No se eliminó el RQ." +
+        "\nEstado actual: " + (sigueExistiendo.estado || "—") +
+        "\nPosible causa: RLS, estado cambiado o política de borrado en Supabase."
       )
       return
     }
