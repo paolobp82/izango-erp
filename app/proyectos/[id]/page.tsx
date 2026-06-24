@@ -60,6 +60,9 @@ export default function ProyectoDetallePage() {
   const [cambiando, setCambiando] = useState(false)
   const [showPreCuadre, setShowPreCuadre] = useState(false)
   const [preCuadreItems, setPreCuadreItems] = useState<any[]>([])
+  const [showMigracionRQ, setShowMigracionRQ] = useState(false)
+  const [comparacionPendiente, setComparacionPendiente] = useState<any>(null)
+  const [cotizacionPendienteAprobar, setCotizacionPendienteAprobar] = useState<any>(null)
   const [proveedores, setProveedores] = useState<any[]>([])
   const [guardandoPreCuadre, setGuardandoPreCuadre] = useState(false)
   const [versionAprobar, setVersionAprobar] = useState("")
@@ -235,7 +238,29 @@ export default function ProyectoDetallePage() {
     }
 
     const itemIdsAnterior = activosAnterior.map((i: any) => i.id)
-    const rqsAfectados = (rqs || []).filter((rq: any) => itemIdsAnterior.includes(rq.cotizacion_item_id))
+    const rqsAfectados = (rqs || [])
+      .filter((rq: any) => itemIdsAnterior.includes(rq.cotizacion_item_id))
+      .map((rq: any) => {
+        const itemAnterior = activosAnterior.find((item: any) => item.id === rq.cotizacion_item_id)
+        const origen = String(itemAnterior?.origen_item_id || itemAnterior?.id || "")
+        const itemNuevo = origen ? mapaNueva.get(origen) : null
+        const montoV1 = Number(itemAnterior?.costo_total || rq.monto_presupuestado || rq.monto_solicitado || 0)
+        const montoV2 = itemNuevo ? Number(itemNuevo.costo_total || 0) : 0
+        const diferencia = montoV2 - montoV1
+        let accionSugerida = "Revisar manualmente"
+
+        if (!itemNuevo) {
+          accionSugerida = rq.estado === "pagado" ? "Mantener histórico; item eliminado en V2" : "Cancelar RQ; item eliminado en V2"
+        } else if (Math.abs(diferencia) < 0.01) {
+          accionSugerida = rq.estado === "pagado" ? "Mantener histórico; monto igual" : "Migrar RQ; monto igual"
+        } else if (diferencia > 0) {
+          accionSugerida = rq.estado === "pagado" ? "Mantener histórico + generar RQ por diferencia" : "Migrar RQ + generar RQ por diferencia"
+        } else {
+          accionSugerida = rq.estado === "pagado" ? "Mantener histórico + registrar reembolso" : "Migrar RQ + solicitar devolución/ajuste"
+        }
+
+        return { ...rq, itemAnterior, itemNuevo, montoV1, montoV2, diferencia, accionSugerida }
+      })
 
     return {
       cotAnterior,
@@ -274,20 +299,7 @@ export default function ProyectoDetallePage() {
     ].join("\n")
   }
 
-  async function marcarCotizacionAprobadaCliente(cot: any) {
-    if (!cot?.id) return
-    if (!puedeAprobarCliente) {
-      alert("No tienes permisos para marcar aprobado por cliente")
-      return
-    }
-
-    const comparacion = await compararVersionContraAprobada(cot)
-    if (comparacion && (comparacion.modificados.length > 0 || comparacion.eliminados.length > 0 || comparacion.nuevos.length > 0 || comparacion.rqsAfectados.length > 0)) {
-      if (!confirm(resumenComparacionVersiones(comparacion))) return
-    } else {
-      if (!confirm("¿Confirmas que el cliente aprobó formalmente esta proforma?")) return
-    }
-
+  async function aprobarCotizacionClienteFinal(cot: any) {
     const aprobadoAt = new Date().toISOString()
     for (const otra of cotizaciones) {
       if (otra.id !== cot.id && otra.estado === "aprobada_cliente") {
@@ -325,6 +337,25 @@ export default function ProyectoDetallePage() {
     await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, codigo: proyecto?.codigo, version: cot.version, total: cot.total_cliente || 0, proyecto_id: id })
     alert("Proforma marcada como aprobada por cliente")
     load()
+  }
+
+  async function marcarCotizacionAprobadaCliente(cot: any) {
+    if (!cot?.id) return
+    if (!puedeAprobarCliente) {
+      alert("No tienes permisos para marcar aprobado por cliente")
+      return
+    }
+
+    const comparacion = await compararVersionContraAprobada(cot)
+    if (comparacion && (comparacion.modificados.length > 0 || comparacion.eliminados.length > 0 || comparacion.nuevos.length > 0 || comparacion.rqsAfectados.length > 0)) {
+      setComparacionPendiente(comparacion)
+      setCotizacionPendienteAprobar(cot)
+      setShowMigracionRQ(true)
+      return
+    }
+
+    if (!confirm("¿Confirmas que el cliente aprobó formalmente esta proforma?")) return
+    await aprobarCotizacionClienteFinal(cot)
   }
 
   async function cambiarEstado(nuevoEstado: string) {
@@ -725,6 +756,95 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
   return (
     <div>
+      {showMigracionRQ && comparacionPendiente && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 980, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Migración de RQs por cambio de versión</h2>
+                <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+                  Revisa los RQs afectados antes de aprobar V{cotizacionPendienteAprobar?.version}.
+                </p>
+              </div>
+              <button onClick={() => { setShowMigracionRQ(false); setComparacionPendiente(null); setCotizacionPendienteAprobar(null) }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>×</button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 16 }}>
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fafafa" }}>
+                <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Versión anterior</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>V{comparacionPendiente.cotAnterior?.version}</div>
+              </div>
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#f0fdf4" }}>
+                <div style={{ fontSize: 10, color: "#15803d", fontWeight: 700, textTransform: "uppercase" }}>Nueva versión</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#15803d" }}>V{comparacionPendiente.cotNueva?.version}</div>
+              </div>
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Modificados</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#92400e" }}>{comparacionPendiente.modificados?.length || 0}</div>
+              </div>
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Eliminados</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#dc2626" }}>{comparacionPendiente.eliminados?.length || 0}</div>
+              </div>
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>RQs afectados</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#0F6E56" }}>{comparacionPendiente.rqsAfectados?.length || 0}</div>
+              </div>
+            </div>
+
+            <div style={{ border: "1px solid #fde68a", borderRadius: 10, background: "#fffbeb", padding: 12, marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#92400e", marginBottom: 4 }}>Revisión requerida</div>
+              <div style={{ fontSize: 12, color: "#92400e" }}>
+                Este panel todavía no ejecuta migraciones. En la siguiente fase se habilitarán acciones: migrar RQ, generar RQ por diferencia o registrar reembolso/ajuste.
+              </div>
+            </div>
+
+            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16 }}>
+              <thead>
+                <tr style={{ background: "#1D2040" }}>
+                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>RQ</th>
+                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Estado</th>
+                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Descripción</th>
+                  <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Monto RQ</th>
+                  <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Acción sugerida</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(comparacionPendiente.rqsAfectados || []).map((rq: any, idx: number) => {
+                  const estadoRq = ESTADOS_RQ[rq.estado] || { bg: "#f3f4f6", color: "#6b7280", label: rq.estado || "Sin estado" }
+                  const accion = rq.estado === "pagado" ? "Mantener histórico y evaluar diferencia" : "Revisar para migración"
+                  return (
+                    <tr key={rq.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                      <td style={{ padding: "10px 12px", fontSize: 12, fontWeight: 800, color: "#0F6E56" }}>{rqCodigo(rq)}</td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <span style={{ background: estadoRq.bg, color: estadoRq.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>{estadoRq.label}</span>
+                      </td>
+                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#374151" }}>{rq.descripcion || "—"}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 12, fontWeight: 700, color: "#111827" }}>{fmt(rq.monto_solicitado || 0)}</td>
+                      <td style={{ padding: "10px 12px", fontSize: 12, color: rq.estado === "pagado" ? "#92400e" : "#0F6E56", fontWeight: 700 }}>{accion}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", borderTop: "1px solid #f3f4f6", paddingTop: 16 }}>
+              <button onClick={() => { setShowMigracionRQ(false); setComparacionPendiente(null); setCotizacionPendienteAprobar(null) }} style={{ padding: "8px 16px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer" }}>Cancelar</button>
+              <button onClick={() => {
+                setShowMigracionRQ(false)
+                if (cotizacionPendienteAprobar) {
+                  const pendiente = cotizacionPendienteAprobar
+                  setComparacionPendiente(null)
+                  setCotizacionPendienteAprobar(null)
+                  aprobarCotizacionClienteFinal(pendiente)
+                }
+              }} style={{ padding: "8px 20px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                Continuar aprobación
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showPreCuadre && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 900, maxHeight: "90vh", overflowY: "auto" }}>
@@ -1593,6 +1713,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
