@@ -475,6 +475,13 @@ export default function FacturacionPage() {
                     {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
                 </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>TIPO FACTURA</label>
+                  <select style={inp} value={form.tipo_factura} onChange={e => setForm({ ...form, tipo_factura: e.target.value })}>
+                    <option value="parcial">Parcial</option>
+                    <option value="final">Final</option>
+                  </select>
+                </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div>
