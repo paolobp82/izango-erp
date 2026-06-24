@@ -182,6 +182,10 @@ export default function FacturacionPage() {
   async function cambiarEstado(id: string, estado: string) {
     if (!autorizado) return
 
+    if (estado === "cobrada" && !["controller", "superadmin", "gerente_general"].includes(perfil?.perfil)) {
+      alert("Solo Controller, Superadmin o Gerencia General pueden marcar una factura como cobrada.")
+      return
+    }
     const facturaActual = facturas.find(f => f.id === id)
 
     if (rowBelongsToDeletedProject(facturaActual)) {
@@ -721,6 +725,9 @@ export default function FacturacionPage() {
     </div>
   )
 }
+
+
+
 
 
 

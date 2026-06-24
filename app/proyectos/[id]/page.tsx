@@ -20,7 +20,7 @@ const FLUJO: Record<string, any> = {
   terminado:            { label: "Terminado",             bg: "#f3f4f6", color: "#6b7280", siguiente: "liquidado",           accion: "Pasar a liquidación",     roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   liquidado:            { label: "Liquidado",             bg: "#f5f3ff", color: "#6d28d9", siguiente: "pendiente_facturacion", accion: "Pasar a facturación", roles: ["controller", "gerente_general", "superadmin"] },
   pendiente_facturacion:{ label: "Pendiente facturación", bg: "#e0f2fe", color: "#0369a1", siguiente: "facturado",           accion: "Marcar facturado",        roles: ["controller", "gerente_general", "superadmin"] },
-  facturado:            { label: "Facturado",             bg: "#e0f2fe", color: "#0369a1", siguiente: "cerrado_financiero",  accion: "Marcar pagado",           roles: ["controller", "gerente_general", "superadmin"] },
+  facturado:            { label: "Facturado",             bg: "#e0f2fe", color: "#0369a1", siguiente: null,                  accion: null,                      roles: [] },
   cerrado_financiero:   { label: "Pagado",                bg: "#f0fdf4", color: "#166534", siguiente: null,                  accion: null,                      roles: [] },
   cancelado:            { label: "Cancelado",             bg: "#fee2e2", color: "#991b1b", siguiente: null,                  accion: null,                      roles: [] },
   rechazado:            { label: "Rechazado",             bg: "#fde8d8", color: "#c2410c", siguiente: null,                  accion: null,                      roles: [] },
@@ -1183,7 +1183,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                     <div key={estado} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <div
                         onClick={async () => {
-                          if (!["superadmin","gerente_general"].includes(perfil?.perfil)) return
+                          if (!["superadmin","gerente_general","controller"].includes(perfil?.perfil)) return
                           if (actual) return
                           if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
                           const estadosAntesDeEnCurso = ["pendiente_aprobacion","aprobado_produccion","aprobado_gerencia","aprobado_cliente"]
@@ -1197,7 +1197,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                             cambiarEstado(estado)
                           }
                         }}
-                        style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: ["superadmin","gerente_general"].includes(perfil?.perfil) && !actual && idx < FLUJO_BREADCRUMB.indexOf(proyecto?.estado) ? "pointer" : "default" }}>
+                        style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: ["superadmin","gerente_general","controller"].includes(perfil?.perfil) && !actual && idx < FLUJO_BREADCRUMB.indexOf(proyecto?.estado) ? "pointer" : "default" }}>
                         <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{idx + 1}</span>
                       </div>
                       {actual && <span style={{ fontSize: 11, fontWeight: 700, color: info.color }}>{info.label}</span>}
@@ -1488,6 +1488,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 

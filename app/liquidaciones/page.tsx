@@ -347,6 +347,16 @@ export default function LiquidacionesPage() {
     } : i))
   }
   async function guardarItems() {
+    const rol = perfil?.perfil
+    const puedeGuardar =
+      (rol === "gerente_produccion" && !selected.aprobado_produccion) ||
+      (["controller", "superadmin"].includes(rol) && !selected.aprobado_controller && !selected.cerrada)
+
+    if (!puedeGuardar) {
+      alert("No tienes permisos para guardar cambios en esta liquidación.")
+      return
+    }
+
     for (const item of items) {
       if (String(item.id).startsWith("rq_extra_") || String(item.id).startsWith("caja_chica_") || String(item.id).startsWith("traslado_logistica_")) continue
       await supabase.from("liquidacion_items").update({
@@ -367,10 +377,9 @@ export default function LiquidacionesPage() {
       desvio_costo: desvioCosto,
       desvio_margen_pp: desvioMargen,
     }).eq("id", selected.id)
-    const updatedLiq = { ...selected, costo_real: costoReal, margen_real_pct: margenReal, desvio_costo: desvioCosto, desvio_margen_pp: desvioMargen }
-    setSelected(updatedLiq)
-    setLiquidaciones(prev => prev.map(l => l.id === selected.id ? { ...l, ...updatedLiq } : l))
-    alert("Guardado correctamente")
+    setSelected({ ...selected, costo_real: costoReal, margen_real_pct: margenReal, desvio_costo: desvioCosto, desvio_margen_pp: desvioMargen })
+    alert("Liquidación actualizada")
+    load()
   }
 
   async function aprobarLiquidacion() {
@@ -398,6 +407,10 @@ export default function LiquidacionesPage() {
 
   async function cerrarLiquidacion() {
     if (!autorizado) return
+    if (!["controller", "superadmin"].includes(perfil?.perfil)) {
+      alert("Solo Controller o Superadmin pueden cerrar una liquidación.")
+      return
+    }
     if (!confirm("¿Cerrar esta liquidación? Ya no se podrá editar.")) return
     await supabase.from("liquidaciones").update({ cerrada: true, aprobada_por: perfil?.id, fecha_cierre: new Date().toISOString() }).eq("id", selected.id)
     setSelected({ ...selected, cerrada: true })
@@ -806,6 +819,8 @@ export default function LiquidacionesPage() {
     </div>
   )
 }
+
+
 
 
 
