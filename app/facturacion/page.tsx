@@ -181,20 +181,54 @@ export default function FacturacionPage() {
 
   async function cambiarEstado(id: string, estado: string) {
     if (!autorizado) return
+
     const facturaActual = facturas.find(f => f.id === id)
+
     if (rowBelongsToDeletedProject(facturaActual)) {
       alert("Esta factura pertenece a un proyecto eliminado y no puede procesarse.")
       return
     }
-    await supabase.from("facturas").update({ estado }).eq("id", id)
-    // Si cobrada → proyecto pasa a Pagado
-    if (estado === "cobrada" && facturaActual?.tipo_factura === "final") {
-      const factura = facturas.find(f => f.id === id)
-      if (factura?.proyecto_id) {
-        await supabase.from("proyectos").update({ estado: "cerrado_financiero" }).eq("id", factura.proyecto_id)
-        await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: factura.proyecto_id, entidad_tipo: "proyecto", descripcion: "Proyecto marcado como cerrado financiero por cobro de factura", datos_nuevos: { estado: "cerrado_financiero" } })
+
+    const { error: facturaError } = await supabase
+      .from("facturas")
+      .update({ estado })
+      .eq("id", id)
+
+    if (facturaError) {
+      alert("No se pudo actualizar la factura: " + facturaError.message)
+      return
+    }
+
+    if (estado === "cobrada" && facturaActual?.tipo_factura === "final" && facturaActual?.proyecto_id) {
+      const { data: liquidacion, error: liquidacionError } = await supabase
+        .from("liquidaciones")
+        .select("id, cerrada, aprobado_controller")
+        .eq("proyecto_id", facturaActual.proyecto_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (liquidacionError) {
+        alert("Factura marcada como cobrada, pero no se pudo validar la liquidación: " + liquidacionError.message)
+      } else if (liquidacion?.cerrada && liquidacion?.aprobado_controller) {
+        await supabase
+          .from("proyectos")
+          .update({ estado: "cerrado_financiero" })
+          .eq("id", facturaActual.proyecto_id)
+
+        await registrarAccion({
+          accion: "cambiar_estado",
+          modulo: "proyectos",
+          entidad_id: facturaActual.proyecto_id,
+          entidad_tipo: "proyecto",
+          descripcion: "Proyecto marcado como cerrado financiero por factura final cobrada y liquidación aprobada por Controller",
+          datos_nuevos: { estado: "cerrado_financiero", liquidacion_id: liquidacion.id }
+        })
+      } else {
+        alert("Factura marcada como cobrada. El proyecto aún no se cierra financieramente porque la liquidación no está aprobada por Controller.")
       }
     }
+
     load()
     if (selected?.id === id) setSelected({ ...selected, estado })
   }
