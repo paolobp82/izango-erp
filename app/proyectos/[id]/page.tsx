@@ -176,13 +176,118 @@ export default function ProyectoDetallePage() {
     setTimeout(() => load(), 500)
   }
 
+  function itemCambioClave(item: any) {
+    return [
+      String(item.descripcion || "").trim().toLowerCase(),
+      Number(item.cantidad || 0),
+      Number(item.costo_unitario || 0),
+      Number(item.costo_total || 0),
+      Number(item.precio_unitario || 0),
+      Number(item.total_cliente || 0),
+      String(item.proveedor_id || ""),
+      String(item.proveedor_nombre || ""),
+      String(item.tipo || ""),
+    ].join("|")
+  }
+
+  async function compararVersionContraAprobada(cotNueva: any) {
+    const cotAnterior = cotizaciones
+      .filter((c: any) => c.id !== cotNueva.id && (c.estado === "aprobada_cliente" || c.id === proyecto?.cotizacion_aprobada_id))
+      .sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0]
+
+    if (!cotAnterior) return null
+
+    const [{ data: itemsAnterior }, { data: itemsNueva }, { data: rqs }] = await Promise.all([
+      supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotAnterior.id).order("orden"),
+      supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotNueva.id).order("orden"),
+      supabase.from("requerimientos_pago").select("id,codigo_rq,numero_rq,estado,cotizacion_item_id,monto_solicitado,descripcion").eq("proyecto_id", id),
+    ])
+
+    const activosAnterior = (itemsAnterior || []).filter((i: any) => i.tipo !== "celda_extra")
+    const activosNueva = (itemsNueva || []).filter((i: any) => i.tipo !== "celda_extra")
+
+    const mapaAnterior = new Map<string, any>()
+    const mapaNueva = new Map<string, any>()
+
+    activosAnterior.forEach((item: any) => mapaAnterior.set(String(item.origen_item_id || item.id), item))
+    activosNueva.forEach((item: any) => mapaNueva.set(String(item.origen_item_id || item.id), item))
+
+    const mantenidos: any[] = []
+    const modificados: any[] = []
+    const eliminados: any[] = []
+    const nuevos: any[] = []
+
+    for (const [origen, itemAnt] of mapaAnterior.entries()) {
+      const itemNuevo = mapaNueva.get(origen)
+      if (!itemNuevo) {
+        eliminados.push(itemAnt)
+        continue
+      }
+      if (itemCambioClave(itemAnt) === itemCambioClave(itemNuevo)) {
+        mantenidos.push({ anterior: itemAnt, nuevo: itemNuevo })
+      } else {
+        modificados.push({ anterior: itemAnt, nuevo: itemNuevo })
+      }
+    }
+
+    for (const [origen, itemNuevo] of mapaNueva.entries()) {
+      if (!mapaAnterior.has(origen)) nuevos.push(itemNuevo)
+    }
+
+    const itemIdsAnterior = activosAnterior.map((i: any) => i.id)
+    const rqsAfectados = (rqs || []).filter((rq: any) => itemIdsAnterior.includes(rq.cotizacion_item_id))
+
+    return {
+      cotAnterior,
+      cotNueva,
+      mantenidos,
+      modificados,
+      eliminados,
+      nuevos,
+      rqsAfectados,
+    }
+  }
+
+  function resumenComparacionVersiones(resultado: any) {
+    if (!resultado) return ""
+    const rqsPagados = resultado.rqsAfectados.filter((rq: any) => rq.estado === "pagado").length
+    const rqsNoPagados = resultado.rqsAfectados.filter((rq: any) => rq.estado !== "pagado" && rq.estado !== "cancelado" && rq.estado !== "rechazado").length
+
+    return [
+      "Se detectó una versión aprobada anterior: V" + resultado.cotAnterior.version + ".",
+      "",
+      "Nueva versión a aprobar: V" + resultado.cotNueva.version + ".",
+      "",
+      "Resumen de cambios:",
+      "- Ítems mantenidos: " + resultado.mantenidos.length,
+      "- Ítems modificados: " + resultado.modificados.length,
+      "- Ítems eliminados: " + resultado.eliminados.length,
+      "- Ítems nuevos: " + resultado.nuevos.length,
+      "",
+      "RQs asociados a la versión anterior: " + resultado.rqsAfectados.length,
+      "- RQs no pagados afectados: " + rqsNoPagados,
+      "- RQs pagados históricos: " + rqsPagados,
+      "",
+      "Por ahora el sistema solo muestra este diagnóstico. La migración/cancelación automática se hará en el siguiente paso.",
+      "",
+      "¿Deseas continuar con la aprobación de esta versión?"
+    ].join("\n")
+  }
+
   async function marcarCotizacionAprobadaCliente(cot: any) {
     if (!cot?.id) return
     if (!puedeAprobarCliente) {
       alert("No tienes permisos para marcar aprobado por cliente")
       return
     }
-    if (!confirm("¿Confirmas que el cliente aprobó formalmente esta proforma?")) return
+
+    const comparacion = await compararVersionContraAprobada(cot)
+    if (comparacion && (comparacion.modificados.length > 0 || comparacion.eliminados.length > 0 || comparacion.nuevos.length > 0 || comparacion.rqsAfectados.length > 0)) {
+      if (!confirm(resumenComparacionVersiones(comparacion))) return
+    } else {
+      if (!confirm("¿Confirmas que el cliente aprobó formalmente esta proforma?")) return
+    }
+
     const aprobadoAt = new Date().toISOString()
     for (const otra of cotizaciones) {
       if (otra.id !== cot.id && otra.estado === "aprobada_cliente") {
