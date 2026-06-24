@@ -339,62 +339,93 @@ export default function ProyectoDetallePage() {
     load()
   }
 
-  async function ejecutarMigracionRQVersion(comparacion: any, cot: any) {
-    if (!comparacion || !cot) return
+  function resolverAccionRQVersion(rq: any) {
+    const estadoFinal = ["cancelado", "rechazado", "cerrado"].includes(rq.estado)
+    const pagado = rq.estado === "pagado"
+    const tieneNuevoItem = !!rq.itemNuevo
+    const diferencia = Number(rq.diferencia || 0)
 
-    for (const rq of comparacion.rqsAfectados || []) {
-      const codigo = rqCodigo(rq)
-      const estadoFinal = ["cancelado", "rechazado", "cerrado"].includes(rq.estado)
-      const pagado = rq.estado === "pagado"
-      const tieneNuevoItem = !!rq.itemNuevo
-      const diferencia = Number(rq.diferencia || 0)
-      const diferenciaAbs = Math.abs(diferencia)
+    if (estadoFinal) return "OMITIR_FINAL"
+    if (!tieneNuevoItem && pagado) return "MANTENER_HISTORICO_ITEM_ELIMINADO"
+    if (!tieneNuevoItem && !pagado) return "CANCELAR_ITEM_ELIMINADO"
+    if (Math.abs(diferencia) < 0.01 && pagado) return "MIGRAR_REFERENCIA_PAGADO"
+    if (Math.abs(diferencia) < 0.01 && !pagado) return "MIGRAR"
+    if (diferencia > 0.01 && pagado) return "MANTENER_PAGADO_GENERAR_DIFERENCIA"
+    if (diferencia > 0.01 && !pagado) return "MIGRAR_GENERAR_DIFERENCIA"
+    if (diferencia < -0.01 && pagado) return "MANTENER_PAGADO_REGISTRAR_REEMBOLSO"
+    if (diferencia < -0.01 && !pagado) return "MIGRAR_AJUSTAR_MONTO_MENOR"
 
-      if (estadoFinal) continue
+    return "REVISAR"
+  }
 
-      if (!tieneNuevoItem) {
-        if (pagado) {
-          await registrarAccion({
-            accion: "mantener_historico_rq",
-            modulo: "rq",
-            entidad_id: rq.id,
-            entidad_tipo: "rq",
-            descripcion: codigo + " se mantiene histórico porque el item fue eliminado en V" + cot.version,
-            datos_nuevos: { cotizacion_nueva_id: cot.id, motivo: "item_eliminado_rq_pagado" }
-          })
-          continue
-        }
+  async function ejecutarAccionRQVersion(rq: any, cot: any) {
+    const accion = resolverAccionRQVersion(rq)
+    const codigo = rqCodigo(rq)
+    const diferencia = Number(rq.diferencia || 0)
 
-        await supabase.from("requerimientos_pago").update({
-          estado: "cancelado",
-          cancelado_por: perfil?.id || null,
-          cancelado_at: new Date().toISOString(),
-          motivo_cancelacion: "Cancelado por cambio de versión de cotización: item eliminado en V" + cot.version,
-        }).eq("id", rq.id)
+    if (accion === "OMITIR_FINAL") return true
 
-        await registrarAccion({
-          accion: "cancelar_rq_por_version",
-          modulo: "rq",
-          entidad_id: rq.id,
-          entidad_tipo: "rq",
-          descripcion: codigo + " cancelado por item eliminado en V" + cot.version,
-          datos_nuevos: { cotizacion_nueva_id: cot.id, item_anterior_id: rq.itemAnterior?.id || null }
-        })
-        continue
-      }
+    if (accion === "MANTENER_HISTORICO_ITEM_ELIMINADO") {
+      await registrarAccion({
+        accion: "mantener_historico_rq",
+        modulo: "rq",
+        entidad_id: rq.id,
+        entidad_tipo: "rq",
+        descripcion: codigo + " se mantiene histórico porque el item fue eliminado en V" + cot.version,
+        datos_nuevos: { cotizacion_nueva_id: cot.id, motivo: "item_eliminado_rq_pagado" }
+      })
+      return true
+    }
 
-      await supabase.from("requerimientos_pago").update({
-        cotizacion_item_id: rq.itemNuevo.id,
-        monto_presupuestado: Number(rq.montoV2 || rq.montoV1 || 0),
+    if (accion === "CANCELAR_ITEM_ELIMINADO") {
+      const { error } = await supabase.from("requerimientos_pago").update({
+        estado: "cancelado",
+        cancelado_por: perfil?.id || null,
+        cancelado_at: new Date().toISOString(),
+        motivo_cancelacion: "Cancelado por cambio de versión de cotización: item eliminado en V" + cot.version,
       }).eq("id", rq.id)
 
+      if (error) {
+        alert("No se pudo cancelar " + codigo + ": " + error.message)
+        return false
+      }
+
       await registrarAccion({
-        accion: pagado ? "migrar_referencia_rq_pagado" : "migrar_rq_version",
+        accion: "cancelar_rq_por_version",
+        modulo: "rq",
+        entidad_id: rq.id,
+        entidad_tipo: "rq",
+        descripcion: codigo + " cancelado por item eliminado en V" + cot.version,
+        datos_nuevos: { cotizacion_nueva_id: cot.id, item_anterior_id: rq.itemAnterior?.id || null }
+      })
+      return true
+    }
+
+    if (rq.itemNuevo && ["MIGRAR", "MIGRAR_REFERENCIA_PAGADO", "MIGRAR_GENERAR_DIFERENCIA", "MIGRAR_AJUSTAR_MONTO_MENOR", "MANTENER_PAGADO_GENERAR_DIFERENCIA", "MANTENER_PAGADO_REGISTRAR_REEMBOLSO"].includes(accion)) {
+      const updateBase: any = {
+        cotizacion_item_id: rq.itemNuevo.id,
+        monto_presupuestado: Number(rq.montoV2 || rq.montoV1 || 0),
+      }
+
+      if (accion === "MIGRAR_AJUSTAR_MONTO_MENOR") {
+        updateBase.monto_solicitado = Number(rq.montoV2 || 0)
+        updateBase.monto_presupuestado = Number(rq.montoV2 || 0)
+      }
+
+      const { error } = await supabase.from("requerimientos_pago").update(updateBase).eq("id", rq.id)
+      if (error) {
+        alert("No se pudo migrar " + codigo + ": " + error.message)
+        return false
+      }
+
+      await registrarAccion({
+        accion: rq.estado === "pagado" ? "migrar_referencia_rq_pagado" : "migrar_rq_version",
         modulo: "rq",
         entidad_id: rq.id,
         entidad_tipo: "rq",
         descripcion: codigo + " migrado a item V" + cot.version,
         datos_nuevos: {
+          accion_resuelta: accion,
           cotizacion_nueva_id: cot.id,
           item_anterior_id: rq.itemAnterior?.id || null,
           item_nuevo_id: rq.itemNuevo?.id || null,
@@ -403,77 +434,72 @@ export default function ProyectoDetallePage() {
           diferencia,
         }
       })
+    }
 
-      if (!pagado && diferencia < -0.01) {
-        await supabase.from("requerimientos_pago").update({
-          monto_solicitado: Number(rq.montoV2 || 0),
-          monto_presupuestado: Number(rq.montoV2 || 0),
-        }).eq("id", rq.id)
+    if (["MIGRAR_GENERAR_DIFERENCIA", "MANTENER_PAGADO_GENERAR_DIFERENCIA"].includes(accion)) {
+      const { data: nuevoRq, error: diffError } = await supabase.from("requerimientos_pago").insert({
+        proyecto_id: id,
+        cotizacion_item_id: rq.itemNuevo.id,
+        es_adicional: true,
+        dias_credito: rq.dias_credito || null,
+        tipo_pago: rq.tipo_pago || "contado",
+        estado: "pendiente_aprobacion",
+        proveedor_id: rq.proveedor_id || null,
+        proveedor_nombre: rq.proveedor_nombre || "",
+        proveedor_banco: rq.proveedor_banco || "",
+        proveedor_cuenta: rq.proveedor_cuenta || "",
+        proveedor_tipo_pago: rq.proveedor_tipo_pago || null,
+        tratamiento_igv: rq.tratamiento_igv || "incluye_igv",
+        monto_solicitado: diferencia,
+        monto_presupuestado: diferencia,
+        descripcion: "Diferencia por cambio de versión: " + (rq.itemNuevo?.descripcion || rq.descripcion || codigo),
+        solicitado_por: perfil?.id || rq.solicitado_por || null,
+      }).select("id,codigo_rq,numero_rq").single()
 
-        await registrarAccion({
-          accion: "ajustar_rq_monto_menor",
-          modulo: "rq",
-          entidad_id: rq.id,
-          entidad_tipo: "rq",
-          descripcion: codigo + " ajustado por monto menor en V" + cot.version,
-          datos_nuevos: { diferencia, monto_nuevo: rq.montoV2 }
-        })
+      if (diffError) {
+        alert("No se pudo generar el RQ por diferencia de " + codigo + ": " + diffError.message)
+        return false
       }
 
-      if (diferencia > 0.01) {
-        const { data: nuevoRq, error: diffError } = await supabase.from("requerimientos_pago").insert({
-          proyecto_id: id,
-          cotizacion_item_id: rq.itemNuevo.id,
-          es_adicional: true,
-          dias_credito: rq.dias_credito || null,
-          tipo_pago: rq.tipo_pago || "contado",
-          estado: "pendiente_aprobacion",
-          proveedor_id: rq.proveedor_id || null,
-          proveedor_nombre: rq.proveedor_nombre || "",
-          proveedor_banco: rq.proveedor_banco || "",
-          proveedor_cuenta: rq.proveedor_cuenta || "",
-          proveedor_tipo_pago: rq.proveedor_tipo_pago || null,
-          tratamiento_igv: rq.tratamiento_igv || "incluye_igv",
-          monto_solicitado: diferencia,
-          monto_presupuestado: diferencia,
-          descripcion: "Diferencia por cambio de versión: " + (rq.itemNuevo?.descripcion || rq.descripcion || codigo),
-          solicitado_por: perfil?.id || rq.solicitado_por || null,
-        }).select("id,codigo_rq,numero_rq").single()
-
-        if (diffError) {
-          alert("No se pudo generar el RQ por diferencia de " + codigo + ": " + diffError.message)
-          return
+      await registrarAccion({
+        accion: "generar_rq_diferencia_version",
+        modulo: "rq",
+        entidad_id: nuevoRq?.id || rq.id,
+        entidad_tipo: "rq",
+        descripcion: "RQ por diferencia generado desde " + codigo,
+        datos_nuevos: {
+          rq_origen_id: rq.id,
+          cotizacion_nueva_id: cot.id,
+          diferencia,
+          rq_diferencia_id: nuevoRq?.id || null,
         }
+      })
+    }
 
-        await registrarAccion({
-          accion: "generar_rq_diferencia_version",
-          modulo: "rq",
-          entidad_id: nuevoRq?.id || rq.id,
-          entidad_tipo: "rq",
-          descripcion: "RQ por diferencia generado desde " + codigo,
-          datos_nuevos: {
-            rq_origen_id: rq.id,
-            cotizacion_nueva_id: cot.id,
-            diferencia,
-            rq_diferencia_id: nuevoRq?.id || null,
-          }
-        })
-      }
+    if (["MANTENER_PAGADO_REGISTRAR_REEMBOLSO"].includes(accion)) {
+      await registrarAccion({
+        accion: "registrar_reembolso_pendiente_version",
+        modulo: "rq",
+        entidad_id: rq.id,
+        entidad_tipo: "rq",
+        descripcion: codigo + " requiere reembolso/ajuste por monto menor en V" + cot.version,
+        datos_nuevos: {
+          cotizacion_nueva_id: cot.id,
+          diferencia,
+          monto_reembolso_sugerido: Math.abs(diferencia),
+        }
+      })
+    }
 
-      if (pagado && diferencia < -0.01) {
-        await registrarAccion({
-          accion: "registrar_reembolso_pendiente_version",
-          modulo: "rq",
-          entidad_id: rq.id,
-          entidad_tipo: "rq",
-          descripcion: codigo + " requiere reembolso/ajuste por monto menor en V" + cot.version,
-          datos_nuevos: {
-            cotizacion_nueva_id: cot.id,
-            diferencia,
-            monto_reembolso_sugerido: Math.abs(diferencia),
-          }
-        })
-      }
+    return true
+  }
+
+  async function ejecutarMigracionRQVersion(comparacion: any, cot: any) {
+    if (!comparacion || !cot) return
+
+    for (const rq of comparacion.rqsAfectados || []) {
+      const ok = await ejecutarAccionRQVersion(rq, cot)
+      if (!ok) return
     }
 
     await aprobarCotizacionClienteFinal(cot)
