@@ -339,6 +339,29 @@ export default function ProyectoDetallePage() {
     load()
   }
 
+  async function registrarLogMigracionRQVersion(params: any) {
+    const { error } = await supabase.from("rq_version_migration_log").insert({
+      proyecto_id: id,
+      cotizacion_origen_id: params.cotizacion_origen_id || comparacionPendiente?.cotAnterior?.id || null,
+      cotizacion_destino_id: params.cotizacion_destino_id || params.cotizacion_nueva_id || null,
+      rq_id: params.rq_id || null,
+      rq_diferencia_id: params.rq_diferencia_id || null,
+      cotizacion_item_origen_id: params.cotizacion_item_origen_id || null,
+      cotizacion_item_destino_id: params.cotizacion_item_destino_id || null,
+      accion: params.accion,
+      estado_rq: params.estado_rq || null,
+      monto_v1: Number(params.monto_v1 || 0),
+      monto_v2: Number(params.monto_v2 || 0),
+      diferencia: Number(params.diferencia || 0),
+      creado_por: perfil?.id || null,
+      metadata: params.metadata || {},
+    })
+
+    if (error) {
+      console.error("No se pudo registrar log de migración RQ", error)
+    }
+  }
+
   function resolverAccionRQVersion(rq: any) {
     const estadoFinal = ["cancelado", "rechazado", "cerrado"].includes(rq.estado)
     const pagado = rq.estado === "pagado"
