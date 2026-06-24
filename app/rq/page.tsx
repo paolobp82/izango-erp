@@ -212,25 +212,50 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   }
 
   async function cancelarRQ(rq: any) {
-    if (!puedeCancelarRQ(rq)) return
+    if (!puedeCancelarRQ(rq)) {
+      alert("No tienes permisos para cancelar este RQ o el estado no permite cancelación.")
+      return
+    }
+
+    if (!confirm(`¿Cancelar ${rqCodigo(rq)}?`)) return
+
     const codigo = rqCodigo(rq)
     const updates = {
       estado: "cancelado",
       cancelado_por: perfil?.id || null,
       cancelado_at: new Date().toISOString(),
+      motivo_cancelacion: "Cancelado desde módulo RQ",
     }
+
     const { data: cancelado, error } = await supabase
       .from("requerimientos_pago")
       .update(updates)
       .eq("id", rq.id)
       .in("estado", ESTADOS_CANCELABLES_RQ)
-      .select("id")
+      .select("id, estado")
       .maybeSingle()
+
     if (error || !cancelado) {
-      mostrarToast("No se pudo cancelar el RQ", "error")
+      console.error("Error cancelando RQ", error)
+      alert(
+        "No se pudo cancelar el RQ." +
+        "\nMensaje: " + (error?.message || "El RQ pudo haber cambiado de estado o no tienes permiso por RLS.") +
+        "\nCódigo: " + (error?.code || "—") +
+        "\nDetalle: " + (error?.details || "—") +
+        "\nHint: " + (error?.hint || "—")
+      )
       return
     }
-    await registrarAccion({ accion: "cancelar", modulo: "rq", entidad_id: rq.id, entidad_tipo: "rq", descripcion: codigo + " cancelado", datos_nuevos: updates })
+
+    await registrarAccion({
+      accion: "cancelar",
+      modulo: "rq",
+      entidad_id: rq.id,
+      entidad_tipo: "rq",
+      descripcion: codigo + " cancelado",
+      datos_nuevos: updates
+    })
+
     mostrarToast(codigo + " cancelado correctamente", "success")
     setSelected((prev: any) => prev?.id === rq.id ? { ...prev, ...updates } : prev)
     load()
@@ -841,19 +866,19 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                     <td style={{ padding: "12px 20px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
                       {puedeEditarRQ(rq) && (
-                        <button onClick={() => { setSelected(rq); abrirEditarRQ(rq) }}
+                        <button onClick={(e) => { e.stopPropagation(); setSelected(rq); abrirEditarRQ(rq) }}
                           style={{ fontSize: 11, padding: "4px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
                           Editar
                         </button>
                       )}
                       {accion && (
-                        <button onClick={() => cambiarEstado(rq.id, accion.nextEstado)}
+                        <button onClick={(e) => { e.stopPropagation(); cambiarEstado(rq.id, accion.nextEstado) }}
                           style={{ fontSize: 11, padding: "4px 10px", border: "none", borderRadius: 6, background: accion.color, color: "#fff", cursor: "pointer", fontWeight: 600 }}>
                           {accion.label}
                         </button>
                       )}
                       {puedeCancelarRQ(rq) && (
-                        <button onClick={() => cancelarRQ(rq)}
+                        <button onClick={(e) => { e.stopPropagation(); cancelarRQ(rq) }}
                           style={{ fontSize: 11, padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", color: "#4b5563", cursor: "pointer", fontWeight: 600 }}>
                           Cancelar
                         </button>
@@ -1134,13 +1159,13 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               )}
 
               {["superadmin","controller"].includes(rolNormalizado()) && (
-                <button onClick={() => eliminarRQ(selected)}
+                <button onClick={(e) => { e.stopPropagation(); eliminarRQ(selected) }}
                   style={{ padding: "8px", border: "1px solid #fee2e2", borderRadius: 8, background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 13 }}>
                   🗑 Eliminar RQ
                 </button>
               )}
               {puedeCancelarRQ(selected) && (
-                <button onClick={() => cancelarRQ(selected)}
+                <button onClick={(e) => { e.stopPropagation(); cancelarRQ(selected) }}
                   style={{ padding: "8px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#4b5563", cursor: "pointer", fontSize: 13 }}>
                   Cancelar RQ
                 </button>
@@ -1167,8 +1192,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
           </div>
         )}
       {showEditarRQ && selected && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 520 }}>
+        <div onClick={() => setShowEditarRQ(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 520 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <div>
                 <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Editar RQ</h2>
@@ -1220,8 +1245,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
         </div>
       )}
       {showNuevoRQ && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 500 }}>
+        <div onClick={() => setShowNuevoRQ(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 500 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Nuevo Requerimiento de Pago</h2>
               <button onClick={() => setShowNuevoRQ(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
@@ -1267,24 +1292,3 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
