@@ -14,7 +14,7 @@ const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
   aprobado_produccion:  { label: "Aprobado Producción",  bg: "#fed7aa", color: "#9a3412", siguiente: "aprobado_gerencia",   accion: "Aprobar (Gerencia)",      roles: ["gerente_general", "superadmin"] },
   aprobado_gerencia:    { label: "Aprobado Gerencia",    bg: "#e0e7ff", color: "#3730a3", siguiente: "aprobado_cliente",    accion: "Aprobado por Cliente",    roles: ["gerente_general", "superadmin"] },
-  aprobado_cliente:     { label: "Aprobado Cliente",     bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Iniciar proyecto",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
+  aprobado_cliente:     { label: "Aprobado Cliente",     bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Preparar pre-cuadre / generar RQs", roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   aprobado:             { label: "Aprobado",              bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Iniciar proyecto",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   en_curso:             { label: "En curso",              bg: "#dcfce7", color: "#15803d", siguiente: "terminado",           accion: "Marcar terminado",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   terminado:            { label: "Terminado",             bg: "#f3f4f6", color: "#6b7280", siguiente: "liquidado",           accion: "Pasar a liquidación",     roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
@@ -315,7 +315,7 @@ export default function ProyectoDetallePage() {
       alert("Error al aprobar: " + error.message)
       return
     }
-    await supabase.from("proyectos").update({ cotizacion_aprobada_id: cot.id }).eq("id", id)
+    await supabase.from("proyectos").update({ cotizacion_aprobada_id: cot.id, estado: "aprobado_cliente" }).eq("id", id)
     try {
       const resultadoGestor = await cargarItemsAprobadosAlGestor(supabase, String(id), String(cot.id))
       if (resultadoGestor.creados > 0) {
@@ -334,6 +334,8 @@ export default function ProyectoDetallePage() {
       datos: { aprobado_por: perfil?.id || null, aprobado_at: aprobadoAt },
     })
     await registrarAccion({ accion: "aprobar", modulo: "cotizaciones", entidad_id: cot.id, entidad_tipo: "cotizacion", descripcion: "Proforma marcada como aprobada por cliente", datos_nuevos: { aprobado_por: perfil?.id || null, aprobado_at: aprobadoAt } })
+    setVersionAprobar(cot.id)
+    setProyecto((prev: any) => prev ? { ...prev, cotizacion_aprobada_id: cot.id, estado: "aprobado_cliente" } : prev)
     await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, codigo: proyecto?.codigo, version: cot.version, total: cot.total_cliente || 0, proyecto_id: id })
     alert("Proforma marcada como aprobada por cliente")
     load()
@@ -1463,7 +1465,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>
                           Preview
                         </button>
-                        {false && puedeAprobarCliente && cot.estado !== "aprobada_cliente" && (
+                        {puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cot.estado !== "aprobada_cliente" && (
                           <button onClick={() => marcarCotizacionAprobadaCliente(cot)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#15803d", cursor: "pointer", fontWeight: 600 }}>
                             Marcar aprobado por cliente
                           </button>
@@ -1691,51 +1693,6 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                 )
               })()}
 
-              {(() => {
-                const siguienteInfo = estadoInfo.siguiente ? FLUJO[estadoInfo.siguiente] : null
-                const responsables = estadoInfo.roles || []
-                const rolLabels: Record<string, string> = {
-                  superadmin: "Superadmin",
-                  gerente_general: "Gerente General",
-                  gerente_produccion: "Gerente Producción",
-                  controller: "Controller",
-                  productor: "Productor",
-                  comercial: "Comercial",
-                  logistica: "Logística",
-                  audiovisual: "Audiovisual",
-                  administrador: "Administrador",
-                }
-
-                return (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
-                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fafafa" }}>
-                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Estado actual</div>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: estadoInfo.color }}>{estadoInfo.label || "Sin estado"}</div>
-                    </div>
-
-                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
-                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Siguiente paso</div>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: siguienteInfo?.color || "#6b7280" }}>
-                        {siguienteInfo?.label || (esEstadoFinal ? "Sin pasos pendientes" : "Pendiente de definición")}
-                      </div>
-                    </div>
-
-                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: puedeAvanzar ? "#f0fdf4" : "#fff" }}>
-                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Responsables</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {responsables.length > 0 ? responsables.map((rol: string) => (
-                          <span key={rol} style={{ background: "#eef2ff", color: "#3730a3", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
-                            {rolLabels[rol] || rol}
-                          </span>
-                        )) : (
-                          <span style={{ color: "#9ca3af", fontSize: 12 }}>Sin responsables asignados</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
-
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                 {FLUJO_BREADCRUMB.map((estado, idx) => {
                   const info = FLUJO[estado]
@@ -1772,7 +1729,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
                 <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Siguiente accion disponible</div>
                 <div style={{ fontSize: 13, color: "#374151", marginBottom: 10 }}>
-                  {puedeAvanzar && estadoInfo.accion ? estadoInfo.accion : esEstadoFinal ? "Sin acciones pendientes" : "Sin accion disponible para tu rol"}
+                  {proyecto?.estado === "aprobado_gerencia" ? "Esperando aprobación del cliente desde la proforma." : puedeAvanzar && estadoInfo.accion ? estadoInfo.accion : esEstadoFinal ? "Sin acciones pendientes" : "Sin accion disponible para tu rol"}
                 </div>
 
                 {proyecto?.estado === "rechazado" && (
@@ -1780,45 +1737,16 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                     Este proyecto fue rechazado y no puede avanzar.
                   </div>
                 )}
-
-                {puedeAvanzar && proyecto?.estado === "aprobado_gerencia" && cotizaciones.length > 0 && (
-                  <div style={{ marginBottom: 10, padding: "12px 14px", background: "#f0fdf4", border: "1px solid #1D9E75", borderRadius: 8 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#0F6E56", marginBottom: 8 }}>
-                      Selecciona la version aprobada por el cliente
-                    </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {cotizaciones.map((cot: any) => (
-                        <button key={cot.id} type="button" onClick={() => setVersionAprobar(cot.id)}
-                          style={{
-                            padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: versionAprobar === cot.id ? 700 : 400,
-                            border: versionAprobar === cot.id ? "2px solid #0F6E56" : "1px solid #e5e7eb",
-                            background: versionAprobar === cot.id ? "#dcfce7" : "#fff",
-                            color: versionAprobar === cot.id ? "#15803d" : "#374151", cursor: "pointer",
-                          }}>
-                          V{cot.version}
-                          {cot.total_cliente > 0 && <span style={{ marginLeft: 6, fontSize: 11, color: versionAprobar === cot.id ? "#15803d" : "#9ca3af" }}>{fmt(cot.total_cliente)}</span>}
-                          {cot.estado === "aprobada_cliente" && <span style={{ marginLeft: 4, fontSize: 10 }}>✓</span>}
-                        </button>
-                      ))}
-                    </div>
+                {proyecto?.estado === "aprobado_gerencia" && (
+                  <div style={{ marginBottom: 10, padding: "10px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, fontSize: 12, color: "#0F6E56", fontWeight: 600 }}>
+                    Esperando aprobación del cliente desde la proforma.
                   </div>
                 )}
 
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {puedeAvanzar && estadoInfo.siguiente && (
-                    <button onClick={() => {
-                        if (estadoInfo.siguiente === "aprobado_cliente") {
-                          const cotParaAprobar = cotizaciones.find(cot => cot.id === versionAprobar) || cotizaciones.find(cot => cot.estado === "enviada_cliente") || cotizaciones[cotizaciones.length - 1]
-                          if (!cotParaAprobar) {
-                            alert("No hay una proforma disponible para aprobar por cliente.")
-                            return
-                          }
-                          marcarCotizacionAprobadaCliente(cotParaAprobar)
-                          return
-                        }
-                        cambiarEstado(estadoInfo.siguiente)
-                      }} disabled={cambiando || (proyecto?.estado === "aprobado_gerencia" && !versionAprobar)}
-                      style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado_gerencia" && !versionAprobar) ? 0.5 : 1 }}>
+                  {puedeAvanzar && estadoInfo.siguiente && proyecto?.estado !== "aprobado_gerencia" && (
+                    <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando || (proyecto?.estado === "aprobado_cliente" && !versionAprobar)}
+                      style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado_cliente" && !versionAprobar) ? 0.5 : 1 }}>
                       {cambiando ? "..." : estadoInfo.accion}
                     </button>
                   )}
