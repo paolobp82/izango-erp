@@ -579,11 +579,12 @@ export default function ProyectoDetallePage() {
               esNuevo: false,
               _subitemId: sub.id,
               tipo_pago: "contado",
+              tratamiento_igv: sub.tratamiento_igv || item.tratamiento_igv || tratamientoIgvDefaultProyecto,
               pagos: [],
             })
           }
         } else {
-          itemsConSubs.push({ ...item, costo_final: item.costo_total || 0, esNuevo: false, tipo_pago: "contado", pagos: [] })
+          itemsConSubs.push({ ...item, costo_final: item.costo_total || 0, esNuevo: false, tipo_pago: "contado", tratamiento_igv: item.tratamiento_igv || tratamientoIgvDefaultProyecto, pagos: [] })
         }
       }
       setPreCuadreItems(itemsConSubs)
@@ -685,6 +686,7 @@ export default function ProyectoDetallePage() {
         proveedor_banco: prov?.banco || "",
         proveedor_cuenta: prov?.numero_cuenta || "",
         proveedor_tipo_pago: prov?.tipo_pago || null,
+        tratamiento_igv: item.tratamiento_igv || tratamientoIgvDefaultProyecto,
         monto_solicitado: Number(item.costo_final) || 0,
         monto_presupuestado: Number(item.costo_total) || 0,
         descripcion: item.descripcion || "",
@@ -897,6 +899,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const puedeAprobarCliente = ["superadmin", "gerente_general"].includes(perfil?.perfil)
   const cotAprobada = cotizaciones.find(c => c.estado === "aprobada_cliente") || cotizaciones.find(c => c.id === proyecto?.cotizacion_aprobada_id)
   const entidadLabel = ENTIDADES.find(e => e.value === proyecto?.entidad)?.label || proyecto?.entidad || "Sin entidad"
+  const tratamientoIgvDefaultProyecto = proyecto?.entidad === "selva" ? "no_aplica" : "incluye_igv"
   const productorNombre = proyecto?.productor ? `${proyecto.productor.nombre} ${proyecto.productor.apellido}` : "Sin productor"
   const montoAprobado = cotAprobada?.total_cliente || 0
   const clienteProyecto = proyecto?.cliente || {}
@@ -1098,6 +1101,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 130 }}>Costo Presup.</th>
                   <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#03E373", width: 130 }}>Costo Final</th>
                   <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 200 }}>Proveedor</th>
+                  <th style={{ textAlign: "center", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 130 }}>IGV</th>
                   <th style={{ textAlign: "center", padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#fff", width: 120 }}>Tipo pago</th>
                   <th style={{ width: 100 }}></th>
                 </tr>
@@ -1106,13 +1110,13 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                 {preCuadreItems.map((item: any, idx: number) => {
                   if (item.tipo === "familia") return (
                     <tr key={item.id} style={{ background: "#1D2040" }}>
-                      <td colSpan={5} style={{ padding: "7px 12px", fontSize: 12, fontWeight: 700, color: "#03E373" }}>{item.descripcion}</td>
+                      <td colSpan={6} style={{ padding: "7px 12px", fontSize: 12, fontWeight: 700, color: "#03E373" }}>{item.descripcion}</td>
                     </tr>
                   )
                   const diff = (item.costo_final || 0) - (item.costo_total || 0)
                   if (item._borrado) return (
                     <tr key={item.id} style={{ borderBottom: "1px solid #f3f4f6", background: "#fff5f5", opacity: 0.6 }}>
-                      <td colSpan={5} style={{ padding: "8px 12px", fontSize: 12, color: "#dc2626", textDecoration: "line-through" }}>{item.descripcion || "Sin descripción"}</td>
+                      <td colSpan={6} style={{ padding: "8px 12px", fontSize: 12, color: "#dc2626", textDecoration: "line-through" }}>{item.descripcion || "Sin descripción"}</td>
                       <td style={{ padding: "8px 12px", textAlign: "center" }}>
                         <button onClick={() => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, _borrado: false } : i))}
                           style={{ fontSize: 11, color: "#0F6E56", background: "#f0fdf4", border: "1px solid #1D9E75", borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}>
@@ -1153,6 +1157,14 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         </select>
                       </td>
                       <td style={{ padding: "8px 12px" }}>
+                        <select value={item.tratamiento_igv || tratamientoIgvDefaultProyecto} onChange={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, tratamiento_igv: e.target.value } : i))}
+                          style={{ padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", width: "100%", background: "#fff" }}>
+                          <option value="incluye_igv">Incluye IGV</option>
+                          <option value="mas_igv">Más IGV</option>
+                          <option value="no_aplica">No aplica</option>
+                        </select>
+                      </td>
+                      <td style={{ padding: "8px 12px" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                           <select value={item.tipo_pago || "contado"} onChange={e => setPreCuadreItems(prev => prev.map((i: any) => i.id === item.id ? { ...i, tipo_pago: e.target.value } : i))}
                             style={{ padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", width: "100%" }}>
@@ -1190,7 +1202,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                 })}
               </tbody>
             </table>
-            <button onClick={() => setPreCuadreItems(prev => [...prev, { id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true }])}
+            <button onClick={() => setPreCuadreItems(prev => [...prev, { id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, tratamiento_igv: tratamientoIgvDefaultProyecto }])}
               style={{ border: "1px dashed #d1d5db", borderRadius: 8, background: "none", padding: "6px 16px", fontSize: 12, color: "#6b7280", cursor: "pointer", marginBottom: 20 }}>
               + Agregar item imprevisto
             </button>
@@ -1526,7 +1538,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                 <button onClick={async () => {
                   const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
                   setProveedores(provs || [])
-                  setPreCuadreItems([{ id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, esAdicional: true, tipo_pago: "contado" }])
+                  setPreCuadreItems([{ id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, esAdicional: true, tipo_pago: "contado", tratamiento_igv: tratamientoIgvDefaultProyecto }])
                   setShowPreCuadre(true)
                 }} style={{ padding: "8px 16px", border: "1px dashed #f59e0b", borderRadius: 8, background: "#fff", color: "#92400e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                   + Generar RQs adicionales
