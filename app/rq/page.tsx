@@ -6,6 +6,7 @@ import ImportExport from "@/components/ImportExport"
 import { enviarAlerta } from "@/lib/alertas"
 import { rqCodigo } from "@/lib/rq-code"
 import { rqIgvDetalle, rqTratamientoIgv, rqTratamientoIgvLabel } from "@/lib/rq-igv"
+import { estadoRQTrasEdicion, mensajeEdicionRQPorEstado, puedeEditarRQPorEstado, requiereReaprobacionRQ } from "@/lib/permisos/rq"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 
@@ -29,10 +30,8 @@ const FLUJO = [
 
 const BANCOS_PAGO = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
 const TIPOS_TRANSFERENCIA = ["Transferencia bancaria", "Yape", "Plin", "Efectivo", "Cheque"]
-const ESTADOS_BLOQUEADOS_EDICION = ["pagado", "cerrado", "cancelado"]
 const ESTADOS_CANCELABLES_RQ = ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "programado"]
 const ROLES_CANCELAR_RQ = ["superadmin", "controller", "gerente_general"]
-const ROLES_EDICION_TOTAL_RQ = ["superadmin", "controller"]
 const FORM_RQ_VACIO = {
   descripcion: "",
   proveedor_id: "",
@@ -412,40 +411,24 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     setGuardandoRendicion(false)
     load()
   }
-  function esCreadorRQ(rq: any) {
-    if (!perfil?.id || !rq) return false
-    if (rq.solicitado_por === perfil.id) return true
-    return Boolean(!rq.solicitado_por && rq.proyecto?.productor?.id === perfil.id)
-  }
-
   function rolNormalizado() {
     return String(perfil?.perfil || "").trim().toLowerCase()
   }
 
-  function puedeEditarTodoRQ() {
-    return ["superadmin", "controller"].includes(rolNormalizado())
-  }
 
   function rqPerteneceAProyectoEliminado(rq: any) {
     return Boolean(rq?.proyecto_id && (!rq.proyecto || rq.proyecto?.deleted_at))
   }
 
   function puedeEditarRQ(rq: any) {
-    if (!rq) return false
-    if (puedeEditarTodoRQ()) return true
-    if (ESTADOS_BLOQUEADOS_EDICION.includes(rq.estado)) return false
-    return esCreadorRQ(rq) && !rq.editado_por_creador
+    if (!rq || rqPerteneceAProyectoEliminado(rq)) return false
+    return puedeEditarRQPorEstado(perfil, rq)
   }
 
   function mensajeEdicionRQ(rq: any) {
-    if (!rq) return "Selecciona un RQ para editar."
-    if (puedeEditarTodoRQ()) return ""
-    if (esCreadorRQ(rq) && rq.editado_por_creador) return "Ya utilizaste tu edición correctiva. Solicita apoyo al Controller o Superadmin."
-    if (ESTADOS_BLOQUEADOS_EDICION.includes(rq.estado)) return "Este RQ no se puede editar porque esta pagado, cerrado o cancelado."
-    if (esCreadorRQ(rq)) return "Puedes editar este RQ una sola vez antes de que quede pagado, cerrado o cancelado."
-    return "Tu rol no tiene permiso para editar este RQ."
+    if (rqPerteneceAProyectoEliminado(rq)) return "Este RQ pertenece a un proyecto eliminado y no puede editarse."
+    return mensajeEdicionRQPorEstado(perfil, rq)
   }
-
   function proyectoBloqueadoEdicion(rq: any) {
     return Boolean(rq?.proyecto_id && rq.estado !== "pendiente_aprobacion")
   }
@@ -495,42 +478,55 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     if (!proyectoBloqueadoEdicion(selected)) {
       updates.proyecto_id = formEditarRQ.proyecto_id || null
     }
-    const editorTotal = puedeEditarTodoRQ()
-    const edicionCorrectivaCreador = Boolean(esCreadorRQ(selected) && !selected.editado_por_creador && !editorTotal)
-    if (edicionCorrectivaCreador) {
-      updates.editado_por_creador = true
-      updates.fecha_primera_edicion = new Date().toISOString()
-      if (!selected.solicitado_por) updates.solicitado_por = perfil.id
+    const debeReaprobar = requiereReaprobacionRQ(selected, perfil)
+    const estadoAnterior = String(selected.estado || "")
+    const estadoNuevo = estadoRQTrasEdicion(selected, perfil)
+    if (debeReaprobar) {
+      updates.estado = estadoNuevo
     }
-    let updated: any = {}
-    let error: any = null
-    if (editorTotal) {
-      const result = await supabase
-        .from("requerimientos_pago")
-        .update(updates)
-        .eq("id", selected.id)
-      error = result.error
-    } else {
-      let query = supabase
-        .from("requerimientos_pago")
-        .update(updates)
-        .eq("id", selected.id)
-        .eq("editado_por_creador", false)
-        .neq("estado", "pagado")
-      if (selected.solicitado_por) query = query.eq("solicitado_por", perfil?.id)
-      else query = query.is("solicitado_por", null)
-      const result = await query
-        .select("id,editado_por_creador,fecha_primera_edicion")
-        .maybeSingle()
-      updated = result.data
-      error = result.error
+
+    const datosAnteriores = {
+      descripcion: selected.descripcion || null,
+      proveedor_id: selected.proveedor_id || null,
+      proveedor_nombre: selected.proveedor_nombre || "",
+      monto_solicitado: selected.monto_solicitado ?? null,
+      tratamiento_igv: rqTratamientoIgv(selected),
+      tipo_pago: selected.tipo_pago || null,
+      dias_credito: selected.dias_credito ?? null,
+      fecha_pago: selected.fecha_pago || null,
+      voucher_url: selected.voucher_url || null,
+      nota_pago: selected.nota_pago || null,
+      numero_operacion: selected.numero_operacion || null,
+      banco_pago: selected.banco_pago || null,
+      tipo_transferencia: selected.tipo_transferencia || null,
+      proyecto_id: selected.proyecto_id || null,
+      estado: selected.estado || null,
     }
-    if (error || (!editorTotal && !updated)) {
+
+    const { data: updated, error } = await supabase
+      .from("requerimientos_pago")
+      .update(updates)
+      .eq("id", selected.id)
+      .select("id, estado, descripcion, proveedor_id, proveedor_nombre, monto_solicitado, tratamiento_igv, tipo_pago, dias_credito, fecha_pago, voucher_url, nota_pago, numero_operacion, banco_pago, tipo_transferencia, proyecto_id")
+      .maybeSingle()
+
+    if (error || !updated) {
       if (error) console.error("RQ update error:", error)
-      alert(editorTotal ? `No se pudo editar el RQ. ${error?.message || "Revisa los datos e intenta nuevamente."}` : "Ya utilizaste tu edición correctiva. Solicita apoyo al Controller o Superadmin.")
+      alert(`No se pudo editar el RQ. ${error?.message || "Revisa los datos e intenta nuevamente."}`)
       return
     }
-    await registrarAccion({ accion: edicionCorrectivaCreador ? "editar_correctivo_creador" : "editar", modulo: "rq", entidad_id: selected.id, entidad_tipo: "rq", descripcion: (edicionCorrectivaCreador ? "Edicion correctiva del creador: " : "RQ editado: ") + rqCodigo(selected), datos_nuevos: updates })
+
+    await registrarAccion({
+      accion: debeReaprobar ? "editar_rq_requiere_reaprobacion" : "editar",
+      modulo: "rq",
+      entidad_id: selected.id,
+      entidad_tipo: "rq",
+      descripcion: debeReaprobar
+        ? `RQ editado y enviado a reaprobacion: ${rqCodigo(selected)} (${estadoAnterior} -> ${estadoNuevo})`
+        : "RQ editado: " + rqCodigo(selected),
+      datos_anteriores: datosAnteriores,
+      datos_nuevos: updates,
+    })
     setSelected((prev: any) => prev ? { ...prev, ...updates, ...updated, proveedor: prov ? { ...(prev.proveedor || {}), nombre: prov.nombre } : prev.proveedor } : prev)
     setShowEditarRQ(false)
     load()
