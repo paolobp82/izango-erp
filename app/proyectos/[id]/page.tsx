@@ -13,7 +13,7 @@ import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
   aprobado_produccion:  { label: "Aprobado Producción",  bg: "#fed7aa", color: "#9a3412", siguiente: "aprobado_gerencia",   accion: "Aprobar (Gerencia)",      roles: ["gerente_general", "superadmin"] },
-  aprobado_gerencia:    { label: "Aprobado Gerencia",    bg: "#e0e7ff", color: "#3730a3", siguiente: "aprobado_cliente",    accion: "Aprobado por Cliente",    roles: ["gerente_general", "superadmin"] },
+  aprobado_gerencia:    { label: "Aprobado Gerencia",    bg: "#e0e7ff", color: "#3730a3", siguiente: "aprobado_cliente",    accion: "Aprobar cliente",    roles: ["gerente_general", "superadmin"] },
   aprobado_cliente:     { label: "Aprobado Cliente",     bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Preparar pre-cuadre / generar RQs", roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   aprobado:             { label: "Aprobado",              bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Iniciar proyecto",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   en_curso:             { label: "En curso",              bg: "#dcfce7", color: "#15803d", siguiente: "terminado",           accion: "Marcar terminado",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
@@ -551,24 +551,91 @@ export default function ProyectoDetallePage() {
 
   async function cambiarEstado(nuevoEstado: string) {
     setCambiando(true)
+
     if (nuevoEstado === "aprobado_gerencia" && versionAprobar) {
       await supabase.from("cotizaciones").update({ bloqueada: true }).eq("id", versionAprobar)
     }
-    if (nuevoEstado === "en_curso" && versionAprobar) {
+
+    if (nuevoEstado === "aprobado_cliente") {
+      const cotizacionActivaId =
+        proyecto?.cotizacion_aprobada_id ||
+        versionAprobar ||
+        cotizaciones.find((c: any) => c.estado === "aprobada_cliente")?.id ||
+        cotizaciones[cotizaciones.length - 1]?.id
+
+      if (!cotizacionActivaId) {
+        alert("No hay una proforma disponible para aprobar por cliente.")
+        setCambiando(false)
+        return
+      }
+
+      const cotActiva = cotizaciones.find((c: any) => c.id === cotizacionActivaId)
+
+      if (!confirm("¿Confirmas que el cliente aprobó la proforma " + (cotActiva?.version ? "V" + cotActiva.version : "seleccionada") + "?")) {
+        setCambiando(false)
+        return
+      }
+
+      await supabase.from("cotizaciones").update({
+        estado: "aprobada_cliente",
+        bloqueada: true,
+        bloqueada_por: perfil?.id || null,
+      }).eq("id", cotizacionActivaId)
+
+      await supabase.from("proyectos").update({
+        estado: "aprobado_cliente",
+        cotizacion_aprobada_id: cotizacionActivaId,
+      }).eq("id", id)
+
+      await registrarAccion({
+        accion: "aprobar_cliente",
+        modulo: "proyectos",
+        entidad_id: id,
+        entidad_tipo: "proyecto",
+        descripcion: "Proyecto aprobado por cliente desde flujo de estado",
+        datos_nuevos: { estado: "aprobado_cliente", cotizacion_aprobada_id: cotizacionActivaId },
+      })
+
+      setVersionAprobar(cotizacionActivaId)
+      setProyecto((prev: any) => prev ? { ...prev, estado: "aprobado_cliente", cotizacion_aprobada_id: cotizacionActivaId } : prev)
       setCambiando(false)
-      const { data: its } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", versionAprobar).order("orden")
+      load()
+      return
+    }
+
+    if (nuevoEstado === "en_curso") {
+      const cotizacionActivaId =
+        proyecto?.cotizacion_aprobada_id ||
+        cotizaciones.find((c: any) => c.estado === "aprobada_cliente")?.id ||
+        versionAprobar
+
+      if (!cotizacionActivaId) {
+        alert("No hay una proforma aprobada por cliente para generar RQs.")
+        setCambiando(false)
+        return
+      }
+
+      setVersionAprobar(cotizacionActivaId)
+      setCambiando(false)
+
+      const { data: its } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotizacionActivaId).order("orden")
       const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
       setProveedores(provs || [])
+
       const itemsFiltrados = (its || []).filter((i: any) => i.tipo !== "celda_extra")
       const itemsConSubs: any[] = []
+
       for (const item of itemsFiltrados) {
         if (item.tipo === "familia") {
           itemsConSubs.push({ ...item, costo_final: 0, esNuevo: false })
           continue
         }
+
         const { data: subs } = await supabase.from("cotizacion_subitems").select("*").eq("item_id", item.id).order("orden")
+
         if (subs && subs.length > 0) {
           itemsConSubs.push({ ...item, costo_final: item.costo_total || 0, esNuevo: false, _esPadre: true })
+
           for (const sub of subs) {
             itemsConSubs.push({
               id: "sub_" + sub.id,
@@ -586,55 +653,66 @@ export default function ProyectoDetallePage() {
             })
           }
         } else {
-          itemsConSubs.push({ ...item, costo_final: item.costo_total || 0, esNuevo: false, tipo_pago: "contado", tratamiento_igv: item.tratamiento_igv || tratamientoIgvDefaultProyecto, pagos: [] })
+          itemsConSubs.push({
+            ...item,
+            costo_final: item.costo_total || 0,
+            esNuevo: false,
+            tipo_pago: "contado",
+            tratamiento_igv: item.tratamiento_igv || tratamientoIgvDefaultProyecto,
+            pagos: [],
+          })
         }
       }
+
       setPreCuadreItems(itemsConSubs)
       setShowPreCuadre(true)
       return
     }
-    if (nuevoEstado === "en_curso_confirmar" && versionAprobar) {
-      const cotSeleccionada = cotizaciones.find(cot => cot.id === versionAprobar)
-      if (cotSeleccionada?.estado !== "aprobada_cliente") {
-        alert("La proforma debe estar aprobada por cliente antes de iniciar el proyecto")
-        setCambiando(false)
-        return
-      }
-      await supabase.from("proyectos").update({ cotizacion_aprobada_id: versionAprobar }).eq("id", id)
-    }
+
     if (nuevoEstado === "terminado") {
-      const cotAprobada = cotizaciones.find(c => c.id === versionAprobar) || cotizaciones.find(c => c.estado === "aprobada_cliente")
+      const cotAprobada = cotizaciones.find((c: any) => c.id === proyecto?.cotizacion_aprobada_id) || cotizaciones.find((c: any) => c.estado === "aprobada_cliente") || cotizaciones.find((c: any) => c.id === versionAprobar)
       const { data: liqExistente } = await supabase.from("liquidaciones").select("id").eq("proyecto_id", id).single()
+
       if (!liqExistente) {
         const { data: liq } = await supabase.from("liquidaciones").insert({
           proyecto_id: id,
           costo_presupuestado: cotAprobada?.subtotal_costo || 0,
           precio_cliente_presupuestado: cotAprobada?.total_cliente || 0,
           margen_presupuestado_pct: cotAprobada?.margen_pct || 0,
-          costo_real: 0, precio_cliente_real: cotAprobada?.total_cliente || 0,
-          margen_real_pct: 0, cerrada: false,
+          costo_real: 0,
+          precio_cliente_real: cotAprobada?.total_cliente || 0,
+          margen_real_pct: 0,
+          cerrada: false,
         }).select().single()
+
         if (liq && cotAprobada) {
           const { data: its } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotAprobada.id)
           if (its && its.length > 0) {
             await supabase.from("liquidacion_items").insert(its.map((item: any) => ({
-              liquidacion_id: liq.id, cotizacion_item_id: item.id,
-              descripcion: item.descripcion, costo_presupuestado: item.costo_total || 0,
-              costo_real: 0, desvio: 0, desvio_pct: 0,
+              liquidacion_id: liq.id,
+              cotizacion_item_id: item.id,
+              descripcion: item.descripcion,
+              costo_presupuestado: item.costo_total || 0,
+              costo_real: 0,
+              desvio: 0,
+              desvio_pct: 0,
             })))
           }
         }
       }
     }
+
     await supabase.from("proyectos").update({ estado: nuevoEstado }).eq("id", id)
-   await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: " + nuevoEstado, datos_nuevos: { estado: nuevoEstado } })
+    await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: " + nuevoEstado, datos_nuevos: { estado: nuevoEstado } })
+
     await notificarATodos({
       titulo: `Proyecto ${proyecto?.codigo} — ${FLUJO[nuevoEstado]?.label || nuevoEstado}`,
       mensaje: `${proyecto?.nombre} cambió a estado: ${FLUJO[nuevoEstado]?.label || nuevoEstado}`,
       tipo: "info",
       enlace: `/proyectos/${id}`,
-      perfiles: ["superadmin","gerente_general","gerente_produccion","productor","controller"]
+      perfiles: ["superadmin","gerente_general","gerente_produccion","productor","controller"],
     })
+
     setProyecto({ ...proyecto, estado: nuevoEstado })
     setCambiando(false)
     load()
@@ -1400,7 +1478,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               <div style={{ fontSize: 13, color: "#374151", marginBottom: 12 }}>{responsableTexto}</div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {puedeAvanzar && estadoInfo.siguiente && proyecto?.estado !== "aprobado_gerencia" && (
+                {puedeAvanzar && estadoInfo.siguiente  && (
                   <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando}
                     style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: cambiando ? 0.7 : 1 }}>
                     {cambiando ? "..." : estadoInfo.accion}
@@ -1568,7 +1646,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>
                           Preview
                         </button>
-                        {puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cot.estado !== "aprobada_cliente" && (
+                        {false && puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cot.estado !== "aprobada_cliente" && (
                           <button onClick={() => marcarCotizacionAprobadaCliente(cot)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#15803d", cursor: "pointer", fontWeight: 600 }}>
                             Marcar aprobado por cliente
                           </button>
@@ -1980,6 +2058,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
