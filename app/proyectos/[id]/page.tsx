@@ -1023,6 +1023,49 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const porcentajeEjecucion = itemsCotizadosPresupuesto.length
     ? Math.round((rqsPresupuestoActivos.length / itemsCotizadosPresupuesto.length) * 100)
     : 0
+  const rqsPorItem = new Map<string, any[]>()
+  rqsPresupuesto.forEach((rq: any) => {
+    if (!rq.cotizacion_item_id) return
+    const key = String(rq.cotizacion_item_id)
+    if (!rqsPorItem.has(key)) rqsPorItem.set(key, [])
+    rqsPorItem.get(key)?.push(rq)
+  })
+
+  const filasRqsProyecto = itemsCotizadosPresupuesto.map((item: any) => {
+    const relacionados = rqsPorItem.get(String(item.id)) || []
+    const activo = relacionados.find((rq: any) => !["cancelado", "rechazado", "cerrado"].includes(rq.estado))
+    const cancelado = relacionados.find((rq: any) => rq.estado === "cancelado")
+    const rq = activo || cancelado || null
+    const estadoVista = activo ? "generado" : cancelado ? "cancelado" : "pendiente"
+
+    return {
+      key: "item-" + item.id,
+      origen: "cotizacion",
+      estadoVista,
+      item,
+      rq,
+      descripcion: item.descripcion || rq?.descripcion || "Sin descripción",
+      proveedor: rq?.proveedor_nombre || item.proveedor_nombre || "—",
+      fecha: rq?.created_at || null,
+      montoPresupuestado: Number(item.costo_total || item.costo_unitario || rq?.monto_presupuestado || 0),
+      montoFinal: Number(rq?.monto_solicitado || item.costo_total || item.costo_unitario || 0),
+    }
+  })
+
+  const filasRqsAdicionales = rqsAdicionales.map((rq: any) => ({
+    key: "rq-" + rq.id,
+    origen: "adicional",
+    estadoVista: "adicional",
+    item: null,
+    rq,
+    descripcion: rq.descripcion || "Sin descripción",
+    proveedor: rq.proveedor_nombre || "—",
+    fecha: rq.created_at || null,
+    montoPresupuestado: Number(rq.monto_presupuestado || 0),
+    montoFinal: Number(rqIgvDetalle(rq).total || rq.monto_solicitado || 0),
+  }))
+
+  const filasEjecucionRqs = [...filasRqsProyecto, ...filasRqsAdicionales]
   const resumenAlertas = [
     !tieneCotizacion ? { label: "Sin proforma", detalle: "Crea una proforma para continuar el flujo comercial." } : null,
     tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
@@ -1762,52 +1805,10 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             </div>
           </div>
 
-          {pendientesRQ.length > 0 && (
-            <div style={{ border: "1px solid #fde68a", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid #fef3c7", background: "#fffbeb" }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#92400e" }}>Pendientes de generar RQ</div>
-                <div style={{ fontSize: 12, color: "#92400e", marginTop: 2 }}>
-                  Ítems de la cotización aprobada que aún no tienen un RQ activo.
-                </div>
-              </div>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ background: "#fff7ed" }}>
-                      <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#92400e" }}>ESTADO</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#92400e" }}>DESCRIPCIÓN</th>
-                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#92400e" }}>PRESUPUESTO</th>
-                      <th style={{ padding: "10px 16px" }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendientesRQ.map((item: any, idx: number) => (
-                      <tr key={item.id} style={{ borderTop: "1px solid #fef3c7", background: idx % 2 === 0 ? "#fff" : "#fffbeb" }}>
-                        <td style={{ padding: "12px 16px" }}>
-                          <span style={{ background: "#fef3c7", color: "#92400e", padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
-                            Pendiente
-                          </span>
-                        </td>
-                        <td style={{ padding: "12px", fontSize: 12, color: "#374151", minWidth: 260 }}>{item.descripcion || "Sin descripción"}</td>
-                        <td style={{ padding: "12px", fontSize: 13, fontWeight: 800, color: "#111827", textAlign: "right", whiteSpace: "nowrap" }}>
-                          {fmt(item.costo_total || item.costo_unitario || 0)}
-                        </td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                          <button onClick={() => abrirPreCuadreDesdeItem(item)} style={{ padding: "7px 12px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                            Generar RQ
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
           <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
             <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>RQs relacionados al proyecto</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Ejecución de RQs del proyecto</div>
                 <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
                   {rqsProyecto.length} RQs · {rqsPendientes.length} pendientes · {rqsPagados.length} pagados · {fmt(totalRqsPendientes)} por gestionar
                 </div>
@@ -1823,38 +1824,63 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: "#f9fafb" }}>
-                      <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>RQ</th>
+                      <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ORIGEN</th>
                       <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ESTADO</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>DESCRIPCION</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ÍTEM DEL PRESUPUESTO</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>RQ</th>
                       <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PROVEEDOR</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>FECHA</th>
-                      <th style={{ textAlign: "right", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>MONTO</th>
-                      <th style={{ padding: "10px 16px" }}></th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>FECHA SOLICITUD</th>
+                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PRESUP.</th>
+                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>FINAL RQ</th>
+                      <th style={{ padding: "10px 16px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ACCIÓN</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rqsProyecto.map((rq, idx) => {
-                      const estado = ESTADOS_RQ[rq.estado] || { bg: "#f3f4f6", color: "#6b7280", label: rq.estado || "Sin estado" }
+                    {filasEjecucionRqs.map((fila: any, idx: number) => {
+                      const estilosEstadoRQ: Record<string, any> = {
+                        generado: { dot: "#22c55e", label: "Generado", color: "#166534", bg: "#dcfce7" },
+                        pendiente: { dot: "#f59e0b", label: "Pendiente", color: "#92400e", bg: "#fef3c7" },
+                        cancelado: { dot: "#3b82f6", label: "Cancelado", color: "#1e40af", bg: "#dbeafe" },
+                        adicional: { dot: "#8b5cf6", label: "Adicional", color: "#5b21b6", bg: "#ede9fe" },
+                      }
+                      const estadoStyle = estilosEstadoRQ[String(fila.estadoVista)] || { dot: "#9ca3af", label: String(fila.estadoVista || "Sin estado"), color: "#374151", bg: "#f3f4f6" }
+
                       return (
-                        <tr key={rq.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                          <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 800, color: "#0F6E56", whiteSpace: "nowrap" }}>
-                            {rqCodigo(rq)}
-                            {rq.es_adicional && <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600 }}>Adicional</div>}
+                        <tr key={fila.key} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                          <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700, color: fila.origen === "adicional" ? "#5b21b6" : "#374151", whiteSpace: "nowrap" }}>
+                            {fila.origen === "adicional" ? "➕ Adicional" : "📋 Cotización"}
                           </td>
-                          <td style={{ padding: "12px" }}>
-                            <span style={{ background: estado.bg, color: estado.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
-                              {estado.label}
+                          <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, background: estadoStyle.bg, color: estadoStyle.color, padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
+                              <span style={{ width: 9, height: 9, borderRadius: "50%", background: estadoStyle.dot, display: "inline-block" }} />
+                              {estadoStyle.label}
                             </span>
                           </td>
-                          <td style={{ padding: "12px", fontSize: 12, color: "#374151", minWidth: 220 }}>{rq.descripcion || "—"}</td>
-                          <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", minWidth: 160 }}>{rq.proveedor_nombre || "—"}</td>
-                          <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>{rq.created_at ? new Date(rq.created_at).toLocaleDateString("es-PE") : "—"}</td>
-                          <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 800, color: "#0F6E56", textAlign: "right", whiteSpace: "nowrap" }}>
-                            {fmt(rqIgvDetalle(rq).total)}
-                            <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600 }}>{rqTratamientoIgvLabel(rq)}</div>
+                          <td style={{ padding: "12px", fontSize: 12, color: "#374151", minWidth: 240 }}>{fila.descripcion}</td>
+                          <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, color: fila.rq ? "#0F6E56" : "#9ca3af", whiteSpace: "nowrap" }}>
+                            {fila.rq ? rqCodigo(fila.rq) : "—"}
                           </td>
-                          <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                            <button onClick={() => router.push(`/rq?proyecto_id=${id}&rq_id=${rq.id}&view=list`)} className="btn-secondary" style={{ fontSize: 11 }}>Abrir RQ</button>
+                          <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", minWidth: 160 }}>{fila.proveedor}</td>
+                          <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>
+                            {fila.fecha ? new Date(fila.fecha).toLocaleDateString("es-PE") : "—"}
+                          </td>
+                          <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, color: "#374151", textAlign: "right", whiteSpace: "nowrap" }}>
+                            {fmt(fila.montoPresupuestado)}
+                          </td>
+                          <td style={{ padding: "12px", fontSize: 13, fontWeight: 900, color: "#0F6E56", textAlign: "right", whiteSpace: "nowrap" }}>
+                            {fmt(fila.montoFinal)}
+                            {fila.rq && <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600 }}>{rqTratamientoIgvLabel(fila.rq)}</div>}
+                          </td>
+                          <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
+                            {fila.estadoVista === "pendiente" && (
+                              <button onClick={() => abrirPreCuadreDesdeItem(fila.item)} style={{ padding: "7px 12px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Generar</button>
+                            )}
+                            {fila.estadoVista === "cancelado" && (
+                              <button onClick={() => abrirPreCuadreDesdeItem(fila.item)} style={{ padding: "7px 12px", border: "1px solid #bfdbfe", borderRadius: 8, background: "#eff6ff", color: "#1e40af", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Regenerar</button>
+                            )}
+                            {(fila.estadoVista === "generado" || fila.estadoVista === "adicional") && fila.rq && (
+                              <button onClick={() => router.push(`/rq?proyecto_id=${id}&rq_id=${fila.rq.id}&view=list`)} className="btn-secondary" style={{ fontSize: 11 }}>Abrir</button>
+                            )}
                           </td>
                         </tr>
                       )
@@ -2130,6 +2156,12 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
+
+
+
+
+
 
 
 
