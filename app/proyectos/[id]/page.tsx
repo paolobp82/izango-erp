@@ -1313,7 +1313,110 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           ))}
         </div>
       </nav>
+      <section id="estado-proyecto" className="card" style={{ marginBottom: 16, padding: 16, scrollMarginTop: 120 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "#111827" }}>Estado del proyecto</h2>
+            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
+              Flujo operativo del proyecto y siguiente acción disponible.
+            </p>
+          </div>
+          <span style={{ background: estadoInfo.bg, color: estadoInfo.color, padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+            {estadoInfo.label}
+          </span>
+        </div>
 
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          {FLUJO_BREADCRUMB.map((estado, idx) => {
+            const info = FLUJO[estado]
+            const idxActual = FLUJO_BREADCRUMB.indexOf(proyecto?.estado)
+            const completado = idx <= idxActual
+            const actual = estado === proyecto?.estado
+            return (
+              <div key={estado} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div
+                  onClick={async () => {
+                    if (!["superadmin","gerente_general","controller"].includes(perfil?.perfil)) return
+                    if (actual) return
+                    if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
+                    const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id, estado").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
+                    const nRqs = rqsPendientes?.length || 0
+                    const msgRqs = nRqs > 0 ? `\n\nSe cancelarán ${nRqs} RQ(s) pendientes automáticamente.` : ""
+                    if (confirm(`¿Regresar el proyecto al estado "${info.label}"?${msgRqs}`)) {
+                      if (nRqs > 0) {
+                        await supabase.from("requerimientos_pago").update({ estado: "rechazado" }).eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
+                      }
+                      cambiarEstado(estado)
+                    }
+                  }}
+                  style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: ["superadmin","gerente_general","controller"].includes(perfil?.perfil) && !actual && idx < FLUJO_BREADCRUMB.indexOf(proyecto?.estado) ? "pointer" : "default" }}>
+                  <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{idx + 1}</span>
+                </div>
+                {actual && <span style={{ fontSize: 11, fontWeight: 700, color: info.color }}>{info.label}</span>}
+              </div>
+            )
+          })}
+        </div>
+
+        {(() => {
+          const roles = estadoInfo.roles || []
+          const rolLabels: Record<string, string> = {
+            superadmin: "Superadmin",
+            gerente_general: "Gerente General",
+            gerente_produccion: "Gerente de Producción",
+            controller: "Controller",
+            productor: "Productor",
+            comercial: "Comercial",
+            logistica: "Logística",
+            audiovisual: "Audiovisual",
+            administrador: "Administrador",
+          }
+          const rolResponsable = proyecto?.estado === "aprobado_cliente" && roles.includes("productor")
+            ? "productor"
+            : roles.find((rol: string) => rol !== "superadmin") || roles[0]
+          const nombreResponsable = rolResponsable === "productor" && proyecto?.productor
+            ? `${proyecto.productor.nombre} ${proyecto.productor.apellido}`.trim()
+            : ""
+          const responsableTexto = rolResponsable
+            ? `Responsable del siguiente paso: ${rolLabels[rolResponsable] || rolResponsable}${nombreResponsable ? ` (${nombreResponsable})` : ""}`
+            : "Responsable del siguiente paso: Sin responsable asignado"
+          const descripcionAccion = proyecto?.estado === "aprobado_gerencia"
+            ? "Esperando aprobación del cliente desde la proforma."
+            : proyecto?.estado === "aprobado_cliente"
+              ? "Abre el pre-cuadre para revisar proveedores, costos y generar los RQs iniciales."
+              : estadoInfo.accion
+                ? "Avanza el proyecto al siguiente estado del flujo."
+                : esEstadoFinal
+                  ? "El proyecto no tiene acciones pendientes."
+                  : "No hay acción disponible para tu rol."
+
+          return (
+            <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
+              <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Siguiente acción disponible</div>
+              <div style={{ fontSize: 14, color: "#111827", fontWeight: 700, marginBottom: 4 }}>
+                {proyecto?.estado === "aprobado_gerencia" ? "Aprobación desde proforma" : puedeAvanzar && estadoInfo.accion ? estadoInfo.accion : esEstadoFinal ? "Sin acciones pendientes" : "Sin acción disponible"}
+              </div>
+              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 6 }}>{descripcionAccion}</div>
+              <div style={{ fontSize: 13, color: "#374151", marginBottom: 12 }}>{responsableTexto}</div>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {puedeAvanzar && estadoInfo.siguiente && proyecto?.estado !== "aprobado_gerencia" && (
+                  <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando || (proyecto?.estado === "aprobado_cliente" && !versionAprobar)}
+                    style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado_cliente" && !versionAprobar) ? 0.5 : 1 }}>
+                    {cambiando ? "..." : estadoInfo.accion}
+                  </button>
+                )}
+                {puedeRechazar && (
+                  <button onClick={rechazar} disabled={cambiando}
+                    style={{ padding: "8px 16px", border: "1px solid #fde8d8", borderRadius: 8, background: "#fff", color: "#c2410c", cursor: "pointer", fontSize: 13 }}>
+                    Rechazar proyecto
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })()}
+      </section>
       <section id="tab-proformas" style={{ scrollMarginTop: 120 }}>
       <div className="card" style={{ marginBottom: 16, padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
@@ -1646,119 +1749,6 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               </div>
             </div>
 
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fff" }}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Estado del proyecto</h3>
-              {(() => {
-                const siguienteInfo = estadoInfo.siguiente ? FLUJO[estadoInfo.siguiente] : null
-                const responsables = estadoInfo.roles || []
-                const rolLabels: Record<string, string> = {
-                  superadmin: "Superadmin",
-                  gerente_general: "Gerente General",
-                  gerente_produccion: "Gerente Producción",
-                  controller: "Controller",
-                  productor: "Productor",
-                  comercial: "Comercial",
-                  logistica: "Logística",
-                  audiovisual: "Audiovisual",
-                  administrador: "Administrador",
-                }
-
-                return (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
-                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fafafa" }}>
-                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Estado actual</div>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: estadoInfo.color }}>{estadoInfo.label || "Sin estado"}</div>
-                    </div>
-
-                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
-                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Siguiente paso</div>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: siguienteInfo?.color || "#6b7280" }}>
-                        {siguienteInfo?.label || (esEstadoFinal ? "Sin pasos pendientes" : "Pendiente de definición")}
-                      </div>
-                    </div>
-
-                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: puedeAvanzar ? "#f0fdf4" : "#fff" }}>
-                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Responsables</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {responsables.length > 0 ? responsables.map((rol: string) => (
-                          <span key={rol} style={{ background: "#eef2ff", color: "#3730a3", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
-                            {rolLabels[rol] || rol}
-                          </span>
-                        )) : (
-                          <span style={{ color: "#9ca3af", fontSize: 12 }}>Sin responsables asignados</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
-
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                {FLUJO_BREADCRUMB.map((estado, idx) => {
-                  const info = FLUJO[estado]
-                  const idxActual = FLUJO_BREADCRUMB.indexOf(proyecto?.estado)
-                  const completado = idx <= idxActual
-                  const actual = estado === proyecto?.estado
-                  return (
-                    <div key={estado} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <div
-                        onClick={async () => {
-                          if (!["superadmin","gerente_general","controller"].includes(perfil?.perfil)) return
-                          if (actual) return
-                          if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
-                          const estadosAntesDeEnCurso = ["pendiente_aprobacion","aprobado_produccion","aprobado_gerencia","aprobado_cliente"]
-                          const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id, estado").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
-                          const nRqs = rqsPendientes?.length || 0
-                          const msgRqs = nRqs > 0 ? `\n\n⚠️ Se cancelarán ${nRqs} RQ(s) pendientes automáticamente.` : ""
-                          if (confirm(`¿Regresar el proyecto al estado "${info.label}"?${msgRqs}`)) {
-                            if (nRqs > 0) {
-                              await supabase.from("requerimientos_pago").update({ estado: "rechazado" }).eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
-                            }
-                            cambiarEstado(estado)
-                          }
-                        }}
-                        style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: ["superadmin","gerente_general","controller"].includes(perfil?.perfil) && !actual && idx < FLUJO_BREADCRUMB.indexOf(proyecto?.estado) ? "pointer" : "default" }}>
-                        <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{idx + 1}</span>
-                      </div>
-                      {actual && <span style={{ fontSize: 11, fontWeight: 700, color: info.color }}>{info.label}</span>}
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
-                <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Siguiente accion disponible</div>
-                <div style={{ fontSize: 13, color: "#374151", marginBottom: 10 }}>
-                  {proyecto?.estado === "aprobado_gerencia" ? "Esperando aprobación del cliente desde la proforma." : puedeAvanzar && estadoInfo.accion ? estadoInfo.accion : esEstadoFinal ? "Sin acciones pendientes" : "Sin accion disponible para tu rol"}
-                </div>
-
-                {proyecto?.estado === "rechazado" && (
-                  <div style={{ marginBottom: 10, padding: "8px 12px", background: "#fde8d8", border: "1px solid #fdba74", borderRadius: 8, fontSize: 12, color: "#c2410c", fontWeight: 600 }}>
-                    Este proyecto fue rechazado y no puede avanzar.
-                  </div>
-                )}
-                {proyecto?.estado === "aprobado_gerencia" && (
-                  <div style={{ marginBottom: 10, padding: "10px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, fontSize: 12, color: "#0F6E56", fontWeight: 600 }}>
-                    Esperando aprobación del cliente desde la proforma.
-                  </div>
-                )}
-
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {puedeAvanzar && estadoInfo.siguiente && proyecto?.estado !== "aprobado_gerencia" && (
-                    <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando || (proyecto?.estado === "aprobado_cliente" && !versionAprobar)}
-                      style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado_cliente" && !versionAprobar) ? 0.5 : 1 }}>
-                      {cambiando ? "..." : estadoInfo.accion}
-                    </button>
-                  )}
-                  {puedeRechazar && (
-                    <button onClick={rechazar} disabled={cambiando}
-                      style={{ padding: "8px 16px", border: "1px solid #fde8d8", borderRadius: 8, background: "#fff", color: "#c2410c", cursor: "pointer", fontSize: 13 }}>
-                      Rechazar proyecto
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
 
             <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fff" }}>
               <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Informacion economica basica</h3>
