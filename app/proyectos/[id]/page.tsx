@@ -60,6 +60,7 @@ export default function ProyectoDetallePage() {
   const [cambiando, setCambiando] = useState(false)
   const [showPreCuadre, setShowPreCuadre] = useState(false)
   const [preCuadreItems, setPreCuadreItems] = useState<any[]>([])
+  const [itemsCotizadosPresupuesto, setItemsCotizadosPresupuesto] = useState<any[]>([])
   const [showMigracionRQ, setShowMigracionRQ] = useState(false)
   const [comparacionPendiente, setComparacionPendiente] = useState<any>(null)
   const [cotizacionPendienteAprobar, setCotizacionPendienteAprobar] = useState<any>(null)
@@ -108,7 +109,7 @@ export default function ProyectoDetallePage() {
     }
     setCotizaciones(cots || [])
 
-    const rqSelect = "id,proyecto_id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_nombre,tipo_pago,dias_credito,es_adicional,tratamiento_igv,created_at"
+    const rqSelect = "id,proyecto_id,cotizacion_item_id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_id,proveedor_nombre,tipo_pago,dias_credito,es_adicional,tratamiento_igv,created_at"
     const { data: rqsPorId, error: rqsPorIdError } = await supabase
       .from("requerimientos_pago")
       .select(rqSelect)
@@ -757,7 +758,7 @@ export default function ProyectoDetallePage() {
       rqsAInsertar.push({
         proyecto_id: id,
         cotizacion_item_id: item.esNuevo ? null : String(item.id).startsWith("new_") || String(item.id).startsWith("sub_") || String(item.id).startsWith("div_") ? null : item.id,
-        es_adicional: esAdicional || item.esAdicional || false,
+        es_adicional: item.desdePresupuesto ? false : (esAdicional || item.esAdicional || false),
         dias_credito: item.dias_credito || null,
         tipo_pago: item.tipo_pago || "contado",
         estado: "pendiente_aprobacion",
@@ -969,6 +970,25 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     if (nueva) router.push(`/proyectos/${id}/cotizaciones/${nueva.id}`)
   }
 
+  async function abrirPreCuadreDesdeItem(item: any) {
+    if (!item?.id) return
+    const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
+    setProveedores(provs || [])
+    setPreCuadreItems([{
+      ...item,
+      costo_final: item.costo_total || item.costo_unitario || 0,
+      proveedor_id: item.proveedor_id || null,
+      proveedor_nombre: item.proveedor_nombre || "",
+      tipo: item.tipo || "item",
+      esNuevo: false,
+      esAdicional: false,
+      desdePresupuesto: true,
+      tipo_pago: item.tipo_pago || "contado",
+      tratamiento_igv: item.tratamiento_igv || tratamientoIgvDefaultProyecto,
+    }])
+    setShowPreCuadre(true)
+  }
+
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const estadoInfo = FLUJO[proyecto?.estado] || { label: proyecto?.estado, bg: "#f3f4f6", color: "#6b7280" }
   const tieneCotizacion = cotizaciones.length > 0
@@ -993,6 +1013,16 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const rqsPagados = rqsProyecto.filter(rq => rq.estado === "pagado")
   const totalRqs = rqsActivos.reduce((sum, rq) => sum + rqIgvDetalle(rq).total, 0)
   const totalRqsPendientes = rqsPendientes.reduce((sum, rq) => sum + rqIgvDetalle(rq).total, 0)
+  const rqsPresupuesto = rqsProyecto.filter((rq: any) => rq.cotizacion_item_id && !rq.es_adicional)
+  const rqsPresupuestoActivos = rqsPresupuesto.filter((rq: any) => !["cancelado", "rechazado", "cerrado"].includes(rq.estado))
+  const rqsPresupuestoCancelados = rqsPresupuesto.filter((rq: any) => rq.estado === "cancelado")
+  const rqsAdicionales = rqsProyecto.filter((rq: any) => rq.es_adicional)
+  const pendientesRQ = itemsCotizadosPresupuesto.filter((item: any) =>
+    !rqsPresupuestoActivos.some((rq: any) => rq.cotizacion_item_id === item.id)
+  )
+  const porcentajeEjecucion = itemsCotizadosPresupuesto.length
+    ? Math.round((rqsPresupuestoActivos.length / itemsCotizadosPresupuesto.length) * 100)
+    : 0
   const resumenAlertas = [
     !tieneCotizacion ? { label: "Sin proforma", detalle: "Crea una proforma para continuar el flujo comercial." } : null,
     tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
@@ -1678,7 +1708,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               Ordena pre-cuadre, proveedores y RQs del proyecto sin cambiar la logica actual.
             </p>
           </div>
-          <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Crear RQ manual</button>
+          <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver módulo RQ</button>
         </div>
         <div style={{ padding: 20, display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
@@ -1732,6 +1762,48 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             </div>
           </div>
 
+          {pendientesRQ.length > 0 && (
+            <div style={{ border: "1px solid #fde68a", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid #fef3c7", background: "#fffbeb" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#92400e" }}>Pendientes de generar RQ</div>
+                <div style={{ fontSize: 12, color: "#92400e", marginTop: 2 }}>
+                  Ítems de la cotización aprobada que aún no tienen un RQ activo.
+                </div>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#fff7ed" }}>
+                      <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#92400e" }}>ESTADO</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#92400e" }}>DESCRIPCIÓN</th>
+                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#92400e" }}>PRESUPUESTO</th>
+                      <th style={{ padding: "10px 16px" }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendientesRQ.map((item: any, idx: number) => (
+                      <tr key={item.id} style={{ borderTop: "1px solid #fef3c7", background: idx % 2 === 0 ? "#fff" : "#fffbeb" }}>
+                        <td style={{ padding: "12px 16px" }}>
+                          <span style={{ background: "#fef3c7", color: "#92400e", padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
+                            Pendiente
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px", fontSize: 12, color: "#374151", minWidth: 260 }}>{item.descripcion || "Sin descripción"}</td>
+                        <td style={{ padding: "12px", fontSize: 13, fontWeight: 800, color: "#111827", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {fmt(item.costo_total || item.costo_unitario || 0)}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                          <button onClick={() => abrirPreCuadreDesdeItem(item)} style={{ padding: "7px 12px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                            Generar RQ
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
             <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <div>
@@ -2058,6 +2130,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
