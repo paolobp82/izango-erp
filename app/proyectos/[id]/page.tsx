@@ -1401,8 +1401,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {puedeAvanzar && estadoInfo.siguiente && proyecto?.estado !== "aprobado_gerencia" && (
-                  <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando || (proyecto?.estado === "aprobado_cliente" && !versionAprobar)}
-                    style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado_cliente" && !versionAprobar) ? 0.5 : 1 }}>
+                  <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando}
+                    style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: cambiando ? 0.7 : 1 }}>
                     {cambiando ? "..." : estadoInfo.accion}
                   </button>
                 )}
@@ -1980,6 +1980,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
