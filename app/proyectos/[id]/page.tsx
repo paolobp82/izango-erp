@@ -1634,6 +1634,96 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
             <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fff" }}>
               <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Estado del proyecto</h3>
+              {(() => {
+                const siguienteInfo = estadoInfo.siguiente ? FLUJO[estadoInfo.siguiente] : null
+                const responsables = estadoInfo.roles || []
+                const rolLabels: Record<string, string> = {
+                  superadmin: "Superadmin",
+                  gerente_general: "Gerente General",
+                  gerente_produccion: "Gerente Producción",
+                  controller: "Controller",
+                  productor: "Productor",
+                  comercial: "Comercial",
+                  logistica: "Logística",
+                  audiovisual: "Audiovisual",
+                  administrador: "Administrador",
+                }
+
+                return (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fafafa" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Estado actual</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: estadoInfo.color }}>{estadoInfo.label || "Sin estado"}</div>
+                    </div>
+
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Siguiente paso</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: siguienteInfo?.color || "#6b7280" }}>
+                        {siguienteInfo?.label || (esEstadoFinal ? "Sin pasos pendientes" : "Pendiente de definición")}
+                      </div>
+                    </div>
+
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: puedeAvanzar ? "#f0fdf4" : "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Responsables</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {responsables.length > 0 ? responsables.map((rol: string) => (
+                          <span key={rol} style={{ background: "#eef2ff", color: "#3730a3", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
+                            {rolLabels[rol] || rol}
+                          </span>
+                        )) : (
+                          <span style={{ color: "#9ca3af", fontSize: 12 }}>Sin responsables asignados</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {(() => {
+                const siguienteInfo = estadoInfo.siguiente ? FLUJO[estadoInfo.siguiente] : null
+                const responsables = estadoInfo.roles || []
+                const rolLabels: Record<string, string> = {
+                  superadmin: "Superadmin",
+                  gerente_general: "Gerente General",
+                  gerente_produccion: "Gerente Producción",
+                  controller: "Controller",
+                  productor: "Productor",
+                  comercial: "Comercial",
+                  logistica: "Logística",
+                  audiovisual: "Audiovisual",
+                  administrador: "Administrador",
+                }
+
+                return (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fafafa" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Estado actual</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: estadoInfo.color }}>{estadoInfo.label || "Sin estado"}</div>
+                    </div>
+
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Siguiente paso</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: siguienteInfo?.color || "#6b7280" }}>
+                        {siguienteInfo?.label || (esEstadoFinal ? "Sin pasos pendientes" : "Pendiente de definición")}
+                      </div>
+                    </div>
+
+                    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: puedeAvanzar ? "#f0fdf4" : "#fff" }}>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Responsables</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {responsables.length > 0 ? responsables.map((rol: string) => (
+                          <span key={rol} style={{ background: "#eef2ff", color: "#3730a3", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
+                            {rolLabels[rol] || rol}
+                          </span>
+                        )) : (
+                          <span style={{ color: "#9ca3af", fontSize: 12 }}>Sin responsables asignados</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                 {FLUJO_BREADCRUMB.map((estado, idx) => {
                   const info = FLUJO[estado]
@@ -1679,7 +1769,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   </div>
                 )}
 
-                {puedeAvanzar && proyecto?.estado === "aprobado" && cotizaciones.length > 0 && (
+                {puedeAvanzar && proyecto?.estado === "aprobado_gerencia" && cotizaciones.length > 0 && (
                   <div style={{ marginBottom: 10, padding: "12px 14px", background: "#f0fdf4", border: "1px solid #1D9E75", borderRadius: 8 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: "#0F6E56", marginBottom: 8 }}>
                       Selecciona la version aprobada por el cliente
@@ -1715,8 +1805,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                           return
                         }
                         cambiarEstado(estadoInfo.siguiente)
-                      }} disabled={cambiando || (proyecto?.estado === "aprobado" && !versionAprobar)}
-                      style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado" && !versionAprobar) ? 0.5 : 1 }}>
+                      }} disabled={cambiando || (proyecto?.estado === "aprobado_gerencia" && !versionAprobar)}
+                      style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: (proyecto?.estado === "aprobado_gerencia" && !versionAprobar) ? 0.5 : 1 }}>
                       {cambiando ? "..." : estadoInfo.accion}
                     </button>
                   )}
@@ -1960,6 +2050,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
+
 
 
 
