@@ -1013,7 +1013,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const rqsPagados = rqsProyecto.filter(rq => rq.estado === "pagado")
   const totalRqs = rqsActivos.reduce((sum, rq) => sum + rqIgvDetalle(rq).total, 0)
   const totalRqsPendientes = rqsPendientes.reduce((sum, rq) => sum + rqIgvDetalle(rq).total, 0)
-  const rqsPresupuesto = rqsProyecto.filter((rq: any) => rq.cotizacion_item_id && !rq.es_adicional)
+  const rqsPresupuesto = rqsProyecto.filter((rq: any) => !rq.es_adicional)
   const rqsPresupuestoActivos = rqsPresupuesto.filter((rq: any) => !["cancelado", "rechazado", "cerrado"].includes(rq.estado))
   const rqsPresupuestoCancelados = rqsPresupuesto.filter((rq: any) => rq.estado === "cancelado")
   const rqsAdicionales = rqsProyecto.filter((rq: any) => rq.es_adicional)
@@ -1049,6 +1049,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       fecha: rq?.created_at || null,
       montoPresupuestado: Number(item.costo_total || item.costo_unitario || rq?.monto_presupuestado || 0),
       montoFinal: Number(rq?.monto_solicitado || item.costo_total || item.costo_unitario || 0),
+      legacy: false,
     }
   })
 
@@ -1063,9 +1064,30 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     fecha: rq.created_at || null,
     montoPresupuestado: Number(rq.monto_presupuestado || 0),
     montoFinal: Number(rqIgvDetalle(rq).total || rq.monto_solicitado || 0),
+    legacy: false,
   }))
 
-  const filasEjecucionRqs = [...filasRqsProyecto, ...filasRqsAdicionales]
+  const rqsProyectoSinVinculo = rqsPresupuesto
+    .filter((rq: any) => !rq.cotizacion_item_id)
+    .map((rq: any) => ({
+      key: "legacy-" + rq.id,
+      origen: "cotizacion",
+      estadoVista: rq.estado === "cancelado" ? "cancelado" : "generado",
+      item: null,
+      rq,
+      descripcion: rq.descripcion || "Sin descripción",
+      proveedor: rq.proveedor_nombre || "—",
+      fecha: rq.created_at || null,
+      montoPresupuestado: Number(rq.monto_presupuestado || rq.monto_solicitado || 0),
+      montoFinal: Number(rqIgvDetalle(rq).total || rq.monto_solicitado || 0),
+      legacy: true,
+    }))
+
+  const filasEjecucionRqs = [
+    ...filasRqsProyecto,
+    ...rqsProyectoSinVinculo,
+    ...filasRqsAdicionales,
+  ]
   const resumenAlertas = [
     !tieneCotizacion ? { label: "Sin proforma", detalle: "Crea una proforma para continuar el flujo comercial." } : null,
     tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
@@ -1832,6 +1854,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>FECHA SOLICITUD</th>
                       <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PRESUP.</th>
                       <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>FINAL RQ</th>
+                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>VARIACIÓN</th>
                       <th style={{ padding: "10px 16px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ACCIÓN</th>
                     </tr>
                   </thead>
@@ -1848,7 +1871,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       return (
                         <tr key={fila.key} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                           <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700, color: fila.origen === "adicional" ? "#5b21b6" : "#374151", whiteSpace: "nowrap" }}>
-                            {fila.origen === "adicional" ? "➕ Adicional" : "📋 Cotización"}
+                            {fila.origen === "adicional" ? "➕ Adicional" : fila.legacy ? "📋 Proyecto legacy" : "📋 Proyecto"}
                           </td>
                           <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, background: estadoStyle.bg, color: estadoStyle.color, padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
@@ -1870,6 +1893,21 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                           <td style={{ padding: "12px", fontSize: 13, fontWeight: 900, color: "#0F6E56", textAlign: "right", whiteSpace: "nowrap" }}>
                             {fmt(fila.montoFinal)}
                             {fila.rq && <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600 }}>{rqTratamientoIgvLabel(fila.rq)}</div>}
+                          </td>
+                          <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, textAlign: "right", whiteSpace: "nowrap" }}>
+                            {(() => {
+                              const presup = Number(fila.montoPresupuestado || 0)
+                              const final = Number(fila.montoFinal || 0)
+                              const diff = final - presup
+                              const pct = presup > 0 ? (diff / presup) * 100 : 0
+                              const color = Math.abs(diff) < 0.01 ? "#6b7280" : diff > 0 ? "#dc2626" : "#15803d"
+                              return (
+                                <div style={{ color }}>
+                                  {Math.abs(diff) < 0.01 ? "S/ 0.00" : `${diff > 0 ? "+" : "-"}${fmt(Math.abs(diff))}`}
+                                  {presup > 0 && <div style={{ fontSize: 10, fontWeight: 700 }}>{Math.abs(pct).toFixed(1)}%</div>}
+                                </div>
+                              )
+                            })()}
                           </td>
                           <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
                             {fila.estadoVista === "pendiente" && (
@@ -2156,6 +2194,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
+
 
 
 
