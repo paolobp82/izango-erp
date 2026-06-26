@@ -204,7 +204,7 @@ export default function ProyectoDetallePage() {
     const [{ data: itemsAnterior }, { data: itemsNueva }, { data: rqs }] = await Promise.all([
       supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotAnterior.id).order("orden"),
       supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotNueva.id).order("orden"),
-      supabase.from("requerimientos_pago").select("id,proyecto_id,codigo_rq,numero_rq,estado,cotizacion_item_id,monto_solicitado,monto_presupuestado,descripcion,proveedor_id,proveedor_nombre,proveedor_banco,proveedor_cuenta,proveedor_tipo_pago,tipo_pago,dias_credito,tratamiento_igv,solicitado_por").eq("proyecto_id", id),
+      supabase.from("requerimientos_pago").select("id,proyecto_id,codigo_rq,numero_rq,estado,cotizacion_item_id,es_adicional,monto_solicitado,monto_presupuestado,descripcion,proveedor_id,proveedor_nombre,proveedor_banco,proveedor_cuenta,proveedor_tipo_pago,tipo_pago,dias_credito,tratamiento_igv,solicitado_por").eq("proyecto_id", id),
     ])
 
     const activosAnterior = (itemsAnterior || []).filter((i: any) => i.tipo !== "celda_extra")
@@ -1170,7 +1170,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       <div style={{ fontSize: 17, fontWeight: 800, color: "#111827" }}>{fmt(montoV2Total)}</div>
                     </div>
                     <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
-                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Impacto neto</div>
+                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" }}>Variación</div>
                       <div style={{ fontSize: 17, fontWeight: 800, color: impactoColor }}>{impactoNeto > 0 ? "+" : ""}{fmt(impactoNeto)}</div>
                     </div>
                     <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
@@ -1202,7 +1202,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Item V2</th>
                   <th style={{ textAlign: "right", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Monto V1</th>
                   <th style={{ textAlign: "right", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#fff" }}>Monto V2</th>
-                  <th style={{ textAlign: "right", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Diferencia</th>
+                  <th style={{ textAlign: "right", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Variación</th>
                   <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, fontWeight: 600, color: "#03E373" }}>Acción sugerida</th>
                 </tr>
               </thead>
@@ -2183,6 +2183,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
