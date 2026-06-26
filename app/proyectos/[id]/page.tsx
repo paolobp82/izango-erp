@@ -204,7 +204,7 @@ export default function ProyectoDetallePage() {
     const [{ data: itemsAnterior }, { data: itemsNueva }, { data: rqs }] = await Promise.all([
       supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotAnterior.id).order("orden"),
       supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cotNueva.id).order("orden"),
-      supabase.from("requerimientos_pago").select("id,proyecto_id,codigo_rq,numero_rq,estado,cotizacion_item_id,es_adicional,monto_solicitado,monto_presupuestado,descripcion,proveedor_id,proveedor_nombre,proveedor_banco,proveedor_cuenta,proveedor_tipo_pago,tipo_pago,dias_credito,tratamiento_igv,solicitado_por").eq("proyecto_id", id),
+      supabase.from("requerimientos_pago").select("id,proyecto_id,codigo_rq,numero_rq,estado,cotizacion_item_id,es_adicional,monto_solicitado,monto_presupuestado,descripcion,proveedor_id,proveedor_nombre,proveedor_banco,proveedor_cuenta,proveedor_tipo_pago,tipo_pago,dias_credito,tratamiento_igv,solicitado_por,migracion_estado,migracion_cotizacion_origen_id,migracion_cotizacion_destino_id,migracion_rq_origen_id").eq("proyecto_id", id),
     ])
 
     const activosAnterior = (itemsAnterior || []).filter((i: any) => i.tipo !== "celda_extra")
@@ -2183,6 +2183,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
