@@ -51,6 +51,8 @@ export default function GastosOficinaPage() {
   const [filtroEstado, setFiltroEstado] = useState("todos")
   const [filtroTipo, setFiltroTipo] = useState("todos")
   const [form, setForm] = useState<any>({ ...formVacio })
+  const [modoVoucher, setModoVoucher] = useState<"link" | "archivo">("link")
+  const [subiendoVoucher, setSubiendoVoucher] = useState(false)
 
   useEffect(() => { load() }, [])
 
@@ -173,6 +175,32 @@ export default function GastosOficinaPage() {
     load()
   }
 
+  async function subirVoucherGasto(registro: any, file: File | null) {
+    if (!registro?.id || !file || !puedeEditarPagoGasto) return
+    setSubiendoVoucher(true)
+    try {
+      const ext = file.name.split(".").pop() || "pdf"
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
+      const path = `gastos-oficina/${registro.id}/voucher-${Date.now()}-${safeName}`
+      const { error: uploadError } = await supabase.storage.from("documentos").upload(path, file, { upsert: true })
+      if (uploadError) throw uploadError
+
+      const { data } = supabase.storage.from("documentos").getPublicUrl(path)
+      const url = data.publicUrl
+
+      const { error } = await supabase.from("gastos_oficina").update({ voucher_url: url }).eq("id", registro.id)
+      if (error) throw error
+
+      setSelected((prev: any) => ({ ...prev, voucher_url: url }))
+      setGastos(prev => prev.map(g => g.id === registro.id ? { ...g, voucher_url: url } : g))
+      await registrarAccion({ accion: "subir_voucher", modulo: "gastos_oficina", entidad_id: registro.id, entidad_tipo: "gasto_oficina", descripcion: "Voucher subido: " + registro.descripcion })
+      alert("Voucher subido correctamente")
+    } catch (error: any) {
+      alert("No se pudo subir el voucher: " + (error?.message || "Error desconocido"))
+    } finally {
+      setSubiendoVoucher(false)
+    }
+  }
   async function guardarDatosOperacionGasto(registro: any) {
     if (!autorizado || !puedeEditarPagoGasto) return
     const payload = {
@@ -536,4 +564,5 @@ export default function GastosOficinaPage() {
     </div>
   )
 }
+
 
