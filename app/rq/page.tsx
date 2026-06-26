@@ -618,6 +618,15 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const detalleIgv = (rq: any) => rqIgvDetalle(rq)
+  const montoPresupuestadoRQ = (rq: any) => Number(rq?.monto_presupuestado || 0)
+  const montoFinalRQ = (rq: any) => Number(detalleIgv(rq).total || rq?.monto_solicitado || 0)
+  const variacionRQ = (rq: any) => montoFinalRQ(rq) - montoPresupuestadoRQ(rq)
+  const origenRQLabel = (rq: any) => rq?.es_adicional ? "RQ Adicional" : rq?.cotizacion_item_id ? "RQ de Proyecto" : "RQ de Proyecto legacy"
+  const origenRQDetalle = (rq: any) => rq?.es_adicional
+    ? "Fuera del presupuesto aprobado."
+    : rq?.cotizacion_item_id
+      ? "Vinculado a un ítem de la proforma aprobada."
+      : "RQ de proyecto sin vínculo histórico a ítem de proforma."
 
   const rqsVistaActiva = incluirProyectosEliminados ? rqs : rqs.filter(r => r.estado !== "cancelado" && !rqPerteneceAProyectoEliminado(r))
   const rqsProyectosEliminados = rqs.filter(r => rqPerteneceAProyectoEliminado(r))
@@ -1262,7 +1271,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 <div><label style={lbl}>MONTO (S/)</label><input type="number" style={inp} value={formEditarRQ.monto_solicitado} placeholder="0.00" onChange={e => setFormEditarRQ({ ...formEditarRQ, monto_solicitado: e.target.value })} /></div>
                 <div><label style={lbl}>FECHA REQUERIDA</label><input type="date" style={inp} value={formEditarRQ.fecha_pago} onChange={e => setFormEditarRQ({ ...formEditarRQ, fecha_pago: e.target.value })} /></div>
               </div>
-              <div><label style={lbl}>TRATAMIENTO IGV</label><select style={inp} value={formEditarRQ.tratamiento_igv} onChange={e => setFormEditarRQ({ ...formEditarRQ, tratamiento_igv: e.target.value })}><option value="incluye_igv">Incluye IGV</option><option value="mas_igv">Mas IGV</option><option value="no_aplica">No aplica IGV</option></select></div>
+              <div><label style={lbl}>TRATAMIENTO IGV</label><select style={inp} value={formEditarRQ.tratamiento_igv} onChange={e => setFormEditarRQ({ ...formEditarRQ, tratamiento_igv: e.target.value })}><option value="incluye_igv">Incluye IGV</option><option value="mas_igv">No incluye IGV</option><option value="no_aplica">No aplica</option></select></div>
               {formEditarRQ.monto_solicitado && (
                 <div style={{ padding: 10, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, color: "#374151" }}>
                   {(() => {
@@ -1309,7 +1318,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               <div><label style={lbl}>DESCRIPCION</label><input style={inp} value={formRQ.descripcion} placeholder="Concepto del RQ..." onChange={e => setFormRQ({ ...formRQ, descripcion: e.target.value })} /></div>
               <div><label style={lbl}>PROVEEDOR</label><select style={inp} value={formRQ.proveedor_id} onChange={e => setFormRQ({ ...formRQ, proveedor_id: e.target.value })}><option value="">Seleccionar proveedor</option>{proveedoresTodos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>
               <div><label style={lbl}>MONTO (S/)</label><input type="number" style={inp} value={formRQ.monto_solicitado} placeholder="0.00" onChange={e => setFormRQ({ ...formRQ, monto_solicitado: e.target.value })} /></div>
-              <div><label style={lbl}>TRATAMIENTO IGV</label><select style={inp} value={formRQ.tratamiento_igv} onChange={e => setFormRQ({ ...formRQ, tratamiento_igv: e.target.value })}><option value="incluye_igv">Incluye IGV</option><option value="mas_igv">Mas IGV</option><option value="no_aplica">No aplica IGV</option></select></div>
+              <div><label style={lbl}>TRATAMIENTO IGV</label><select style={inp} value={formRQ.tratamiento_igv} onChange={e => setFormRQ({ ...formRQ, tratamiento_igv: e.target.value })}><option value="incluye_igv">Incluye IGV</option><option value="mas_igv">No incluye IGV</option><option value="no_aplica">No aplica</option></select></div>
               {formRQ.monto_solicitado && (
                 <div style={{ padding: 10, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, color: "#374151" }}>
                   {(() => {
@@ -1337,5 +1346,6 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
 
 
