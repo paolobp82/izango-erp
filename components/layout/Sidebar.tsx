@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
-import { ACCESO } from "@/lib/permissions"
+import { puedeVerRuta } from "@/lib/permisos/rutas"
 
 const LOGO = "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
 
@@ -101,18 +101,18 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
-  const [collapsed, setCollapsed] = useState(false)
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    const savedCollapsed = localStorage.getItem("sidebar_collapsed")
-    if (savedCollapsed === "true") setCollapsed(true)
-
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem("sidebar_collapsed") === "true"
+  })
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {}
     const savedSections = localStorage.getItem("sidebar_sections")
     if (savedSections) {
-      try { setOpenSections(JSON.parse(savedSections)) } catch {}
+      try { return JSON.parse(savedSections) } catch {}
     }
-  }, [])
+    return {}
+  })
 
   useEffect(() => {
     document.documentElement.style.setProperty("--sidebar-width", collapsed ? "76px" : "260px")
@@ -129,13 +129,11 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
   }
 
   const initials = `${perfil.nombre?.[0] || ""}${perfil.apellido?.[0] || ""}`.toUpperCase()
-  const acceso = ACCESO[perfil.perfil] || []
-  const esAdmin = acceso.includes("*")
   const isActiveRoute = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href + "/"))
 
   const navItems = ALL_NAV.map(section => ({
     ...section,
-    items: section.items.filter(item => esAdmin || acceso.some(a => item.href.startsWith(a)))
+    items: section.items.filter(item => puedeVerRuta(perfil.perfil, item.href))
   })).filter(section => section.items.length > 0)
 
   function sectionOpen(section: string) {
