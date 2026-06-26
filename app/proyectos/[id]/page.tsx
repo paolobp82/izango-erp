@@ -1024,12 +1024,13 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     ? Math.round((rqsPresupuestoActivos.length / itemsCotizadosPresupuesto.length) * 100)
     : 0
   const rqsPorItem = new Map<string, any[]>()
-  rqsPresupuesto.forEach((rq: any) => {
-    if (!rq.cotizacion_item_id) return
-    const key = String(rq.cotizacion_item_id)
-    if (!rqsPorItem.has(key)) rqsPorItem.set(key, [])
-    rqsPorItem.get(key)?.push(rq)
-  })
+  rqsProyecto
+    .filter((rq: any) => rq.cotizacion_item_id && !rq.es_adicional)
+    .forEach((rq: any) => {
+      const key = String(rq.cotizacion_item_id)
+      if (!rqsPorItem.has(key)) rqsPorItem.set(key, [])
+      rqsPorItem.get(key)?.push(rq)
+    })
 
   const filasRqsProyecto = itemsCotizadosPresupuesto.map((item: any) => {
     const relacionados = rqsPorItem.get(String(item.id)) || []
@@ -1053,41 +1054,29 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     }
   })
 
-  const filasRqsAdicionales = rqsAdicionales.map((rq: any) => ({
-    key: "rq-" + rq.id,
-    origen: "adicional",
-    estadoVista: "adicional",
-    item: null,
-    rq,
-    descripcion: rq.descripcion || "Sin descripción",
-    proveedor: rq.proveedor_nombre || "—",
-    fecha: rq.created_at || null,
-    montoPresupuestado: Number(rq.monto_presupuestado || 0),
-    montoFinal: Number(rqIgvDetalle(rq).total || rq.monto_solicitado || 0),
-    legacy: false,
-  }))
+  const idsRqsRepresentados = new Set(
+    filasRqsProyecto
+      .map((fila: any) => fila.rq?.id)
+      .filter(Boolean)
+  )
 
-  const rqsProyectoSinVinculo = rqsPresupuesto
-    .filter((rq: any) => !rq.cotizacion_item_id)
+  const filasRqsNoRepresentados = rqsProyecto
+    .filter((rq: any) => !idsRqsRepresentados.has(rq.id))
     .map((rq: any) => ({
-      key: "legacy-" + rq.id,
-      origen: "cotizacion",
-      estadoVista: rq.estado === "cancelado" ? "cancelado" : "generado",
+      key: "rq-" + rq.id,
+      origen: rq.es_adicional ? "adicional" : "cotizacion",
+      estadoVista: rq.es_adicional ? "adicional" : rq.estado === "cancelado" ? "cancelado" : "generado",
       item: null,
       rq,
       descripcion: rq.descripcion || "Sin descripción",
       proveedor: rq.proveedor_nombre || "—",
       fecha: rq.created_at || null,
-      montoPresupuestado: Number(rq.monto_presupuestado || rq.monto_solicitado || 0),
+      montoPresupuestado: Number(rq.monto_presupuestado || 0),
       montoFinal: Number(rqIgvDetalle(rq).total || rq.monto_solicitado || 0),
-      legacy: true,
+      legacy: !rq.es_adicional && !rq.cotizacion_item_id,
     }))
 
-  const filasEjecucionRqs = [
-    ...filasRqsProyecto,
-    ...rqsProyectoSinVinculo,
-    ...filasRqsAdicionales,
-  ]
+  const filasEjecucionRqs = [...filasRqsProyecto, ...filasRqsNoRepresentados]
   const resumenAlertas = [
     !tieneCotizacion ? { label: "Sin proforma", detalle: "Crea una proforma para continuar el flujo comercial." } : null,
     tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
@@ -2194,6 +2183,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
