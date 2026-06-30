@@ -19,6 +19,7 @@ const TIPOS: Record<string, string> = {
 
 const ESTADOS_PAGO: Record<string, any> = {
   pendiente: { label: "Pendiente", bg: "#fef9c3", color: "#92400e" },
+  aprobado:  { label: "Aprobado",  bg: "#dbeafe", color: "#1e40af" },
   pagado:    { label: "Pagado",    bg: "#dcfce7", color: "#15803d" },
   vencido:   { label: "Vencido",   bg: "#fee2e2", color: "#991b1b" },
 }
@@ -366,7 +367,14 @@ export default function GastosOficinaPage() {
                       {g.proveedor?.nombre || g.proveedor_nombre || "—"}
                     </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#111827" }}>
-                      {fmt(g.monto)}
+                      {(g.moneda || "PEN") === "USD" ? (
+                        <>
+                          <div>{fmtUsd(g.monto_original || 0)}</div>
+                          <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600 }}>{fmt(g.monto_pen || g.monto || 0)}</div>
+                        </>
+                      ) : (
+                        fmt(g.monto_pen || g.monto || 0)
+                      )}
                     </td>
                     <td style={{ padding: "12px" }}>
                       {puedeRegistrar ? (
@@ -505,6 +513,23 @@ export default function GastosOficinaPage() {
                 <div>
                   <label style={lbl}>MONTO *</label>
                   <input type="number" style={inp} value={form.monto} placeholder="0.00" onChange={e => setForm({ ...form, monto: e.target.value })} />
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={lbl}>MONEDA</label>
+                  <select style={inp} value={form.moneda || "PEN"} onChange={e => setForm({ ...form, moneda: e.target.value, tipo_cambio: e.target.value === "PEN" ? "1" : form.tipo_cambio })}>
+                    <option value="PEN">PEN</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>TIPO CAMBIO</label>
+                  <input type="number" step="0.0001" disabled={(form.moneda || "PEN") === "PEN"} style={{ ...inp, background: (form.moneda || "PEN") === "PEN" ? "#f9fafb" : "#fff" }} value={form.tipo_cambio || "1"} onChange={e => setForm({ ...form, tipo_cambio: e.target.value })} />
+                </div>
+                <div>
+                  <label style={lbl}>MONTO EN PEN</label>
+                  <div style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontWeight: 700, color: "#0F6E56", background: "#f9fafb" }}>{fmt(montoPenForm)}</div>
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
