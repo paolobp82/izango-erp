@@ -129,6 +129,18 @@ export default function GastosOficinaPage() {
       alert("Descripción, monto y fecha son obligatorios"); return
     }
     setSaving(true)
+
+    const moneda = form.moneda || "PEN"
+    const montoOriginal = Number(form.monto || 0)
+    const tipoCambio = moneda === "USD" ? Number(form.tipo_cambio || 0) : 1
+    const montoPen = moneda === "USD" ? montoOriginal * tipoCambio : montoOriginal
+
+    if (moneda === "USD" && (!Number.isFinite(tipoCambio) || tipoCambio <= 0)) {
+      alert("Ingresa un tipo de cambio válido para USD")
+      setSaving(false)
+      return
+    }
+
     const payload = {
       descripcion: form.descripcion,
       tipo: form.tipo,
