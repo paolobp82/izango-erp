@@ -463,7 +463,7 @@ export default function CajaChicaPage() {
               </tbody>
               <tfoot>
                 <tr style={{ background: "#f9fafb", borderTop: "2px solid #e5e7eb" }}>
-                  <td colSpan={3} style={{ padding: "10px 16px", fontSize: 12, fontWeight: 700, color: "#374151" }}>TOTAL APROBADOS</td>
+                  <td colSpan={4} style={{ padding: "10px 16px", fontSize: 12, fontWeight: 700, color: "#374151" }}>TOTAL APROBADOS</td>
                   <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#991b1b" }}>{fmt(totalDebe)}</td>
                   <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#15803d" }}>{fmt(totalHaber)}</td>
                   <td colSpan={2}></td>
@@ -705,6 +705,8 @@ export default function CajaChicaPage() {
     </div>
   )
 }
+
+
 
 
 
