@@ -28,6 +28,8 @@ const formVacio: any = {
   tipo_comprobante: "boleta", numero_operacion: "",
   proyecto_id: "", rq_id: "", categoria: "", observaciones: "", voucher_url: "",
   destinatario: "",
+  proveedor_id: "",
+  proveedor_nombre: "",
 }
 
 export default function CajaChicaPage() {
@@ -404,6 +406,7 @@ export default function CajaChicaPage() {
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONCEPTO</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>SOLICITANTE</th>
                     <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESTINATARIO</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DEBE</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>HABER</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
@@ -429,6 +432,9 @@ export default function CajaChicaPage() {
                         {r.proveedor_nombre || "—"}
                       </td>
                       <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: r.monto_debe > 0 ? "#991b1b" : "#9ca3af" }}>
+                      <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>
+                        {r.destinatario || "—"}
+                      </td>
                         {r.monto_debe > 0 ? fmt(r.monto_debe) : "—"}
                       </td>
                       <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: r.monto_haber > 0 ? "#15803d" : "#9ca3af" }}>
@@ -678,6 +684,16 @@ export default function CajaChicaPage() {
                 </div>
               </div>
               <div>
+                <label style={lbl}>PROVEEDOR (opcional)</label>
+                <select style={inp} value={form.proveedor_id || ""} onChange={e => {
+                  const prov = proveedores.find((p: any) => p.id === e.target.value)
+                  setForm({ ...form, proveedor_id: e.target.value, proveedor_nombre: prov?.nombre || "" })
+                }}>
+                  <option value="">Sin proveedor</option>
+                  {proveedores.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                </select>
+              </div>
+              <div>
                 <label style={lbl}>RQ RELACIONADO (opcional)</label>
                 <select style={inp} value={form.rq_id} onChange={e => setForm({ ...form, rq_id: e.target.value })}>
                   <option value="">Sin RQ</option>
@@ -705,6 +721,7 @@ export default function CajaChicaPage() {
     </div>
   )
 }
+
 
 
 
