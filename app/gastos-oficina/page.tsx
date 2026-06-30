@@ -31,7 +31,7 @@ const TIPOS_COMPROBANTE = ["factura", "boleta", "recibo", "deposito", "otro"]
 const ROLES_REGISTRO = ["controller", "administrador", "gerente_general", "superadmin"]
 
 const formVacio = {
-  descripcion: "", tipo: "alquiler", monto: "", fecha: "", estado_pago: "pendiente",
+  descripcion: "", tipo: "alquiler", monto: "", moneda: "PEN", tipo_cambio: "1", fecha: "", estado_pago: "pendiente",
   recurrente: false, frecuencia: "mensual", fecha_vencimiento: "",
   proveedor_id: "", proveedor_nombre: "", tipo_comprobante: "factura",
   numero_comprobante: "", categoria_costo: "", observaciones: "", numero_operacion: "", banco_origen: "", tipo_transferencia: "transferencia_bancaria", voucher_url: "", nota_pago: "",
@@ -100,7 +100,9 @@ export default function GastosOficinaPage() {
     setForm({
       descripcion: g.descripcion || "",
       tipo: g.tipo || "alquiler",
-      monto: g.monto || "",
+      monto: g.monto_original || g.monto || "",
+      moneda: g.moneda || "PEN",
+      tipo_cambio: g.tipo_cambio ? String(g.tipo_cambio) : "1",
       fecha: g.fecha || "",
       estado_pago: g.estado_pago || "pendiente",
       recurrente: g.recurrente || false,
@@ -130,7 +132,11 @@ export default function GastosOficinaPage() {
     const payload = {
       descripcion: form.descripcion,
       tipo: form.tipo,
-      monto: Number(form.monto),
+      monto: montoPen,
+      moneda,
+      tipo_cambio: tipoCambio,
+      monto_original: montoOriginal,
+      monto_pen: montoPen,
       fecha: form.fecha,
       estado_pago: form.estado_pago,
       recurrente: form.recurrente,
@@ -247,6 +253,8 @@ export default function GastosOficinaPage() {
   const totalVencido = gastos.filter(g => g.estado_pago === "vencido").reduce((s, g) => s + (g.monto || 0), 0)
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const fmtUsd = (n: number) => "USD " + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const montoPenForm = (form.moneda || "PEN") === "USD" ? Number(form.monto || 0) * Number(form.tipo_cambio || 0) : Number(form.monto || 0)
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
 
@@ -387,7 +395,7 @@ export default function GastosOficinaPage() {
               <tr style={{ background: "#F8FAFC", borderTop: "2px solid #E2E8F0" }}>
                 <td colSpan={4} style={{ padding: "10px 16px", fontSize: 12, fontWeight: 700, color: "#374151" }}>TOTAL</td>
                 <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#111827" }}>
-                  {fmt(gastosFiltrados.reduce((s, g) => s + (g.monto || 0), 0))}
+                  {fmt(gastosFiltrados.reduce((s, g) => s + (g.monto_pen || g.monto || 0), 0))}
                 </td>
                 <td colSpan={3}></td>
               </tr>
@@ -410,7 +418,9 @@ export default function GastosOficinaPage() {
           <div style={{ display: "grid", gap: 9, marginBottom: 16 }}>
             <div><b>Proveedor:</b> {selected.proveedor?.nombre || selected.proveedor_nombre || "—"}</div>
             <div><b>Fecha:</b> {selected.fecha || "—"}</div>
-            <div><b>Monto:</b> {fmt(selected.monto)}</div>
+            <div><b>Monto:</b> {(selected.moneda || "PEN") === "USD" ? `${fmtUsd(selected.monto_original || 0)} / ${fmt(selected.monto_pen || selected.monto || 0)}` : fmt(selected.monto_pen || selected.monto || 0)}</div>
+            <div><b>Moneda:</b> {selected.moneda || "PEN"}</div>
+            <div><b>Tipo cambio:</b> {Number(selected.tipo_cambio || 1).toFixed(4)}</div>
             <div><b>Estado:</b> {ESTADOS_PAGO[selected.estado_pago]?.label || selected.estado_pago}</div>
             <div><b>Comprobante:</b> {selected.tipo_comprobante || "—"} {selected.numero_comprobante || ""}</div>
             <div><b>Categoría:</b> {selected.categoria_costo || "—"}</div>
@@ -564,5 +574,6 @@ export default function GastosOficinaPage() {
     </div>
   )
 }
+
 
 
