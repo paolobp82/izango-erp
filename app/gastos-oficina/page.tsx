@@ -503,7 +503,7 @@ export default function GastosOficinaPage() {
                   </select>
                 </div>
                 <div>
-                  <label style={lbl}>MONTO S/ *</label>
+                  <label style={lbl}>MONTO *</label>
                   <input type="number" style={inp} value={form.monto} placeholder="0.00" onChange={e => setForm({ ...form, monto: e.target.value })} />
                 </div>
               </div>
@@ -586,6 +586,7 @@ export default function GastosOficinaPage() {
     </div>
   )
 }
+
 
 
 
