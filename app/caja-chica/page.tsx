@@ -399,18 +399,29 @@ export default function CajaChicaPage() {
           {registrosFiltrados.length === 0 ? (
             <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay registros</div>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "19%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "4%" }} />
+              </colgroup>
               <thead>
                 <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
                   <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FECHA</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONCEPTO</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>SOLICITANTE</th>
-                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESTINATARIO</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DEBE</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>HABER</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-                  <th style={{ padding: "10px 16px", width: 100 }}></th>
+                  <th style={{ padding: "10px 16px" }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -419,31 +430,31 @@ export default function CajaChicaPage() {
                   return (
                     <tr key={r.id} onClick={() => setSelected(r)}
                       style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === r.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}>
-                      <td style={{ padding: "12px 16px", fontSize: 12, color: "#6b7280" }}>{r.fecha}</td>
-                      <td style={{ padding: "12px" }}>
+                      <td style={{ padding: "12px 16px", fontSize: 12, color: "#6b7280", verticalAlign: "middle" }}>{r.fecha}</td>
+                      <td style={{ padding: "12px", verticalAlign: "middle" }}>
                         <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{r.concepto}</div>
                         {r.proyecto && <div style={{ fontSize: 11, color: "#9ca3af" }}>📁 {r.proyecto.codigo}</div>}
                         {r.categoria && <div style={{ fontSize: 11, color: "#9ca3af" }}>{r.categoria}</div>}
                       </td>
-                      <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>
+                      <td style={{ padding: "12px", fontSize: 12, color: "#374151", verticalAlign: "middle" }}>
                         {r.solicitante ? r.solicitante.nombre + " " + r.solicitante.apellido : "—"}
                       </td>
-                      <td style={{ padding: "12px", fontSize: 12, color: "#374151", fontWeight: 500 }}>
+                      <td style={{ padding: "12px", fontSize: 12, color: "#374151", fontWeight: 500, verticalAlign: "middle" }}>
                         {r.proveedor_nombre || "—"}
                       </td>
-                      <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: r.monto_debe > 0 ? "#991b1b" : "#9ca3af" }}>
-                      <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>
+                      <td style={{ padding: "12px", fontSize: 12, color: "#374151", verticalAlign: "middle" }}>
                         {r.destinatario || "—"}
                       </td>
+                      <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: r.monto_debe > 0 ? "#991b1b" : "#9ca3af", verticalAlign: "middle" }}>
                         {r.monto_debe > 0 ? fmt(r.monto_debe) : "—"}
                       </td>
-                      <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: r.monto_haber > 0 ? "#15803d" : "#9ca3af" }}>
+                      <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: r.monto_haber > 0 ? "#15803d" : "#9ca3af", verticalAlign: "middle" }}>
                         {r.monto_haber > 0 ? fmt(r.monto_haber) : "—"}
                       </td>
-                      <td style={{ padding: "12px" }}>
+                      <td style={{ padding: "12px", verticalAlign: "middle" }}>
                         <StatusBadge label={es.label} type={r.estado} />
                       </td>
-                      <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                      <td style={{ padding: "12px 16px", textAlign: "right", verticalAlign: "middle" }}>
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                           {esAprobador && r.estado === "pendiente" && (
                             <>
