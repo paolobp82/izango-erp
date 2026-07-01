@@ -53,6 +53,9 @@ export default function CRMPage() {
   const [filtroEstado, setFiltroEstado] = useState("")
   const [filtroTemp, setFiltroTemp] = useState("")
   const [filtroPeriodo, setFiltroPeriodo] = useState("actual")
+  const [filtroResponsable, setFiltroResponsable] = useState("")
+  const [filtroOrigen, setFiltroOrigen] = useState("")
+  const [filtroIndustria, setFiltroIndustria] = useState("")
   const [busqueda, setBusqueda] = useState("")
   const [form, setForm] = useState<any>(emptyForm)
   const [nuevaNota, setNuevaNota] = useState("")
@@ -308,8 +311,11 @@ export default function CRMPage() {
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 0 })
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
+  const inp: any = { padding: "8px 10px", border: "1px solid #dbe3ea", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
+  const sectionTitle: any = { fontSize: 12, fontWeight: 900, color: "#0f172a", textTransform: "uppercase", margin: "0 0 10px" }
+  const muted: any = { fontSize: 12, color: "#64748b" }
+  const panelSection: any = { padding: 14, border: "1px solid #e5e7eb", borderRadius: 12, background: "#fff" }
 
   const periodos = useMemo(() => {
     const valores = Array.from(new Set(leads.map(l => l.periodo_pipeline || periodoActual()).filter(Boolean)))
@@ -325,6 +331,9 @@ export default function CRMPage() {
   const filtrados = leadsPeriodo.filter(l => {
     if (filtroEstado && l.estado !== filtroEstado) return false
     if (filtroTemp && l.temperatura !== filtroTemp) return false
+    if (filtroResponsable && l.responsable_id !== filtroResponsable) return false
+    if (filtroOrigen && l.origen !== filtroOrigen) return false
+    if (filtroIndustria && l.industria !== filtroIndustria) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
       const texto = [l.razon_social, l.ruc, l.nombre_contacto, l.email_contacto, l.telefono_contacto, l.direccion].filter(Boolean).join(" ").toLowerCase()
@@ -351,120 +360,140 @@ export default function CRMPage() {
     return r ? `${r.nombre || ""} ${r.apellido || ""}`.trim() : ""
   }
 
+  const camposImport = [
+    {key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},
+    {key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},
+    {key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},
+    {key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},
+    {key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},
+    {key:"presupuesto_estimado",label:"Presupuesto estimado"},
+    {key:"probabilidad_cierre",label:"Probabilidad %"},{key:"periodo_pipeline",label:"Periodo pipeline"}
+  ]
+
+  async function importarLeads(registros: any[]) {
+    let exitosos = 0
+    const errores: string[] = []
+    for (const r of registros) {
+      const { error } = await supabase.from("crm_leads").insert({
+        ...r,
+        entidad: "peru",
+        estado: ESTADOS[r.estado] ? r.estado : "nuevo",
+        temperatura: r.temperatura || "frio",
+        periodo_pipeline: r.periodo_pipeline || periodoActual(),
+        archivado: false
+      })
+      if (error) errores.push(r.razon_social + ": " + error.message)
+      else exitosos++
+    }
+    load()
+    return { exitosos, errores }
+  }
+
+  const filtrosActivos = Boolean(filtroEstado || filtroTemp || filtroResponsable || filtroOrigen || filtroIndustria || busqueda || filtroPeriodo !== "actual")
+  const selectedClienteId = selected?.cliente_id || clientesConvertidos[selected?.id]?.id || selected?.cliente?.id
+  const kpis = [
+    { label: "Pipeline Comercial", value: fmt(totalPipeline), sub: `${leadsActivos.length} activas`, color: "#0F6E56" },
+    { label: "Cierre Esperado", value: fmt(cierreEsperado), sub: "Presupuesto ponderado", color: "#2563eb" },
+    { label: "Oportunidades Activas", value: leadsActivos.length, sub: `${leadsCalientes.length} calientes`, color: "#0f172a" },
+    { label: "Propuestas Abiertas", value: propuestasAbiertas.length, sub: fmt(propuestasAbiertas.reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)), color: "#f97316" },
+    { label: "Negocios Ganados", value: fmt(totalGanado), sub: `${leadsPeriodo.filter(l => l.estado === "ganado").length} clientes`, color: "#059669" },
+    { label: "Conversión", value: tasaConversion + "%", sub: "Ganados / periodo", color: "#7c3aed" },
+  ]
+
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
+    <div style={{ display: "grid", gap: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>CRM</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Gestión de oportunidades comerciales · {leadsPeriodo.length} leads</p>
+          <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0, color: "#0f172a" }}>CRM Comercial</h1>
+          <p style={{ ...muted, margin: "6px 0 0" }}>
+            {leadsActivos.length} oportunidades activas · {fmt(totalPipeline)} en pipeline · {tasaConversion}% conversión
+          </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginLeft: "auto" }}>
-          <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("crm_leads").insert({...r,entidad:"peru",estado:ESTADOS[r.estado]?r.estado:"nuevo",temperatura:r.temperatura||"frio",periodo_pipeline:r.periodo_pipeline||periodoActual(),archivado:false}); if(error)errores.push(r.razon_social+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
-          <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>
+          <ImportExport modulo="crm_leads" campos={camposImport} datos={leads} onImportar={importarLeads} />
+          <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13, padding: "9px 14px", fontWeight: 800 }}>+ Nuevo Lead</button>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
-        {[
-          { label: "Pipeline Comercial", value: fmt(totalPipeline), sub: `${leadsActivos.length} oportunidades activas`, icon: "◈", bg: "#eaf8f2", color: "#0F6E56" },
-          { label: "Cierre esperado", value: fmt(cierreEsperado), sub: "Presupuesto x probabilidad", icon: "↗", bg: "#eef4ff", color: "#2563eb" },
-          { label: "Propuestas abiertas", value: propuestasAbiertas.length, sub: fmt(propuestasAbiertas.reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)), icon: "▤", bg: "#fff7ed", color: "#f97316" },
-          { label: "Negocios Ganados", value: fmt(totalGanado), sub: `${leadsPeriodo.filter(l => l.estado === "ganado").length} clientes`, icon: "✓", bg: "#ecfdf5", color: "#059669" },
-          { label: "Conversión", value: tasaConversion + "%", sub: `${leadsCalientes.length} leads calientes`, icon: "●", bg: "#fef2f2", color: "#ef4444" },
-        ].map(k => (
-          <div key={k.label} className="card" style={{ display: "flex", alignItems: "center", gap: 16, minHeight: 104, border: "1px solid #e5e7eb", boxShadow: "0 10px 25px rgba(15,23,42,.04)" }}>
-            <div style={{ width: 52, height: 52, borderRadius: 16, background: k.bg, color: k.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 900 }}>
-              {k.icon}
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 900, color: "#111827", textTransform: "uppercase", letterSpacing: "-0.01em" }}>{k.label}</div>
-              <div style={{ fontSize: 24, fontWeight: 900, color: k.color, marginTop: 4 }}>{k.value}</div>
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{k.sub}</div>
-            </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+        {kpis.map(k => (
+          <div key={k.label} className="card" style={{ minHeight: 82, padding: 14, border: "1px solid #e5e7eb", boxShadow: "0 8px 18px rgba(15,23,42,.04)" }}>
+            <div style={{ fontSize: 10, fontWeight: 900, color: "#64748b", textTransform: "uppercase" }}>{k.label}</div>
+            <div style={{ fontSize: 22, lineHeight: "28px", fontWeight: 900, color: k.color, marginTop: 4 }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{k.sub}</div>
           </div>
         ))}
       </div>
 
       {showForm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 760, maxHeight: "92vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>{editando ? "Editar lead" : "Nuevo lead"}</h2>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>x</button>
-            </div>
-            <div style={{ display: "grid", gap: 14 }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.46)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 14, padding: 24, width: "100%", maxWidth: 860, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 24px 60px rgba(15,23,42,.22)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
               <div>
-                <label style={lbl}>Cliente existente</label>
+                <h2 style={{ fontSize: 18, fontWeight: 900, margin: 0, color: "#0f172a" }}>{editando ? "Editar lead" : "Nuevo lead"}</h2>
+                <p style={{ ...muted, margin: "4px 0 0" }}>Ficha comercial conectada con Clientes</p>
+              </div>
+              <button onClick={() => setShowForm(false)} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 8, cursor: "pointer", color: "#64748b", fontSize: 18, width: 34, height: 34 }}>x</button>
+            </div>
+
+            <div style={{ display: "grid", gap: 14 }}>
+              <section style={panelSection}>
+                <h3 style={sectionTitle}>Cliente existente</h3>
                 <select style={inp} value={form.cliente_id} onChange={e => aplicarCliente(e.target.value)}>
                   <option value="">Sin cliente vinculado</option>
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
                 </select>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>Empresa / nombre *</label><input style={inp} value={form.razon_social} onChange={e => setForm({ ...form, razon_social: e.target.value })} /></div>
-                <div><label style={lbl}>RUC</label><input style={inp} value={form.ruc} onChange={e => setForm({ ...form, ruc: e.target.value })} /></div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>Contacto</label><input style={inp} value={form.nombre_contacto} onChange={e => setForm({ ...form, nombre_contacto: e.target.value })} /></div>
-                <div><label style={lbl}>Email</label><input style={inp} value={form.email_contacto} onChange={e => setForm({ ...form, email_contacto: e.target.value })} /></div>
-                <div><label style={lbl}>Teléfono</label><input style={inp} value={form.telefono_contacto} onChange={e => setForm({ ...form, telefono_contacto: e.target.value })} /></div>
-              </div>
-              <div><label style={lbl}>Dirección</label><input style={inp} value={form.direccion} onChange={e => setForm({ ...form, direccion: e.target.value })} /></div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>Cargo</label><input style={inp} value={form.cargo_contacto} onChange={e => setForm({ ...form, cargo_contacto: e.target.value })} /></div>
-                <div>
-                  <label style={lbl}>Origen</label>
-                  <select style={inp} value={form.origen} onChange={e => setForm({ ...form, origen: e.target.value })}>
-                    <option value="">Seleccionar</option>
-                    {ORIGENES.map(o => <option key={o}>{o}</option>)}
-                  </select>
+              </section>
+
+              <section style={panelSection}>
+                <h3 style={sectionTitle}>Empresa</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(160px, .6fr)", gap: 12 }}>
+                  <div><label style={lbl}>Empresa / nombre *</label><input style={inp} value={form.razon_social} onChange={e => setForm({ ...form, razon_social: e.target.value })} /></div>
+                  <div><label style={lbl}>RUC</label><input style={inp} value={form.ruc} onChange={e => setForm({ ...form, ruc: e.target.value })} /></div>
                 </div>
-                <div>
-                  <label style={lbl}>Industria</label>
-                  <select style={inp} value={form.industria} onChange={e => setForm({ ...form, industria: e.target.value })}>
-                    <option value="">Seleccionar</option>
-                    {INDUSTRIAS.map(i => <option key={i}>{i}</option>)}
-                  </select>
+                <div style={{ marginTop: 12 }}><label style={lbl}>Dirección</label><input style={inp} value={form.direccion} onChange={e => setForm({ ...form, direccion: e.target.value })} /></div>
+              </section>
+
+              <section style={panelSection}>
+                <h3 style={sectionTitle}>Contacto</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+                  <div><label style={lbl}>Contacto</label><input style={inp} value={form.nombre_contacto} onChange={e => setForm({ ...form, nombre_contacto: e.target.value })} /></div>
+                  <div><label style={lbl}>Cargo</label><input style={inp} value={form.cargo_contacto} onChange={e => setForm({ ...form, cargo_contacto: e.target.value })} /></div>
+                  <div><label style={lbl}>Email</label><input style={inp} value={form.email_contacto} onChange={e => setForm({ ...form, email_contacto: e.target.value })} /></div>
+                  <div><label style={lbl}>Teléfono</label><input style={inp} value={form.telefono_contacto} onChange={e => setForm({ ...form, telefono_contacto: e.target.value })} /></div>
                 </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>Estado</label>
-                  <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
-                    {ESTADOS_PIPELINE.map(k => <option key={k} value={k}>{ESTADOS[k].label}</option>)}
-                  </select>
+              </section>
+
+              <section style={panelSection}>
+                <h3 style={sectionTitle}>Comercial</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+                  <div><label style={lbl}>Estado</label><select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>{ESTADOS_PIPELINE.map(k => <option key={k} value={k}>{ESTADOS[k].label}</option>)}</select></div>
+                  <div><label style={lbl}>Temperatura</label><select style={inp} value={form.temperatura} onChange={e => setForm({ ...form, temperatura: e.target.value })}>{Object.entries(TEMPERATURAS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
+                  <div><label style={lbl}>Origen</label><select style={inp} value={form.origen} onChange={e => setForm({ ...form, origen: e.target.value })}><option value="">Seleccionar</option>{ORIGENES.map(o => <option key={o}>{o}</option>)}</select></div>
+                  <div><label style={lbl}>Industria</label><select style={inp} value={form.industria} onChange={e => setForm({ ...form, industria: e.target.value })}><option value="">Seleccionar</option>{INDUSTRIAS.map(i => <option key={i}>{i}</option>)}</select></div>
+                  <div><label style={lbl}>Presupuesto est.</label><input type="number" style={inp} value={form.presupuesto_estimado} onChange={e => setForm({ ...form, presupuesto_estimado: e.target.value })} /></div>
+                  <div><label style={lbl}>Probabilidad %</label><input type="number" min={0} max={100} style={inp} value={form.probabilidad_cierre} onChange={e => setForm({ ...form, probabilidad_cierre: Number(e.target.value) })} /></div>
+                  <div><label style={lbl}>Próxima acción</label><input type="date" style={inp} value={form.fecha_proxima_accion} onChange={e => setForm({ ...form, fecha_proxima_accion: e.target.value })} /></div>
+                  <div><label style={lbl}>Periodo pipeline</label><input style={inp} value={form.periodo_pipeline} onChange={e => setForm({ ...form, periodo_pipeline: e.target.value })} placeholder="YYYY-MM" /></div>
+                  <div style={{ gridColumn: "span 2" }}><label style={lbl}>Responsable</label><select style={inp} value={form.responsable_id} onChange={e => setForm({ ...form, responsable_id: e.target.value })}><option value="">Sin responsable</option>{responsables.map(r => <option key={r.id} value={r.id}>{r.apellido} {r.nombre}</option>)}</select></div>
                 </div>
-                <div>
-                  <label style={lbl}>Temperatura</label>
-                  <select style={inp} value={form.temperatura} onChange={e => setForm({ ...form, temperatura: e.target.value })}>
-                    {Object.entries(TEMPERATURAS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
-                <div><label style={lbl}>Presupuesto est.</label><input type="number" style={inp} value={form.presupuesto_estimado} onChange={e => setForm({ ...form, presupuesto_estimado: e.target.value })} /></div>
-                <div><label style={lbl}>Probabilidad %</label><input type="number" min={0} max={100} style={inp} value={form.probabilidad_cierre} onChange={e => setForm({ ...form, probabilidad_cierre: Number(e.target.value) })} /></div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>Próxima acción</label><input type="date" style={inp} value={form.fecha_proxima_accion} onChange={e => setForm({ ...form, fecha_proxima_accion: e.target.value })} /></div>
-                <div><label style={lbl}>Periodo pipeline</label><input style={inp} value={form.periodo_pipeline} onChange={e => setForm({ ...form, periodo_pipeline: e.target.value })} placeholder="YYYY-MM" /></div>
-                <div>
-                  <label style={lbl}>Responsable</label>
-                  <select style={inp} value={form.responsable_id} onChange={e => setForm({ ...form, responsable_id: e.target.value })}>
-                    <option value="">Sin responsable</option>
-                    {responsables.map(r => <option key={r.id} value={r.id}>{r.apellido} {r.nombre}</option>)}
-                  </select>
-                </div>
-              </div>
-              {!form.cliente_id && (
-                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
-                  <input type="checkbox" checked={form.crear_cliente} onChange={e => setForm({ ...form, crear_cliente: e.target.checked })} />
-                  Crear también en Clientes al guardar
-                </label>
-              )}
-              <div><label style={lbl}>Notas / seguimiento</label><textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} /></div>
+              </section>
+
+              <section style={panelSection}>
+                <h3 style={sectionTitle}>Seguimiento</h3>
+                {!form.cliente_id && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151", marginBottom: 10 }}>
+                    <input type="checkbox" checked={form.crear_cliente} onChange={e => setForm({ ...form, crear_cliente: e.target.checked })} />
+                    Crear también en Clientes al guardar
+                  </label>
+                )}
+                <textarea style={{ ...inp, minHeight: 78, resize: "vertical" }} value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} placeholder="Notas / seguimiento" />
+              </section>
             </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 18 }}>
               <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
               <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : editando ? "Actualizar" : "Crear lead"}</button>
             </div>
@@ -472,113 +501,72 @@ export default function CRMPage() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 380px" : "1fr", gap: 20 }}>
-        <div>
-          <div className="card" style={{ marginBottom: 16, padding: "14px 16px", border: "1px solid #e5e7eb", boxShadow: "0 8px 20px rgba(15,23,42,.03)" }}>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <input style={{ ...inp, width: 220 }} placeholder="Buscar lead..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-              <select style={{ ...inp, width: "auto" }} value={filtroPeriodo} onChange={e => setFiltroPeriodo(e.target.value)}>
-                <option value="actual">Pipeline actual</option>
-                <option value="todos">Todos</option>
-                {periodos.filter(p => p !== periodoActual()).map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
-                <option value="">Todos los estados</option>
-                {ESTADOS_PIPELINE.map(k => <option key={k} value={k}>{ESTADOS[k].label}</option>)}
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={filtroTemp} onChange={e => setFiltroTemp(e.target.value)}>
-                <option value="">Todas las temp.</option>
-                {Object.entries(TEMPERATURAS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-              {(filtroEstado || filtroTemp || busqueda || filtroPeriodo !== "actual") && (
-                <button onClick={() => { setFiltroEstado(""); setFiltroTemp(""); setBusqueda(""); setFiltroPeriodo("actual") }}
-                  style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>Limpiar</button>
-              )}
-              <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: "auto" }}>{filtrados.length} resultados</span>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginLeft: "auto" }}>
-                <button onClick={archivarCerradosDelMes} disabled={archivando} className="btn-secondary" style={{ fontSize: 13 }}>{archivando ? "Archivando..." : "Archivar cerrados del mes"}</button>
-                <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>
-              </div>
-            </div>
+      <div className="card" style={{ padding: 14, border: "1px solid #e5e7eb", boxShadow: "0 8px 18px rgba(15,23,42,.03)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(190px, 1.3fr) repeat(6, minmax(130px, 1fr)) auto", gap: 10, alignItems: "center" }}>
+          <input style={inp} placeholder="Buscar lead..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+          <select style={inp} value={filtroPeriodo} onChange={e => setFiltroPeriodo(e.target.value)}><option value="actual">Pipeline actual</option><option value="todos">Todos</option>{periodos.filter(p => p !== periodoActual()).map(p => <option key={p} value={p}>{p}</option>)}</select>
+          <select style={inp} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}><option value="">Todos los estados</option>{ESTADOS_PIPELINE.map(k => <option key={k} value={k}>{ESTADOS[k].label}</option>)}</select>
+          <select style={inp} value={filtroTemp} onChange={e => setFiltroTemp(e.target.value)}><option value="">Temperatura</option>{Object.entries(TEMPERATURAS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
+          <select style={inp} value={filtroResponsable} onChange={e => setFiltroResponsable(e.target.value)}><option value="">Responsable</option>{responsables.map(r => <option key={r.id} value={r.id}>{r.apellido} {r.nombre}</option>)}</select>
+          <select style={inp} value={filtroOrigen} onChange={e => setFiltroOrigen(e.target.value)}><option value="">Origen</option>{ORIGENES.map(o => <option key={o}>{o}</option>)}</select>
+          <select style={inp} value={filtroIndustria} onChange={e => setFiltroIndustria(e.target.value)}><option value="">Industria</option>{INDUSTRIAS.map(i => <option key={i}>{i}</option>)}</select>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            {filtrosActivos && <button onClick={() => { setFiltroEstado(""); setFiltroTemp(""); setFiltroResponsable(""); setFiltroOrigen(""); setFiltroIndustria(""); setBusqueda(""); setFiltroPeriodo("actual") }} className="btn-secondary" style={{ fontSize: 12 }}>Limpiar</button>}
+            <button onClick={archivarCerradosDelMes} disabled={archivando} className="btn-secondary" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{archivando ? "Archivando..." : "Archivar mes"}</button>
           </div>
+        </div>
+      </div>
 
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 18, background: "#fff", padding: 12, boxShadow: "0 10px 24px rgba(15,23,42,.03)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 10, color: "#64748b", fontSize: 12 }}>
-              <span>Pipeline de 7 etapas</span>
-              <span>Desplázate horizontalmente para ver todo el flujo</span>
+      <div style={{ display: "grid", gridTemplateColumns: selected ? "minmax(0, 1fr) 360px" : "minmax(0, 1fr)", gap: 18, alignItems: "start" }}>
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 16, background: "#fff", padding: 12, boxShadow: "0 10px 24px rgba(15,23,42,.03)", minWidth: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 900, color: "#0f172a" }}>Pipeline comercial</div>
+              <div style={muted}>{filtrados.length} resultados · 7 etapas</div>
             </div>
-            <div style={{ overflowX: "auto", paddingBottom: 10, scrollbarGutter: "stable" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 280px)", gap: 16, width: "max-content" }}>
+            <div style={{ ...muted, color: "#94a3b8" }}>Scroll horizontal</div>
+          </div>
+          <div style={{ overflowX: "auto", paddingBottom: 10, scrollbarGutter: "stable" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 238px)", gap: 12, width: "max-content" }}>
               {ESTADOS_PIPELINE.map(estado => {
                 const ec = ESTADOS[estado]
                 const lista = leadsPorEstado(estado)
                 return (
-                  <div key={estado} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 18, overflow: "hidden", boxShadow: "0 12px 28px rgba(15,23,42,.04)" }}>
-                    <div style={{ padding: "14px 16px", borderBottom: "1px solid #e5e7eb", background: "#fff" }}>
+                  <div key={estado} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 14, overflow: "hidden" }}>
+                    <div style={{ padding: "12px 12px 10px", borderBottom: "1px solid #e5e7eb", background: "#fff" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 99, background: ec.color }} />
-                          <div style={{ fontSize: 14, fontWeight: 900, color: "#111827" }}>{ec.label}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 99, background: ec.color, flex: "0 0 auto" }} />
+                          <div style={{ fontSize: 13, fontWeight: 900, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ec.label}</div>
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: ec.color, background: ec.bg, padding: "3px 8px", borderRadius: 99 }}>
-                          {lista.length}
-                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 900, color: ec.color, background: ec.bg, padding: "3px 8px", borderRadius: 99 }}>{lista.length}</span>
                       </div>
-                      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{fmt(valorPorEstado(estado))}</div>
+                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{fmt(valorPorEstado(estado))}</div>
                     </div>
-
-                    <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10, minHeight: 360 }}>
+                    <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 9, height: 430, overflowY: "auto" }}>
                       {lista.length === 0 ? (
-                        <div style={{ border: "1px dashed #d1d5db", borderRadius: 12, padding: "24px 12px", textAlign: "center", color: "#9ca3af", fontSize: 12 }}>
-                          Sin leads
+                        <div style={{ border: "1px dashed #cbd5e1", borderRadius: 12, padding: "22px 10px", textAlign: "center", color: "#94a3b8", fontSize: 12, background: "#fff" }}>
+                          Sin oportunidades
                         </div>
                       ) : lista.map(lead => {
                         const tc = TEMPERATURAS[lead.temperatura] || { color: "#6b7280", label: lead.temperatura }
                         const responsable = responsableNombre(lead.responsable_id)
                         return (
-                          <div key={lead.id}
-                            onClick={() => { setSelected(lead); loadNotas(lead.id) }}
-                            style={{
-                              background: selected?.id === lead.id ? "#ecfdf5" : "#fff",
-                              border: selected?.id === lead.id ? "1px solid #03E373" : "1px solid #e5e7eb",
-                              borderRadius: 14,
-                              padding: 14,
-                              boxShadow: "0 10px 24px rgba(15,23,42,.06)",
-                              cursor: "pointer"
-                            }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: 14, fontWeight: 900, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {lead.razon_social}
-                                </div>
-                                {lead.cliente_id && <div style={{ fontSize: 11, color: "#0F6E56", marginTop: 2, fontWeight: 700 }}>Cliente vinculado</div>}
+                          <div key={lead.id} onClick={() => { setSelected(lead); loadNotas(lead.id) }}
+                            style={{ background: selected?.id === lead.id ? "#ecfdf5" : "#fff", border: selected?.id === lead.id ? "1px solid #03E373" : "1px solid #e5e7eb", borderRadius: 12, padding: 12, boxShadow: selected?.id === lead.id ? "0 10px 22px rgba(3,227,115,.16)" : "0 8px 18px rgba(15,23,42,.05)", cursor: "pointer" }}>
+                            <div style={{ fontSize: 13, fontWeight: 900, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.razon_social}</div>
+                            {lead.cliente_id && <div style={{ fontSize: 10, color: "#0F6E56", marginTop: 2, fontWeight: 800 }}>Cliente vinculado</div>}
+                            <div style={{ display: "grid", gap: 5, fontSize: 11, color: "#475569", marginTop: 8 }}>
+                              {lead.nombre_contacto && <div>{lead.nombre_contacto}{lead.cargo_contacto ? " · " + lead.cargo_contacto : ""}</div>}
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                                <strong style={{ color: "#0f172a" }}>{lead.presupuesto_estimado ? fmt(lead.presupuesto_estimado) : "Sin presupuesto"}</strong>
+                                <span>{lead.probabilidad_cierre || 0}%</span>
                               </div>
-                              <div style={{ display: "flex", gap: 6 }}>
-                                <button onClick={e => { e.stopPropagation(); abrirEditar(lead) }}
-                                  style={{ border: "1px solid #e5e7eb", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#374151" }}>
-                                  Editar
-                                </button>
-                                <button onClick={e => { e.stopPropagation(); cambiarEstado(lead.id, "ganado") }}
-                                  style={{ border: "1px solid #bbf7d0", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#15803d" }}>
-                                  Ganar
-                                </button>
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                                <span style={{ color: tc.color, background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 99, padding: "2px 7px", fontWeight: 800 }}>{tc.label}</span>
+                                {lead.fecha_proxima_accion && <span style={{ color: "#d97706" }}>{lead.fecha_proxima_accion}</span>}
                               </div>
-                            </div>
-
-                            <div style={{ display: "grid", gap: 6, fontSize: 12, color: "#4b5563" }}>
-                              {lead.nombre_contacto && <div>Contacto: {lead.nombre_contacto}</div>}
-                              {(lead.telefono_contacto || lead.email_contacto) && <div>{lead.telefono_contacto || lead.email_contacto}</div>}
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                                <span>{lead.presupuesto_estimado ? fmt(lead.presupuesto_estimado) : "Sin presupuesto"}</span>
-                                <strong style={{ color: lead.probabilidad_cierre >= 70 ? "#0F6E56" : lead.probabilidad_cierre >= 40 ? "#ca8a04" : "#6b7280" }}>
-                                  {lead.probabilidad_cierre || 0}%
-                                </strong>
-                              </div>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                                <span style={{ color: tc.color, fontWeight: 800 }}>● {tc.label}</span>
-                                {lead.fecha_proxima_accion && <span style={{ color: "#d97706", fontSize: 11 }}>Próx. {lead.fecha_proxima_accion}</span>}
-                              </div>
-                              {responsable && <div style={{ fontSize: 11, color: "#64748b" }}>Responsable: {responsable}</div>}
+                              {responsable && <div style={{ color: "#64748b" }}>Resp. {responsable}</div>}
                             </div>
                           </div>
                         )
@@ -588,112 +576,94 @@ export default function CRMPage() {
                 )
               })}
             </div>
-            </div>
           </div>
         </div>
 
         {selected && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div className="card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+          <aside style={{ display: "grid", gap: 12, position: "sticky", top: 16 }}>
+            <div className="card" style={{ display: "grid", gap: 12, border: "1px solid #e5e7eb", boxShadow: "0 10px 24px rgba(15,23,42,.04)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                 <div>
-                  <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "#111827" }}>{selected.razon_social}</h2>
-                  <div style={{ fontSize: 12, color: selected.cliente_id ? "#0F6E56" : "#9ca3af", marginTop: 2, fontWeight: selected.cliente_id ? 700 : 400 }}>
-                    {selected.cliente_id ? "Cliente vinculado" : "Sin cliente vinculado"}
-                  </div>
+                  <h2 style={{ fontSize: 17, fontWeight: 900, margin: 0, color: "#0f172a" }}>{selected.razon_social}</h2>
+                  <div style={{ fontSize: 12, color: selected.cliente_id ? "#0F6E56" : "#94a3b8", marginTop: 3, fontWeight: 800 }}>{selected.cliente_id ? "Cliente vinculado" : "Sin cliente vinculado"}</div>
                 </div>
-                <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 18 }}>x</button>
+                <button onClick={() => setSelected(null)} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 8, cursor: "pointer", color: "#64748b", width: 30, height: 30 }}>x</button>
               </div>
-              <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
-                <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Cliente existente: </span>{selected.cliente_id ? "Sí" : "No"}</div>
-                {selected.ruc && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>RUC: </span>{selected.ruc}</div>}
-                {selected.nombre_contacto && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Contacto: </span>{selected.nombre_contacto}{selected.cargo_contacto ? " · " + selected.cargo_contacto : ""}</div>}
-                {selected.email_contacto && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Email: </span>{selected.email_contacto}</div>}
-                {selected.telefono_contacto && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Tel: </span>{selected.telefono_contacto}</div>}
-                {selected.direccion && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Dirección: </span>{selected.direccion}</div>}
-                {selected.origen && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Origen: </span>{selected.origen}</div>}
-                {selected.industria && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Industria: </span>{selected.industria}</div>}
-                {selected.periodo_pipeline && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Periodo: </span>{selected.periodo_pipeline}</div>}
-                {responsableNombre(selected.responsable_id) && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Responsable: </span>{responsableNombre(selected.responsable_id)}</div>}
-                {selected.fecha_proxima_accion && <div style={{ fontSize: 13, color: "#d97706", fontWeight: 600 }}>Próxima acción: {selected.fecha_proxima_accion}</div>}
-                {selected.notas && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Notas: </span>{selected.notas}</div>}
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>CAMBIAR ESTADO</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {ESTADOS_PIPELINE.map(k => {
-                    const v = ESTADOS[k]
-                    return (
-                      <button key={k} onClick={() => cambiarEstado(selected.id, k)}
-                        style={{ padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                          background: selected.estado === k ? v.color : v.bg,
-                          color: selected.estado === k ? "#fff" : v.color,
-                          border: "1px solid " + v.color }}>
-                        {v.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-              {selected.presupuesto_estimado > 0 && (
-                <div style={{ background: "#f0fdf4", borderRadius: 8, padding: "10px 14px", marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, color: "#6b7280" }}>Presupuesto estimado</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "#0F6E56" }}>{fmt(selected.presupuesto_estimado)}</div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>Prob. cierre: {selected.probabilidad_cierre}%</div>
-                </div>
-              )}
-              <div style={{ display: "grid", gap: 8 }}>
-                <button onClick={() => abrirEditar(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Editar</button>
-                {!selected.cliente_id && (
-                  <button onClick={() => convertirACliente(selected, true)}
-                    style={{ width: "100%", padding: "8px", background: "#0F6E56", border: "none", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                    Convertir a cliente
-                  </button>
-                )}
-                <button disabled className="btn-secondary" style={{ fontSize: 13, width: "100%", opacity: .55, cursor: "not-allowed" }}>Crear propuesta</button>
-                <button onClick={() => archivarLead(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Archivar</button>
-                <button onClick={() => eliminarLead(selected)}
-                  style={{ width: "100%", padding: "8px", background: "#fff", border: "1px solid #fecaca", borderRadius: 8, color: "#dc2626", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  Eliminar
-                </button>
-              </div>
-              {clientesConvertidos[selected.id] && (
-                <div style={{ display: "grid", gap: 8, marginTop: 12, padding: 12, border: "1px solid #bbf7d0", borderRadius: 10, background: "#f0fdf4" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>Cliente creado</div>
-                  <button onClick={() => router.push(`/clientes/${clientesConvertidos[selected.id].id}`)}
-                    className="btn-secondary" style={{ fontSize: 12, width: "100%" }}>
-                    Ver cliente
-                  </button>
-                  <button onClick={() => router.push(`/proyectos/nuevo?cliente_id=${clientesConvertidos[selected.id].id}`)}
-                    className="btn-primary" style={{ fontSize: 12, width: "100%" }}>
-                    Crear proyecto para este cliente
-                  </button>
-                </div>
-              )}
-            </div>
 
-            <div className="card">
-              <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 12px", color: "#374151" }}>Seguimiento</h3>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <input style={{ ...inp, flex: 1, fontSize: 12 }} value={nuevaNota} placeholder="Agregar nota..."
-                  onChange={e => setNuevaNota(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && agregarNota()} />
-                <button onClick={agregarNota} className="btn-primary" style={{ fontSize: 12, padding: "6px 12px" }}>+</button>
-              </div>
-              <div style={{ maxHeight: 220, overflowY: "auto", display: "grid", gap: 8 }}>
-                {notas.length === 0 ? (
-                  <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 12 }}>Sin notas aun</div>
-                ) : notas.map((nota: any) => (
-                  <div key={nota.id} style={{ background: "#f9fafb", borderRadius: 8, padding: "8px 12px" }}>
-                    <div style={{ fontSize: 12, color: "#374151" }}>{nota.contenido}</div>
-                    <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>
-                      {new Date(nota.created_at).toLocaleDateString("es-PE")}
-                    </div>
+              <section style={panelSection}>
+                <h3 style={sectionTitle}>Empresa</h3>
+                <div style={{ display: "grid", gap: 7, fontSize: 13 }}>
+                  <div><span style={{ color: "#94a3b8" }}>Razón social: </span>{selected.razon_social || "—"}</div>
+                  <div><span style={{ color: "#94a3b8" }}>Cliente vinculado: </span>{selected.cliente_id ? "Sí" : "No"}</div>
+                  <div><span style={{ color: "#94a3b8" }}>RUC: </span>{selected.ruc || "—"}</div>
+                  <div><span style={{ color: "#94a3b8" }}>Industria: </span>{selected.industria || "—"}</div>
+                  <div><span style={{ color: "#94a3b8" }}>Dirección: </span>{selected.direccion || "—"}</div>
+                </div>
+              </section>
+
+              <section style={panelSection}>
+                <h3 style={sectionTitle}>Contacto</h3>
+                <div style={{ display: "grid", gap: 7, fontSize: 13 }}>
+                  <div><span style={{ color: "#94a3b8" }}>Nombre: </span>{selected.nombre_contacto || "—"}</div>
+                  <div><span style={{ color: "#94a3b8" }}>Cargo: </span>{selected.cargo_contacto || "—"}</div>
+                  <div><span style={{ color: "#94a3b8" }}>Email: </span>{selected.email_contacto || "—"}</div>
+                  <div><span style={{ color: "#94a3b8" }}>Teléfono: </span>{selected.telefono_contacto || "—"}</div>
+                </div>
+              </section>
+
+              <section style={panelSection}>
+                <h3 style={sectionTitle}>Comercial</h3>
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {ESTADOS_PIPELINE.map(k => {
+                      const v = ESTADOS[k]
+                      return <button key={k} onClick={() => cambiarEstado(selected.id, k)} style={{ padding: "4px 9px", borderRadius: 99, fontSize: 11, fontWeight: 800, cursor: "pointer", background: selected.estado === k ? v.color : v.bg, color: selected.estado === k ? "#fff" : v.color, border: "1px solid " + v.color }}>{v.label}</button>
+                    })}
                   </div>
-                ))}
-              </div>
+                  <div style={{ display: "grid", gap: 7, fontSize: 13 }}>
+                    <div><span style={{ color: "#94a3b8" }}>Origen: </span>{selected.origen || "—"}</div>
+                    <div><span style={{ color: "#94a3b8" }}>Temperatura: </span>{TEMPERATURAS[selected.temperatura]?.label || "—"}</div>
+                    <div><span style={{ color: "#94a3b8" }}>Responsable: </span>{responsableNombre(selected.responsable_id) || "—"}</div>
+                    <div><span style={{ color: "#94a3b8" }}>Presupuesto: </span>{selected.presupuesto_estimado ? fmt(selected.presupuesto_estimado) : "—"}</div>
+                    <div><span style={{ color: "#94a3b8" }}>Probabilidad: </span>{selected.probabilidad_cierre || 0}%</div>
+                  </div>
+                </div>
+              </section>
+
+              <section style={{ ...panelSection, borderColor: selected.fecha_proxima_accion ? "#fde68a" : "#e5e7eb", background: selected.fecha_proxima_accion ? "#fffbeb" : "#fff" }}>
+                <h3 style={sectionTitle}>Próxima acción</h3>
+                <div style={{ fontSize: 13, color: selected.fecha_proxima_accion ? "#92400e" : "#94a3b8", fontWeight: selected.fecha_proxima_accion ? 800 : 400 }}>{selected.fecha_proxima_accion || "Sin próxima acción definida"}</div>
+              </section>
+
+              <section style={panelSection}>
+                <h3 style={sectionTitle}>Seguimiento</h3>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <input style={{ ...inp, flex: 1, fontSize: 12 }} value={nuevaNota} placeholder="Agregar nota..." onChange={e => setNuevaNota(e.target.value)} onKeyDown={e => e.key === "Enter" && agregarNota()} />
+                  <button onClick={agregarNota} className="btn-primary" style={{ fontSize: 12, padding: "6px 12px" }}>+</button>
+                </div>
+                <div style={{ maxHeight: 190, overflowY: "auto", display: "grid", gap: 8 }}>
+                  {notas.length === 0 ? <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center", padding: 10 }}>Sin notas aun</div> : notas.map((nota: any) => (
+                    <div key={nota.id} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px" }}>
+                      <div style={{ fontSize: 12, color: "#334155" }}>{nota.contenido}</div>
+                      <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>{new Date(nota.created_at).toLocaleDateString("es-PE")}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section style={panelSection}>
+                <h3 style={sectionTitle}>Acciones</h3>
+                <div style={{ display: "grid", gap: 8 }}>
+                  <button onClick={() => abrirEditar(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Editar</button>
+                  {!selected.cliente_id && <button onClick={() => convertirACliente(selected, true)} className="btn-primary" style={{ fontSize: 13, width: "100%" }}>Convertir a cliente</button>}
+                  {selectedClienteId && <button onClick={() => router.push(`/proyectos/nuevo?cliente_id=${selectedClienteId}`)} className="btn-primary" style={{ fontSize: 13, width: "100%" }}>Crear proyecto</button>}
+                  <button disabled className="btn-secondary" style={{ fontSize: 13, width: "100%", opacity: .55, cursor: "not-allowed" }}>Crear propuesta</button>
+                  <button onClick={() => archivarLead(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Archivar</button>
+                  <button onClick={() => eliminarLead(selected)} style={{ width: "100%", padding: "8px", background: "#fff", border: "1px solid #fecaca", borderRadius: 8, color: "#dc2626", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>Eliminar</button>
+                </div>
+              </section>
             </div>
-          </div>
+          </aside>
         )}
       </div>
     </div>
