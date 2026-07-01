@@ -32,7 +32,7 @@ function periodoActual() {
 
 const emptyForm = {
   razon_social: "", ruc: "", nombre_contacto: "", email_contacto: "",
-  telefono_contacto: "", cargo_contacto: "", origen: "", estado: "nuevo",
+  telefono_contacto: "", direccion: "", cargo_contacto: "", origen: "", estado: "nuevo",
   temperatura: "frio", industria: "", presupuesto_estimado: "",
   probabilidad_cierre: 0, fecha_proxima_accion: "", notas: "",
   responsable_id: "", cliente_id: "", periodo_pipeline: periodoActual(),
@@ -67,11 +67,11 @@ export default function CRMPage() {
     const [leadsRes, clientesRes, perfilesRes] = await Promise.all([
       supabase
         .from("crm_leads")
-        .select("*, cliente:clientes(id, razon_social, nombre_contacto, email_contacto, telefono_contacto)")
+        .select("*, cliente:clientes(id, razon_social, ruc, direccion, nombre_contacto, email_contacto, telefono_contacto, nombre_contacto_admin, email_contacto_admin, telefono_contacto_admin)")
         .order("created_at", { ascending: false }),
       supabase
         .from("clientes")
-        .select("id, razon_social, ruc, nombre_contacto, email_contacto, telefono_contacto")
+        .select("id, razon_social, ruc, direccion, nombre_contacto, email_contacto, telefono_contacto, nombre_contacto_admin, email_contacto_admin, telefono_contacto_admin, banco_1, numero_cuenta_1, cci_1")
         .order("razon_social"),
       supabase
         .from("perfiles")
@@ -103,6 +103,10 @@ export default function CRMPage() {
       periodo_pipeline: lead.periodo_pipeline || periodoActual(),
       fecha_proxima_accion: lead.fecha_proxima_accion || lead.fecha_proximo_contacto || "",
       nombre_contacto: lead.nombre_contacto || lead.contacto_nombre || "",
+      ruc: lead.ruc || lead.cliente?.ruc || "",
+      email_contacto: lead.email_contacto || lead.cliente?.email_contacto || "",
+      telefono_contacto: lead.telefono_contacto || lead.cliente?.telefono_contacto || "",
+      direccion: lead.direccion || lead.cliente?.direccion || "",
       cliente_id: lead.cliente_id || null,
       archivado: Boolean(lead.archivado),
     }
@@ -120,7 +124,8 @@ export default function CRMPage() {
     setForm({
       razon_social: normalizado.razon_social || "", ruc: normalizado.ruc || "",
       nombre_contacto: normalizado.nombre_contacto || "", email_contacto: normalizado.email_contacto || "",
-      telefono_contacto: normalizado.telefono_contacto || "", cargo_contacto: normalizado.cargo_contacto || "",
+      telefono_contacto: normalizado.telefono_contacto || "", direccion: normalizado.direccion || "",
+      cargo_contacto: normalizado.cargo_contacto || "",
       origen: normalizado.origen || "", estado: normalizado.estado || "nuevo",
       temperatura: normalizado.temperatura || "frio", industria: normalizado.industria || "",
       presupuesto_estimado: normalizado.presupuesto_estimado || "",
@@ -147,6 +152,7 @@ export default function CRMPage() {
       nombre_contacto: cliente.nombre_contacto || prev.nombre_contacto,
       email_contacto: cliente.email_contacto || prev.email_contacto,
       telefono_contacto: cliente.telefono_contacto || prev.telefono_contacto,
+      direccion: cliente.direccion || prev.direccion,
       crear_cliente: false,
     }))
   }
@@ -168,6 +174,7 @@ export default function CRMPage() {
       contacto_nombre: form.nombre_contacto || null,
       email_contacto: form.email_contacto || null,
       telefono_contacto: form.telefono_contacto || null,
+      direccion: form.direccion || null,
       cargo_contacto: form.cargo_contacto || null,
       origen: form.origen || null,
       estado: ESTADOS[form.estado] ? form.estado : "nuevo",
@@ -246,7 +253,12 @@ export default function CRMPage() {
   async function buscarOCrearCliente(datos: any) {
     const email = String(datos.email_contacto || "").trim()
     const razon = String(datos.razon_social || "").trim()
+    const ruc = String(datos.ruc || "").trim()
 
+    if (ruc) {
+      const { data } = await supabase.from("clientes").select("id, razon_social").eq("ruc", ruc).maybeSingle()
+      if (data) return data
+    }
     if (email) {
       const { data } = await supabase.from("clientes").select("id, razon_social").ilike("email_contacto", email).maybeSingle()
       if (data) return data
@@ -258,7 +270,8 @@ export default function CRMPage() {
 
     const { data: cliente, error } = await supabase.from("clientes").insert({
       razon_social: razon,
-      ruc: datos.ruc || null,
+      ruc: ruc || null,
+      direccion: datos.direccion || null,
       entidad: "peru",
       nombre_contacto: datos.nombre_contacto || datos.contacto_nombre || null,
       email_contacto: datos.email_contacto || null,
@@ -314,7 +327,7 @@ export default function CRMPage() {
     if (filtroTemp && l.temperatura !== filtroTemp) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
-      const texto = [l.razon_social, l.nombre_contacto, l.email_contacto, l.telefono_contacto].filter(Boolean).join(" ").toLowerCase()
+      const texto = [l.razon_social, l.ruc, l.nombre_contacto, l.email_contacto, l.telefono_contacto, l.direccion].filter(Boolean).join(" ").toLowerCase()
       if (!texto.includes(q)) return false
     }
     return true
@@ -342,13 +355,13 @@ export default function CRMPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>CRM</h1>
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Gestión de oportunidades comerciales · {leadsPeriodo.length} leads</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("crm_leads").insert({...r,entidad:"peru",estado:ESTADOS[r.estado]?r.estado:"nuevo",temperatura:r.temperatura||"frio",periodo_pipeline:r.periodo_pipeline||periodoActual(),archivado:false}); if(error)errores.push(r.razon_social+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginLeft: "auto" }}>
+          <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("crm_leads").insert({...r,entidad:"peru",estado:ESTADOS[r.estado]?r.estado:"nuevo",temperatura:r.temperatura||"frio",periodo_pipeline:r.periodo_pipeline||periodoActual(),archivado:false}); if(error)errores.push(r.razon_social+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
           <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>
         </div>
       </div>
@@ -398,6 +411,7 @@ export default function CRMPage() {
                 <div><label style={lbl}>Email</label><input style={inp} value={form.email_contacto} onChange={e => setForm({ ...form, email_contacto: e.target.value })} /></div>
                 <div><label style={lbl}>Teléfono</label><input style={inp} value={form.telefono_contacto} onChange={e => setForm({ ...form, telefono_contacto: e.target.value })} /></div>
               </div>
+              <div><label style={lbl}>Dirección</label><input style={inp} value={form.direccion} onChange={e => setForm({ ...form, direccion: e.target.value })} /></div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div><label style={lbl}>Cargo</label><input style={inp} value={form.cargo_contacto} onChange={e => setForm({ ...form, cargo_contacto: e.target.value })} /></div>
                 <div>
@@ -481,13 +495,20 @@ export default function CRMPage() {
                   style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>Limpiar</button>
               )}
               <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: "auto" }}>{filtrados.length} resultados</span>
-              <button onClick={archivarCerradosDelMes} disabled={archivando} className="btn-secondary" style={{ fontSize: 13 }}>{archivando ? "Archivando..." : "Archivar cerrados del mes"}</button>
-              <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginLeft: "auto" }}>
+                <button onClick={archivarCerradosDelMes} disabled={archivando} className="btn-secondary" style={{ fontSize: 13 }}>{archivando ? "Archivando..." : "Archivar cerrados del mes"}</button>
+                <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>
+              </div>
             </div>
           </div>
 
-          <div style={{ overflowX: "auto", paddingBottom: 8 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(260px, 1fr))", gap: 16, minWidth: 1900 }}>
+          <div style={{ border: "1px solid #e5e7eb", borderRadius: 18, background: "#fff", padding: 12, boxShadow: "0 10px 24px rgba(15,23,42,.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 10, color: "#64748b", fontSize: 12 }}>
+              <span>Pipeline de 7 etapas</span>
+              <span>Desplázate horizontalmente para ver todo el flujo</span>
+            </div>
+            <div style={{ overflowX: "auto", paddingBottom: 10, scrollbarGutter: "stable" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 280px)", gap: 16, width: "max-content" }}>
               {ESTADOS_PIPELINE.map(estado => {
                 const ec = ESTADOS[estado]
                 const lista = leadsPorEstado(estado)
@@ -567,6 +588,7 @@ export default function CRMPage() {
                 )
               })}
             </div>
+            </div>
           </div>
         </div>
 
@@ -583,13 +605,18 @@ export default function CRMPage() {
                 <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 18 }}>x</button>
               </div>
               <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
+                <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Cliente existente: </span>{selected.cliente_id ? "Sí" : "No"}</div>
+                {selected.ruc && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>RUC: </span>{selected.ruc}</div>}
                 {selected.nombre_contacto && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Contacto: </span>{selected.nombre_contacto}{selected.cargo_contacto ? " · " + selected.cargo_contacto : ""}</div>}
                 {selected.email_contacto && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Email: </span>{selected.email_contacto}</div>}
                 {selected.telefono_contacto && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Tel: </span>{selected.telefono_contacto}</div>}
+                {selected.direccion && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Dirección: </span>{selected.direccion}</div>}
                 {selected.origen && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Origen: </span>{selected.origen}</div>}
+                {selected.industria && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Industria: </span>{selected.industria}</div>}
                 {selected.periodo_pipeline && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Periodo: </span>{selected.periodo_pipeline}</div>}
                 {responsableNombre(selected.responsable_id) && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Responsable: </span>{responsableNombre(selected.responsable_id)}</div>}
                 {selected.fecha_proxima_accion && <div style={{ fontSize: 13, color: "#d97706", fontWeight: 600 }}>Próxima acción: {selected.fecha_proxima_accion}</div>}
+                {selected.notas && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Notas: </span>{selected.notas}</div>}
               </div>
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>CAMBIAR ESTADO</div>
