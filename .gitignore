@@ -49,3 +49,6 @@ eslint-report*.json
 next-env.d.ts
 
 .env.local
+
+public/sw.js
+public/workbox-*.js
