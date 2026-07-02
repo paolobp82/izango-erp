@@ -40,13 +40,22 @@ export default function LoginPage() {
     setLoading(true)
     setError("")
     try {
-      const loginPromise = supabase.auth.signInWithPassword({ email: emailLimpio, password })
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), 15000)
+      const loginPromise = fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailLimpio, password }),
+        signal: controller.signal,
+      })
       const timeoutPromise = new Promise<never>((_, reject) => {
         window.setTimeout(() => reject(new Error("Tiempo de espera agotado al iniciar sesión")), 15000)
       })
-      const { error } = await Promise.race([loginPromise, timeoutPromise])
-      if (error) {
-        setError(error.message || "Email o contraseña incorrectos")
+      const response = await Promise.race([loginPromise, timeoutPromise])
+      window.clearTimeout(timeoutId)
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setError(data.error || "Email o contraseña incorrectos")
         setLoading(false)
         return
       }
