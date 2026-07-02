@@ -101,8 +101,8 @@ export default function DashboardPage() {
       supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at, fecha_emision, proyecto_id"),
       supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id, productor_id, created_by"),
       supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id, productor_id, solicitado_por, created_by"),
-      supabase.from("cotizaciones").select("id", { count: "exact", head: true }).gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
-      supabase.from("crm_leads").select("estado, temperatura, presupuesto_estimado"),
+      supabase.from("cotizaciones").select("id, proyecto_id, created_at").gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+      supabase.from("crm_leads").select("estado, temperatura, presupuesto_estimado, responsable_id, created_by"),
       supabase.from("cotizaciones").select(COTIZACION_SELECT).in("estado", COTIZACION_APROBADA_ESTADOS).limit(60),
       supabase.from("cotizaciones").select(COTIZACION_SELECT),
     ])
@@ -136,7 +136,7 @@ export default function DashboardPage() {
     const facturas = facturasResult.data
     const liquidaciones = liquidacionesResult.data
     const rqs = rqsResult.data
-    const cotMes = cotMesResult.count
+    const cotMes = cotMesResult.data
     const leads = leadsResult.data
     const cotizaciones = cotizacionesResult.data
     const cotsProy = cotsProyResult.data
@@ -160,6 +160,8 @@ export default function DashboardPage() {
     const rqsActivosBase = canSeeCostos ? (rqs || []).filter(rowHasActiveProject) : []
     const rqsActivos = filtrarPorAlcance(rqsActivosBase, p, "rq", { ...contextoPermisos, proyectoIds: scopedProjectIds })
     const cotsProyActivas = (cotsProy || []).filter(rowHasActiveProject)
+    const cotMesActivas = (cotMes || []).filter(rowHasActiveProject)
+    const leadsVisibles = filtrarPorAlcance((leads || []), p, "crm", contextoPermisos)
     setCotsProyState(cotsProyActivas)
 
     // Métricas base
@@ -174,8 +176,8 @@ export default function DashboardPage() {
     const margenPromedio = liqCerradas.length > 0 ? liqCerradas.reduce((s, l) => s + num(l.margen_real_pct), 0) / liqCerradas.length : 0
     const rqsPendientes = rqsActivos.filter(r => !["pagado","rechazado","cancelado","cerrado"].includes(r.estado))
     const rqsPendientesMonto = rqsPendientes.reduce((s, r) => s + num(r.monto_solicitado), 0)
-    const leadsCalientes = (leads || []).filter(l => l.temperatura === "caliente").length
-    const pipelineCRM = (leads || []).filter(l => !["ganado","perdido"].includes(l.estado)).length
+    const leadsCalientes = leadsVisibles.filter(l => l.temperatura === "caliente").length
+    const pipelineCRM = leadsVisibles.filter(l => !["ganado","perdido"].includes(l.estado)).length
 
     // Comparativa mes anterior
     const hoy = new Date()
@@ -191,7 +193,7 @@ export default function DashboardPage() {
       terminadosSinLiquidar: terminadosSinLiquidar.length,
       rqsPendientes: rqsPendientes.length, rqsPendientesMonto,
       totalFacturado, totalCobrado, porCobrar, margenPromedio,
-      cotMes: cotMes||0, leadsCalientes, pipelineCRM, factMesAct, varFacturacion,
+      cotMes: cotMesActivas.length, leadsCalientes, pipelineCRM, factMesAct, varFacturacion,
       canSeePrecioCliente, canSeeFacturas, canSeeCobranza, canSeeCostos, canSeeMargen,
       presupuestosPendientes: canSeePrecioCliente ? allProv.filter((p: any) => {
         const creado = p.created_at ? new Date(p.created_at) : null
