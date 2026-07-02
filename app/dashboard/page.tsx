@@ -1,6 +1,13 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, @next/next/no-html-link-for-pages, react-hooks/immutability, react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import {
+  alcanceModulo,
+  dashboardScope,
+  filtrarPorAlcance,
+  puedeVerInformacionSensible,
+} from "@/lib/permisos"
 import KpiCard from "@/components/ui/KpiCard"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -19,7 +26,6 @@ const ESTADO_COLOR: Record<string, any> = {
   liquidado:            { bg: "#f0fdf4", color: "#166534", label: "Liquidado" },
 }
 
-const DONA_COLORS = ["#f59e0b","#3b82f6","#10b981","#6b7280","#8b5cf6","#059669"]
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
 const COTIZACION_APROBADA_ESTADOS = ["aprobado_cliente", "aprobada_cliente"]
 const PROYECTO_APROBADO_ESTADOS = ["en_curso"]
@@ -28,6 +34,7 @@ const FACTURA_COBRADA_ESTADOS = ["cobrada", "pagada"]
 const FACTURA_POR_COBRAR_ESTADOS = ["emitida", "pendiente", "pendiente_cobro"]
 const num = (value: any) => Number(value) || 0
 const COTIZACION_SELECT = "id, proyecto_id, total_cliente, estado, fee_agencia_pct, fee_activo, igv_pct, descuento_pct, items:cotizacion_items(precio_cliente, incluir_en_total)"
+const FINANCIAL_LOCK_LABEL = "Restringido"
 
 function totalCotizacion(cotizacion: any) {
   const totalGuardado = num(cotizacion?.total_cliente)
@@ -67,13 +74,33 @@ export default function DashboardPage() {
     if (!user) return
     const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
     setPerfil(p)
+    const alcanceDashboard = alcanceModulo(p, "dashboard")
+    const scopeDashboard = dashboardScope(p)
+    const canSeePrecioCliente = puedeVerInformacionSensible(p, "precio_cliente")
+    const canSeeFacturas = puedeVerInformacionSensible(p, "facturas") || puedeVerInformacionSensible(p, "facturacion_consolidada")
+    const canSeeCobranza = puedeVerInformacionSensible(p, "cobranza")
+    const canSeeCostos = puedeVerInformacionSensible(p, "costo_real") || puedeVerInformacionSensible(p, "costo_presupuestado")
+    const canSeeMargen = puedeVerInformacionSensible(p, "margen_pct") || puedeVerInformacionSensible(p, "margenes") || puedeVerInformacionSensible(p, "rentabilidad")
+
+    if (alcanceDashboard === "NINGUNO" || scopeDashboard.sinAcceso) {
+      setProyectos([])
+      setMetricas({})
+      setAlertas([])
+      setChartFacturacion([])
+      setChartEstados([])
+      setChartRQs([])
+      setTopProyectos([])
+      setCotsProyState([])
+      setLoading(false)
+      return
+    }
 
     const dashboardResults = await Promise.all([
       supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
-      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at").is("deleted_at", null),
+      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at, fecha_inicio, productor_id, comercial_id, responsable_id, created_by, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
       supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at, fecha_emision, proyecto_id"),
-      supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id"),
-      supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id"),
+      supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id, productor_id, created_by"),
+      supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id, productor_id, solicitado_por, created_by"),
       supabase.from("cotizaciones").select("id", { count: "exact", head: true }).gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
       supabase.from("crm_leads").select("estado, temperatura, presupuesto_estimado"),
       supabase.from("cotizaciones").select(COTIZACION_SELECT).in("estado", COTIZACION_APROBADA_ESTADOS).limit(60),
@@ -114,14 +141,24 @@ export default function DashboardPage() {
     const cotizaciones = cotizacionesResult.data
     const cotsProy = cotsProyResult.data
 
-    setProyectos(provs || [])
-    const allProv = todosProyectos || []
+    const rawProjects = todosProyectos || []
+    const teamIds = scopeDashboard.equipo && p?.perfil === "gerente_produccion"
+      ? rawProjects.flatMap((proyecto: any) => [proyecto.productor_id, proyecto.comercial_id, proyecto.responsable_id]).filter(Boolean)
+      : []
+    const contextoPermisos = { usuarioId: user.id, equipoIds: teamIds }
+    const allProv = filtrarPorAlcance(rawProjects, p, "dashboard", contextoPermisos)
+    const proyectosRecientes = filtrarPorAlcance((provs || []), p, "dashboard", contextoPermisos)
+      .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      .slice(0, 10)
+    setProyectos(proyectosRecientes)
     const activeProjectIds = new Set(allProv.map((p: any) => p.id))
     const projectById = new Map(allProv.map((p: any) => [p.id, p]))
-    const rowHasActiveProject = (row: any) => !row?.proyecto_id || activeProjectIds.has(row.proyecto_id)
-    const facturasActivas = (facturas || []).filter(rowHasActiveProject)
-    const liquidacionesActivas = (liquidaciones || []).filter(rowHasActiveProject)
-    const rqsActivos = (rqs || []).filter(rowHasActiveProject)
+    const scopedProjectIds = Array.from(activeProjectIds).map(String)
+    const rowHasActiveProject = (row: any) => row?.proyecto_id ? activeProjectIds.has(row.proyecto_id) : scopeDashboard.total
+    const facturasActivas = canSeeFacturas ? (facturas || []).filter(rowHasActiveProject) : []
+    const liquidacionesActivas = canSeeMargen ? (liquidaciones || []).filter(rowHasActiveProject) : []
+    const rqsActivosBase = canSeeCostos ? (rqs || []).filter(rowHasActiveProject) : []
+    const rqsActivos = filtrarPorAlcance(rqsActivosBase, p, "rq", { ...contextoPermisos, proyectoIds: scopedProjectIds })
     const cotsProyActivas = (cotsProy || []).filter(rowHasActiveProject)
     setCotsProyState(cotsProyActivas)
 
@@ -131,8 +168,8 @@ export default function DashboardPage() {
     const terminadosSinLiquidar = allProv.filter(p => p.estado === "terminado")
     const fechaFactura = (factura: any) => new Date(factura.fecha_emision || factura.created_at)
     const totalFacturado = facturasActivas.filter(f => !FACTURA_ANULADA_ESTADOS.includes(f.estado)).reduce((s, f) => s + num(f.subtotal) + num(f.igv), 0)
-    const totalCobrado = facturasActivas.filter(f => FACTURA_COBRADA_ESTADOS.includes(f.estado)).reduce((s, f) => s + num(f.monto_final_abonado), 0)
-    const porCobrar = facturasActivas.filter(f => FACTURA_POR_COBRAR_ESTADOS.includes(f.estado)).reduce((s, f) => s + num(f.monto_final_abonado), 0)
+    const totalCobrado = canSeeCobranza ? facturasActivas.filter(f => FACTURA_COBRADA_ESTADOS.includes(f.estado)).reduce((s, f) => s + num(f.monto_final_abonado), 0) : 0
+    const porCobrar = canSeeCobranza ? facturasActivas.filter(f => FACTURA_POR_COBRAR_ESTADOS.includes(f.estado)).reduce((s, f) => s + num(f.monto_final_abonado), 0) : 0
     const liqCerradas = liquidacionesActivas.filter(l => l.cerrada && Number.isFinite(Number(l.margen_real_pct)))
     const margenPromedio = liqCerradas.length > 0 ? liqCerradas.reduce((s, l) => s + num(l.margen_real_pct), 0) / liqCerradas.length : 0
     const rqsPendientes = rqsActivos.filter(r => !["pagado","rechazado","cancelado","cerrado"].includes(r.estado))
@@ -155,15 +192,16 @@ export default function DashboardPage() {
       rqsPendientes: rqsPendientes.length, rqsPendientesMonto,
       totalFacturado, totalCobrado, porCobrar, margenPromedio,
       cotMes: cotMes||0, leadsCalientes, pipelineCRM, factMesAct, varFacturacion,
-      presupuestosPendientes: allProv.filter((p: any) => {
+      canSeePrecioCliente, canSeeFacturas, canSeeCobranza, canSeeCostos, canSeeMargen,
+      presupuestosPendientes: canSeePrecioCliente ? allProv.filter((p: any) => {
         const creado = p.created_at ? new Date(p.created_at) : null
         return p.estado === "pendiente_aprobacion" && creado && creado >= inicioMes && creado <= hoy
-      }).reduce((s: number, p: any) => { const cots = cotsProyActivas.filter((c: any) => c.proyecto_id === p.id && totalCotizacion(c) > 0); const maxCot = cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; return s + totalCotizacion(maxCot) }, 0),
+      }).reduce((s: number, p: any) => { const cots = cotsProyActivas.filter((c: any) => c.proyecto_id === p.id && totalCotizacion(c) > 0); const maxCot = cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; return s + totalCotizacion(maxCot) }, 0) : 0,
       pendientesMes: allProv.filter((p: any) => {
         const creado = p.created_at ? new Date(p.created_at) : null
         return p.estado === "pendiente_aprobacion" && creado && creado >= inicioMes && creado <= hoy
       }).length,
-      presupuestosAprobados: allProv.filter((p: any) => PROYECTO_APROBADO_ESTADOS.includes(p.estado)).reduce((s: number, p: any) => { const cots = cotsProyActivas.filter((c: any) => c.proyecto_id === p.id && totalCotizacion(c) > 0); const aprobada = cots.find((c: any) => COTIZACION_APROBADA_ESTADOS.includes(c.estado)) || cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; return s + totalCotizacion(aprobada) }, 0),
+      presupuestosAprobados: canSeePrecioCliente ? allProv.filter((p: any) => PROYECTO_APROBADO_ESTADOS.includes(p.estado)).reduce((s: number, p: any) => { const cots = cotsProyActivas.filter((c: any) => c.proyecto_id === p.id && totalCotizacion(c) > 0); const aprobada = cots.find((c: any) => COTIZACION_APROBADA_ESTADOS.includes(c.estado)) || cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; return s + totalCotizacion(aprobada) }, 0) : 0,
     })
 
     // Chart facturación por mes (últimos 6 meses)
@@ -171,8 +209,8 @@ export default function DashboardPage() {
     for (let i = 5; i >= 0; i--) {
       const d = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1)
       const fin = new Date(hoy.getFullYear(), hoy.getMonth()-i+1, 0)
-      const facturado = facturasActivas.filter(f => { const fd = fechaFactura(f); return fd >= d && fd <= fin && !FACTURA_ANULADA_ESTADOS.includes(f.estado) }).reduce((s,f) => s + num(f.subtotal) + num(f.igv),0)
-      const cobrado = facturasActivas.filter(f => { const fd = fechaFactura(f); return fd >= d && fd <= fin && FACTURA_COBRADA_ESTADOS.includes(f.estado) }).reduce((s,f) => s + num(f.monto_final_abonado),0)
+      const facturado = canSeeFacturas ? facturasActivas.filter(f => { const fd = fechaFactura(f); return fd >= d && fd <= fin && !FACTURA_ANULADA_ESTADOS.includes(f.estado) }).reduce((s,f) => s + num(f.subtotal) + num(f.igv),0) : 0
+      const cobrado = canSeeCobranza ? facturasActivas.filter(f => { const fd = fechaFactura(f); return fd >= d && fd <= fin && FACTURA_COBRADA_ESTADOS.includes(f.estado) }).reduce((s,f) => s + num(f.monto_final_abonado),0) : 0
       chartFact.push({ mes: MESES[d.getMonth()], facturado: Math.round(facturado), cobrado: Math.round(cobrado) })
     }
     setChartFacturacion(chartFact)
@@ -198,17 +236,17 @@ export default function DashboardPage() {
     setChartRQs(rqsData)
 
     // Top proyectos por valor
-    const top = (cotizaciones || []).filter(rowHasActiveProject).map((c: any) => ({
+    const top = canSeePrecioCliente ? (cotizaciones || []).filter(rowHasActiveProject).map((c: any) => ({
       nombre: projectById.get(c.proyecto_id)?.codigo || "—",
       valor: Math.round(totalCotizacion(c)),
-    })).filter((c: any) => c.valor > 0).sort((a: any, b: any) => b.valor - a.valor).slice(0, 5)
+    })).filter((c: any) => c.valor > 0).sort((a: any, b: any) => b.valor - a.valor).slice(0, 5) : []
     setTopProyectos(top)
 
     // Alertas
     const alerts: any[] = []
     if (pendientes.length > 0) alerts.push({ tipo: "warning", msg: pendientes.length + " proyecto(s) esperando aprobación", link: "/proyectos" })
     if (terminadosSinLiquidar.length > 0) alerts.push({ tipo: "warning", msg: terminadosSinLiquidar.length + " proyecto(s) terminado(s) sin liquidar", link: "/liquidaciones" })
-    if (rqsPendientes.length > 0) alerts.push({ tipo: "info", msg: rqsPendientes.length + " RQs pendientes — S/ " + Number(rqsPendientesMonto).toLocaleString("es-PE",{minimumFractionDigits:0}), link: "/rq" })
+    if (rqsPendientes.length > 0) alerts.push({ tipo: "info", msg: rqsPendientes.length + " RQs pendientes" + (canSeeCostos ? " — S/ " + Number(rqsPendientesMonto).toLocaleString("es-PE",{minimumFractionDigits:0}) : ""), link: "/rq" })
     if (leadsCalientes > 0) alerts.push({ tipo: "hot", msg: leadsCalientes + " lead(s) caliente(s) requieren atención", link: "/crm" })
     setAlertas(alerts)
     setLoading(false)
@@ -258,13 +296,13 @@ export default function DashboardPage() {
         </div>
       )}      {/* KPIs principales */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 20 }}>
-        <KpiCard icon="money" label="Presupuestos Pendientes" value={fmt(metricas.presupuestosPendientes || 0)} sub={(metricas.pendientesMes || 0) + " oportunidades abiertas este mes"} borderColor="#10B981" valueColor="#059669" />
+        <KpiCard icon="money" label="Presupuestos Pendientes" value={metricas.canSeePrecioCliente ? fmt(metricas.presupuestosPendientes || 0) : FINANCIAL_LOCK_LABEL} sub={(metricas.pendientesMes || 0) + " oportunidades abiertas este mes"} borderColor="#10B981" valueColor="#059669" />
 
-        <KpiCard icon="shield" label="Presupuestos en Curso" value={fmt(metricas.presupuestosAprobados || 0)} sub={`${metricas.activos || 0} proyectos en ejecución`} borderColor="#3B82F6" valueColor="#1D4ED8" />
+        <KpiCard icon="shield" label="Presupuestos en Curso" value={metricas.canSeePrecioCliente ? fmt(metricas.presupuestosAprobados || 0) : FINANCIAL_LOCK_LABEL} sub={`${metricas.activos || 0} proyectos en ejecución`} borderColor="#3B82F6" valueColor="#1D4ED8" />
 
-        <KpiCard icon="chart" label="Facturado Este Mes" value={fmtShort(metricas.factMesAct || 0)} sub="0% vs. mes ant." borderColor="#14B8A6" valueColor="#0D9488" />
+        <KpiCard icon="chart" label="Facturado Este Mes" value={metricas.canSeeFacturas ? fmtShort(metricas.factMesAct || 0) : FINANCIAL_LOCK_LABEL} sub="0% vs. mes ant." borderColor="#14B8A6" valueColor="#0D9488" />
 
-        <KpiCard icon="wallet" label="Por Cobrar" value={fmtShort(metricas.porCobrar || 0)} sub={"Cobrados: " + fmtShort(metricas.totalCobrado || 0)} borderColor="#8B5CF6" valueColor="#5B21B6" />
+        <KpiCard icon="wallet" label="Por Cobrar" value={metricas.canSeeCobranza ? fmtShort(metricas.porCobrar || 0) : FINANCIAL_LOCK_LABEL} sub={metricas.canSeeCobranza ? "Cobrados: " + fmtShort(metricas.totalCobrado || 0) : "Información financiera restringida"} borderColor="#8B5CF6" valueColor="#5B21B6" />
 
         <KpiCard icon="folder" label="Proyectos en Curso" value={String(metricas.activos || 0)} sub="Actualmente en ejecución" borderColor="#F97316" valueColor="#EA580C" />
 
@@ -275,6 +313,9 @@ export default function DashboardPage() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16, marginBottom: 16 }}>
         <div style={{ background: "#fff", borderRadius: 12, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", marginBottom: 16 }}>Tendencia de facturación — últimos 6 meses</div>
+          {!metricas.canSeeFacturas ? (
+            <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 64 }}>Información financiera restringida</div>
+          ) : (
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={chartFacturacion} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
               <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
@@ -285,6 +326,7 @@ export default function DashboardPage() {
               <Line type="monotone" dataKey="cobrado" stroke="#059669" strokeWidth={2.5} dot={{ r: 4, fill: "#059669" }} name="Cobrado" />
             </LineChart>
           </ResponsiveContainer>
+          )}
         </div>
 
         <div style={{ background: "#fff", borderRadius: 12, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
@@ -309,7 +351,9 @@ export default function DashboardPage() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, marginBottom: 16 }}>
         <div style={{ background: "#fff", borderRadius: 12, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", marginBottom: 16 }}>Top proyectos por valor aprobado</div>
-          {topProyectos.length === 0 ? (
+          {!metricas.canSeePrecioCliente ? (
+            <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 32 }}>Información comercial restringida</div>
+          ) : topProyectos.length === 0 ? (
             <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 32 }}>Sin datos</div>
           ) : (
             <ResponsiveContainer width="100%" height={180}>
@@ -325,7 +369,9 @@ export default function DashboardPage() {
 
         <div style={{ background: "#fff", borderRadius: 12, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", marginBottom: 16 }}>RQs por estado</div>
-          {chartRQs.length === 0 ? (
+          {!metricas.canSeeCostos ? (
+            <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 32 }}>Información financiera restringida</div>
+          ) : chartRQs.length === 0 ? (
             <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 32 }}>Sin RQs</div>
           ) : (
             <ResponsiveContainer width="100%" height={180}>
@@ -373,7 +419,7 @@ export default function DashboardPage() {
                     <span style={{ background: ec.bg, color: ec.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{ec.label}</span>
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#0F6E56" }}>
-                    {(() => { const cots = (cotsProyState || []).filter((c: any) => c.proyecto_id === p.id); const aprobada = cots.find((c: any) => COTIZACION_APROBADA_ESTADOS.includes(c.estado)); const ultima = cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; const monto = totalCotizacion(aprobada || ultima); return monto ? fmt(monto) : "—" })()}
+                    {metricas.canSeePrecioCliente ? (() => { const cots = (cotsProyState || []).filter((c: any) => c.proyecto_id === p.id); const aprobada = cots.find((c: any) => COTIZACION_APROBADA_ESTADOS.includes(c.estado)); const ultima = cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; const monto = totalCotizacion(aprobada || ultima); return monto ? fmt(monto) : "—" })() : "—"}
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 12, color: "#94a3b8" }}>
                     {p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE") : "—"}
