@@ -97,7 +97,7 @@ export default function DashboardPage() {
 
     const dashboardResults = await Promise.all([
       supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
-      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at, fecha_inicio, productor_id, comercial_id, responsable_id, created_by, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
+      supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
       supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at, fecha_emision, proyecto_id"),
       supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id, productor_id, created_by"),
       supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id, productor_id, solicitado_por, created_by"),
@@ -146,22 +146,23 @@ export default function DashboardPage() {
       ? rawProjects.flatMap((proyecto: any) => [proyecto.productor_id, proyecto.comercial_id, proyecto.responsable_id]).filter(Boolean)
       : []
     const contextoPermisos = { usuarioId: user.id, equipoIds: teamIds }
-    const allProv = filtrarPorAlcance(rawProjects, p, "dashboard", contextoPermisos)
-    const proyectosRecientes = filtrarPorAlcance((provs || []), p, "dashboard", contextoPermisos)
+    const allProv = scopeDashboard.total ? rawProjects : filtrarPorAlcance(rawProjects, p, "dashboard", contextoPermisos)
+    const proyectosRecientesBase = scopeDashboard.total ? (provs || []) : filtrarPorAlcance((provs || []), p, "dashboard", contextoPermisos)
+    const proyectosRecientes = proyectosRecientesBase
       .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
       .slice(0, 10)
     setProyectos(proyectosRecientes)
     const activeProjectIds = new Set(allProv.map((p: any) => p.id))
     const projectById = new Map(allProv.map((p: any) => [p.id, p]))
     const scopedProjectIds = Array.from(activeProjectIds).map(String)
-    const rowHasActiveProject = (row: any) => row?.proyecto_id ? activeProjectIds.has(row.proyecto_id) : scopeDashboard.total
+    const rowHasActiveProject = (row: any) => scopeDashboard.total || (row?.proyecto_id ? activeProjectIds.has(row.proyecto_id) : false)
     const facturasActivas = canSeeFacturas ? (facturas || []).filter(rowHasActiveProject) : []
     const liquidacionesActivas = canSeeMargen ? (liquidaciones || []).filter(rowHasActiveProject) : []
     const rqsActivosBase = canSeeCostos ? (rqs || []).filter(rowHasActiveProject) : []
-    const rqsActivos = filtrarPorAlcance(rqsActivosBase, p, "rq", { ...contextoPermisos, proyectoIds: scopedProjectIds })
+    const rqsActivos = scopeDashboard.total ? rqsActivosBase : filtrarPorAlcance(rqsActivosBase, p, "rq", { ...contextoPermisos, proyectoIds: scopedProjectIds })
     const cotsProyActivas = (cotsProy || []).filter(rowHasActiveProject)
     const cotMesActivas = (cotMes || []).filter(rowHasActiveProject)
-    const leadsVisibles = filtrarPorAlcance((leads || []), p, "crm", contextoPermisos)
+    const leadsVisibles = scopeDashboard.total ? (leads || []) : filtrarPorAlcance((leads || []), p, "crm", contextoPermisos)
     setCotsProyState(cotsProyActivas)
 
     // Métricas base
