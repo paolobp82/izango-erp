@@ -27,7 +27,7 @@ const ESTADO_COLOR: Record<string, any> = {
 }
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
-const COTIZACION_APROBADA_ESTADOS = ["aprobado_cliente", "aprobada_cliente"]
+const COTIZACION_APROBADA_ESTADOS = ["aprobada_cliente"]
 const PROYECTO_APROBADO_ESTADOS = ["en_curso"]
 const FACTURA_ANULADA_ESTADOS = ["anulada", "cancelada"]
 const FACTURA_COBRADA_ESTADOS = ["cobrada", "pagada"]
@@ -99,10 +99,10 @@ export default function DashboardPage() {
       supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
       supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
       supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at, fecha_emision, proyecto_id"),
-      supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id, productor_id, created_by"),
-      supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id, productor_id, solicitado_por, created_by"),
+      supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id"),
+      supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id, solicitado_por"),
       supabase.from("cotizaciones").select("id, proyecto_id, created_at").gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
-      supabase.from("crm_leads").select("estado, temperatura, presupuesto_estimado, responsable_id, created_by"),
+      supabase.from("crm_leads").select("estado, temperatura, presupuesto_estimado, created_by"),
       supabase.from("cotizaciones").select(COTIZACION_SELECT).in("estado", COTIZACION_APROBADA_ESTADOS).limit(60),
       supabase.from("cotizaciones").select(COTIZACION_SELECT),
     ])
@@ -154,12 +154,11 @@ export default function DashboardPage() {
     setProyectos(proyectosRecientes)
     const activeProjectIds = new Set(allProv.map((p: any) => p.id))
     const projectById = new Map(allProv.map((p: any) => [p.id, p]))
-    const scopedProjectIds = Array.from(activeProjectIds).map(String)
     const rowHasActiveProject = (row: any) => scopeDashboard.total || (row?.proyecto_id ? activeProjectIds.has(row.proyecto_id) : false)
     const facturasActivas = canSeeFacturas ? (facturas || []).filter(rowHasActiveProject) : []
     const liquidacionesActivas = canSeeMargen ? (liquidaciones || []).filter(rowHasActiveProject) : []
     const rqsActivosBase = canSeeCostos ? (rqs || []).filter(rowHasActiveProject) : []
-    const rqsActivos = scopeDashboard.total ? rqsActivosBase : filtrarPorAlcance(rqsActivosBase, p, "rq", { ...contextoPermisos, proyectoIds: scopedProjectIds })
+    const rqsActivos = rqsActivosBase
     const cotsProyActivas = (cotsProy || []).filter(rowHasActiveProject)
     const cotMesActivas = (cotMes || []).filter(rowHasActiveProject)
     const leadsVisibles = scopeDashboard.total ? (leads || []) : filtrarPorAlcance((leads || []), p, "crm", contextoPermisos)
