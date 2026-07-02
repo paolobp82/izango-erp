@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+type CookieToSet = {
+  name: string
+  value: string
+  options: Parameters<NextResponse["cookies"]["set"]>[2]
+}
+
 export async function POST(request: NextRequest) {
   const contentType = request.headers.get("content-type") || ""
   const accept = request.headers.get("accept") || ""
@@ -35,6 +41,13 @@ export async function POST(request: NextRequest) {
   }
 
   let response: NextResponse = NextResponse.json({ ok: true })
+  const cookiesToApply: CookieToSet[] = []
+  const applyCookies = (target: NextResponse) => {
+    cookiesToApply.forEach(({ name, value, options }) => {
+      target.cookies.set(name, value, options)
+    })
+    return target
+  }
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -45,7 +58,7 @@ export async function POST(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options)
+            cookiesToApply.push({ name, value, options })
           })
         },
       },
@@ -69,5 +82,5 @@ export async function POST(request: NextRequest) {
     response = NextResponse.redirect(new URL(next.startsWith("/") ? next : "/dashboard", request.url))
   }
 
-  return response
+  return applyCookies(response)
 }
