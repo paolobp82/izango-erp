@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-const PUBLIC_ROUTES = new Set(["/login", "/reset-password", "/auth/callback"])
+const PUBLIC_ROUTES = new Set(["/login", "/reset-password", "/auth/callback", "/api/auth/login"])
 const LEGACY_PUBLIC_REDIRECTS: Record<string, string> = {
   "/auth/login": "/login",
   "/auth/reset-password": "/reset-password",

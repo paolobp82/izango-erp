@@ -2,11 +2,25 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 export async function POST(request: NextRequest) {
+  const contentType = request.headers.get("content-type") || ""
+  const accept = request.headers.get("accept") || ""
+  const wantsHtml = accept.includes("text/html")
   let payload: { email?: string; password?: string }
 
   try {
-    payload = await request.json()
+    if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
+      const formData = await request.formData()
+      payload = {
+        email: String(formData.get("email") || ""),
+        password: String(formData.get("password") || ""),
+      }
+    } else {
+      payload = await request.json()
+    }
   } catch {
+    if (wantsHtml) {
+      return NextResponse.redirect(new URL("/login?error=Solicitud%20inválida", request.url))
+    }
     return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 })
   }
 
@@ -14,6 +28,9 @@ export async function POST(request: NextRequest) {
   const password = payload.password
 
   if (!email || !password) {
+    if (wantsHtml) {
+      return NextResponse.redirect(new URL("/login?error=Ingresa%20email%20y%20contraseña", request.url))
+    }
     return NextResponse.json({ error: "Ingresa email y contraseña" }, { status: 400 })
   }
 
@@ -38,10 +55,18 @@ export async function POST(request: NextRequest) {
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
+    if (wantsHtml) {
+      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message || "Email o contraseña incorrectos")}`, request.url))
+    }
     response = NextResponse.json(
       { error: error.message || "Email o contraseña incorrectos" },
       { status: 401 }
     )
+  }
+
+  if (!error && wantsHtml) {
+    const next = new URL(request.url).searchParams.get("next") || "/dashboard"
+    response = NextResponse.redirect(new URL(next.startsWith("/") ? next : "/dashboard", request.url))
   }
 
   return response

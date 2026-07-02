@@ -5,10 +5,11 @@ import { createClient } from "@/lib/supabase"
 const LOGO_URL = "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
 
 export default function LoginPage() {
+  const initialError = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("error") || "" : ""
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [error, setError] = useState(initialError)
   const [showReset, setShowReset] = useState(false)
   const [resetEmail, setResetEmail] = useState("")
   const [loadingReset, setLoadingReset] = useState(false)
@@ -85,17 +86,17 @@ export default function LoginPage() {
         {/* Card login */}
         <div style={{ background: "#fff", borderRadius: 16, padding: "32px 28px", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 24, marginTop: 0, color: "#111827" }}>Iniciar sesión</h2>
-          <form onSubmit={handleLogin}>
+          <form onSubmit={handleLogin} action={`/api/auth/login?next=${encodeURIComponent(new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").get("next") || "/dashboard")}`} method="post">
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }}>Email</label>
-              <input type="email" placeholder="tu@izango.com.pe" value={email} onChange={e => setEmail(e.target.value)} required
+              <input type="email" name="email" placeholder="tu@izango.com.pe" value={email} onChange={e => setEmail(e.target.value)} required
                 style={{ width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
                 onFocus={e => e.target.style.borderColor = "#03E373"}
                 onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
             </div>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }}>Contraseña</label>
-              <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required
+              <input type="password" name="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required
                 style={{ width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
                 onFocus={e => e.target.style.borderColor = "#03E373"}
                 onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
