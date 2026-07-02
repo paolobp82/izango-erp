@@ -1,11 +1,70 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type CSSProperties } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
 import ImportExport from "@/components/ImportExport"
 
-const ESTADOS: Record<string, any> = {
+type CRMEstado = "nuevo" | "contactado" | "reunion" | "propuesta" | "negociacion" | "ganado" | "perdido"
+type CRMTemperatura = "frio" | "tibio" | "caliente"
+
+type CRMLead = {
+  id: string
+  razon_social: string
+  ruc?: string | null
+  nombre_contacto?: string | null
+  email_contacto?: string | null
+  telefono_contacto?: string | null
+  cargo_contacto?: string | null
+  origen?: string | null
+  estado: CRMEstado
+  temperatura?: CRMTemperatura | string | null
+  industria?: string | null
+  presupuesto_estimado?: number | null
+  probabilidad_cierre?: number | null
+  fecha_proximo_contacto?: string | null
+  notas?: string | null
+  entidad?: string | null
+  created_at?: string | null
+}
+
+type CRMNota = {
+  id: string
+  lead_id: string
+  contenido: string
+  created_by?: string | null
+  created_at?: string | null
+}
+
+type ClienteCRM = {
+  id: string
+  razon_social: string
+}
+
+type CRMLeadForm = {
+  razon_social: string
+  ruc: string
+  nombre_contacto: string
+  email_contacto: string
+  telefono_contacto: string
+  cargo_contacto: string
+  origen: string
+  estado: CRMEstado
+  temperatura: CRMTemperatura
+  industria: string
+  presupuesto_estimado: string | number
+  probabilidad_cierre: number
+  fecha_proximo_contacto: string
+  notas: string
+}
+
+type CRMVisualConfig = {
+  bg?: string
+  color: string
+  label: string
+}
+
+const ESTADOS_CRM: Record<CRMEstado, CRMVisualConfig> = {
   nuevo:        { bg: "#dbeafe", color: "#1e40af", label: "Nuevo" },
   contactado:   { bg: "#fef9c3", color: "#92400e", label: "Contactado" },
   reunion:      { bg: "#fed7aa", color: "#9a3412", label: "Reunión" },
@@ -15,49 +74,72 @@ const ESTADOS: Record<string, any> = {
   perdido:      { bg: "#fee2e2", color: "#991b1b", label: "Perdido" },
 }
 
-const TEMPERATURAS: Record<string, any> = {
+const TEMPERATURAS_CRM: Record<CRMTemperatura, CRMVisualConfig> = {
   frio:     { color: "#3b82f6", label: "Frio" },
   tibio:    { color: "#f59e0b", label: "Tibio" },
   caliente: { color: "#ef4444", label: "Caliente" },
 }
 
-const ORIGENES = ["Referido", "Web", "LinkedIn", "Evento", "Llamada fria", "Email", "Otro"]
-const INDUSTRIAS = ["Retail", "Banca", "Tecnologia", "Alimentos", "Automotriz", "Farmaceutica", "Telecomunicaciones", "Gobierno", "Educacion", "Otro"]
+const ORIGENES_CRM = ["Referido", "Web", "LinkedIn", "Evento", "Llamada fria", "Email", "Otro"]
+const INDUSTRIAS_CRM = ["Retail", "Banca", "Tecnologia", "Alimentos", "Automotriz", "Farmaceutica", "Telecomunicaciones", "Gobierno", "Educacion", "Otro"]
+const ESTADOS_PIPELINE_CRM: CRMEstado[] = ["nuevo", "contactado", "reunion", "propuesta", "negociacion", "ganado", "perdido"]
 
-const emptyForm = {
+const emptyForm: CRMLeadForm = {
   razon_social: "", ruc: "", nombre_contacto: "", email_contacto: "",
   telefono_contacto: "", cargo_contacto: "", origen: "", estado: "nuevo",
   temperatura: "frio", industria: "", presupuesto_estimado: "",
   probabilidad_cierre: 0, fecha_proximo_contacto: "", notas: "",
 }
 
+function supabaseErrorMessage(error: unknown) {
+  if (!error || typeof error !== "object") return "Error desconocido"
+  const e = error as { message?: string; code?: string; details?: string; hint?: string }
+  return [e.message, e.code, e.details, e.hint].filter(Boolean).join(" · ") || "Error desconocido"
+}
+
 export default function CRMPage() {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const router = useRouter()
-  const [leads, setLeads] = useState<any[]>([])
+  const [leads, setLeads] = useState<CRMLead[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [editando, setEditando] = useState<any>(null)
+  const [editando, setEditando] = useState<CRMLead | null>(null)
   const [saving, setSaving] = useState(false)
-  const [selected, setSelected] = useState<any>(null)
+  const [selected, setSelected] = useState<CRMLead | null>(null)
   const [filtroEstado, setFiltroEstado] = useState("")
   const [filtroTemp, setFiltroTemp] = useState("")
   const [busqueda, setBusqueda] = useState("")
-  const [form, setForm] = useState<any>(emptyForm)
+  const [form, setForm] = useState<CRMLeadForm>(emptyForm)
   const [nuevaNota, setNuevaNota] = useState("")
-  const [notas, setNotas] = useState<any[]>([])
-  const [clientesConvertidos, setClientesConvertidos] = useState<Record<string, { id: string; razon_social: string }>>({})
+  const [notas, setNotas] = useState<CRMNota[]>([])
+  const [clientesConvertidos, setClientesConvertidos] = useState<Record<string, ClienteCRM>>({})
 
-  useEffect(() => { load() }, [])
-
-  async function load() {
-    const { data } = await supabase.from("crm_leads").select("*").order("created_at", { ascending: false })
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.from("crm_leads").select("*").order("created_at", { ascending: false })
+    if (error) {
+      console.error("Error cargando CRM:", error)
+      alert("No se pudo cargar CRM: " + supabaseErrorMessage(error))
+      setLoading(false)
+      return
+    }
     setLeads(data || [])
     setLoading(false)
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    async function loadInitial() {
+      await load()
+    }
+    void loadInitial()
+  }, [load])
 
   async function loadNotas(leadId: string) {
-    const { data } = await supabase.from("crm_notas").select("*").eq("lead_id", leadId).order("created_at", { ascending: false })
+    const { data, error } = await supabase.from("crm_notas").select("*").eq("lead_id", leadId).order("created_at", { ascending: false })
+    if (error) {
+      console.error("Error cargando notas CRM:", error)
+      alert("No se pudieron cargar las notas: " + supabaseErrorMessage(error))
+      return
+    }
     setNotas(data || [])
   }
 
@@ -67,14 +149,14 @@ export default function CRMPage() {
     setShowForm(true)
   }
 
-  function abrirEditar(lead: any) {
+  function abrirEditar(lead: CRMLead) {
     setEditando(lead)
     setForm({
       razon_social: lead.razon_social || "", ruc: lead.ruc || "",
       nombre_contacto: lead.nombre_contacto || "", email_contacto: lead.email_contacto || "",
       telefono_contacto: lead.telefono_contacto || "", cargo_contacto: lead.cargo_contacto || "",
-      origen: lead.origen || "", estado: lead.estado || "nuevo",
-      temperatura: lead.temperatura || "frio", industria: lead.industria || "",
+      origen: lead.origen || "", estado: (lead.estado as CRMEstado) || "nuevo",
+      temperatura: (lead.temperatura as CRMTemperatura) || "frio", industria: lead.industria || "",
       presupuesto_estimado: lead.presupuesto_estimado || "",
       probabilidad_cierre: lead.probabilidad_cierre || 0,
       fecha_proximo_contacto: lead.fecha_proximo_contacto || "", notas: lead.notas || "",
@@ -86,10 +168,15 @@ export default function CRMPage() {
     if (!form.razon_social) { alert("Razón social es obligatoria"); return }
     setSaving(true)
     const payload = { ...form, presupuesto_estimado: form.presupuesto_estimado ? Number(form.presupuesto_estimado) : null }
-    if (editando) {
-      await supabase.from("crm_leads").update(payload).eq("id", editando.id)
-    } else {
-      await supabase.from("crm_leads").insert({ ...payload, entidad: "peru" })
+    const { error } = editando
+      ? await supabase.from("crm_leads").update(payload).eq("id", editando.id)
+      : await supabase.from("crm_leads").insert({ ...payload, entidad: "peru" })
+
+    if (error) {
+      console.error("Error guardando lead CRM:", error)
+      alert("No se pudo guardar el lead: " + supabaseErrorMessage(error))
+      setSaving(false)
+      return
     }
     setSaving(false)
     await registrarAccion({ accion: editando ? "editar" : "crear", modulo: "crm", entidad_tipo: "lead", descripcion: (editando ? "Lead editado: " : "Lead creado: ") + form.razon_social })
@@ -100,20 +187,35 @@ export default function CRMPage() {
   async function agregarNota() {
     if (!nuevaNota.trim() || !selected) return
     const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from("crm_notas").insert({ lead_id: selected.id, contenido: nuevaNota, created_by: user?.id })
+    const { error } = await supabase.from("crm_notas").insert({ lead_id: selected.id, contenido: nuevaNota, created_by: user?.id })
+    if (error) {
+      console.error("Error agregando nota CRM:", error)
+      alert("No se pudo agregar la nota: " + supabaseErrorMessage(error))
+      return
+    }
     setNuevaNota("")
     loadNotas(selected.id)
   }
 
-  async function cambiarEstado(leadId: string, estado: string) {
-    await supabase.from("crm_leads").update({ estado }).eq("id", leadId)
+  async function cambiarEstado(leadId: string, estado: CRMEstado) {
+    const { error } = await supabase.from("crm_leads").update({ estado }).eq("id", leadId)
+    if (error) {
+      console.error("Error cambiando estado CRM:", error)
+      alert("No se pudo cambiar el estado: " + supabaseErrorMessage(error))
+      return
+    }
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, estado } : l))
-    if (selected?.id === leadId) setSelected((prev: any) => ({ ...prev, estado }))
+    if (selected?.id === leadId) setSelected((prev) => prev ? ({ ...prev, estado }) : prev)
   }
 
-  async function eliminarLead(lead: any) {
+  async function eliminarLead(lead: CRMLead) {
     if (!confirm("¿Eliminar lead " + lead.razon_social + "?")) return
-    await supabase.from("crm_leads").delete().eq("id", lead.id)
+    const { error } = await supabase.from("crm_leads").delete().eq("id", lead.id)
+    if (error) {
+      console.error("Error eliminando lead CRM:", error)
+      alert("No se pudo eliminar el lead: " + supabaseErrorMessage(error))
+      return
+    }
     if (selected?.id === lead.id) setSelected(null)
     setLeads(prev => prev.filter(l => l.id !== lead.id))
     await registrarAccion({ accion: "eliminar", modulo: "crm", entidad_tipo: "lead", descripcion: "Lead eliminado: " + lead.razon_social })
@@ -128,15 +230,20 @@ export default function CRMPage() {
       telefono_contacto: selected.telefono_contacto || null,
     }).select("id, razon_social").single()
     if (error || !cliente) { alert("Error creando cliente: " + (error?.message || "sin respuesta")); return }
-    await supabase.from("crm_leads").update({ estado: "ganado" }).eq("id", selected.id)
-    setSelected((prev: any) => ({ ...prev, estado: "ganado" }))
+    const { error: leadError } = await supabase.from("crm_leads").update({ estado: "ganado" }).eq("id", selected.id)
+    if (leadError) {
+      console.error("Error actualizando lead convertido:", leadError)
+      alert("Cliente creado, pero no se pudo actualizar el lead: " + supabaseErrorMessage(leadError))
+      return
+    }
+    setSelected((prev) => prev ? ({ ...prev, estado: "ganado" }) : prev)
     setClientesConvertidos(prev => ({ ...prev, [selected.id]: cliente }))
     load()
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 0 })
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
+  const inp: CSSProperties = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
+  const lbl: CSSProperties = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
 
   const filtrados = leads.filter(l => {
     if (filtroEstado && l.estado !== filtroEstado) return false
@@ -150,16 +257,15 @@ export default function CRMPage() {
 
   const totalPipeline = leads.filter(l => !["ganado","perdido"].includes(l.estado)).reduce((s, l) => s + (l.presupuesto_estimado || 0), 0)
   const totalGanado = leads.filter(l => l.estado === "ganado").reduce((s, l) => s + (l.presupuesto_estimado || 0), 0)
-  const tasaConversion = leads.length > 0 ? Math.round((leads.filter(l => l.estado === "ganado").length / leads.length) * 100) : 0
   const leadsActivos = leads.filter(l => !["ganado","perdido"].includes(l.estado))
   const leadsCalientes = leads.filter(l => l.temperatura === "caliente")
   const propuestasAbiertas = leads.filter(l => ["propuesta","negociacion"].includes(l.estado))
   const cierreEsperado = leadsActivos.reduce((s, l) => s + ((Number(l.presupuesto_estimado) || 0) * ((Number(l.probabilidad_cierre) || 0) / 100)), 0)
-  const estadosPipeline = ["nuevo", "contactado", "propuesta", "negociacion", "ganado"]
+  const estadosPipeline = ESTADOS_PIPELINE_CRM
 
-  const leadsPorEstado = (estado: string) => filtrados.filter(l => l.estado === estado)
+  const leadsPorEstado = (estado: CRMEstado) => filtrados.filter(l => l.estado === estado)
 
-  const valorPorEstado = (estado: string) =>
+  const valorPorEstado = (estado: CRMEstado) =>
     leadsPorEstado(estado).reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)
 
 
@@ -221,28 +327,28 @@ export default function CRMPage() {
                   <label style={lbl}>Origen</label>
                   <select style={inp} value={form.origen} onChange={e => setForm({ ...form, origen: e.target.value })}>
                     <option value="">Seleccionar</option>
-                    {ORIGENES.map(o => <option key={o}>{o}</option>)}
+                    {ORIGENES_CRM.map(o => <option key={o}>{o}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={lbl}>Industria</label>
                   <select style={inp} value={form.industria} onChange={e => setForm({ ...form, industria: e.target.value })}>
                     <option value="">Seleccionar</option>
-                    {INDUSTRIAS.map(i => <option key={i}>{i}</option>)}
+                    {INDUSTRIAS_CRM.map(i => <option key={i}>{i}</option>)}
                   </select>
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>Estado</label>
-                  <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
-                    {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value as CRMEstado })}>
+                    {Object.entries(ESTADOS_CRM).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={lbl}>Temperatura</label>
-                  <select style={inp} value={form.temperatura} onChange={e => setForm({ ...form, temperatura: e.target.value })}>
-                    {Object.entries(TEMPERATURAS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  <select style={inp} value={form.temperatura} onChange={e => setForm({ ...form, temperatura: e.target.value as CRMTemperatura })}>
+                    {Object.entries(TEMPERATURAS_CRM).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
                 </div>
                 <div><label style={lbl}>Presupuesto est.</label><input type="number" style={inp} value={form.presupuesto_estimado} onChange={e => setForm({ ...form, presupuesto_estimado: e.target.value })} /></div>
@@ -266,11 +372,11 @@ export default function CRMPage() {
               <input style={{ ...inp, width: 220 }} placeholder="Buscar lead..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
               <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
                 <option value="">Todos los estados</option>
-                {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                {Object.entries(ESTADOS_CRM).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
               <select style={{ ...inp, width: "auto" }} value={filtroTemp} onChange={e => setFiltroTemp(e.target.value)}>
                 <option value="">Todas las temp.</option>
-                {Object.entries(TEMPERATURAS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                {Object.entries(TEMPERATURAS_CRM).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
               {(filtroEstado || filtroTemp || busqueda) && (
                 <button onClick={() => { setFiltroEstado(""); setFiltroTemp(""); setBusqueda("") }}
@@ -282,9 +388,9 @@ export default function CRMPage() {
           </div>
 
           <div style={{ overflowX: "auto", paddingBottom: 8 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(260px, 1fr))", gap: 16, minWidth: 1340 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(260px, 1fr))", gap: 16, minWidth: 1904 }}>
               {estadosPipeline.map(estado => {
-                const ec = ESTADOS[estado] || { bg: "#f3f4f6", color: "#6b7280", label: estado }
+                const ec = ESTADOS_CRM[estado] || { bg: "#f3f4f6", color: "#6b7280", label: estado }
                 const lista = leadsPorEstado(estado)
                 return (
                   <div key={estado} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 18, overflow: "hidden", boxShadow: "0 12px 28px rgba(15,23,42,.04)" }}>
@@ -311,7 +417,8 @@ export default function CRMPage() {
                           Sin leads
                         </div>
                       ) : lista.map(lead => {
-                        const tc = TEMPERATURAS[lead.temperatura] || { color: "#6b7280", label: lead.temperatura }
+                        const tc = TEMPERATURAS_CRM[lead.temperatura as CRMTemperatura] || { color: "#6b7280", label: lead.temperatura }
+                        const probabilidad = Number(lead.probabilidad_cierre) || 0
                         return (
                           <div key={lead.id}
                             onClick={() => { setSelected(lead); loadNotas(lead.id) }}
@@ -347,8 +454,8 @@ export default function CRMPage() {
                               {lead.telefono_contacto && <div>📞 {lead.telefono_contacto}</div>}
                               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                                 <span>💰 {lead.presupuesto_estimado ? fmt(lead.presupuesto_estimado) : "Sin presupuesto"}</span>
-                                <strong style={{ color: lead.probabilidad_cierre >= 70 ? "#0F6E56" : lead.probabilidad_cierre >= 40 ? "#ca8a04" : "#6b7280" }}>
-                                  {lead.probabilidad_cierre || 0}%
+                                <strong style={{ color: probabilidad >= 70 ? "#0F6E56" : probabilidad >= 40 ? "#ca8a04" : "#6b7280" }}>
+                                  {probabilidad}%
                                 </strong>
                               </div>
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -387,8 +494,8 @@ export default function CRMPage() {
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>CAMBIAR ESTADO</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {Object.entries(ESTADOS).map(([k, v]: [string, any]) => (
-                    <button key={k} onClick={() => cambiarEstado(selected.id, k)}
+                  {Object.entries(ESTADOS_CRM).map(([k, v]) => (
+                    <button key={k} onClick={() => cambiarEstado(selected.id, k as CRMEstado)}
                       style={{ padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, cursor: "pointer",
                         background: selected.estado === k ? v.color : v.bg,
                         color: selected.estado === k ? "#fff" : v.color,
@@ -398,11 +505,11 @@ export default function CRMPage() {
                   ))}
                 </div>
               </div>
-              {selected.presupuesto_estimado > 0 && (
+              {Number(selected.presupuesto_estimado) > 0 && (
                 <div style={{ background: "#f0fdf4", borderRadius: 8, padding: "10px 14px", marginBottom: 12 }}>
                   <div style={{ fontSize: 11, color: "#6b7280" }}>Presupuesto estimado</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "#0F6E56" }}>{fmt(selected.presupuesto_estimado)}</div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>Prob. cierre: {selected.probabilidad_cierre}%</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#0F6E56" }}>{fmt(Number(selected.presupuesto_estimado))}</div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>Prob. cierre: {Number(selected.probabilidad_cierre) || 0}%</div>
                 </div>
               )}
               {!["ganado", "perdido"].includes(selected.estado) && (
@@ -437,11 +544,11 @@ export default function CRMPage() {
               <div style={{ maxHeight: 220, overflowY: "auto", display: "grid", gap: 8 }}>
                 {notas.length === 0 ? (
                   <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 12 }}>Sin notas aun</div>
-                ) : notas.map((nota: any) => (
+                ) : notas.map((nota: CRMNota) => (
                   <div key={nota.id} style={{ background: "#f9fafb", borderRadius: 8, padding: "8px 12px" }}>
                     <div style={{ fontSize: 12, color: "#374151" }}>{nota.contenido}</div>
                     <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>
-                      {new Date(nota.created_at).toLocaleDateString("es-PE")}
+                      {nota.created_at ? new Date(nota.created_at).toLocaleDateString("es-PE") : ""}
                     </div>
                   </div>
                 ))}
