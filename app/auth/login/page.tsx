@@ -31,14 +31,32 @@ export default function LoginPage() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
+    if (loading) return
+    const emailLimpio = email.trim()
+    if (!emailLimpio || !password) {
+      setError("Ingresa email y contraseña")
+      return
+    }
     setLoading(true)
     setError("")
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      setError("Email o contraseña incorrectos")
+    try {
+      const loginPromise = supabase.auth.signInWithPassword({ email: emailLimpio, password })
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        window.setTimeout(() => reject(new Error("Tiempo de espera agotado al iniciar sesión")), 15000)
+      })
+      const { error } = await Promise.race([loginPromise, timeoutPromise])
+      if (error) {
+        setError(error.message || "Email o contraseña incorrectos")
+        setLoading(false)
+        return
+      }
+      const params = new URLSearchParams(window.location.search)
+      const destino = params.get("next") || "/dashboard"
+      window.location.assign(destino.startsWith("/") ? destino : "/dashboard")
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "No se pudo iniciar sesión"
+      setError(message)
       setLoading(false)
-    } else {
-      window.location.href = "/dashboard"
     }
   }
 
