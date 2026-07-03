@@ -1,4 +1,12 @@
 import { SYSTEM_CATALOGS } from "./catalogs"
+import { SYSTEM_COLUMNS } from "./columns"
+import { SYSTEM_FEATURES } from "./features"
+import { SYSTEM_FIELDS } from "./fields"
+import { SYSTEM_PARAMETERS } from "./parameters"
+import { SYSTEM_SERIES } from "./series"
+import { SYSTEM_UI_CONFIG } from "./ui"
+import { SYSTEM_VALIDATIONS } from "./validations"
+import { SYSTEM_VARIABLES } from "./variables"
 import type {
   ColumnConfiguration,
   FeatureFlag,
@@ -28,36 +36,38 @@ export class StaticConfigurationRepository implements SystemConfigurationReposit
     return catalog?.items.find(item => item.key === itemKey) || null
   }
 
-  async getParameter(): Promise<SystemParameter | null> {
-    return null
+  async getParameter(key: string): Promise<SystemParameter | null> {
+    return SYSTEM_PARAMETERS.find(parameter => parameter.key === key && parameter.active) || null
   }
 
-  async getVariable(): Promise<SystemVariable | null> {
-    return null
+  async getVariable(key: string): Promise<SystemVariable | null> {
+    return SYSTEM_VARIABLES.find(variable => variable.key === key) || null
   }
 
-  async getSeries(): Promise<SystemSeries | null> {
-    return null
+  async getSeries(key: string): Promise<SystemSeries | null> {
+    return SYSTEM_SERIES.find(series => series.key === key && series.active) || null
   }
 
-  async getFeature(): Promise<FeatureFlag | null> {
-    return null
+  async getFeature(key: string): Promise<FeatureFlag | null> {
+    return SYSTEM_FEATURES.find(feature => feature.key === key) || null
   }
 
-  async getUIConfig(): Promise<UIConfiguration | null> {
-    return null
+  async getUIConfig(key: string): Promise<UIConfiguration | null> {
+    return SYSTEM_UI_CONFIG.find(config => config.key === key) || null
   }
 
-  async getColumns(): Promise<ColumnConfiguration[]> {
-    return []
+  async getColumns(module: string): Promise<ColumnConfiguration[]> {
+    return SYSTEM_COLUMNS
+      .filter(column => column.module === module && column.visible)
+      .sort((a, b) => a.order - b.order)
   }
 
-  async getFields(): Promise<FieldConfiguration[]> {
-    return []
+  async getFields(module: string): Promise<FieldConfiguration[]> {
+    return SYSTEM_FIELDS.filter(field => field.module === module && field.visible)
   }
 
-  async getValidation(): Promise<ValidationRule | null> {
-    return null
+  async getValidation(key: string): Promise<ValidationRule | null> {
+    return SYSTEM_VALIDATIONS.find(validation => validation.key === key) || null
   }
 
   async getWorkflow(): Promise<WorkflowConfiguration | null> {
