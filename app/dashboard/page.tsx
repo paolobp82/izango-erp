@@ -27,18 +27,24 @@ const ESTADO_COLOR: Record<string, any> = {
 }
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
-const COTIZACION_APROBADA_ESTADOS = ["aprobada_cliente"]
-const PROYECTO_APROBADO_ESTADOS = ["en_curso"]
+const COTIZACION_APROBADA_ESTADOS = ["aprobada_cliente", "aprobado_cliente"]
+const PROYECTO_PENDIENTE_ESTADOS = ["pendiente_aprobacion"]
+const PROYECTO_EN_CURSO_ESTADOS = ["aprobado_cliente", "en_curso", "terminado", "liquidado", "pendiente_facturacion", "facturado", "cerrado_financiero"]
 const FACTURA_ANULADA_ESTADOS = ["anulada", "cancelada"]
 const FACTURA_COBRADA_ESTADOS = ["cobrada", "pagada"]
 const FACTURA_POR_COBRAR_ESTADOS = ["emitida", "pendiente", "pendiente_cobro"]
 const num = (value: any) => Number(value) || 0
-const COTIZACION_SELECT = "id, proyecto_id, total_cliente, estado, fee_agencia_pct, fee_activo, igv_pct, descuento_pct, items:cotizacion_items(precio_cliente, incluir_en_total)"
+const COTIZACION_SELECT = "id, proyecto_id, version, estado, created_at, updated_at, total_cliente, subtotal_precio_cliente, subtotal_con_fee, igv_monto, fee_agencia_pct, fee_activo, igv_pct, descuento_pct, items:cotizacion_items(precio_cliente, incluir_en_total)"
 const FINANCIAL_LOCK_LABEL = "Restringido"
 
 function totalCotizacion(cotizacion: any) {
-  const totalGuardado = num(cotizacion?.total_cliente)
-  if (totalGuardado > 0) return totalGuardado
+  const totalGuardado = [
+    cotizacion?.total_cliente,
+    cotizacion?.subtotal_con_fee && num(cotizacion.subtotal_con_fee) + num(cotizacion.igv_monto),
+    cotizacion?.subtotal_precio_cliente,
+  ].map(num).find(total => total > 0)
+
+  if (totalGuardado) return totalGuardado
 
   const items = Array.isArray(cotizacion?.items) ? cotizacion.items : []
   const totalPrecioCliente = items
@@ -52,6 +58,30 @@ function totalCotizacion(cotizacion: any) {
   const subtotalConDescuento = subtotalConFee - (subtotalConFee * num(cotizacion?.descuento_pct) / 100)
   const igvPct = cotizacion?.igv_pct === null || cotizacion?.igv_pct === undefined ? 18 : num(cotizacion.igv_pct)
   return subtotalConDescuento + (subtotalConDescuento * igvPct / 100)
+}
+
+function fechaCotizacion(cotizacion: any) {
+  return new Date(cotizacion?.updated_at || cotizacion?.created_at || 0).getTime()
+}
+
+function ordenarCotizaciones(a: any, b: any) {
+  const aAprobada = COTIZACION_APROBADA_ESTADOS.includes(a?.estado) ? 1 : 0
+  const bAprobada = COTIZACION_APROBADA_ESTADOS.includes(b?.estado) ? 1 : 0
+  if (aAprobada !== bAprobada) return bAprobada - aAprobada
+
+  const versionDiff = num(b?.version) - num(a?.version)
+  if (versionDiff !== 0) return versionDiff
+
+  const fechaDiff = fechaCotizacion(b) - fechaCotizacion(a)
+  if (fechaDiff !== 0) return fechaDiff
+
+  return totalCotizacion(b) - totalCotizacion(a)
+}
+
+function mejorCotizacion(cotizaciones: any[]) {
+  return [...cotizaciones]
+    .filter(cotizacion => totalCotizacion(cotizacion) > 0)
+    .sort(ordenarCotizaciones)[0]
 }
 
 export default function DashboardPage() {
@@ -97,13 +127,12 @@ export default function DashboardPage() {
 
     const dashboardResults = await Promise.all([
       supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
-      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at, fecha_inicio, comercial_id, created_by, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
+      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at, fecha_inicio, productor_id, comercial_id, responsable_id, created_by, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
       supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at, fecha_emision, proyecto_id"),
       supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id, created_by"),
       supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id, solicitado_por, created_by"),
-      supabase.from("cotizaciones").select("id, proyecto_id, created_at").gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+      supabase.from("cotizaciones").select(COTIZACION_SELECT).gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
       supabase.from("crm_leads").select("estado, temperatura, presupuesto_estimado, created_by"),
-      supabase.from("cotizaciones").select(COTIZACION_SELECT).in("estado", COTIZACION_APROBADA_ESTADOS).limit(60),
       supabase.from("cotizaciones").select(COTIZACION_SELECT),
     ])
     const [
@@ -114,7 +143,6 @@ export default function DashboardPage() {
       rqsResult,
       cotMesResult,
       leadsResult,
-      cotizacionesResult,
       cotsProyResult,
     ] = dashboardResults
     const dashboardErrors = [
@@ -125,7 +153,6 @@ export default function DashboardPage() {
       ["requerimientos_pago", rqsResult.error],
       ["cotizaciones del mes", cotMesResult.error],
       ["crm_leads", leadsResult.error],
-      ["cotizaciones aprobadas", cotizacionesResult.error],
       ["cotizaciones por proyecto", cotsProyResult.error],
     ].filter(([, error]) => Boolean(error))
     if (dashboardErrors.length > 0) {
@@ -138,12 +165,11 @@ export default function DashboardPage() {
     const rqs = rqsResult.data
     const cotMes = cotMesResult.data
     const leads = leadsResult.data
-    const cotizaciones = cotizacionesResult.data
     const cotsProy = cotsProyResult.data
 
     const rawProjects = todosProyectos || []
     const teamIds = scopeDashboard.equipo && p?.perfil === "gerente_produccion"
-      ? rawProjects.flatMap((proyecto: any) => [proyecto.proyecto.comercial_id, proyecto.responsable_id]).filter(Boolean)
+      ? rawProjects.flatMap((proyecto: any) => [proyecto.productor_id, proyecto.comercial_id, proyecto.responsable_id]).filter(Boolean)
       : []
     const contextoPermisos = { usuarioId: user.id, equipoIds: teamIds }
     const allProv = filtrarPorAlcance(rawProjects, p, "dashboard", contextoPermisos)
@@ -151,10 +177,10 @@ export default function DashboardPage() {
       .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
       .slice(0, 10)
     setProyectos(proyectosRecientes)
-    const activeProjectIds = new Set(allProv.map((p: any) => p.id))
+    const activeProjectIds = new Set(allProv.map((p: any) => String(p.id)))
     const projectById = new Map(allProv.map((p: any) => [p.id, p]))
     const scopedProjectIds = Array.from(activeProjectIds).map(String)
-    const rowHasActiveProject = (row: any) => row?.proyecto_id ? activeProjectIds.has(row.proyecto_id) : scopeDashboard.total
+    const rowHasActiveProject = (row: any) => row?.proyecto_id ? activeProjectIds.has(String(row.proyecto_id)) : scopeDashboard.total
     const facturasActivas = canSeeFacturas ? (facturas || []).filter(rowHasActiveProject) : []
     const liquidacionesActivas = canSeeMargen ? (liquidaciones || []).filter(rowHasActiveProject) : []
     const rqsActivosBase = canSeeCostos ? (rqs || []).filter(rowHasActiveProject) : []
@@ -163,6 +189,14 @@ export default function DashboardPage() {
     const cotMesActivas = (cotMes || []).filter(rowHasActiveProject)
     const leadsVisibles = filtrarPorAlcance((leads || []), p, "crm", contextoPermisos)
     setCotsProyState(cotsProyActivas)
+    const cotizacionesPorProyecto = new Map<string, any[]>()
+    cotsProyActivas.forEach((cotizacion: any) => {
+      if (!cotizacion?.proyecto_id) return
+      const proyectoId = String(cotizacion.proyecto_id)
+      cotizacionesPorProyecto.set(proyectoId, [...(cotizacionesPorProyecto.get(proyectoId) || []), cotizacion])
+    })
+    const mejorCotizacionProyecto = (proyectoId: string) => mejorCotizacion(cotizacionesPorProyecto.get(String(proyectoId)) || [])
+    const totalMejorCotizacionProyecto = (proyectoId: string) => totalCotizacion(mejorCotizacionProyecto(proyectoId))
 
     // Métricas base
     const activos = allProv.filter(p => p.estado === "en_curso")
@@ -197,13 +231,15 @@ export default function DashboardPage() {
       canSeePrecioCliente, canSeeFacturas, canSeeCobranza, canSeeCostos, canSeeMargen,
       presupuestosPendientes: canSeePrecioCliente ? allProv.filter((p: any) => {
         const creado = p.created_at ? new Date(p.created_at) : null
-        return p.estado === "pendiente_aprobacion" && creado && creado >= inicioMes && creado <= hoy
-      }).reduce((s: number, p: any) => { const cots = cotsProyActivas.filter((c: any) => c.proyecto_id === p.id && totalCotizacion(c) > 0); const maxCot = cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; return s + totalCotizacion(maxCot) }, 0) : 0,
+        return PROYECTO_PENDIENTE_ESTADOS.includes(p.estado) && creado && creado >= inicioMes && creado <= hoy
+      }).reduce((s: number, p: any) => s + totalMejorCotizacionProyecto(p.id), 0) : 0,
       pendientesMes: allProv.filter((p: any) => {
         const creado = p.created_at ? new Date(p.created_at) : null
-        return p.estado === "pendiente_aprobacion" && creado && creado >= inicioMes && creado <= hoy
+        return PROYECTO_PENDIENTE_ESTADOS.includes(p.estado) && creado && creado >= inicioMes && creado <= hoy
       }).length,
-      presupuestosAprobados: canSeePrecioCliente ? allProv.filter((p: any) => PROYECTO_APROBADO_ESTADOS.includes(p.estado)).reduce((s: number, p: any) => { const cots = cotsProyActivas.filter((c: any) => c.proyecto_id === p.id && totalCotizacion(c) > 0); const aprobada = cots.find((c: any) => COTIZACION_APROBADA_ESTADOS.includes(c.estado)) || cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; return s + totalCotizacion(aprobada) }, 0) : 0,
+      presupuestosAprobados: canSeePrecioCliente ? allProv
+        .filter((p: any) => PROYECTO_EN_CURSO_ESTADOS.includes(p.estado))
+        .reduce((s: number, p: any) => s + totalMejorCotizacionProyecto(p.id), 0) : 0,
     })
 
     // Chart facturación por mes (últimos 6 meses)
@@ -238,10 +274,17 @@ export default function DashboardPage() {
     setChartRQs(rqsData)
 
     // Top proyectos por valor
-    const top = canSeePrecioCliente ? (cotizaciones || []).filter(rowHasActiveProject).map((c: any) => ({
-      nombre: projectById.get(c.proyecto_id)?.codigo || "—",
-      valor: Math.round(totalCotizacion(c)),
-    })).filter((c: any) => c.valor > 0).sort((a: any, b: any) => b.valor - a.valor).slice(0, 5) : []
+    const top = canSeePrecioCliente ? allProv
+      .map((proyecto: any) => {
+        const cotizacion = mejorCotizacionProyecto(proyecto.id)
+        return {
+          nombre: projectById.get(proyecto.id)?.codigo || "—",
+          valor: Math.round(totalCotizacion(cotizacion)),
+        }
+      })
+      .filter((c: any) => c.valor > 0)
+      .sort((a: any, b: any) => b.valor - a.valor)
+      .slice(0, 5) : []
     setTopProyectos(top)
 
     // Alertas
@@ -421,7 +464,7 @@ export default function DashboardPage() {
                     <span style={{ background: ec.bg, color: ec.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{ec.label}</span>
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#0F6E56" }}>
-                    {metricas.canSeePrecioCliente ? (() => { const cots = (cotsProyState || []).filter((c: any) => c.proyecto_id === p.id); const aprobada = cots.find((c: any) => COTIZACION_APROBADA_ESTADOS.includes(c.estado)); const ultima = cots.sort((a: any, b: any) => totalCotizacion(b) - totalCotizacion(a))[0]; const monto = totalCotizacion(aprobada || ultima); return monto ? fmt(monto) : "—" })() : "—"}
+                    {metricas.canSeePrecioCliente ? (() => { const cots = (cotsProyState || []).filter((c: any) => String(c.proyecto_id) === String(p.id)); const monto = totalCotizacion(mejorCotizacion(cots)); return monto ? fmt(monto) : "—" })() : "—"}
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 12, color: "#94a3b8" }}>
                     {p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE") : "—"}
