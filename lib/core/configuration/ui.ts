@@ -1,19 +1,7 @@
 import type { UIConfiguration } from "./SystemConfigurationTypes"
 
 export const SYSTEM_UI_CONFIG: UIConfiguration[] = [
-  {
-    key: "layout.default_density",
-    value: "comfortable",
-    metadata: { description: "Densidad visual por defecto para pantallas operativas." },
-  },
-  {
-    key: "crm.pipeline.column_width",
-    value: 240,
-    metadata: { module: "crm", unit: "px" },
-  },
-  {
-    key: "rq.table.default_page_size",
-    value: 20,
-    metadata: { module: "rq" },
-  },
+  { key: "crm.default_view", value: "kanban" },
+  { key: "dashboard.show_financial_kpis", value: true },
+  { key: "rq.default_sort", value: "created_at_desc" }
 ]

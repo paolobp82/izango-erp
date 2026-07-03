@@ -58,12 +58,12 @@ export class StaticConfigurationRepository implements SystemConfigurationReposit
 
   async getColumns(module: string): Promise<ColumnConfiguration[]> {
     return SYSTEM_COLUMNS
-      .filter(column => column.module === module && column.visible)
+      .filter(column => column.module === module)
       .sort((a, b) => a.order - b.order)
   }
 
   async getFields(module: string): Promise<FieldConfiguration[]> {
-    return SYSTEM_FIELDS.filter(field => field.module === module && field.visible)
+    return SYSTEM_FIELDS.filter(field => field.module === module)
   }
 
   async getValidation(key: string): Promise<ValidationRule | null> {
