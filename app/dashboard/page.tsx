@@ -127,7 +127,7 @@ export default function DashboardPage() {
 
     const dashboardResults = await Promise.all([
       supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
-      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at, fecha_inicio, productor_id, comercial_id, responsable_id, created_by, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
+      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at, fecha_inicio, productor_id, comercial_id, created_by, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
       supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at, fecha_emision, proyecto_id"),
       supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id, created_by"),
       supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id, solicitado_por, created_by"),
@@ -169,7 +169,7 @@ export default function DashboardPage() {
 
     const rawProjects = todosProyectos || []
     const teamIds = scopeDashboard.equipo && p?.perfil === "gerente_produccion"
-      ? rawProjects.flatMap((proyecto: any) => [proyecto.productor_id, proyecto.comercial_id, proyecto.responsable_id]).filter(Boolean)
+      ? rawProjects.flatMap((proyecto: any) => [proyecto.productor_id, proyecto.comercial_id]).filter(Boolean)
       : []
     const contextoPermisos = { usuarioId: user.id, equipoIds: teamIds }
     const allProv = filtrarPorAlcance(rawProjects, p, "dashboard", contextoPermisos)
