@@ -27,7 +27,7 @@ const ESTADO_COLOR: Record<string, any> = {
 }
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
-const COTIZACION_APROBADA_ESTADOS = ["aprobado_cliente", "aprobada_cliente"]
+const COTIZACION_APROBADA_ESTADOS = ["aprobada_cliente"]
 const PROYECTO_APROBADO_ESTADOS = ["en_curso"]
 const FACTURA_ANULADA_ESTADOS = ["anulada", "cancelada"]
 const FACTURA_COBRADA_ESTADOS = ["cobrada", "pagada"]
@@ -97,12 +97,12 @@ export default function DashboardPage() {
 
     const dashboardResults = await Promise.all([
       supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
-      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at, fecha_inicio, productor_id, comercial_id, responsable_id, created_by, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
+      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at, fecha_inicio, comercial_id, created_by, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
       supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at, fecha_emision, proyecto_id"),
-      supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id, productor_id, created_by"),
-      supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id, productor_id, solicitado_por, created_by"),
+      supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id, created_by"),
+      supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id, solicitado_por, created_by"),
       supabase.from("cotizaciones").select("id, proyecto_id, created_at").gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
-      supabase.from("crm_leads").select("estado, temperatura, presupuesto_estimado, responsable_id, created_by"),
+      supabase.from("crm_leads").select("estado, temperatura, presupuesto_estimado, created_by"),
       supabase.from("cotizaciones").select(COTIZACION_SELECT).in("estado", COTIZACION_APROBADA_ESTADOS).limit(60),
       supabase.from("cotizaciones").select(COTIZACION_SELECT),
     ])
@@ -143,7 +143,7 @@ export default function DashboardPage() {
 
     const rawProjects = todosProyectos || []
     const teamIds = scopeDashboard.equipo && p?.perfil === "gerente_produccion"
-      ? rawProjects.flatMap((proyecto: any) => [proyecto.productor_id, proyecto.comercial_id, proyecto.responsable_id]).filter(Boolean)
+      ? rawProjects.flatMap((proyecto: any) => [proyecto.proyecto.comercial_id, proyecto.responsable_id]).filter(Boolean)
       : []
     const contextoPermisos = { usuarioId: user.id, equipoIds: teamIds }
     const allProv = filtrarPorAlcance(rawProjects, p, "dashboard", contextoPermisos)
@@ -436,6 +436,7 @@ export default function DashboardPage() {
     </div>
   )
 }
+
 
 
 
