@@ -13,6 +13,12 @@ import {
   getCRMTemperaturasVisuales,
 } from "@/lib/core/configuration/crm"
 import { lifecycleEngine } from "@/lib/core/lifecycle"
+import {
+  filtrarPorAlcance,
+  puedeEjecutarAccion,
+  puedeVerModulo,
+  type AccionPermiso,
+} from "@/lib/permisos"
 
 const ESTADOS = getCRMEstadosVisuales()
 const ESTADOS_PIPELINE = getCRMEstadosPipeline()
@@ -53,11 +59,36 @@ export default function CRMPage() {
   const [notas, setNotas] = useState<any[]>([])
   const [clientesConvertidos, setClientesConvertidos] = useState<Record<string, { id: string; razon_social: string }>>({})
   const [archivando, setArchivando] = useState(false)
+  const [perfilActual, setPerfilActual] = useState<any>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setCurrentUserId(null)
+      setPerfilActual(null)
+      setLeads([])
+      setClientes([])
+      setResponsables([])
+      setLoading(false)
+      return
+    }
+
+    const { data: perfil } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setCurrentUserId(user.id)
+    setPerfilActual(perfil)
+
+    if (!puedeVerModulo(perfil, "crm")) {
+      setLeads([])
+      setClientes([])
+      setResponsables([])
+      setLoading(false)
+      return
+    }
+
     const [leadsRes, clientesRes, perfilesRes] = await Promise.all([
       supabase
         .from("crm_leads")
@@ -77,7 +108,8 @@ export default function CRMPage() {
       console.error("Error CRM leads", leadsRes.error)
       setLeads([])
     } else {
-      setLeads((leadsRes.data || []).map(normalizarLead))
+      const normalizados = (leadsRes.data || []).map(normalizarLead)
+      setLeads(filtrarPorAlcance(normalizados, perfil, "crm", { usuarioId: user.id }))
     }
     setClientes(clientesRes.data || [])
     setResponsables(perfilesRes.data || [])
@@ -106,13 +138,25 @@ export default function CRMPage() {
     }
   }
 
+  function puedeAccionCRM(accion: AccionPermiso, registro?: any) {
+    return puedeEjecutarAccion(perfilActual, "crm", accion, { usuarioId: currentUserId, registro })
+  }
+
+  function validarAccionCRM(accion: AccionPermiso, registro?: any) {
+    if (puedeAccionCRM(accion, registro)) return true
+    alert("No tienes permiso para realizar esta acción.")
+    return false
+  }
+
   function abrirNuevo() {
+    if (!validarAccionCRM("crear")) return
     setEditando(null)
     setForm({ ...emptyForm, periodo_pipeline: periodoActual() })
     setShowForm(true)
   }
 
   function abrirEditar(lead: any) {
+    if (!validarAccionCRM("editar", lead)) return
     const normalizado = normalizarLead(lead)
     setEditando(normalizado)
     setForm({
@@ -152,6 +196,7 @@ export default function CRMPage() {
   }
 
   async function guardar() {
+    if (!validarAccionCRM(editando ? "editar" : "crear", editando || form)) return
     if (!form.razon_social) { alert("Razón social es obligatoria"); return }
     setSaving(true)
 
@@ -207,6 +252,7 @@ export default function CRMPage() {
   async function cambiarEstado(leadId: string, estado: string) {
     if (!ESTADOS[estado]) return
     const lead = leads.find(l => l.id === leadId) || selected
+    if (!validarAccionCRM("editar", lead)) return
     const estadoActual = lead?.estado
     if (!lifecycleEngine.canTransition("crm", estadoActual, estado)) {
       alert(`Transición no permitida: ${ESTADOS[estadoActual]?.label || estadoActual} → ${ESTADOS[estado]?.label || estado}`)
@@ -226,6 +272,7 @@ export default function CRMPage() {
   }
 
   async function eliminarLead(lead: any) {
+    if (!validarAccionCRM("eliminar", lead)) return
     if (!confirm("¿Eliminar lead " + lead.razon_social + "?")) return
     await supabase.from("crm_leads").delete().eq("id", lead.id)
     if (selected?.id === lead.id) setSelected(null)
@@ -235,6 +282,7 @@ export default function CRMPage() {
 
   async function convertirACliente(lead = selected, confirmar = true) {
     if (!lead) return null
+    if (!validarAccionCRM("convertir", lead)) return null
     if (lead.cliente_id) {
       await cambiarEstado(lead.id, "ganado")
       return lead.cliente
@@ -285,6 +333,7 @@ export default function CRMPage() {
   }
 
   async function archivarLead(lead: any) {
+    if (!validarAccionCRM("editar", lead)) return
     if (!confirm("¿Archivar lead " + lead.razon_social + "?")) return
     const { error } = await supabase.from("crm_leads").update({ archivado: true }).eq("id", lead.id)
     if (error) { alert("No se pudo archivar: " + error.message); return }
@@ -293,6 +342,7 @@ export default function CRMPage() {
   }
 
   async function archivarCerradosDelMes() {
+    if (!validarAccionCRM("editar")) return
     const periodo = filtroPeriodo === "actual" || filtroPeriodo === "todos" ? periodoActual() : filtroPeriodo
     if (!confirm("Archivar leads ganados/perdidos del periodo " + periodo + "?")) return
     setArchivando(true)
@@ -351,6 +401,14 @@ export default function CRMPage() {
   }
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (!puedeVerModulo(perfilActual, "crm")) {
+    return <div style={{ color: "#6b7280", padding: 24 }}>Acceso restringido.</div>
+  }
+
+  const puedeCrearCRM = puedeAccionCRM("crear")
+  const puedeEditarCRM = puedeAccionCRM("editar")
+  const puedeEliminarCRM = puedeAccionCRM("eliminar")
+  const puedeConvertirCRM = puedeAccionCRM("convertir")
 
   return (
     <div>
@@ -360,8 +418,8 @@ export default function CRMPage() {
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Gestión de oportunidades comerciales · {leadsPeriodo.length} leads</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginLeft: "auto" }}>
-          <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("crm_leads").insert({...r,entidad:"peru",estado:ESTADOS[r.estado]?r.estado:"nuevo",temperatura:r.temperatura||"frio",periodo_pipeline:r.periodo_pipeline||periodoActual(),archivado:false}); if(error)errores.push(r.razon_social+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
-          <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>
+          {puedeCrearCRM && <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={async (registros) => { if (!validarAccionCRM("crear")) return { exitosos: 0, errores: ["No tienes permiso para realizar esta acción."] }; let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("crm_leads").insert({...r,entidad:"peru",estado:ESTADOS[r.estado]?r.estado:"nuevo",temperatura:r.temperatura||"frio",periodo_pipeline:r.periodo_pipeline||periodoActual(),archivado:false}); if(error)errores.push(r.razon_social+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />}
+          {puedeCrearCRM && <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>}
         </div>
       </div>
 
@@ -495,8 +553,8 @@ export default function CRMPage() {
               )}
               <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: "auto" }}>{filtrados.length} resultados</span>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginLeft: "auto" }}>
-                <button onClick={archivarCerradosDelMes} disabled={archivando} className="btn-secondary" style={{ fontSize: 13 }}>{archivando ? "Archivando..." : "Archivar cerrados del mes"}</button>
-                <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>
+                {puedeEditarCRM && <button onClick={archivarCerradosDelMes} disabled={archivando} className="btn-secondary" style={{ fontSize: 13 }}>{archivando ? "Archivando..." : "Archivar cerrados del mes"}</button>}
+                {puedeCrearCRM && <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>}
               </div>
             </div>
           </div>
@@ -552,16 +610,18 @@ export default function CRMPage() {
                                 </div>
                                 {lead.cliente_id && <div style={{ fontSize: 11, color: "#0F6E56", marginTop: 2, fontWeight: 700 }}>Cliente vinculado</div>}
                               </div>
-                              <div style={{ display: "flex", gap: 6 }}>
-                                <button onClick={e => { e.stopPropagation(); abrirEditar(lead) }}
-                                  style={{ border: "1px solid #e5e7eb", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#374151" }}>
-                                  Editar
-                                </button>
-                                <button onClick={e => { e.stopPropagation(); cambiarEstado(lead.id, "ganado") }}
-                                  style={{ border: "1px solid #bbf7d0", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#15803d" }}>
-                                  Ganar
-                                </button>
-                              </div>
+                              {puedeEditarCRM && (
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <button onClick={e => { e.stopPropagation(); abrirEditar(lead) }}
+                                    style={{ border: "1px solid #e5e7eb", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#374151" }}>
+                                    Editar
+                                  </button>
+                                  <button onClick={e => { e.stopPropagation(); cambiarEstado(lead.id, "ganado") }}
+                                    style={{ border: "1px solid #bbf7d0", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#15803d" }}>
+                                    Ganar
+                                  </button>
+                                </div>
+                              )}
                             </div>
 
                             <div style={{ display: "grid", gap: 6, fontSize: 12, color: "#4b5563" }}>
@@ -617,10 +677,11 @@ export default function CRMPage() {
                 {selected.fecha_proxima_accion && <div style={{ fontSize: 13, color: "#d97706", fontWeight: 600 }}>Próxima acción: {selected.fecha_proxima_accion}</div>}
                 {selected.notas && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Notas: </span>{selected.notas}</div>}
               </div>
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>CAMBIAR ESTADO</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {ESTADOS_PIPELINE.map(k => {
+              {puedeEditarCRM && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>CAMBIAR ESTADO</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {ESTADOS_PIPELINE.map(k => {
                     const v = ESTADOS[k]
                     return (
                       <button key={k} onClick={() => cambiarEstado(selected.id, k)}
@@ -632,8 +693,9 @@ export default function CRMPage() {
                       </button>
                     )
                   })}
+                  </div>
                 </div>
-              </div>
+              )}
               {selected.presupuesto_estimado > 0 && (
                 <div style={{ background: "#f0fdf4", borderRadius: 8, padding: "10px 14px", marginBottom: 12 }}>
                   <div style={{ fontSize: 11, color: "#6b7280" }}>Presupuesto estimado</div>
@@ -642,19 +704,19 @@ export default function CRMPage() {
                 </div>
               )}
               <div style={{ display: "grid", gap: 8 }}>
-                <button onClick={() => abrirEditar(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Editar</button>
-                {!selected.cliente_id && (
+                {puedeEditarCRM && <button onClick={() => abrirEditar(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Editar</button>}
+                {puedeConvertirCRM && !selected.cliente_id && (
                   <button onClick={() => convertirACliente(selected, true)}
                     style={{ width: "100%", padding: "8px", background: "#0F6E56", border: "none", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                     Convertir a cliente
                   </button>
                 )}
                 <button disabled className="btn-secondary" style={{ fontSize: 13, width: "100%", opacity: .55, cursor: "not-allowed" }}>Crear propuesta</button>
-                <button onClick={() => archivarLead(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Archivar</button>
-                <button onClick={() => eliminarLead(selected)}
+                {puedeEditarCRM && <button onClick={() => archivarLead(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Archivar</button>}
+                {puedeEliminarCRM && <button onClick={() => eliminarLead(selected)}
                   style={{ width: "100%", padding: "8px", background: "#fff", border: "1px solid #fecaca", borderRadius: 8, color: "#dc2626", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                   Eliminar
-                </button>
+                </button>}
               </div>
               {clientesConvertidos[selected.id] && (
                 <div style={{ display: "grid", gap: 8, marginTop: 12, padding: 12, border: "1px solid #bbf7d0", borderRadius: 10, background: "#f0fdf4" }}>
