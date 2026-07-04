@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
@@ -7,18 +8,14 @@ import { enviarAlerta } from "@/lib/alertas"
 import { rqCodigo } from "@/lib/rq-code"
 import { rqIgvDetalle, rqTratamientoIgv, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 import { estadoRQTrasEdicion, mensajeEdicionRQPorEstado, puedeEditarRQPorEstado, requiereReaprobacionRQ } from "@/lib/permisos/rq"
+import { filtrarPorAlcance, puedeEjecutarAccion, puedeVerModulo, type AccionPermiso } from "@/lib/permisos"
+import { getRQEstadosVisuales } from "@/lib/core/configuration"
+import { lifecycleEngine } from "@/lib/core/lifecycle"
+import { businessRuleEngine } from "@/lib/core/business-rules"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 
-const ESTADOS: Record<string, any> = {
-  pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e",  label: "Pendiente aprobacion" },
-  aprobado_produccion:  { bg: "#fed7aa", color: "#9a3412",  label: "Aprobado Produccion" },
-  aprobado:             { bg: "#dcfce7", color: "#15803d",  label: "Aprobado GG" },
-  programado:           { bg: "#dbeafe", color: "#1e40af",  label: "Programado pago" },
-  pagado:               { bg: "#f0fdf4", color: "#166534",  label: "Pagado" },
-  cancelado:            { bg: "#f3f4f6", color: "#6b7280",  label: "Cancelado" },
-  rechazado:            { bg: "#fee2e2", color: "#991b1b",  label: "Rechazado" },
-}
+const ESTADOS: Record<string, any> = getRQEstadosVisuales()
 
 const FLUJO = [
   { estado: "pendiente_aprobacion", label: "Creado", siguiente: "aprobado_produccion", accion: "Aprobar (Produccion)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
@@ -102,21 +99,34 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     const rqIdParam = params.get("rq_id") || ""
     const viewParam = params.get("view") || ""
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-      setPerfil(p)
+    if (!user) {
+      setPerfil(null)
+      setRqs([])
+      setLoading(false)
+      return
     }
-    const { data } = await supabase
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+    setPerfil(p)
+    if (!puedeVerModulo(p, "rq")) {
+      setRqs([])
+      setLoading(false)
+      return
+    }
+    const { data, error } = await supabase
       .from("requerimientos_pago")
-      .select("*, proyecto:proyectos(id, nombre, codigo, deleted_at, productor:perfiles!productor_id(id, nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
+      .select("*, proyecto:proyectos(id, nombre, codigo, deleted_at, productor_id, productor:perfiles!productor_id(id, nombre, apellido)), proveedor:proveedores(nombre, banco, numero_cuenta, tipo_pago)")
       .order("created_at", { ascending: false })
-    const loadedRqs = data || []
+    if (error) {
+      console.error("Error cargando RQ", error)
+      mostrarToast("No se pudieron cargar los RQ", "error")
+    }
+    const loadedRqs = filtrarPorAlcance(data || [], p, "rq", { usuarioId: user.id })
     setRqs(loadedRqs)
-    const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado").is("deleted_at", null).order("codigo")
+    const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo")
     setProyectos(projs || [])
     const { data: provsTodos } = await supabase.from("proveedores").select("id, nombre").order("nombre")
     setProveedoresTodos(provsTodos || [])
-    const provIds = [...new Set((data || []).map((r: any) => r.proveedor_id).filter(Boolean))]
+    const provIds = [...new Set(loadedRqs.map((r: any) => r.proveedor_id).filter(Boolean))]
     if (provIds.length > 0) {
       const { data: provs } = await supabase.from("proveedores").select("id, nombre").in("id", provIds)
       setProveedores(provs || [])
@@ -156,6 +166,15 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   async function cambiarEstado(id: string, estado: string, extra?: any) {
     const rqActual = rqs.find(r => r.id === id)
+    if (!rqActual) return
+    const accionPermiso = accionPermisoPorEstado(estado)
+    const regla = reglaPorEstado(estado)
+    if (!validarAccionRQ(accionPermiso, rqActual)) return
+    if (!lifecycleEngine.canTransition("rq", rqActual.estado, estado)) {
+      alert(`Transición no permitida: ${ESTADOS[rqActual.estado]?.label || rqActual.estado} → ${ESTADOS[estado]?.label || estado}`)
+      return
+    }
+    if (!validarReglaRQ(regla, rqActual, { desde: rqActual.estado, hacia: estado })) return
     if (rqPerteneceAProyectoEliminado(rqActual)) {
       alert("Este RQ pertenece a un proyecto eliminado y no puede procesarse.")
       return
@@ -215,6 +234,11 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       alert("No tienes permisos para cancelar este RQ o el estado no permite cancelación.")
       return
     }
+    if (!lifecycleEngine.canTransition("rq", rq.estado, "cancelado")) {
+      alert("Transición no permitida para cancelar este RQ.")
+      return
+    }
+    if (!validarReglaRQ("cancelar", rq, { desde: rq.estado, hacia: "cancelado" })) return
 
     const codigo = rqCodigo(rq)
     if (!confirm(`¿Cancelar ${codigo}?`)) return
@@ -270,6 +294,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       alert("No hay RQ seleccionado para eliminar.")
       return
     }
+    if (!validarAccionRQ("eliminar", rq)) return
+    if (!validarReglaRQ("eliminar", rq)) return
 
     const codigo = rqCodigo(rq)
 
@@ -331,10 +357,11 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       alert("Este RQ pertenece a un proyecto eliminado y no puede procesarse.")
       return
     }
-    if (!puedeEditarPago) {
+    if (!puedeEditarPago || !validarAccionRQ("pagar", selected)) {
       alert("Solo Controller o Superadmin pueden editar los datos de pago.")
       return
     }
+    if (!validarReglaRQ("pagar", selected, { edicionDatosPago: true })) return
     const updates = {
       voucher_url: datosPago.voucher_url || null,
       numero_operacion: datosPago.numero_operacion || null,
@@ -357,10 +384,11 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   async function guardarRendicionRQ() {
     if (!selected) return
-    if (!["controller", "superadmin"].includes(rolNormalizado())) {
+    if (!validarAccionRQ("rendir", selected)) {
       alert("Solo Controller o Superadmin pueden registrar rendiciones.")
       return
     }
+    if (!validarReglaRQ("rendir", selected)) return
     if (selected.estado !== "pagado") {
       alert("Solo se puede registrar rendición en RQs pagados.")
       return
@@ -415,6 +443,49 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     return String(perfil?.perfil || "").trim().toLowerCase()
   }
 
+  function puedeAccionRQ(accion: AccionPermiso, rq?: any) {
+    return puedeEjecutarAccion(perfil, "rq", accion, { usuarioId: perfil?.id, registro: rq || null })
+  }
+
+  function validarAccionRQ(accion: AccionPermiso, rq?: any) {
+    if (puedeAccionRQ(accion, rq)) return true
+    alert("No tienes permiso para realizar esta acción.")
+    return false
+  }
+
+  function validarReglaRQ(regla: string, rq?: any, metadata?: Record<string, unknown>) {
+    const result = businessRuleEngine.evaluate("rq", regla, {
+      action: regla,
+      record: rq || null,
+      metadata,
+      user: perfil,
+    })
+
+    if (!result.allowed) {
+      alert(result.reason || "No se puede realizar esta acción.")
+      return false
+    }
+
+    if (result.warnings?.length) {
+      return confirm(result.warnings.join("\n") + "\n\n¿Deseas continuar?")
+    }
+
+    return true
+  }
+
+  function accionPermisoPorEstado(estado: string): AccionPermiso {
+    if (estado === "rechazado") return "rechazar"
+    if (estado === "cancelado") return "cancelar"
+    if (["programado", "pagado"].includes(estado)) return "pagar"
+    return "aprobar"
+  }
+
+  function reglaPorEstado(estado: string) {
+    if (estado === "rechazado") return "rechazar"
+    if (estado === "cancelado") return "cancelar"
+    if (["programado", "pagado"].includes(estado)) return "pagar"
+    return "aprobar"
+  }
 
   function rqPerteneceAProyectoEliminado(rq: any) {
     return Boolean(rq?.proyecto_id && (!rq.proyecto || rq.proyecto?.deleted_at))
@@ -422,7 +493,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   function puedeEditarRQ(rq: any) {
     if (!rq || rqPerteneceAProyectoEliminado(rq)) return false
-    return puedeEditarRQPorEstado(perfil, rq)
+    return puedeAccionRQ("editar", rq) && puedeEditarRQPorEstado(perfil, rq)
   }
 
   function mensajeEdicionRQ(rq: any) {
@@ -455,6 +526,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   async function guardarEdicionRQ() {
     if (!selected || !puedeEditarRQ(selected)) return
+    if (!validarReglaRQ("editar", selected)) return
     if (!formEditarRQ.descripcion || !formEditarRQ.monto_solicitado) {
       alert("Descripcion y monto son obligatorios")
       return
@@ -548,6 +620,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   async function crearRQManual() {
     setErrorNuevoRQ("")
+    if (!validarAccionRQ("crear", { proyecto_id: formRQ.proyecto_id, proyecto: proyectos.find((p: any) => p.id === formRQ.proyecto_id) || null })) return
     const monto = Number(formRQ.monto_solicitado)
     const proyecto = proyectos.find((p: any) => p.id === formRQ.proyecto_id)
     if (!formRQ.proyecto_id) { setErrorNuevoRQ("Selecciona un proyecto para evitar crear un RQ huerfano."); return }
@@ -596,24 +669,22 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
 
   function getSiguienteAccion(rq: any) {
     if (rqPerteneceAProyectoEliminado(rq)) return null
-    const rol = rolNormalizado()
     const paso = FLUJO.find(f => f.estado === rq.estado)
     if (!paso || !paso.siguiente) return null
-    if (paso.roles.includes(rol)) return { label: paso.accion, nextEstado: paso.siguiente, color: "#0F6E56" }
+    if (puedeAccionRQ(accionPermisoPorEstado(paso.siguiente), rq)) return { label: paso.accion, nextEstado: paso.siguiente, color: "#0F6E56" }
     return null
   }
 
   function puedeRechazar(rq: any) {
     if (rqPerteneceAProyectoEliminado(rq)) return false
-    const rol = rolNormalizado()
     if (["pagado", "cerrado", "cancelado", "rechazado"].includes(rq.estado)) return false
-    return ["gerente_produccion", "gerente_general", "controller", "superadmin"].includes(rol)
+    return puedeAccionRQ("rechazar", rq)
   }
 
   function puedeCancelarRQ(rq: any) {
     if (!rq || rqPerteneceAProyectoEliminado(rq)) return false
     if (["pagado", "cerrado", "cancelado"].includes(rq.estado)) return false
-    return ["superadmin", "controller"].includes(rolNormalizado())
+    return puedeAccionRQ("cancelar", rq)
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -679,8 +750,9 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3, display: "block" }
 
-  const puedeEditarPago = ["controller", "superadmin"].includes(rolNormalizado())
+  const puedeEditarPago = selected ? puedeAccionRQ("pagar", selected) : puedeAccionRQ("pagar")
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (!puedeVerModulo(perfil, "rq")) return <div style={{ color: "#6b7280", padding: 24 }}>No tienes permiso para ver Requerimientos de Pago.</div>
 
   return (
     <div>
@@ -708,7 +780,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
             {rqsVistaActiva.length} RQs activos{rqsProyectosEliminados.length ? ` · ${rqsProyectosEliminados.length} en proyectos eliminados` : ""} · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}
           </p>
         </div>
-        {["superadmin","gerente_general","gerente_produccion","controller"].includes(rolNormalizado()) && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado").is("deleted_at", null).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
+        {puedeAccionRQ("crear") && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
         <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
       </div>      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         <KpiCard

@@ -52,9 +52,11 @@ export type AccionPermiso =
   | "cerrar_operativo"
   | "cerrar_financiero"
   | "aprobar"
+  | "rechazar"
   | "pagar"
   | "cancelar"
   | "convertir"
+  | "rendir"
   | "crear_editar"
   | "eliminar"
   | "cobrar"
@@ -205,8 +207,11 @@ export const MATRIZ_ACCIONES: MatrizAcciones = {
     crear: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "LECTURA", practicante: "NINGUNO" },
     editar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "LECTURA", practicante: "NINGUNO" },
     aprobar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    rechazar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
     pagar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
     cancelar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "LECTURA", practicante: "NINGUNO" },
+    rendir: { superadmin: "TOTAL", gerente_general: "NINGUNO", controller: "TOTAL", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    eliminar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
   },
   liquidaciones: {
     ver: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "LECTURA", practicante: "NINGUNO" },
@@ -255,3 +260,5 @@ export const MATRIZ_INFORMACION_SENSIBLE: MatrizSensible = {
   caja_consolidada: { ...sinAcceso, superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL" },
   facturacion_consolidada: { ...sinAcceso, superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL" },
 }
+
+
