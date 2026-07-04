@@ -12,6 +12,7 @@ import {
   getCRMOrigenes,
   getCRMTemperaturasVisuales,
 } from "@/lib/core/configuration/crm"
+import { lifecycleEngine } from "@/lib/core/lifecycle"
 
 const ESTADOS = getCRMEstadosVisuales()
 const ESTADOS_PIPELINE = getCRMEstadosPipeline()
@@ -206,6 +207,11 @@ export default function CRMPage() {
   async function cambiarEstado(leadId: string, estado: string) {
     if (!ESTADOS[estado]) return
     const lead = leads.find(l => l.id === leadId) || selected
+    const estadoActual = lead?.estado
+    if (!lifecycleEngine.canTransition("crm", estadoActual, estado)) {
+      alert(`Transición no permitida: ${ESTADOS[estadoActual]?.label || estadoActual} → ${ESTADOS[estado]?.label || estado}`)
+      return
+    }
     let clienteId = lead?.cliente_id || null
     if (estado === "ganado" && lead && !clienteId) {
       const cliente = await buscarOCrearCliente(lead)
