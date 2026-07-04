@@ -121,13 +121,28 @@ export default function CRMPage() {
       const normalizados = (leadsRes.data || []).map(normalizarLead)
       setLeads(filtrarPorAlcance(normalizados, perfil, "crm", { usuarioId: user.id }))
     }
-    setClientes(clientesRes.data || [])
-    setResponsables(perfilesRes.data || [])
+    if (clientesRes.error) {
+      console.error("Error CRM clientes", clientesRes.error)
+      setClientes([])
+    } else {
+      setClientes(clientesRes.data || [])
+    }
+    if (perfilesRes.error) {
+      console.error("Error CRM responsables", perfilesRes.error)
+      setResponsables([])
+    } else {
+      setResponsables(perfilesRes.data || [])
+    }
     setLoading(false)
   }
 
   async function loadNotas(leadId: string) {
-    const { data } = await supabase.from("crm_notas").select("*").eq("lead_id", leadId).order("created_at", { ascending: false })
+    const { data, error } = await supabase.from("crm_notas").select("*").eq("lead_id", leadId).order("created_at", { ascending: false })
+    if (error) {
+      console.error("Error CRM notas", error)
+      setNotas([])
+      return
+    }
     setNotas(data || [])
   }
 
@@ -159,7 +174,6 @@ export default function CRMPage() {
   }
 
   function validarReglaCRM(regla: CRMBusinessRuleKey, registro?: any, metadata?: Record<string, unknown>) {
-    // TODO reglas CRM: formalizar estas keys en el engine; las reglas faltantes mantienen fallback permisivo.
     const result = businessRuleEngine.evaluate("crm", regla, {
       action: regla,
       record: registro || null,
@@ -275,8 +289,10 @@ export default function CRMPage() {
 
   async function agregarNota() {
     if (!nuevaNota.trim() || !selected) return
+    if (!validarAccionCRM("editar", selected)) return
     const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from("crm_notas").insert({ lead_id: selected.id, contenido: nuevaNota, created_by: user?.id })
+    const { error } = await supabase.from("crm_notas").insert({ lead_id: selected.id, contenido: nuevaNota, created_by: user?.id })
+    if (error) { alert("No se pudo agregar la nota: " + error.message); return }
     setNuevaNota("")
     loadNotas(selected.id)
   }
@@ -295,20 +311,26 @@ export default function CRMPage() {
     if (estado === "ganado" && lead && !clienteId) {
       const cliente = await buscarOCrearCliente(lead)
       clienteId = cliente?.id || null
+      if (!clienteId) {
+        alert("No se pudo convertir el lead a ganado porque no se pudo vincular o crear el cliente.")
+        return false
+      }
     }
     const payload: any = { estado }
     if (clienteId) payload.cliente_id = clienteId
     const { error } = await supabase.from("crm_leads").update(payload).eq("id", leadId)
-    if (error) { alert("No se pudo cambiar el estado: " + error.message); return }
+    if (error) { alert("No se pudo cambiar el estado: " + error.message); return false }
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...payload } : l))
     if (selected?.id === leadId) setSelected((prev: any) => ({ ...prev, ...payload }))
+    return true
   }
 
   async function eliminarLead(lead: any) {
     if (!validarAccionCRM("eliminar", lead)) return
     if (!validarReglaCRM("eliminar_lead", lead)) return
     if (!confirm("¿Eliminar lead " + lead.razon_social + "?")) return
-    await supabase.from("crm_leads").delete().eq("id", lead.id)
+    const { error } = await supabase.from("crm_leads").delete().eq("id", lead.id)
+    if (error) { alert("No se pudo eliminar el lead: " + error.message); return }
     if (selected?.id === lead.id) setSelected(null)
     setLeads(prev => prev.filter(l => l.id !== lead.id))
     await registrarAccion({ accion: "eliminar", modulo: "crm", entidad_tipo: "lead", entidad_id: lead.id, descripcion: "Lead eliminado: " + lead.razon_social })
@@ -319,13 +341,19 @@ export default function CRMPage() {
     if (!validarAccionCRM("convertir", lead)) return null
     if (!validarReglaCRM("convertir_cliente", lead)) return null
     if (lead.cliente_id) {
-      await cambiarEstado(lead.id, "ganado")
-      return lead.cliente
+      const cambioOk = await cambiarEstado(lead.id, "ganado")
+      return cambioOk ? lead.cliente : null
     }
+    if (!lifecycleEngine.canTransition("crm", lead.estado, "ganado")) {
+      alert(`Transición no permitida: ${ESTADOS[lead.estado]?.label || lead.estado} → ${ESTADOS.ganado?.label || "ganado"}`)
+      return null
+    }
+    if (!validarReglaCRM("cambiar_estado", lead, { desde: lead.estado, hacia: "ganado" })) return null
     if (confirmar && !confirm("Convertir " + lead.razon_social + " a cliente?")) return null
     const cliente = await buscarOCrearCliente(lead)
     if (!cliente) return null
-    await supabase.from("crm_leads").update({ estado: "ganado", cliente_id: cliente.id }).eq("id", lead.id)
+    const { error } = await supabase.from("crm_leads").update({ estado: "ganado", cliente_id: cliente.id }).eq("id", lead.id)
+    if (error) { alert("No se pudo convertir el lead a cliente: " + error.message); return null }
     setSelected((prev: any) => prev ? ({ ...prev, estado: "ganado", cliente_id: cliente.id, cliente }) : prev)
     setClientesConvertidos(prev => ({ ...prev, [lead.id]: cliente }))
     load()
@@ -393,6 +421,40 @@ export default function CRMPage() {
     load()
   }
 
+  async function importarLeads(registros: any[]) {
+    if (!validarAccionCRM("crear")) return { exitosos: 0, errores: ["No tienes permiso para realizar esta acción."] }
+
+    let exitosos = 0
+    const errores: string[] = []
+
+    for (const r of registros) {
+      const payload = {
+        ...r,
+        entidad: "peru",
+        estado: ESTADOS[r.estado] ? r.estado : "nuevo",
+        temperatura: TEMPERATURAS[r.temperatura] ? r.temperatura : "frio",
+        periodo_pipeline: r.periodo_pipeline || periodoActual(),
+        archivado: false,
+      }
+      const result = businessRuleEngine.evaluate("crm", "crear_lead", {
+        action: "crear_lead",
+        record: payload,
+        user: perfilActual,
+      })
+      if (!result.allowed) {
+        errores.push((r.razon_social || "Lead sin nombre") + ": " + (result.reason || "No se puede importar este lead."))
+        continue
+      }
+
+      const { error } = await supabase.from("crm_leads").insert(payload)
+      if (error) errores.push((r.razon_social || "Lead sin nombre") + ": " + error.message)
+      else exitosos++
+    }
+
+    load()
+    return { exitosos, errores }
+  }
+
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 0 })
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
@@ -453,7 +515,7 @@ export default function CRMPage() {
       subtitle={`Gestion de oportunidades comerciales · ${leadsPeriodo.length} leads`}
       actions={
         <>
-          {puedeCrearCRM && <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={async (registros) => { if (!validarAccionCRM("crear")) return { exitosos: 0, errores: ["No tienes permiso para realizar esta acción."] }; let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("crm_leads").insert({...r,entidad:"peru",estado:ESTADOS[r.estado]?r.estado:"nuevo",temperatura:r.temperatura||"frio",periodo_pipeline:r.periodo_pipeline||periodoActual(),archivado:false}); if(error)errores.push(r.razon_social+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />}
+          {puedeCrearCRM && <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={importarLeads} />}
           {puedeCrearCRM && <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>}
         </>
       }
