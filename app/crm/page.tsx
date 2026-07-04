@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
 import ImportExport from "@/components/ImportExport"
-import { EmptyState, ExecutiveSummary, FiltersBar, MasterPage, StatusBadge } from "@/components/design-system"
+import { Drawer, EmptyState, ExecutiveSummary, FiltersBar, MasterPage, StatusBadge } from "@/components/design-system"
 import {
   getCRMEstadosPipeline,
   getCRMEstadosVisuales,
@@ -521,7 +521,7 @@ export default function CRMPage() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 380px" : "1fr", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20 }}>
         <div>
           <div style={{ marginBottom: 16 }}>
             <FiltersBar
@@ -642,18 +642,16 @@ export default function CRMPage() {
           </div>
         </div>
 
+        <Drawer
+          open={Boolean(selected)}
+          title={selected?.razon_social || "Detalle lead"}
+          subtitle={selected?.cliente_id ? "Cliente vinculado" : "Sin cliente vinculado"}
+          onClose={() => setSelected(null)}
+          width={420}
+        >
         {selected && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div className="card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                <div>
-                  <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "#111827" }}>{selected.razon_social}</h2>
-                  <div style={{ fontSize: 12, color: selected.cliente_id ? "#0F6E56" : "#9ca3af", marginTop: 2, fontWeight: selected.cliente_id ? 700 : 400 }}>
-                    {selected.cliente_id ? "Cliente vinculado" : "Sin cliente vinculado"}
-                  </div>
-                </div>
-                <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 18 }}>x</button>
-              </div>
               <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
                 <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Cliente existente: </span>{selected.cliente_id ? "Sí" : "No"}</div>
                 {selected.ruc && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>RUC: </span>{selected.ruc}</div>}
@@ -747,6 +745,7 @@ export default function CRMPage() {
             </div>
           </div>
         )}
+        </Drawer>
       </div>
     </MasterPage>
   )
