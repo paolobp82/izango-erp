@@ -1,30 +1,23 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
 import ImportExport from "@/components/ImportExport"
+import {
+  getCRMEstadosPipeline,
+  getCRMEstadosVisuales,
+  getCRMIndustrias,
+  getCRMOrigenes,
+  getCRMTemperaturasVisuales,
+} from "@/lib/core/configuration/crm"
 
-const ESTADOS: Record<string, any> = {
-  nuevo: { bg: "#dbeafe", color: "#1e40af", label: "Nuevo" },
-  contactado: { bg: "#fef9c3", color: "#92400e", label: "Contactado" },
-  reunion: { bg: "#fed7aa", color: "#9a3412", label: "Reunión" },
-  propuesta: { bg: "#f5f3ff", color: "#6d28d9", label: "Propuesta" },
-  negociacion: { bg: "#fce7f3", color: "#9d174d", label: "Negociación" },
-  ganado: { bg: "#dcfce7", color: "#15803d", label: "Ganado" },
-  perdido: { bg: "#fee2e2", color: "#991b1b", label: "Perdido" },
-}
-
-const ESTADOS_PIPELINE = ["nuevo", "contactado", "reunion", "propuesta", "negociacion", "ganado", "perdido"]
-
-const TEMPERATURAS: Record<string, any> = {
-  frio: { color: "#3b82f6", label: "Frio" },
-  tibio: { color: "#f59e0b", label: "Tibio" },
-  caliente: { color: "#ef4444", label: "Caliente" },
-}
-
-const ORIGENES = ["Referido", "Web", "LinkedIn", "Evento", "Llamada fria", "Email", "Otro"]
-const INDUSTRIAS = ["Retail", "Banca", "Tecnologia", "Alimentos", "Automotriz", "Farmaceutica", "Telecomunicaciones", "Gobierno", "Educacion", "Otro"]
+const ESTADOS = getCRMEstadosVisuales()
+const ESTADOS_PIPELINE = getCRMEstadosPipeline()
+const TEMPERATURAS = getCRMTemperaturasVisuales()
+const ORIGENES = getCRMOrigenes()
+const INDUSTRIAS = getCRMIndustrias()
 
 function periodoActual() {
   return new Date().toISOString().slice(0, 7)
