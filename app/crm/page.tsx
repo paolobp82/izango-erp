@@ -13,6 +13,7 @@ import {
   getCRMOrigenes,
   getCRMTemperaturasVisuales,
 } from "@/lib/core/configuration/crm"
+import { businessRuleEngine } from "@/lib/core/business-rules"
 import { lifecycleEngine } from "@/lib/core/lifecycle"
 import {
   filtrarPorAlcance,
@@ -26,6 +27,14 @@ const ESTADOS_PIPELINE = getCRMEstadosPipeline()
 const TEMPERATURAS = getCRMTemperaturasVisuales()
 const ORIGENES = getCRMOrigenes()
 const INDUSTRIAS = getCRMIndustrias()
+
+type CRMBusinessRuleKey =
+  | "crear_lead"
+  | "editar_lead"
+  | "eliminar_lead"
+  | "convertir_cliente"
+  | "archivar_lead"
+  | "cambiar_estado"
 
 function periodoActual() {
   return new Date().toISOString().slice(0, 7)
@@ -149,6 +158,27 @@ export default function CRMPage() {
     return false
   }
 
+  function validarReglaCRM(regla: CRMBusinessRuleKey, registro?: any, metadata?: Record<string, unknown>) {
+    // TODO reglas CRM: formalizar estas keys en el engine; las reglas faltantes mantienen fallback permisivo.
+    const result = businessRuleEngine.evaluate("crm", regla, {
+      action: regla,
+      record: registro || null,
+      metadata,
+      user: perfilActual,
+    })
+
+    if (!result.allowed) {
+      alert(result.reason || "No se puede realizar esta acción.")
+      return false
+    }
+
+    if (result.warnings?.length) {
+      return confirm(result.warnings.join("\n") + "\n\n¿Deseas continuar?")
+    }
+
+    return true
+  }
+
   function abrirNuevo() {
     if (!validarAccionCRM("crear")) return
     setEditando(null)
@@ -198,6 +228,7 @@ export default function CRMPage() {
 
   async function guardar() {
     if (!validarAccionCRM(editando ? "editar" : "crear", editando || form)) return
+    if (!validarReglaCRM(editando ? "editar_lead" : "crear_lead", editando ? { ...editando, ...form } : form, { editando: Boolean(editando) })) return
     if (!form.razon_social) { alert("Razón social es obligatoria"); return }
     setSaving(true)
 
@@ -259,6 +290,7 @@ export default function CRMPage() {
       alert(`Transición no permitida: ${ESTADOS[estadoActual]?.label || estadoActual} → ${ESTADOS[estado]?.label || estado}`)
       return
     }
+    if (!validarReglaCRM("cambiar_estado", lead, { desde: estadoActual, hacia: estado })) return
     let clienteId = lead?.cliente_id || null
     if (estado === "ganado" && lead && !clienteId) {
       const cliente = await buscarOCrearCliente(lead)
@@ -274,6 +306,7 @@ export default function CRMPage() {
 
   async function eliminarLead(lead: any) {
     if (!validarAccionCRM("eliminar", lead)) return
+    if (!validarReglaCRM("eliminar_lead", lead)) return
     if (!confirm("¿Eliminar lead " + lead.razon_social + "?")) return
     await supabase.from("crm_leads").delete().eq("id", lead.id)
     if (selected?.id === lead.id) setSelected(null)
@@ -284,6 +317,7 @@ export default function CRMPage() {
   async function convertirACliente(lead = selected, confirmar = true) {
     if (!lead) return null
     if (!validarAccionCRM("convertir", lead)) return null
+    if (!validarReglaCRM("convertir_cliente", lead)) return null
     if (lead.cliente_id) {
       await cambiarEstado(lead.id, "ganado")
       return lead.cliente
@@ -335,6 +369,7 @@ export default function CRMPage() {
 
   async function archivarLead(lead: any) {
     if (!validarAccionCRM("editar", lead)) return
+    if (!validarReglaCRM("archivar_lead", lead)) return
     if (!confirm("¿Archivar lead " + lead.razon_social + "?")) return
     const { error } = await supabase.from("crm_leads").update({ archivado: true }).eq("id", lead.id)
     if (error) { alert("No se pudo archivar: " + error.message); return }
@@ -345,6 +380,7 @@ export default function CRMPage() {
   async function archivarCerradosDelMes() {
     if (!validarAccionCRM("editar")) return
     const periodo = filtroPeriodo === "actual" || filtroPeriodo === "todos" ? periodoActual() : filtroPeriodo
+    if (!validarReglaCRM("archivar_lead", null, { periodo, masivo: true })) return
     if (!confirm("Archivar leads ganados/perdidos del periodo " + periodo + "?")) return
     setArchivando(true)
     const { error } = await supabase
