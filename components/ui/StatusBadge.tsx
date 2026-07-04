@@ -48,6 +48,56 @@ const COLORS: Record<string, any> = {
     bg: "#F1F5F9",
     color: "#475569",
   },
+
+  crm_nuevo: {
+    bg: "#DBEAFE",
+    color: "#1E40AF",
+  },
+
+  crm_contactado: {
+    bg: "#FEF9C3",
+    color: "#92400E",
+  },
+
+  crm_reunion: {
+    bg: "#FED7AA",
+    color: "#9A3412",
+  },
+
+  crm_propuesta: {
+    bg: "#F5F3FF",
+    color: "#6D28D9",
+  },
+
+  crm_negociacion: {
+    bg: "#FCE7F3",
+    color: "#9D174D",
+  },
+
+  crm_ganado: {
+    bg: "#DCFCE7",
+    color: "#15803D",
+  },
+
+  crm_perdido: {
+    bg: "#FEE2E2",
+    color: "#991B1B",
+  },
+
+  frio: {
+    bg: "#DBEAFE",
+    color: "#1E40AF",
+  },
+
+  tibio: {
+    bg: "#FEF3C7",
+    color: "#92400E",
+  },
+
+  caliente: {
+    bg: "#FEE2E2",
+    color: "#B91C1C",
+  },
 }
 
 const STATE_TYPE: Record<string, string> = {
@@ -77,6 +127,14 @@ const STATE_TYPE: Record<string, string> = {
   cancelada: "cancelado",
   rechazado: "rechazado",
   rechazada: "rechazado",
+
+  nuevo: "crm_nuevo",
+  contactado: "crm_contactado",
+  reunion: "crm_reunion",
+  propuesta: "crm_propuesta",
+  negociacion: "crm_negociacion",
+  ganado: "crm_ganado",
+  perdido: "crm_perdido",
 }
 
 export function getStatusType(status?: string) {

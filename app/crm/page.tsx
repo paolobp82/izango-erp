@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
 import ImportExport from "@/components/ImportExport"
+import { EmptyState, ExecutiveSummary, FiltersBar, MasterPage, StatusBadge } from "@/components/design-system"
 import {
   getCRMEstadosPipeline,
   getCRMEstadosVisuales,
@@ -400,9 +401,9 @@ export default function CRMPage() {
     return r ? `${r.nombre || ""} ${r.apellido || ""}`.trim() : ""
   }
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (loading) return <MasterPage title="CRM Comercial" subtitle="Cargando oportunidades comerciales..."><EmptyState title="Cargando..." /></MasterPage>
   if (!puedeVerModulo(perfilActual, "crm")) {
-    return <div style={{ color: "#6b7280", padding: 24 }}>Acceso restringido.</div>
+    return <MasterPage title="CRM Comercial"><EmptyState title="Acceso restringido" description="No tienes permiso para ver este modulo." /></MasterPage>
   }
 
   const puedeCrearCRM = puedeAccionCRM("crear")
@@ -411,37 +412,28 @@ export default function CRMPage() {
   const puedeConvertirCRM = puedeAccionCRM("convertir")
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>CRM</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Gestión de oportunidades comerciales · {leadsPeriodo.length} leads</p>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginLeft: "auto" }}>
+    <MasterPage
+      title="CRM Comercial"
+      subtitle={`Gestion de oportunidades comerciales · ${leadsPeriodo.length} leads`}
+      actions={
+        <>
           {puedeCrearCRM && <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={async (registros) => { if (!validarAccionCRM("crear")) return { exitosos: 0, errores: ["No tienes permiso para realizar esta acción."] }; let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("crm_leads").insert({...r,entidad:"peru",estado:ESTADOS[r.estado]?r.estado:"nuevo",temperatura:r.temperatura||"frio",periodo_pipeline:r.periodo_pipeline||periodoActual(),archivado:false}); if(error)errores.push(r.razon_social+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />}
           {puedeCrearCRM && <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>}
-        </div>
-      </div>
+        </>
+      }
+    >
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
-        {[
-          { label: "Pipeline Comercial", value: fmt(totalPipeline), sub: `${leadsActivos.length} oportunidades activas`, icon: "◈", bg: "#eaf8f2", color: "#0F6E56" },
-          { label: "Cierre esperado", value: fmt(cierreEsperado), sub: "Presupuesto x probabilidad", icon: "↗", bg: "#eef4ff", color: "#2563eb" },
-          { label: "Propuestas abiertas", value: propuestasAbiertas.length, sub: fmt(propuestasAbiertas.reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)), icon: "▤", bg: "#fff7ed", color: "#f97316" },
-          { label: "Negocios Ganados", value: fmt(totalGanado), sub: `${leadsPeriodo.filter(l => l.estado === "ganado").length} clientes`, icon: "✓", bg: "#ecfdf5", color: "#059669" },
-          { label: "Conversión", value: tasaConversion + "%", sub: `${leadsCalientes.length} leads calientes`, icon: "●", bg: "#fef2f2", color: "#ef4444" },
-        ].map(k => (
-          <div key={k.label} className="card" style={{ display: "flex", alignItems: "center", gap: 16, minHeight: 104, border: "1px solid #e5e7eb", boxShadow: "0 10px 25px rgba(15,23,42,.04)" }}>
-            <div style={{ width: 52, height: 52, borderRadius: 16, background: k.bg, color: k.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 900 }}>
-              {k.icon}
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 900, color: "#111827", textTransform: "uppercase", letterSpacing: "-0.01em" }}>{k.label}</div>
-              <div style={{ fontSize: 24, fontWeight: 900, color: k.color, marginTop: 4 }}>{k.value}</div>
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{k.sub}</div>
-            </div>
-          </div>
-        ))}
+      <div style={{ marginBottom: 24 }}>
+        <ExecutiveSummary
+          columns={5}
+          items={[
+            { label: "Pipeline Comercial", value: fmt(totalPipeline), subtitle: `${leadsActivos.length} oportunidades activas`, tone: "success" },
+            { label: "Cierre esperado", value: fmt(cierreEsperado), subtitle: "Presupuesto x probabilidad", tone: "info" },
+            { label: "Propuestas abiertas", value: propuestasAbiertas.length, subtitle: fmt(propuestasAbiertas.reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)), tone: "warning" },
+            { label: "Negocios Ganados", value: fmt(totalGanado), subtitle: `${leadsPeriodo.filter(l => l.estado === "ganado").length} clientes`, tone: "success" },
+            { label: "Conversion", value: tasaConversion + "%", subtitle: `${leadsCalientes.length} leads calientes`, tone: "danger" },
+          ]}
+        />
       </div>
 
       {showForm && (
@@ -531,8 +523,16 @@ export default function CRMPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 380px" : "1fr", gap: 20 }}>
         <div>
-          <div className="card" style={{ marginBottom: 16, padding: "14px 16px", border: "1px solid #e5e7eb", boxShadow: "0 8px 20px rgba(15,23,42,.03)" }}>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ marginBottom: 16 }}>
+            <FiltersBar
+              actions={
+                <>
+                  <span style={{ fontSize: 12, color: "#9ca3af" }}>{filtrados.length} resultados</span>
+                  {puedeEditarCRM && <button onClick={archivarCerradosDelMes} disabled={archivando} className="btn-secondary" style={{ fontSize: 13 }}>{archivando ? "Archivando..." : "Archivar cerrados del mes"}</button>}
+                  {puedeCrearCRM && <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>}
+                </>
+              }
+            >
               <input style={{ ...inp, width: 220 }} placeholder="Buscar lead..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
               <select style={{ ...inp, width: "auto" }} value={filtroPeriodo} onChange={e => setFiltroPeriodo(e.target.value)}>
                 <option value="actual">Pipeline actual</option>
@@ -551,12 +551,7 @@ export default function CRMPage() {
                 <button onClick={() => { setFiltroEstado(""); setFiltroTemp(""); setBusqueda(""); setFiltroPeriodo("actual") }}
                   style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>Limpiar</button>
               )}
-              <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: "auto" }}>{filtrados.length} resultados</span>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginLeft: "auto" }}>
-                {puedeEditarCRM && <button onClick={archivarCerradosDelMes} disabled={archivando} className="btn-secondary" style={{ fontSize: 13 }}>{archivando ? "Archivando..." : "Archivar cerrados del mes"}</button>}
-                {puedeCrearCRM && <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>}
-              </div>
-            </div>
+            </FiltersBar>
           </div>
 
           <div style={{ border: "1px solid #e5e7eb", borderRadius: 18, background: "#fff", padding: 12, boxShadow: "0 10px 24px rgba(15,23,42,.03)" }}>
@@ -577,18 +572,14 @@ export default function CRMPage() {
                           <span style={{ width: 8, height: 8, borderRadius: 99, background: ec.color }} />
                           <div style={{ fontSize: 14, fontWeight: 900, color: "#111827" }}>{ec.label}</div>
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: ec.color, background: ec.bg, padding: "3px 8px", borderRadius: 99 }}>
-                          {lista.length}
-                        </span>
+                        <StatusBadge label={String(lista.length)} type={estado} />
                       </div>
                       <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{fmt(valorPorEstado(estado))}</div>
                     </div>
 
                     <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10, minHeight: 360 }}>
                       {lista.length === 0 ? (
-                        <div style={{ border: "1px dashed #d1d5db", borderRadius: 12, padding: "24px 12px", textAlign: "center", color: "#9ca3af", fontSize: 12 }}>
-                          Sin leads
-                        </div>
+                        <EmptyState title="Sin leads" description="No hay oportunidades en esta etapa." />
                       ) : lista.map(lead => {
                         const tc = TEMPERATURAS[lead.temperatura] || { color: "#6b7280", label: lead.temperatura }
                         const responsable = responsableNombre(lead.responsable_id)
@@ -634,7 +625,7 @@ export default function CRMPage() {
                                 </strong>
                               </div>
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                                <span style={{ color: tc.color, fontWeight: 800 }}>● {tc.label}</span>
+                                <StatusBadge label={tc.label} type={lead.temperatura} />
                                 {lead.fecha_proxima_accion && <span style={{ color: "#d97706", fontSize: 11 }}>Próx. {lead.fecha_proxima_accion}</span>}
                               </div>
                               {responsable && <div style={{ fontSize: 11, color: "#64748b" }}>Responsable: {responsable}</div>}
@@ -757,6 +748,6 @@ export default function CRMPage() {
           </div>
         )}
       </div>
-    </div>
+    </MasterPage>
   )
 }
