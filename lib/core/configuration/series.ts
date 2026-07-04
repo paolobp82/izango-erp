@@ -1,24 +1,7 @@
 import type { SystemSeries } from "./SystemConfigurationTypes"
 
 export const SYSTEM_SERIES: SystemSeries[] = [
-  {
-    key: "rq.codigo",
-    prefix: "RQ",
-    year: 2026,
-    currentNumber: 0,
-    padding: 5,
-    format: "{prefix}-{year}-{number}",
-    active: true,
-    metadata: { module: "rq" },
-  },
-  {
-    key: "crm.lead",
-    prefix: "LEAD",
-    year: 2026,
-    currentNumber: 0,
-    padding: 5,
-    format: "{prefix}-{year}-{number}",
-    active: true,
-    metadata: { module: "crm" },
-  },
+  { key: "rq", prefix: "RQ", year: 2026, currentNumber: 0, padding: 5, format: "{prefix}-{year}-{number}", active: true },
+  { key: "proyecto", prefix: "IZ", year: 2026, currentNumber: 0, padding: 5, format: "{prefix}-{number}", active: true },
+  { key: "factura", prefix: "F001", year: 2026, currentNumber: 0, padding: 6, format: "{prefix}-{number}", active: true }
 ]
