@@ -54,7 +54,9 @@ export type AccionPermiso =
   | "aprobar"
   | "pagar"
   | "cancelar"
+  | "convertir"
   | "crear_editar"
+  | "eliminar"
   | "cobrar"
   | "operar"
   | "editar_cerrar"
@@ -178,6 +180,13 @@ export const MATRIZ_MODULOS: MatrizModulos = {
 }
 
 export const MATRIZ_ACCIONES: MatrizAcciones = {
+  crm: {
+    ver: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "LECTURA", gerente_produccion: "LECTURA", productor: "NINGUNO", comercial: "TOTAL", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "LECTURA", practicante: "NINGUNO" },
+    crear: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "TOTAL", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    editar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "TOTAL", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    eliminar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "TOTAL", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    convertir: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "TOTAL", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+  },
   proyectos: {
     ver: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "LECTURA", logistica: "NINGUNO", audiovisual: "ASIGNADO", administrador: "LECTURA", practicante: "NINGUNO" },
     crear: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
