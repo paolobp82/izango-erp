@@ -66,4 +66,24 @@ export const SYSTEM_CATALOGS: SystemCatalog[] = [
       { id: "rq.estado.cancelado", catalogKey: "rq.estados", key: "cancelado", label: "Cancelado", order: 6, active: true, system: true }
     ]
   }
+
+,
+  {
+    key: "proyectos.estados",
+    name: "Estados Proyecto",
+    module: "proyectos",
+    editable: false,
+    items: [
+      { id: "proyecto.estado.pendiente_aprobacion", catalogKey: "proyectos.estados", key: "pendiente_aprobacion", label: "Pendiente", order: 1, active: true, system: true },
+      { id: "proyecto.estado.aprobado_produccion", catalogKey: "proyectos.estados", key: "aprobado_produccion", label: "Aprobado Prod.", order: 2, active: true, system: true },
+      { id: "proyecto.estado.aprobado", catalogKey: "proyectos.estados", key: "aprobado", label: "Aprobado", order: 3, active: true, system: true },
+      { id: "proyecto.estado.aprobado_gerencia", catalogKey: "proyectos.estados", key: "aprobado_gerencia", label: "Aprobado Gerencia", order: 4, active: true, system: true },
+      { id: "proyecto.estado.aprobado_cliente", catalogKey: "proyectos.estados", key: "aprobado_cliente", label: "Aprobado Cliente", order: 5, active: true, system: true },
+      { id: "proyecto.estado.en_curso", catalogKey: "proyectos.estados", key: "en_curso", label: "En curso", order: 6, active: true, system: true },
+      { id: "proyecto.estado.terminado", catalogKey: "proyectos.estados", key: "terminado", label: "Terminado", order: 7, active: true, system: true },
+      { id: "proyecto.estado.liquidado", catalogKey: "proyectos.estados", key: "liquidado", label: "Liquidado", order: 8, active: true, system: true },
+      { id: "proyecto.estado.cerrado_financiero", catalogKey: "proyectos.estados", key: "cerrado_financiero", label: "Cerrado Financiero", order: 9, active: true, system: true }
+    ]
+  }
 ]
+

@@ -5,20 +5,9 @@ import ImportExport from "@/components/ImportExport"
 import { useRouter } from "next/navigation"
 import { softDeleteProject } from "@/lib/projects"
 import { filtrarPorAlcance, puedeEjecutarAccion, puedeVerModulo } from "@/lib/permisos"
+import { getProyectoEstadosVisuales } from "@/lib/core/configuration"
 
-const ESTADO_LABEL: Record<string, string> = {
-  pendiente_aprobacion: "Pendiente",
-  aprobado_produccion: "Aprobado Prod.",
-  aprobado: "Aprobado",
-  aprobado_gerencia: "Aprobado Gerencia",
-  aprobado_cliente: "Aprobado Cliente",
-  en_curso: "En curso",
-  terminado: "Terminado",
-  liquidado: "Liquidado",
-  facturado: "Facturado",
-  cancelado: "Pagado",
-  rechazado: "Rechazado",
-}
+const ESTADO_LABEL = Object.fromEntries(Object.entries(getProyectoEstadosVisuales()).map(([k,v])=>[k,v.label]))
 
 const ENTIDAD_LABEL: Record<string, string> = {
   peru: "Izango Peru",
@@ -404,6 +393,7 @@ export default function ProyectosPage() {
     </div>
   )
 }
+
 
 
 
