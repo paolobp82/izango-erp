@@ -6,8 +6,7 @@ import { useParams, useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { registrarHistorial } from "@/lib/historial"
 import { enviarAlerta } from "@/lib/alertas"
-
-const ROLES_APRUEBAN_CLIENTE = ["superadmin", "gerente_general"]
+import { puedeEjecutarAccion, puedeVerModulo } from "@/lib/permisos"
 
 const COSTOS_INTERNOS = [
   { key: "costo_almacenaje", label: "Almacenaje" },
@@ -107,6 +106,7 @@ const generatingPdfRef = useRef(false)
   const [busquedaBib, setBusquedaBib] = useState("")
   const [bloqueada, setBloqueada] = useState(false)
   const [perfilActual, setPerfilActual] = useState<any>(null)
+  const [accesoRestringido, setAccesoRestringido] = useState(false)
   const [descuentoPct, setDescuentoPct] = useState(0)
   const [subitems, setSubitems] = useState<Record<string, any[]>>({})
   const [columnaExtra, setColumnaExtra] = useState<{activa: boolean, titulo: string}>({activa: false, titulo: "Dirección"})
@@ -120,7 +120,7 @@ const generatingPdfRef = useRef(false)
     async function load() {
       const { data: cot } = await supabase
         .from("cotizaciones")
-        .select("*, proyecto:proyectos!proyecto_id(id,nombre,codigo,cliente:clientes!cliente_id(id,razon_social))")
+        .select("*, proyecto:proyectos!proyecto_id(id,nombre,codigo,productor_id,created_by,cliente:clientes!cliente_id(id,razon_social))")
         .eq("id", cotId).single()
       setCotizacion(cot)
 setLoadedUpdatedAt(cot?.updated_at || null)
@@ -171,8 +171,14 @@ if (cot?.proyecto?.cliente) {
         const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+        if (!puedeVerModulo(p, "proformas") || !puedeEjecutarAccion(p, "proformas", "ver", { usuarioId: user.id, registro: cot, proyecto: cot?.proyecto })) {
+          setAccesoRestringido(true)
+          setLoading(false)
+          return
+        }
+        setAccesoRestringido(false)
         setPerfilActual(p)
-const puedeBloquear = ["superadmin","gerente_general"].includes(p?.perfil)
+const puedeBloquear = puedeEjecutarAccion(p, "proformas", "aprobar_cliente", { usuarioId: user.id, registro: cot, proyecto: cot?.proyecto })
 if (!puedeBloquear) setBloqueada(false)
 else setBloqueada(cot?.bloqueada || false)
       }
@@ -313,6 +319,10 @@ else setBloqueada(cot?.bloqueada || false)
   const margenGlobal = subtotalConDescuento > 0 ? ((subtotalConDescuento - totalCosto) / subtotalConDescuento) * 100 : 0
 
   async function generarRQs(cotizacionId: string, proyectoId: string) {
+    if (!puedeEjecutarAccion(perfilActual, "rq", "crear", { usuarioId: perfilActual?.id, registro: { proyecto_id: proyectoId, proyecto }, proyecto })) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     const itemsConProveedor = items.filter(i => i.proveedor_id && i.costo_total > 0)
     const rqsAInsertar: any[] = []
     for (const item of itemsConProveedor) {
@@ -475,6 +485,14 @@ if (idsAEliminar.length > 0) {
 
   async function guardar(silencioso = false, forceSave = false): Promise<boolean> {
     if (!cotId || !id) return false
+    if (!forceSave && !puedeEditarCotizacion) {
+      alert("No tienes permiso para realizar esta acción.")
+      return false
+    }
+    if (forceSave && !puedeEditarCotizacion && !puedeAprobarCliente) {
+      alert("No tienes permiso para realizar esta acción.")
+      return false
+    }
 
     const forceSaveManual = forceSave || (concurrencyBlockedRef.current && !silencioso)
 
@@ -605,6 +623,10 @@ if (idsAEliminar.length > 0) {
   }
 
   async function descargarPdf() {
+    if (!puedeExportarCotizacion) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     if (generatingPdf) return
     const previewWindow = window.open("", "_blank")
     setGeneratingPdf(true)
@@ -612,10 +634,12 @@ if (idsAEliminar.length > 0) {
     try {
       const idle = await waitForSaveIdle()
       if (!idle) throw new Error("El autoguardado sigue en proceso. Intenta nuevamente en unos segundos.")
-      const guardado = await guardar(true, true)
-      if (!guardado) {
-        previewWindow?.close()
-        return
+      if (puedeEditarCotizacion) {
+        const guardado = await guardar(true, true)
+        if (!guardado) {
+          previewWindow?.close()
+          return
+        }
       }
       if (previewWindow) {
         previewWindow.location.href = `/proyectos/${id}/cotizaciones/${cotId}/preview`
@@ -690,8 +714,11 @@ if (idsAEliminar.length > 0) {
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const inp: any = { padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", outline: "none" }
-  const puedeDesbloquear = perfilActual?.perfil === "superadmin" || perfilActual?.email === "jsosa@izango.com.pe" || perfilActual?.email === "pbastianelli@izango.com.pe"
-  const puedeAprobarCliente = ROLES_APRUEBAN_CLIENTE.includes(perfilActual?.perfil)
+  const contextoCotizacion = { usuarioId: perfilActual?.id, registro: cotizacion ? { ...cotizacion, proyecto } : proyecto, proyecto }
+  const puedeDesbloquear = puedeEjecutarAccion(perfilActual, "proformas", "aprobar_cliente", contextoCotizacion)
+  const puedeAprobarCliente = puedeEjecutarAccion(perfilActual, "proformas", "aprobar_cliente", contextoCotizacion)
+  const puedeEditarCotizacion = puedeEjecutarAccion(perfilActual, "proformas", "editar", contextoCotizacion)
+  const puedeExportarCotizacion = puedeEjecutarAccion(perfilActual, "proformas", "exportar", contextoCotizacion)
 
   // Autosave destructivo desactivado temporalmente.
   // Motivo: el autosave estaba guardando items desde un snapshot local y podía sobrescribir montos sin intervención de otro usuario.
@@ -707,6 +734,7 @@ const itemsRef = useRef(items)
 useEffect(() => { itemsRef.current = items }, [items])
   if (!cotId) return <div style={{ color: "#dc2626", padding: 24 }}>Error: ID no encontrado.</div>
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (accesoRestringido) return <div style={{ color: "#6b7280", padding: 24 }}>Acceso restringido</div>
 
   return (
     <div style={{ maxWidth: 1400, margin: "0 auto" }}>
@@ -813,12 +841,14 @@ useEffect(() => { itemsRef.current = items }, [items])
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={descargarPdf} disabled={generatingPdf}
-            style={{ padding: "6px 14px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: generatingPdf ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, opacity: generatingPdf ? 0.7 : 1 }}>
-            {generatingPdf ? "Preparando PDF..." : "Descargar PDF"}
-            {lastSaved && <span style={{ fontSize: 11, color: "#9ca3af" }}>✓ Auto-guardado {lastSaved}</span>}
-          </button>
-          {!bloqueada && <button onClick={() => guardar()} disabled={saving || generatingPdf} className="btn-secondary" style={{ fontSize: 12 }}>
+          {puedeExportarCotizacion && (
+            <button onClick={descargarPdf} disabled={generatingPdf}
+              style={{ padding: "6px 14px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: generatingPdf ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, opacity: generatingPdf ? 0.7 : 1 }}>
+              {generatingPdf ? "Preparando PDF..." : "Descargar PDF"}
+              {lastSaved && <span style={{ fontSize: 11, color: "#9ca3af" }}>✓ Auto-guardado {lastSaved}</span>}
+            </button>
+          )}
+          {!bloqueada && puedeEditarCotizacion && <button onClick={() => guardar()} disabled={saving || generatingPdf} className="btn-secondary" style={{ fontSize: 12 }}>
             {saving ? "Guardando..." : "Guardar borrador"}
           </button>}
           {!bloqueada && puedeAprobarCliente && <button onClick={marcarAprobadoPorCliente} disabled={saving || generatingPdf} className="btn-primary" style={{ fontSize: 12 }}>

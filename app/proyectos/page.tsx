@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { useRouter } from "next/navigation"
 import { softDeleteProject } from "@/lib/projects"
+import { filtrarPorAlcance, puedeEjecutarAccion, puedeVerModulo } from "@/lib/permisos"
 
 const ESTADO_LABEL: Record<string, string> = {
   pendiente_aprobacion: "Pendiente",
@@ -51,6 +52,8 @@ export default function ProyectosPage() {
   const [filtroProductor, setFiltroProductor] = useState("")
   const [filtroCliente, setFiltroCliente] = useState("")
   const [pagina, setPagina] = useState(1)
+  const [perfil, setPerfil] = useState<any>(null)
+  const [accesoRestringido, setAccesoRestringido] = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
@@ -61,12 +64,23 @@ export default function ProyectosPage() {
   async function load() {
     const clienteIdParam = new URLSearchParams(window.location.search).get("cliente_id") || ""
     setFiltroCliente(clienteIdParam)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: perfilActual } = user ? await supabase.from("perfiles").select("*").eq("id", user.id).single() : { data: null }
+    setPerfil(perfilActual)
+    if (!puedeVerModulo(perfilActual, "proyectos")) {
+      setAccesoRestringido(true)
+      setProyectos([])
+      setEliminados([])
+      setLoading(false)
+      return
+    }
+    setAccesoRestringido(false)
     const { data } = await supabase
       .from("proyectos")
       .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-    const proyectosData = data || []
+    const proyectosData = filtrarPorAlcance(data || [], perfilActual, "proyectos", { usuarioId: user?.id })
     const proyectoIds = proyectosData.map((p: any) => p.id)
     if (proyectoIds.length > 0) {
       const { data: cots } = await supabase.from("cotizaciones").select("proyecto_id, total_cliente, version").is("deleted_at", null).in("proyecto_id", proyectoIds).order("version", { ascending: false })
@@ -88,11 +102,16 @@ export default function ProyectosPage() {
       .not("deleted_at", "is", null)
       .gte("deleted_at", hace2dias.toISOString())
       .order("deleted_at", { ascending: false })
-    setEliminados(elim || [])
+    setEliminados(filtrarPorAlcance(elim || [], perfilActual, "proyectos", { usuarioId: user?.id }))
     setLoading(false)
   }
 
   async function eliminar(id: string, nombre: string) {
+    const proyecto = proyectos.find((p: any) => p.id === id) || eliminados.find((p: any) => p.id === id)
+    if (!puedeEjecutarAccion(perfil, "proyectos", "eliminar", { usuarioId: perfil?.id, registro: proyecto })) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     if (!confirm("¿Eliminar el proyecto " + nombre + "? Podrás recuperarlo en los próximos 2 días.")) return
     setEliminando(id)
     const { error } = await softDeleteProject(supabase, id)
@@ -102,6 +121,10 @@ export default function ProyectosPage() {
   }
 
   async function copiarProyecto(p: any) {
+    if (!puedeEjecutarAccion(perfil, "proyectos", "duplicar", { usuarioId: perfil?.id, registro: p })) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     if (!confirm(`¿Copiar proyecto "${p.nombre}"?`)) return
     const { data: todosProj } = await supabase.from("proyectos").select("codigo")
     const maxNum = (todosProj || []).reduce((max: number, pr: any) => {
@@ -142,6 +165,11 @@ export default function ProyectosPage() {
   }
 
   async function recuperar(id: string) {
+    const proyecto = eliminados.find((p: any) => p.id === id)
+    if (!puedeEjecutarAccion(perfil, "proyectos", "reabrir", { usuarioId: perfil?.id, registro: proyecto })) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     await supabase.from("proyectos").update({ deleted_at: null }).eq("id", id)
     load()
   }
@@ -157,8 +185,11 @@ export default function ProyectosPage() {
   const clienteFiltrado = filtroCliente ? proyectos.find(p => p.cliente_id === filtroCliente)?.cliente?.razon_social : ""
   const totalPaginas = Math.ceil(filtrados.length / POR_PAGINA)
   const paginados = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+  const puedeCrearProyecto = puedeEjecutarAccion(perfil, "proyectos", "crear", { usuarioId: perfil?.id, registro: { productor_id: perfil?.id, created_by: perfil?.id } })
+  const puedeExportarProyectos = puedeEjecutarAccion(perfil, "proyectos", "exportar", { usuarioId: perfil?.id, registro: { productor_id: perfil?.id, created_by: perfil?.id } })
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (accesoRestringido) return <div style={{ color: "#6b7280", padding: 24 }}>Acceso restringido</div>
 
   return (
     <div>
@@ -176,8 +207,12 @@ export default function ProyectosPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <ImportExport modulo="proyectos" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"descripcion_requerimiento",label:"Descripcion"},{key:"presupuesto_referencial",label:"Presupuesto"},{key:"fecha_inicio",label:"Fecha ejecucion"},{key:"fecha_fin_estimada",label:"Fecha fin estimada"}]} datos={proyectos} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proyectos").insert({...r,entidad:"peru",estado:"pendiente_aprobacion"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
-          <button onClick={() => router.push("/proyectos/nuevo")} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proyecto</button>
+          {(puedeExportarProyectos || puedeCrearProyecto) && (
+            <ImportExport modulo="proyectos" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"descripcion_requerimiento",label:"Descripcion"},{key:"presupuesto_referencial",label:"Presupuesto"},{key:"fecha_inicio",label:"Fecha ejecucion"},{key:"fecha_fin_estimada",label:"Fecha fin estimada"}]} datos={proyectos} onImportar={async (registros) => { if (!puedeCrearProyecto) return { exitosos: 0, errores: ["No tienes permiso para realizar esta acción."] }; let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proyectos").insert({...r,entidad:"peru",estado:"pendiente_aprobacion"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
+          )}
+          {puedeCrearProyecto && (
+            <button onClick={() => router.push("/proyectos/nuevo")} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proyecto</button>
+          )}
         </div>
       </div>
 
@@ -327,12 +362,16 @@ export default function ProyectosPage() {
                       </td>
                       <td style={{ padding: "12px 20px", textAlign: "right" }}>
                         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                          <button onClick={() => copiarProyecto(p)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>Copiar</button>
+                          {puedeEjecutarAccion(perfil, "proyectos", "duplicar", { usuarioId: perfil?.id, registro: p }) && (
+                            <button onClick={() => copiarProyecto(p)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>Copiar</button>
+                          )}
                           <button onClick={() => router.push("/proyectos/" + p.id)} className="btn-secondary" style={{ fontSize: 12 }}>Ver</button>
-                          <button onClick={() => eliminar(p.id, p.nombre)} disabled={eliminando === p.id}
-                            style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
-                            {eliminando === p.id ? "..." : "Eliminar"}
-                          </button>
+                          {puedeEjecutarAccion(perfil, "proyectos", "eliminar", { usuarioId: perfil?.id, registro: p }) && (
+                            <button onClick={() => eliminar(p.id, p.nombre)} disabled={eliminando === p.id}
+                              style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
+                              {eliminando === p.id ? "..." : "Eliminar"}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
