@@ -1,4 +1,4 @@
-import { systemConfigurationEngine } from "./SystemConfigurationEngine"
+import { SYSTEM_CATALOGS } from "./catalogs"
 
 const RQ_ESTADOS_FALLBACK: Record<string, { bg: string; color: string; label: string }> = {
   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e", label: "Pendiente aprobacion" },
@@ -11,7 +11,9 @@ const RQ_ESTADOS_FALLBACK: Record<string, { bg: string; color: string; label: st
 }
 
 export function getRQEstadosVisuales() {
-  const items = systemConfigurationEngine.getCatalog("rq.estados")?.items.filter(item => item.active !== false) || []
+  const catalog = SYSTEM_CATALOGS.find(item => item.key === "rq.estados")
+  const items = catalog?.items.filter(item => item.active !== false) || []
+
   if (items.length === 0) return RQ_ESTADOS_FALLBACK
 
   return items.reduce<Record<string, { bg: string; color: string; label: string }>>((acc, item) => {
