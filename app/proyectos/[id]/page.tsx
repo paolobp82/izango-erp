@@ -9,6 +9,7 @@ import { cargarItemsAprobadosAlGestor } from "@/lib/gestor"
 import { useParams, useRouter } from "next/navigation"
 import { rqCodigo } from "@/lib/rq-code"
 import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
+import { filtrarPorAlcance, puedeEjecutarAccion, puedeVerInformacionSensible, puedeVerModulo, type AccionPermiso } from "@/lib/permisos"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
@@ -73,14 +74,22 @@ export default function ProyectoDetallePage() {
   const [clientes, setClientes] = useState<any[]>([])
   const [productores, setProductores] = useState<any[]>([])
   const [formEditar, setFormEditar] = useState<any>({})
+  const [accesoRestringido, setAccesoRestringido] = useState(false)
 
   useEffect(() => { load() }, [id])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
+    let perfilActual: any = null
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+      perfilActual = p
       setPerfil(p)
+    }
+    if (!puedeVerModulo(perfilActual, "proyectos")) {
+      setAccesoRestringido(true)
+      setLoading(false)
+      return
     }
     const { data: proy } = await supabase
       .from("proyectos")
@@ -92,6 +101,12 @@ export default function ProyectoDetallePage() {
       router.replace("/proyectos")
       return
     }
+    if (!puedeEjecutarAccion(perfilActual, "proyectos", "ver", { usuarioId: user?.id, registro: proy })) {
+      setAccesoRestringido(true)
+      setLoading(false)
+      return
+    }
+    setAccesoRestringido(false)
     setProyecto(proy)
 
     const { data: cots } = await supabase.from("cotizaciones").select("*").eq("proyecto_id", id).is("deleted_at", null).order("version")
@@ -138,13 +153,41 @@ export default function ProyectoDetallePage() {
         }
       }
     }
-    setRqsProyecto(rqsVinculados)
+    setRqsProyecto(filtrarPorAlcance(rqsVinculados.map((rq: any) => ({ ...rq, proyecto: proy })), perfilActual, "rq", { usuarioId: user?.id, proyecto: proy }))
 
     const hace2dias = new Date()
     hace2dias.setDate(hace2dias.getDate() - 2)
     const { data: elim } = await supabase.from("cotizaciones").select("*").eq("proyecto_id", id).not("deleted_at", "is", null).gte("deleted_at", hace2dias.toISOString()).order("deleted_at", { ascending: false })
     setCotizacionesEliminadas(elim || [])
     setLoading(false)
+  }
+
+  function contextoProyecto(registro = proyecto) {
+    return { usuarioId: perfil?.id, registro, proyecto: registro }
+  }
+
+  function accionParaCambioEstado(estadoActual: string): AccionPermiso {
+    if (estadoActual === "pendiente_aprobacion") return "aprobar_produccion"
+    if (estadoActual === "aprobado_produccion") return "aprobar_gerencia"
+    if (estadoActual === "aprobado_gerencia") return "aprobar_cliente"
+    if (estadoActual === "aprobado_cliente" || estadoActual === "aprobado") return "iniciar"
+    if (estadoActual === "en_curso" || estadoActual === "terminado") return "cerrar_operativo"
+    if (estadoActual === "liquidado") return "enviar_facturacion"
+    if (estadoActual === "pendiente_facturacion") return "marcar_facturado"
+    if (estadoActual === "facturado") return "cerrar_financiero"
+    return "editar"
+  }
+
+  function puedeAccionProyecto(accion: AccionPermiso, registro = proyecto) {
+    return puedeEjecutarAccion(perfil, "proyectos", accion, contextoProyecto(registro))
+  }
+
+  function puedeAccionProforma(accion: AccionPermiso, cot?: any) {
+    return puedeEjecutarAccion(perfil, "proformas", accion, { usuarioId: perfil?.id, registro: cot ? { ...cot, proyecto } : proyecto, proyecto })
+  }
+
+  function puedeAccionRQ(accion: AccionPermiso, rq?: any) {
+    return puedeEjecutarAccion(perfil, "rq", accion, { usuarioId: perfil?.id, registro: rq ? { ...rq, proyecto } : proyecto, proyecto })
   }
 
   async function abrirEditar() {
@@ -166,6 +209,10 @@ export default function ProyectoDetallePage() {
   }
 
   async function guardarEdicion() {
+    if (!puedeAccionProyecto("editar")) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     await supabase.from("proyectos").update({
       nombre: formEditar.nombre,
       cliente_id: formEditar.cliente_id || null,
@@ -301,6 +348,10 @@ export default function ProyectoDetallePage() {
   }
 
   async function aprobarCotizacionClienteFinal(cot: any) {
+    if (!puedeAccionProforma("aprobar_cliente", cot) || !puedeAccionProyecto("aprobar_cliente")) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     const aprobadoAt = new Date().toISOString()
     for (const otra of cotizaciones) {
       if (otra.id !== cot.id && otra.estado === "aprobada_cliente") {
@@ -533,7 +584,7 @@ export default function ProyectoDetallePage() {
 
   async function marcarCotizacionAprobadaCliente(cot: any) {
     if (!cot?.id) return
-    if (!puedeAprobarCliente) {
+    if (!puedeAccionProforma("aprobar_cliente", cot) || !puedeAccionProyecto("aprobar_cliente")) {
       alert("No tienes permisos para marcar aprobado por cliente")
       return
     }
@@ -551,6 +602,10 @@ export default function ProyectoDetallePage() {
   }
 
   async function cambiarEstado(nuevoEstado: string) {
+    if (!puedeAccionProyecto(accionParaCambioEstado(proyecto?.estado))) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     setCambiando(true)
 
     if (nuevoEstado === "aprobado_gerencia" && versionAprobar) {
@@ -731,13 +786,17 @@ export default function ProyectoDetallePage() {
   }
 
   async function confirmarPreCuadre() {
+    const esAdicional = proyecto?.estado === "en_curso"
+    if (!puedeAccionRQ("crear") || (!esAdicional && !puedeAccionProyecto("iniciar"))) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     const sinProveedor = preCuadreItems.filter(i => i.tipo !== "familia" && !i._borrado && !i.proveedor_id)
     if (sinProveedor.length > 0) {
       alert("Los siguientes items no tienen proveedor asignado:\n" + sinProveedor.map((i: any) => "• " + (i.descripcion || "Sin descripción")).join("\n"))
       return
     }
     setGuardandoPreCuadre(true)
-    const esAdicional = proyecto?.estado === "en_curso"
 
     if (!esAdicional) {
       const cotSeleccionada = cotizaciones.find(cot => cot.id === versionAprobar)
@@ -848,6 +907,10 @@ export default function ProyectoDetallePage() {
     load()
   }
   async function rechazar() {
+    if (!puedeAccionProyecto("rechazar")) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     if (!confirm("¿Rechazar este proyecto?")) return
     setCambiando(true)
     const { error } = await supabase
@@ -867,18 +930,32 @@ export default function ProyectoDetallePage() {
   }
 
   async function cambiarEntidad(entidad: string) {
+    if (!puedeAccionProyecto("editar")) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     await supabase.from("proyectos").update({ entidad }).eq("id", id)
     setProyecto({ ...proyecto, entidad })
     setEditandoEntidad(false)
   }
 
   async function eliminarVersion(cotId: string, version: number) {
+    const cot = cotizaciones.find((c: any) => c.id === cotId)
+    if (!puedeAccionProforma("eliminar", cot)) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     if (!confirm(`¿Eliminar proforma V${version}? Podrás recuperarla en los próximos 2 días.`)) return
     await supabase.from("cotizaciones").update({ deleted_at: new Date().toISOString() }).eq("id", cotId)
     load()
   }
 
   async function recuperarVersion(cotId: string) {
+    const cot = cotizacionesEliminadas.find((c: any) => c.id === cotId)
+    if (!puedeAccionProforma("editar", cot)) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     await supabase.from("cotizaciones").update({ deleted_at: null }).eq("id", cotId)
     load()
   }
@@ -938,6 +1015,10 @@ export default function ProyectoDetallePage() {
   }
 
   async function nuevaVersion(copiarDeId?: string) {
+    if (!puedeAccionProforma("crear")) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     setCreando(true)
     const { data: todasCots } = await supabase.from("cotizaciones").select("version").eq("proyecto_id", id)
 const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.map((c: any) => c.version || 1)) : 0
@@ -971,6 +1052,10 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   }
 
   async function abrirPreCuadreDesdeItem(item: any) {
+    if (!puedeAccionRQ("crear")) {
+      alert("No tienes permiso para realizar esta acción.")
+      return
+    }
     if (!item?.id) return
     const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
     setProveedores(provs || [])
@@ -993,10 +1078,18 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const estadoInfo = FLUJO[proyecto?.estado] || { label: proyecto?.estado, bg: "#f3f4f6", color: "#6b7280" }
   const tieneCotizacion = cotizaciones.length > 0
   const esEstadoFinal = ["cerrado_financiero", "cancelado", "rechazado"].includes(proyecto?.estado)
-  const puedeAvanzar = estadoInfo.roles?.includes(perfil?.perfil) && !esEstadoFinal
-  const puedeRechazar = ["gerente_produccion", "gerente_general", "controller", "superadmin"].includes(perfil?.perfil) && !esEstadoFinal
-  const puedeEditar = ["superadmin", "gerente_general", "gerente_produccion",  "controller", "productor"].includes(perfil?.perfil)
-  const puedeAprobarCliente = ["superadmin", "gerente_general"].includes(perfil?.perfil)
+  const puedeAvanzar = Boolean(estadoInfo.siguiente) && puedeAccionProyecto(accionParaCambioEstado(proyecto?.estado)) && !esEstadoFinal
+  const puedeRechazar = puedeAccionProyecto("rechazar") && !esEstadoFinal
+  const puedeEditar = puedeAccionProyecto("editar")
+  const puedeCambiarProductor = puedeAccionProyecto("cambiar_productor")
+  const puedeAprobarCliente = puedeAccionProforma("aprobar_cliente") && puedeAccionProyecto("aprobar_cliente")
+  const puedeCrearProforma = puedeAccionProforma("crear")
+  const puedeEditarProforma = puedeAccionProforma("editar")
+  const puedeEliminarProforma = puedeAccionProforma("eliminar")
+  const puedeCrearRQ = puedeAccionRQ("crear")
+  const puedeVerFacturacionProyecto = puedeAccionProyecto("ver_facturacion") && puedeVerInformacionSensible(perfil, "facturas")
+  const puedeExportarProyecto = puedeAccionProyecto("exportar")
+  const puedeReabrirProyecto = puedeAccionProyecto("reabrir")
   const cotAprobada = cotizaciones.find(c => c.estado === "aprobada_cliente") || cotizaciones.find(c => c.id === proyecto?.cotizacion_aprobada_id)
   const entidadLabel = ENTIDADES.find(e => e.value === proyecto?.entidad)?.label || proyecto?.entidad || "Sin entidad"
   const tratamientoIgvDefaultProyecto = proyecto?.entidad === "selva" ? "no_aplica" : "incluye_igv"
@@ -1109,6 +1202,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const placeholderStyle = { padding: 16, border: "1px dashed #d1d5db", borderRadius: 10, background: "#fafafa", color: "#6b7280", fontSize: 13 }
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (accesoRestringido) return <div style={{ color: "#6b7280", padding: 24 }}>Acceso restringido</div>
 
   return (
     <div>
@@ -1421,16 +1515,19 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               ✏️ Editar
             </button>
           )}
-          <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
-            style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#fff", color: "#0F6E56", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
-            📥 Reporte PDF
-          </a>
+          {puedeExportarProyecto && (
+            <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
+              style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#fff", color: "#0F6E56", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              📥 Reporte PDF
+            </a>
+          )}
         </div>
       </div>
 
       <div className="card" style={{ marginBottom: 24, padding: 16 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>Acciones del proyecto</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {puedeCrearProforma && (
           <button onClick={() => {
             const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
             const val = sel?.value
@@ -1438,25 +1535,32 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
             {creando ? "Creando..." : "Crear proforma / cotización"}
           </button>
+          )}
+          {puedeCrearRQ && (
           <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
             Crear RQ
           </button>
+          )}
           <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
             Crear tarea
           </button>
           <button onClick={() => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
             Solicitar audiovisual
           </button>
+          {puedeVerFacturacionProyecto && (
           <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
             Emitir factura
           </button>
+          )}
           <button onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
             Ver liquidación
           </button>
-          <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
-            style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-            Ver documentos
-          </a>
+          {puedeExportarProyecto && (
+            <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
+              style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+              Ver documentos
+            </a>
+          )}
         </div>
       </div>
 
@@ -1498,7 +1602,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               <div key={estado} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div
                   onClick={async () => {
-                    if (!["superadmin","gerente_general","controller"].includes(perfil?.perfil)) return
+                    if (!puedeReabrirProyecto) return
                     if (actual) return
                     if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
                     const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id, estado").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
@@ -1511,7 +1615,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       cambiarEstado(estado)
                     }
                   }}
-                  style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: ["superadmin","gerente_general","controller"].includes(perfil?.perfil) && !actual && idx < FLUJO_BREADCRUMB.indexOf(proyecto?.estado) ? "pointer" : "default" }}>
+                  style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: puedeReabrirProyecto && !actual && idx < FLUJO_BREADCRUMB.indexOf(proyecto?.estado) ? "pointer" : "default" }}>
                   <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{idx + 1}</span>
                 </div>
                 {actual && <span style={{ fontSize: 11, fontWeight: 700, color: info.color }}>{info.label}</span>}
@@ -1606,6 +1710,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                 ))}
               </select>
             )}
+            {puedeCrearProforma && (
             <button onClick={() => {
               const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
               const val = sel?.value
@@ -1613,6 +1718,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
               {creando ? "Creando..." : "+ Crear proforma"}
             </button>
+            )}
           </div>
         </div>
       </div>
@@ -1724,9 +1830,11 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                     </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                        <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>
-                          Editar
-                        </button>
+                        {puedeEditarProforma && (
+                          <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>
+                            Editar
+                          </button>
+                        )}
                         <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>
                           Preview
                         </button>
@@ -1735,7 +1843,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                             Marcar aprobado por cliente
                           </button>
                         )}
-                        {!esAprobada && (
+                        {!esAprobada && puedeEliminarProforma && (
                           <button onClick={() => eliminarVersion(cot.id, cot.version)}
                             style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
                             Borrar
@@ -1801,7 +1909,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   Mantiene el flujo actual: selecciona proveedores, costos finales y genera requerimientos de pago adicionales.
                 </div>
               </div>
-              {proyecto?.estado === "en_curso" && ["superadmin","gerente_general","gerente_produccion","productor"].includes(perfil?.perfil) ? (
+              {proyecto?.estado === "en_curso" && puedeCrearRQ ? (
                 <button onClick={async () => {
                   const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
                   setProveedores(provs || [])
@@ -2087,7 +2195,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       <section id="tab-facturacion" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
         <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Facturación</h2>
-          <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Emitir factura</button>
+          {puedeVerFacturacionProyecto && (
+            <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Emitir factura</button>
+          )}
         </div>
         <div style={{ padding: 20 }}>
           <div style={placeholderStyle}>
@@ -2153,7 +2263,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               </div>
               <div>
                 <label style={lbl}>PRODUCTOR</label>
-                <select style={inp} value={formEditar.productor_id} onChange={e => setFormEditar({ ...formEditar, productor_id: e.target.value })}>
+                <select style={inp} value={formEditar.productor_id} onChange={e => setFormEditar({ ...formEditar, productor_id: e.target.value })} disabled={!puedeCambiarProductor}>
                   <option value="">Sin productor</option>
                   {productores.map(p => <option key={p.id} value={p.id}>{p.apellido} {p.nombre}</option>)}
                 </select>

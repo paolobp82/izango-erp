@@ -48,7 +48,21 @@ export type AccionPermiso =
   | "ver"
   | "crear"
   | "editar"
+  | "eliminar"
+  | "duplicar"
+  | "exportar"
   | "cambiar_productor"
+  | "aprobar_produccion"
+  | "aprobar_gerencia"
+  | "aprobar_cliente"
+  | "iniciar"
+  | "enviar_facturacion"
+  | "marcar_facturado"
+  | "rechazar"
+  | "reabrir"
+  | "ver_costos"
+  | "ver_rentabilidad"
+  | "ver_facturacion"
   | "cerrar_operativo"
   | "cerrar_financiero"
   | "aprobar"
@@ -193,14 +207,32 @@ export const MATRIZ_ACCIONES: MatrizAcciones = {
     ver: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "LECTURA", logistica: "NINGUNO", audiovisual: "ASIGNADO", administrador: "LECTURA", practicante: "NINGUNO" },
     crear: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
     editar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "LECTURA", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "LECTURA", practicante: "NINGUNO" },
+    eliminar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    duplicar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    exportar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "LECTURA", logistica: "NINGUNO", audiovisual: "ASIGNADO", administrador: "LECTURA", practicante: "NINGUNO" },
     cambiar_productor: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
-    cerrar_operativo: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    aprobar_produccion: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    aprobar_gerencia: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    aprobar_cliente: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    iniciar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    cerrar_operativo: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    enviar_facturacion: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    marcar_facturado: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    rechazar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    reabrir: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    ver_costos: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "LECTURA", practicante: "NINGUNO" },
+    ver_rentabilidad: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "LECTURA", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    ver_facturacion: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "LECTURA", productor: "NINGUNO", comercial: "LECTURA", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "TOTAL", practicante: "NINGUNO" },
     cerrar_financiero: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
   },
   proformas: {
     ver: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "LECTURA", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "TOTAL", logistica: "LECTURA", audiovisual: "LECTURA", administrador: "LECTURA", practicante: "NINGUNO" },
     crear: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "TOTAL", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    editar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "TOTAL", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    eliminar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "TOTAL", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    exportar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "LECTURA", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "TOTAL", logistica: "LECTURA", audiovisual: "LECTURA", administrador: "LECTURA", practicante: "NINGUNO" },
     aprobar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    aprobar_cliente: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
   },
   rq: {
     ver: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "LECTURA", audiovisual: "NINGUNO", administrador: "LECTURA", practicante: "NINGUNO" },

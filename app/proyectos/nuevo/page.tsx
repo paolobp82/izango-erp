@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { enviarAlerta } from "@/lib/alertas"
 import { notificarATodos } from "@/lib/notificaciones"
+import { puedeEjecutarAccion, puedeVerModulo } from "@/lib/permisos"
 
 export default function NuevoProyectoPage() {
   const router = useRouter()
@@ -12,6 +13,7 @@ export default function NuevoProyectoPage() {
   const [clientes, setClientes] = useState<any[]>([])
   const [productores, setProductores] = useState<any[]>([])
   const [perfil, setPerfil] = useState<any>(null)
+  const [accesoRestringido, setAccesoRestringido] = useState(false)
   const [form, setForm] = useState({
     codigo: "", nombre: "", cliente_id: "", productor_id: "",
     descripcion_requerimiento: "", presupuesto_referencial: "",
@@ -26,8 +28,14 @@ export default function NuevoProyectoPage() {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
       const clienteIdParam = new URLSearchParams(window.location.search).get("cliente_id") || ""
       setPerfil(p)
-      setForm(f => ({ ...f, entidad: p?.entidad || "peru", cliente_id: clienteIdParam }))
-      await loadEntidadData(p?.entidad || "peru")
+      if (!puedeVerModulo(p, "proyectos") || !puedeEjecutarAccion(p, "proyectos", "crear", { usuarioId: user.id, registro: { productor_id: user.id, created_by: user.id } })) {
+        setAccesoRestringido(true)
+        return
+      }
+      setAccesoRestringido(false)
+      const puedeCambiarProductor = puedeEjecutarAccion(p, "proyectos", "cambiar_productor", { usuarioId: user.id, registro: { productor_id: user.id } })
+      setForm(f => ({ ...f, entidad: p?.entidad || "peru", cliente_id: clienteIdParam, productor_id: puedeCambiarProductor ? f.productor_id : user.id }))
+      await loadEntidadData(p?.entidad || "peru", p)
       const { data: todosProj } = await supabase.from("proyectos").select("codigo")
       const maxNum = (todosProj || []).reduce((max: number, p: any) => { const num = parseInt((p.codigo || "").replace("IZ-", "")) || 0; return num > max ? num : max }, 26000)
       setForm(f => ({ ...f, codigo: `IZ-${maxNum + 1}`, cliente_id: clienteIdParam || f.cliente_id }))
@@ -35,11 +43,12 @@ export default function NuevoProyectoPage() {
     load()
   }, [])
 
-  async function loadEntidadData(entidad: string) {
+  async function loadEntidadData(entidad: string, perfilActual = perfil) {
     const { data: cls } = await supabase.from("clientes").select("*").eq("activo", true).order("razon_social")
     setClientes(cls || [])
     const { data: prods } = await supabase.from("perfiles").select("*").in("perfil", ["productor", "gerente_produccion"]).eq("activo", true)
-    setProductores(prods || [])
+    const puedeCambiarProductor = puedeEjecutarAccion(perfilActual, "proyectos", "cambiar_productor", { usuarioId: perfilActual?.id, registro: { productor_id: perfilActual?.id } })
+    setProductores(puedeCambiarProductor ? prods || [] : (prods || []).filter((p: any) => p.id === perfilActual?.id))
   }
 
   async function obtenerSiguienteCodigoDisponible() {
@@ -81,6 +90,11 @@ export default function NuevoProyectoPage() {
       estado: "pendiente_aprobacion",
       created_by: user?.id,
     }
+    if (!puedeEjecutarAccion(perfil, "proyectos", "crear", { usuarioId: user?.id, registro: payload })) {
+      alert("No tienes permiso para realizar esta acción.")
+      setLoading(false)
+      return
+    }
 
     let { data, error } = await supabase.from("proyectos").insert(payload).select().single()
 
@@ -108,6 +122,8 @@ export default function NuevoProyectoPage() {
   const f = (k: string, v: string) => setForm({ ...form, [k]: v })
   const inputStyle = { width: "100%", padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", background: "#fff", fontFamily: "inherit" }
   const labelStyle = { display: "block", fontSize: 11, color: "#6b7280", marginBottom: 4, fontWeight: 500 }
+
+  if (accesoRestringido) return <div style={{ color: "#6b7280", padding: 24 }}>Acceso restringido</div>
 
   return (
     <div style={{ maxWidth: 672 }}>
@@ -158,7 +174,7 @@ export default function NuevoProyectoPage() {
             </div>
             <div>
               <label style={labelStyle}>Productor</label>
-              <select style={inputStyle} value={form.productor_id} onChange={e => f("productor_id", e.target.value)}>
+              <select style={inputStyle} value={form.productor_id} onChange={e => f("productor_id", e.target.value)} disabled={!puedeEjecutarAccion(perfil, "proyectos", "cambiar_productor", { usuarioId: perfil?.id, registro: { productor_id: form.productor_id || perfil?.id } })}>
                 <option value="">Seleccionar...</option>
                 {productores.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
               </select>
