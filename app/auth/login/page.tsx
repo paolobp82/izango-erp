@@ -1,6 +1,7 @@
 "use client"
 import { useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { APP_NAME, APP_VERSION, APP_FULL_NAME, COMPANY_NAME } from "@/lib/version"
 
 const LOGO_URL = "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
 
@@ -51,8 +52,12 @@ export default function LoginPage() {
           <div style={{ display: "inline-block", background: "#03E373", borderRadius: 20, padding: "16px 24px", marginBottom: 20 }}>
             <img src={LOGO_URL} alt="Izango" style={{ height: 60, objectFit: "contain", display: "block" }} />
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "#fff", letterSpacing: "-0.5px" }}>Bienvenido a Izango ERP</h1>
-          <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 6 }}>Sistema de gestión interno · Izango 360 S.A.C.</p>
+          <h1 style={{ fontSize: 26, fontWeight: 900, margin: 0, color: "#fff", letterSpacing: "-0.6px" }}>{APP_NAME}</h1>
+          <div style={{ marginTop: 6, display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <span style={{ background: "#03E373", color: "#052E24", padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800, letterSpacing: ".06em" }}>{APP_VERSION}</span>
+            <span style={{ fontSize: 13, color: "#94a3b8" }}>Sistema Integrado de Gestión</span>
+          </div>
+          <p style={{ fontSize: 12, color: "#64748b", marginTop: 12 }}>{COMPANY_NAME}</p>
         </div>
 
         {/* Card login */}
@@ -105,9 +110,12 @@ export default function LoginPage() {
         </div>
 
         <p style={{ textAlign: "center", fontSize: 11, color: "#475569", marginTop: 20 }}>
-          © 2026 Izango 360 S.A.C. · Uso interno exclusivo
+          © 2026 {COMPANY_NAME} · {APP_FULL_NAME} · Uso interno exclusivo
         </p>
       </div>
     </div>
   )
 }
+
+
+

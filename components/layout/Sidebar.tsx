@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
 import { puedeVerRuta } from "@/lib/permisos/rutas"
+import { APP_EDITION, APP_FULL_NAME, APP_VERSION } from "@/lib/version"
 
 const LOGO = "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
 
@@ -267,6 +268,17 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
           )}
         </div>
 
+        <div style={{ textAlign: collapsed ? "center" : "left", marginBottom: 12, opacity: .78 }}>
+          {collapsed ? (
+            <div style={{ fontSize: 10, fontWeight: 800, color: "#03E373" }}>{APP_VERSION}</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, color: "#03E373", fontWeight: 900 }}>{APP_FULL_NAME}</div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,.45)" }}>{APP_EDITION}</div>
+            </>
+          )}
+        </div>
+
         <button onClick={logout} title={collapsed ? "Cerrar sesión" : ""}
           style={{ width: "100%", textAlign: collapsed ? "center" : "left", fontSize: collapsed ? 20 : 12, color: "rgba(255,255,255,.62)", background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: 8 }}>
           {collapsed ? "↪" : "Cerrar sesión"}
@@ -275,6 +287,9 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
     </aside>
   )
 }
+
+
+
 
 
 
