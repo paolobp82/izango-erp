@@ -604,10 +604,26 @@ export default function ProyectoDetallePage() {
   }
 
   async function cambiarEstado(nuevoEstado: string) {
-    if (!puedeAccionProyecto(accionParaCambioEstado(proyecto?.estado))) {
+    const accionBRE = accionParaCambioEstado(proyecto?.estado)
+
+    if (!puedeAccionProyecto(accionBRE)) {
       alert("No tienes permiso para realizar esta acción.")
       return
     }
+
+    const businessRuleResult = businessRuleEngine.allow("proyectos", accionBRE, {
+      record: proyecto,
+      metadata: {
+        nuevoEstado,
+        cotizacion_id: versionAprobar || proyecto?.cotizacion_aprobada_id || null,
+      },
+    })
+
+    if (!businessRuleResult.allowed) {
+      alert(businessRuleResult.reason || "La acción no cumple las reglas de negocio.")
+      return
+    }
+
     setCambiando(true)
 
     if (nuevoEstado === "aprobado_gerencia" && versionAprobar) {
@@ -913,6 +929,16 @@ export default function ProyectoDetallePage() {
       alert("No tienes permiso para realizar esta acción.")
       return
     }
+
+    const rechazarBusinessRuleResult = businessRuleEngine.allow("proyectos", "rechazar", {
+      record: proyecto,
+    })
+
+    if (!rechazarBusinessRuleResult.allowed) {
+      alert(rechazarBusinessRuleResult.reason || "La acción no cumple las reglas de negocio.")
+      return
+    }
+
     if (!confirm("¿Rechazar este proyecto?")) return
     setCambiando(true)
     const { error } = await supabase
@@ -2295,6 +2321,12 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
+
+
+
+
+
 
 
 
