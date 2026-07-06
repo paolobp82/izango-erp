@@ -8,7 +8,7 @@ import {
   filtrarPorAlcance,
   puedeVerInformacionSensible,
 } from "@/lib/permisos"
-import KpiCard from "@/components/ui/KpiCard"
+import ExecutiveSummary from "@/components/design-system/ExecutiveSummary"
 import MasterPage from "@/components/design-system/MasterPage"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -340,19 +340,51 @@ export default function DashboardPage() {
             </a>
           ))}
         </div>
-      )}      {/* KPIs principales */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 20 }}>
-        <KpiCard icon="money" label="Presupuestos Pendientes" value={metricas.canSeePrecioCliente ? fmt(metricas.presupuestosPendientes || 0) : FINANCIAL_LOCK_LABEL} sub={(metricas.pendientesMes || 0) + " oportunidades abiertas este mes"} borderColor="#10B981" valueColor="#059669" />
+      )}
 
-        <KpiCard icon="shield" label="Presupuestos en Curso" value={metricas.canSeePrecioCliente ? fmt(metricas.presupuestosAprobados || 0) : FINANCIAL_LOCK_LABEL} sub={`${metricas.activos || 0} proyectos en ejecución`} borderColor="#3B82F6" valueColor="#1D4ED8" />
-
-        <KpiCard icon="chart" label="Facturado Este Mes" value={metricas.canSeeFacturas ? fmtShort(metricas.factMesAct || 0) : FINANCIAL_LOCK_LABEL} sub="0% vs. mes ant." borderColor="#14B8A6" valueColor="#0D9488" />
-
-        <KpiCard icon="wallet" label="Por Cobrar" value={metricas.canSeeCobranza ? fmtShort(metricas.porCobrar || 0) : FINANCIAL_LOCK_LABEL} sub={metricas.canSeeCobranza ? "Cobrados: " + fmtShort(metricas.totalCobrado || 0) : "Información financiera restringida"} borderColor="#8B5CF6" valueColor="#5B21B6" />
-
-        <KpiCard icon="folder" label="Proyectos en Curso" value={String(metricas.activos || 0)} sub="Actualmente en ejecución" borderColor="#F97316" valueColor="#EA580C" />
-
-        <KpiCard icon="file" label="Cotizaciones Mes" value={String(metricas.cotMes || 0)} sub="Versiones generadas" borderColor="#10B981" valueColor="#059669" />
+      {/* KPIs principales */}
+      <div style={{ marginBottom: 20 }}>
+        <ExecutiveSummary
+          columns={6}
+          items={[
+            {
+              label: "Presupuestos Pendientes",
+              value: metricas.canSeePrecioCliente ? fmt(metricas.presupuestosPendientes || 0) : FINANCIAL_LOCK_LABEL,
+              subtitle: (metricas.pendientesMes || 0) + " oportunidades abiertas este mes",
+              tone: "success",
+            },
+            {
+              label: "Presupuestos en Curso",
+              value: metricas.canSeePrecioCliente ? fmt(metricas.presupuestosAprobados || 0) : FINANCIAL_LOCK_LABEL,
+              subtitle: `${metricas.activos || 0} proyectos en ejecución`,
+              tone: "info",
+            },
+            {
+              label: "Facturado Este Mes",
+              value: metricas.canSeeFacturas ? fmtShort(metricas.factMesAct || 0) : FINANCIAL_LOCK_LABEL,
+              subtitle: "0% vs. mes ant.",
+              tone: "success",
+            },
+            {
+              label: "Por Cobrar",
+              value: metricas.canSeeCobranza ? fmtShort(metricas.porCobrar || 0) : FINANCIAL_LOCK_LABEL,
+              subtitle: metricas.canSeeCobranza ? "Cobrados: " + fmtShort(metricas.totalCobrado || 0) : "Información financiera restringida",
+              tone: "info",
+            },
+            {
+              label: "Proyectos en Curso",
+              value: String(metricas.activos || 0),
+              subtitle: "Actualmente en ejecución",
+              tone: "warning",
+            },
+            {
+              label: "Cotizaciones Mes",
+              value: String(metricas.cotMes || 0),
+              subtitle: "Versiones generadas",
+              tone: "success",
+            },
+          ]}
+        />
       </div>
 
       {/* Gráficos Row 1: Facturación + Estados */}
@@ -480,6 +512,8 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+
 
 
 
