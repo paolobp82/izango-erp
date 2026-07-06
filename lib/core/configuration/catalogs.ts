@@ -59,11 +59,12 @@ export const SYSTEM_CATALOGS: SystemCatalog[] = [
     editable: false,
     items: [
       { id: "rq.estado.pendiente_aprobacion", catalogKey: "rq.estados", key: "pendiente_aprobacion", label: "Pendiente aprobación", order: 1, active: true, system: true },
-      { id: "rq.estado.aprobado", catalogKey: "rq.estados", key: "aprobado", label: "Aprobado", order: 2, active: true, system: true },
-      { id: "rq.estado.programado", catalogKey: "rq.estados", key: "programado", label: "Programado", order: 3, active: true, system: true },
-      { id: "rq.estado.pagado", catalogKey: "rq.estados", key: "pagado", label: "Pagado", order: 4, active: true, system: true },
-      { id: "rq.estado.rechazado", catalogKey: "rq.estados", key: "rechazado", label: "Rechazado", order: 5, active: true, system: true },
-      { id: "rq.estado.cancelado", catalogKey: "rq.estados", key: "cancelado", label: "Cancelado", order: 6, active: true, system: true }
+      { id: "rq.estado.aprobado_produccion", catalogKey: "rq.estados", key: "aprobado_produccion", label: "Aprobado Producción", order: 2, active: true, system: true },
+      { id: "rq.estado.aprobado", catalogKey: "rq.estados", key: "aprobado", label: "Aprobado GG", order: 3, active: true, system: true },
+      { id: "rq.estado.programado", catalogKey: "rq.estados", key: "programado", label: "Programado", order: 4, active: true, system: true },
+      { id: "rq.estado.pagado", catalogKey: "rq.estados", key: "pagado", label: "Pagado", order: 5, active: true, system: true },
+      { id: "rq.estado.rechazado", catalogKey: "rq.estados", key: "rechazado", label: "Rechazado", order: 6, active: true, system: true },
+      { id: "rq.estado.cancelado", catalogKey: "rq.estados", key: "cancelado", label: "Cancelado", order: 7, active: true, system: true }
     ]
   }
 
@@ -86,5 +87,6 @@ export const SYSTEM_CATALOGS: SystemCatalog[] = [
     ]
   }
 ]
+
 
 
