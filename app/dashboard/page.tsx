@@ -9,6 +9,7 @@ import {
   puedeVerInformacionSensible,
 } from "@/lib/permisos"
 import KpiCard from "@/components/ui/KpiCard"
+import MasterPage from "@/components/design-system/MasterPage"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend
@@ -479,6 +480,8 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+
 
 
 
