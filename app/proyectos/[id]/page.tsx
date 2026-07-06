@@ -11,6 +11,7 @@ import { rqCodigo } from "@/lib/rq-code"
 import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 import { filtrarPorAlcance, puedeEjecutarAccion, puedeVerInformacionSensible, puedeVerModulo, type AccionPermiso } from "@/lib/permisos"
 import { lifecycleEngine } from "@/lib/core/lifecycle"
+import { businessRuleEngine } from "@/lib/core/business-rules"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
@@ -2294,6 +2295,10 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
+
+
+
 
 
 
