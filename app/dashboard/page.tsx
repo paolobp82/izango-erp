@@ -395,7 +395,7 @@ export default function DashboardPage() {
       {/* Gráficos Row 2: Top proyectos + RQs */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, marginBottom: 16 }}>
         <div style={{ background: "#fff", borderRadius: 12, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", marginBottom: 16 }}>Top proyectos por valor aprobado</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", marginBottom: 16 }}>Top proyectos aprobados por valor</div>
           {!metricas.canSeePrecioCliente ? (
             <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 32 }}>Información comercial restringida</div>
           ) : topProyectos.length === 0 ? (
@@ -479,6 +479,7 @@ export default function DashboardPage() {
     </div>
   )
 }
+
 
 
 
