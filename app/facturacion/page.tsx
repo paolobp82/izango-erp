@@ -9,6 +9,7 @@ import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { puedeAccederRuta } from "@/lib/permissions"
+import { businessRuleEngine } from "@/lib/core/business-rules"
 
 const ESTADOS: Record<string, any> = {
   pendiente:  { bg: "#fef9c3", color: "#92400e",  label: "Pendiente" },
@@ -734,6 +735,8 @@ export default function FacturacionPage() {
     </div>
   )
 }
+
+
 
 
 
