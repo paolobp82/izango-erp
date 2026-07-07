@@ -1,1 +1,3 @@
-export { default, getStatusType } from "../ui/StatusBadge"
+"use client"
+
+export { default, getStatusType } from "@/components/ui/StatusBadge"
