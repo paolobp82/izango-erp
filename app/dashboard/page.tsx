@@ -10,6 +10,7 @@ import {
 } from "@/lib/permisos"
 import ExecutiveSummary from "@/components/design-system/ExecutiveSummary"
 import MasterPage from "@/components/design-system/MasterPage"
+import StatusBadge from "@/components/ui/StatusBadge"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend
@@ -512,6 +513,9 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+
+
 
 
 
