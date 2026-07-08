@@ -1198,6 +1198,13 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     }))
 
   const filasEjecucionRqs = [...filasRqsProyecto, ...filasRqsNoRepresentados]
+
+  const rqsVersionAnterior = rqsProyecto.filter((rq: any) =>
+    rq.cotizacion_item_id &&
+    !itemsCotizadosPresupuesto.some((i: any) => i.id === rq.cotizacion_item_id)
+  )
+
+  const requiereMigracionRQ = rqsVersionAnterior.length > 0
   const resumenAlertas = [
     !tieneCotizacion ? { label: "Sin proforma", detalle: "Crea una proforma para continuar el flujo comercial." } : null,
     tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
@@ -1311,7 +1318,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             <div style={{ border: "1px solid #fde68a", borderRadius: 10, background: "#fffbeb", padding: 12, marginBottom: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#92400e", marginBottom: 4 }}>Revisión requerida</div>
               <div style={{ fontSize: 12, color: "#92400e" }}>
-                Este panel todavía no ejecuta migraciones. En la siguiente fase se habilitarán acciones: migrar RQ, generar RQ por diferencia o registrar reembolso/ajuste.
+                Al continuar, el sistema ejecutará la migración: actualizará referencias, cancelará RQs no vigentes, generará RQs por diferencia y dejará trazabilidad completa.
               </div>
             </div>
 
@@ -1962,6 +1969,62 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               </div>
               <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver en módulo RQ</button>
             </div>
+            {requiereMigracionRQ && cotAprobada && (
+              <div
+                style={{
+                  margin: 16,
+                  padding: 16,
+                  borderRadius: 10,
+                  border: "1px solid #FACC15",
+                  background: "#FEFCE8",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 20,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      color: "#92400E",
+                      marginBottom: 4,
+                    }}
+                  >
+                    ⚠ Hay requerimientos asociados a una versión anterior.
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "#78350F",
+                    }}
+                  >
+                    Se detectaron <b>{rqsVersionAnterior.length}</b> RQs que aún apuntan a una versión anterior de la cotización. Se recomienda ejecutar la migración antes de continuar.
+                  </div>
+                </div>
+
+                <button
+                  className="btn-primary"
+                  onClick={async () => {
+                    const comparacion = await compararVersionContraAprobada(cotAprobada)
+
+                    if (!comparacion) {
+                      alert("No fue posible calcular la migración.")
+                      return
+                    }
+
+                    setComparacionPendiente(comparacion)
+                    setCotizacionPendienteAprobar(cotAprobada)
+                    setShowMigracionRQ(true)
+                  }}
+                >
+                  Migrar RQs
+                </button>
+              </div>
+            )}
+
             {rqsProyecto.length === 0 ? (
               <div style={{ padding: 20, color: "#9ca3af", fontSize: 13, textAlign: "center" }}>
                 Este proyecto todavia no tiene requerimientos de pago vinculados.
@@ -2321,6 +2384,10 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
+
+
+
 
 
 
