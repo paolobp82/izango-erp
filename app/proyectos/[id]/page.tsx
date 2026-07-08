@@ -68,6 +68,7 @@ export default function ProyectoDetallePage() {
   const [comparacionPendiente, setComparacionPendiente] = useState<any>(null)
   const [cotizacionPendienteAprobar, setCotizacionPendienteAprobar] = useState<any>(null)
   const [cotizacionDestinoMigracionId, setCotizacionDestinoMigracionId] = useState("")
+  const [logsMigracionRQ, setLogsMigracionRQ] = useState<any[]>([])
   const [proveedores, setProveedores] = useState<any[]>([])
   const [guardandoPreCuadre, setGuardandoPreCuadre] = useState(false)
   const [versionAprobar, setVersionAprobar] = useState("")
@@ -157,6 +158,13 @@ export default function ProyectoDetallePage() {
       }
     }
     setRqsProyecto(filtrarPorAlcance(rqsVinculados.map((rq: any) => ({ ...rq, proyecto: proy })), perfilActual, "rq", { usuarioId: user?.id, proyecto: proy }))
+
+    const { data: logsRQ } = await supabase
+      .from("rq_version_migration_log")
+      .select("rq_id,rq_diferencia_id,accion,cotizacion_destino_id,metadata,created_at")
+      .eq("proyecto_id", id)
+
+    setLogsMigracionRQ(logsRQ || [])
 
     const hace2dias = new Date()
     hace2dias.setDate(hace2dias.getDate() - 2)
@@ -420,9 +428,30 @@ export default function ProyectoDetallePage() {
     const activosDestino = (itemsDestino || []).filter((i: any) => i.tipo !== "celda_extra")
     const destinoPorKey = new Map(activosDestino.map((item: any) => [claveItemMigracion(item), item]))
 
+    const rqsYaProcesados = new Set(
+      logsMigracionRQ
+        .filter((log: any) =>
+          log.rq_id &&
+          log.cotizacion_destino_id === cotDestino.id &&
+          [
+            "MANTENER_HISTORICO_ITEM_ELIMINADO",
+            "CANCELAR_ITEM_ELIMINADO",
+            "MIGRAR",
+            "MIGRAR_REFERENCIA_PAGADO",
+            "MIGRAR_GENERAR_DIFERENCIA",
+            "MIGRAR_AJUSTAR_MONTO_MENOR",
+            "MANTENER_PAGADO_GENERAR_DIFERENCIA",
+            "MANTENER_PAGADO_REGISTRAR_REEMBOLSO",
+            "GENERAR_RQ_DIFERENCIA",
+          ].includes(log.accion)
+        )
+        .map((log: any) => log.rq_id)
+    )
+
     const rqsPorMigrar = (rqs || []).filter((rq: any) =>
       rq.cotizacion_item_id &&
       !rq.es_adicional &&
+      !rqsYaProcesados.has(rq.id) &&
       !["cancelado", "rechazado", "cerrado"].includes(rq.estado) &&
       !activosDestino.some((item: any) => item.id === rq.cotizacion_item_id)
     )
@@ -1289,9 +1318,38 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
   const filasEjecucionRqs = [...filasRqsProyecto, ...filasRqsNoRepresentados]
 
+  const cotizacionDestinoActualMigracionId =
+    cotizacionDestinoMigracionId ||
+    proyecto?.cotizacion_aprobada_id ||
+    [...cotizaciones].sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0]?.id ||
+    ""
+
+  const accionesMigracionCerrada = [
+    "MANTENER_HISTORICO_ITEM_ELIMINADO",
+    "CANCELAR_ITEM_ELIMINADO",
+    "MIGRAR",
+    "MIGRAR_REFERENCIA_PAGADO",
+    "MIGRAR_GENERAR_DIFERENCIA",
+    "MIGRAR_AJUSTAR_MONTO_MENOR",
+    "MANTENER_PAGADO_GENERAR_DIFERENCIA",
+    "MANTENER_PAGADO_REGISTRAR_REEMBOLSO",
+    "GENERAR_RQ_DIFERENCIA",
+  ]
+
+  const rqsProcesadosPorMigracion = new Set(
+    logsMigracionRQ
+      .filter((log: any) =>
+        log.rq_id &&
+        accionesMigracionCerrada.includes(log.accion) &&
+        (!cotizacionDestinoActualMigracionId || log.cotizacion_destino_id === cotizacionDestinoActualMigracionId)
+      )
+      .map((log: any) => log.rq_id)
+  )
+
   const rqsVersionAnterior = rqsProyecto.filter((rq: any) =>
     rq.cotizacion_item_id &&
-    rq.migracion_estado !== "migrado_manual" &&
+    !["cancelado", "rechazado", "cerrado"].includes(rq.estado) &&
+    !rqsProcesadosPorMigracion.has(rq.id) &&
     !itemsCotizadosPresupuesto.some((i: any) => i.id === rq.cotizacion_item_id)
   )
 
@@ -2504,6 +2562,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
