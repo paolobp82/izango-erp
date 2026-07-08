@@ -67,6 +67,7 @@ export default function ProyectoDetallePage() {
   const [showMigracionRQ, setShowMigracionRQ] = useState(false)
   const [comparacionPendiente, setComparacionPendiente] = useState<any>(null)
   const [cotizacionPendienteAprobar, setCotizacionPendienteAprobar] = useState<any>(null)
+  const [cotizacionDestinoMigracionId, setCotizacionDestinoMigracionId] = useState("")
   const [proveedores, setProveedores] = useState<any[]>([])
   const [guardandoPreCuadre, setGuardandoPreCuadre] = useState(false)
   const [versionAprobar, setVersionAprobar] = useState("")
@@ -395,6 +396,85 @@ export default function ProyectoDetallePage() {
     load()
   }
 
+  async function compararRQsContraVersionDestino(cotDestino: any) {
+    if (!cotDestino?.id) return null
+
+    const claveItemMigracion = (item: any) => [
+      String(item.descripcion || "").trim().toLowerCase(),
+      String(item.categoria || "").trim().toLowerCase(),
+      String(item.proveedor_id || item.proveedor_nombre || "").trim().toLowerCase(),
+      String(item.tipo || "").trim().toLowerCase(),
+    ].join("|")
+
+    const { data: itemsDestino } = await supabase
+      .from("cotizacion_items")
+      .select("*")
+      .eq("cotizacion_id", cotDestino.id)
+      .order("orden")
+
+    const { data: rqs } = await supabase
+      .from("requerimientos_pago")
+      .select("id,proyecto_id,codigo_rq,numero_rq,estado,cotizacion_item_id,es_adicional,monto_solicitado,monto_presupuestado,descripcion,proveedor_id,proveedor_nombre,proveedor_banco,proveedor_cuenta,proveedor_tipo_pago,tipo_pago,dias_credito,tratamiento_igv,solicitado_por,migracion_estado,migracion_cotizacion_origen_id,migracion_cotizacion_destino_id,migracion_rq_origen_id")
+      .eq("proyecto_id", id)
+
+    const activosDestino = (itemsDestino || []).filter((i: any) => i.tipo !== "celda_extra")
+    const destinoPorKey = new Map(activosDestino.map((item: any) => [claveItemMigracion(item), item]))
+
+    const rqsPorMigrar = (rqs || []).filter((rq: any) =>
+      rq.cotizacion_item_id &&
+      !rq.es_adicional &&
+      !["cancelado", "rechazado", "cerrado"].includes(rq.estado) &&
+      !activosDestino.some((item: any) => item.id === rq.cotizacion_item_id)
+    )
+
+    if (rqsPorMigrar.length === 0) return null
+
+    const idsOrigen = [...new Set(rqsPorMigrar.map((rq: any) => rq.cotizacion_item_id).filter(Boolean))]
+
+    let itemsOrigen: any[] = []
+    if (idsOrigen.length > 0) {
+      const { data: origen } = await supabase
+        .from("cotizacion_items")
+        .select("*")
+        .in("id", idsOrigen)
+
+      itemsOrigen = origen || []
+    }
+
+    const origenPorId = new Map(itemsOrigen.map((item: any) => [item.id, item]))
+
+    const rqsAfectados = rqsPorMigrar.map((rq: any) => {
+      const itemAnterior = origenPorId.get(rq.cotizacion_item_id)
+      const itemNuevo = itemAnterior ? destinoPorKey.get(claveItemMigracion(itemAnterior)) : null
+      const montoV1 = Number(itemAnterior?.costo_total || rq.monto_presupuestado || rq.monto_solicitado || 0)
+      const montoV2 = itemNuevo ? Number(itemNuevo.costo_total || 0) : 0
+      const diferencia = montoV2 - montoV1
+
+      let accionSugerida = "Revisar manualmente"
+
+      if (!itemNuevo) {
+        accionSugerida = rq.estado === "pagado" ? "Mantener histórico; item no existe en destino" : "Cancelar RQ; item no existe en destino"
+      } else if (Math.abs(diferencia) < 0.01) {
+        accionSugerida = rq.estado === "pagado" ? "Mantener histórico; monto igual" : "Migrar RQ; monto igual"
+      } else if (diferencia > 0) {
+        accionSugerida = rq.estado === "pagado" ? "Mantener histórico + generar RQ por diferencia" : "Migrar RQ + generar RQ por diferencia"
+      } else {
+        accionSugerida = rq.estado === "pagado" ? "Mantener histórico + registrar reembolso" : "Migrar RQ + solicitar devolución/ajuste"
+      }
+
+      return { ...rq, itemAnterior, itemNuevo, montoV1, montoV2, diferencia, accionSugerida }
+    })
+
+    return {
+      cotAnterior: { id: null, version: "", label: "RQs en versiones anteriores" },
+      cotNueva: cotDestino,
+      mantenidos: rqsAfectados.filter((rq: any) => rq.itemNuevo && Math.abs(Number(rq.diferencia || 0)) < 0.01),
+      modificados: rqsAfectados.filter((rq: any) => rq.itemNuevo && Math.abs(Number(rq.diferencia || 0)) >= 0.01),
+      eliminados: rqsAfectados.filter((rq: any) => !rq.itemNuevo),
+      nuevos: [],
+      rqsAfectados,
+    }
+  }
   async function registrarLogMigracionRQVersion(params: any) {
     const { error } = await supabase.from("rq_version_migration_log").insert({
       proyecto_id: id,
@@ -2005,30 +2085,52 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   </div>
                 </div>
 
-                <button
-                  className="btn-primary"
-                  onClick={async () => {
-                    const cotizacionParaMigrar =
-                      cotizaciones
-                        .filter((cot: any) => cot.id !== proyecto?.cotizacion_aprobada_id)
-                        .sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0] ||
-                      cotizaciones
-                        .sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0]
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <select
+                    value={cotizacionDestinoMigracionId || proyecto?.cotizacion_aprobada_id || ""}
+                    onChange={(e) => setCotizacionDestinoMigracionId(e.target.value)}
+                    style={{ padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 13, background: "#fff" }}
+                  >
+                    <option value="">Seleccionar versión destino</option>
+                    {[...cotizaciones]
+                      .sort((a: any, b: any) => (b.version || 0) - (a.version || 0))
+                      .map((cot: any) => (
+                        <option key={cot.id} value={cot.id}>
+                          V{cot.version} {cot.id === proyecto?.cotizacion_aprobada_id ? "(actual aprobada)" : ""}
+                        </option>
+                      ))}
+                  </select>
 
-                    const comparacion = await compararVersionContraAprobada(cotizacionParaMigrar)
+                  <button
+                    className="btn-primary"
+                    onClick={async () => {
+                      const destinoId =
+                        cotizacionDestinoMigracionId ||
+                        proyecto?.cotizacion_aprobada_id ||
+                        cotizaciones.sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0]?.id
 
-                    if (!comparacion) {
-                      alert("No fue posible calcular la migración. Revisa que exista una versión anterior aprobada y una versión nueva con cambios.")
-                      return
-                    }
+                      const cotizacionDestino = cotizaciones.find((cot: any) => cot.id === destinoId)
 
-                    setComparacionPendiente(comparacion)
-                    setCotizacionPendienteAprobar(cotizacionParaMigrar)
-                    setShowMigracionRQ(true)
-                  }}
-                >
-                  Migrar RQs
-                </button>
+                      if (!cotizacionDestino) {
+                        alert("Selecciona una versión destino para migrar los RQs.")
+                        return
+                      }
+
+                      const comparacion = await compararRQsContraVersionDestino(cotizacionDestino)
+
+                      if (!comparacion) {
+                        alert("No hay RQs pendientes de migrar hacia la versión seleccionada.")
+                        return
+                      }
+
+                      setComparacionPendiente(comparacion)
+                      setCotizacionPendienteAprobar(cotizacionDestino)
+                      setShowMigracionRQ(true)
+                    }}
+                  >
+                    Migrar RQs
+                  </button>
+                </div>
               </div>
             )}
 
@@ -2391,6 +2493,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
+
+
 
 
 
