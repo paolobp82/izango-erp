@@ -1357,17 +1357,22 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     logsMigracionRQ
       .filter((log: any) =>
         log.rq_id &&
-        accionesMigracionCerrada.includes(log.accion) &&
-        (!cotizacionDestinoActualMigracionId || log.cotizacion_destino_id === cotizacionDestinoActualMigracionId)
+        accionesMigracionCerrada.includes(String(log.accion || "")) &&
+        (
+          !cotizacionDestinoActualMigracionId ||
+          String(log.cotizacion_destino_id || "") === String(cotizacionDestinoActualMigracionId || "") ||
+          String(log.accion || "") === "MANTENER_HISTORICO_ITEM_ELIMINADO"
+        )
       )
-      .map((log: any) => log.rq_id)
+      .map((log: any) => String(log.rq_id))
   )
 
   const rqsVersionAnterior = rqsProyecto.filter((rq: any) =>
     rq.cotizacion_item_id &&
-    !["cancelado", "rechazado", "cerrado"].includes(rq.estado) &&
-    !rqsProcesadosPorMigracion.has(rq.id) &&
-    !itemsCotizadosPresupuesto.some((i: any) => i.id === rq.cotizacion_item_id)
+    !rq.es_adicional &&
+    !["cancelado", "rechazado", "cerrado"].includes(String(rq.estado || "")) &&
+    !rqsProcesadosPorMigracion.has(String(rq.id)) &&
+    !itemsCotizadosPresupuesto.some((i: any) => String(i.id) === String(rq.cotizacion_item_id))
   )
 
   const requiereMigracionRQ = rqsVersionAnterior.length > 0
@@ -2579,6 +2584,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
