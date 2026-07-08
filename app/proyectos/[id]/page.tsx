@@ -1291,6 +1291,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
   const rqsVersionAnterior = rqsProyecto.filter((rq: any) =>
     rq.cotizacion_item_id &&
+    rq.migracion_estado !== "migrado_manual" &&
     !itemsCotizadosPresupuesto.some((i: any) => i.id === rq.cotizacion_item_id)
   )
 
@@ -2503,6 +2504,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
