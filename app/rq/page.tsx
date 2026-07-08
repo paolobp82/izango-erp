@@ -34,7 +34,7 @@ const FLUJO = [
 ]
 
 const BANCOS_PAGO = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
-const TIPOS_TRANSFERENCIA = ["Transferencia bancaria", "Yape", "Plin", "Efectivo", "Cheque"]
+const MEDIOS_PAGO = ["Transferencia", "Efectivo"]
 const ESTADOS_CANCELABLES_RQ = ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "programado"]
 const ROLES_CANCELAR_RQ = ["superadmin", "controller", "gerente_general"]
 const FORM_RQ_VACIO = {
@@ -50,7 +50,7 @@ const FORM_RQ_VACIO = {
   nota_pago: "",
   numero_operacion: "",
   banco_pago: "",
-  tipo_transferencia: "Transferencia bancaria",
+  tipo_transferencia: "Transferencia",
 }
 
 export default function RQPage() {
@@ -78,7 +78,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const [fechaPago, setFechaPago] = useState("")
   const [filtroTipoPago, setFiltroTipoPago] = useState("")
   const [datosPago, setDatosPago] = useState({
-    voucher_url: "", numero_operacion: "", banco_pago: "", tipo_transferencia: "Transferencia bancaria", nota_pago: ""
+    voucher_url: "", numero_operacion: "", banco_pago: "", tipo_transferencia: "Transferencia", nota_pago: ""
   })
   const [guardandoPago, setGuardandoPago] = useState(false)
   const [datosRendicion, setDatosRendicion] = useState({
@@ -152,7 +152,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
           voucher_url: rqSeleccionado.voucher_url || "",
           numero_operacion: rqSeleccionado.numero_operacion || "",
           banco_pago: rqSeleccionado.banco_pago || "",
-          tipo_transferencia: rqSeleccionado.tipo_transferencia || "Transferencia bancaria",
+          tipo_transferencia: rqSeleccionado.tipo_transferencia || "Transferencia",
           nota_pago: rqSeleccionado.nota_pago || "",
         })
         setDatosRendicion({
@@ -529,7 +529,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       nota_pago: rq.nota_pago || "",
       numero_operacion: rq.numero_operacion || "",
       banco_pago: rq.banco_pago || "",
-      tipo_transferencia: rq.tipo_transferencia || "Transferencia bancaria",
+      tipo_transferencia: rq.tipo_transferencia || "Transferencia",
     })
     setShowEditarRQ(true)
   }
@@ -950,7 +950,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                         voucher_url: rq.voucher_url || "",
                         numero_operacion: rq.numero_operacion || "",
                         banco_pago: rq.banco_pago || "",
-                        tipo_transferencia: rq.tipo_transferencia || "Transferencia bancaria",
+                        tipo_transferencia: rq.tipo_transferencia || "Transferencia",
                         nota_pago: rq.nota_pago || "",
                       })
                       setDatosRendicion({
@@ -1185,7 +1185,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                       <div>
                         <label style={lbl}>Tipo transferencia</label>
                         <select style={inp} value={datosPago.tipo_transferencia} onChange={e => setDatosPago({ ...datosPago, tipo_transferencia: e.target.value })} disabled={!puedeEditarPago || rqPerteneceAProyectoEliminado(selected)}>
-                          {TIPOS_TRANSFERENCIA.map(t => <option key={t}>{t}</option>)}
+                          {MEDIOS_PAGO.map(t => <option key={t}>{t}</option>)}
                         </select>
                       </div>
                     </div>
@@ -1450,6 +1450,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
+
 
 
 
