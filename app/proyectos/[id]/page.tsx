@@ -427,7 +427,17 @@ export default function ProyectoDetallePage() {
       !activosDestino.some((item: any) => item.id === rq.cotizacion_item_id)
     )
 
-    if (rqsPorMigrar.length === 0) return null
+    if (rqsPorMigrar.length === 0) {
+      return {
+        cotAnterior: { id: null, version: "", label: "RQs en versiones anteriores" },
+        cotNueva: cotDestino,
+        mantenidos: [],
+        modificados: [],
+        eliminados: [],
+        nuevos: [],
+        rqsAfectados: [],
+      }
+    }
 
     const idsOrigen = [...new Set(rqsPorMigrar.map((rq: any) => rq.cotizacion_item_id).filter(Boolean))]
 
@@ -2119,7 +2129,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       const comparacion = await compararRQsContraVersionDestino(cotizacionDestino)
 
                       if (!comparacion) {
-                        alert("No hay RQs pendientes de migrar hacia la versión seleccionada.")
+                        alert("No fue posible calcular la migración hacia la versión seleccionada.")
                         return
                       }
 
@@ -2493,6 +2503,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
+
 
 
 
