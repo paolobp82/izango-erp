@@ -124,7 +124,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     setRqs(loadedRqs)
     const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo")
     setProyectos(projs || [])
-    const { data: provsTodos } = await supabase.from("proveedores").select("id, nombre").order("nombre")
+    const { data: provsTodos } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
     setProveedoresTodos(provsTodos || [])
     const provIds = [...new Set(loadedRqs.map((r: any) => r.proveedor_id).filter(Boolean))]
     if (provIds.length > 0) {
@@ -579,7 +579,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       .from("requerimientos_pago")
       .update(updates)
       .eq("id", selected.id)
-      .select("id, estado, descripcion, proveedor_id, proveedor_nombre, monto_solicitado, tratamiento_igv, tipo_pago, dias_credito, fecha_pago, voucher_url, nota_pago, numero_operacion, banco_pago, tipo_transferencia, proyecto_id")
+      .select("id, estado, descripcion, proveedor_id, proveedor_nombre, proveedor_banco, proveedor_cuenta, proveedor_tipo_pago, monto_solicitado, tratamiento_igv, tipo_pago, dias_credito, fecha_pago, voucher_url, nota_pago, numero_operacion, banco_pago, tipo_transferencia, proyecto_id")
       .maybeSingle()
 
     if (error || !updated) {
@@ -599,7 +599,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       datos_anteriores: datosAnteriores,
       datos_nuevos: updates,
     })
-    setSelected((prev: any) => prev ? { ...prev, ...updates, ...updated, proveedor: prov ? { ...(prev.proveedor || {}), nombre: prov.nombre } : prev.proveedor } : prev)
+    setSelected((prev: any) => prev ? { ...prev, ...updates, ...updated, proveedor: prov ? { ...(prev.proveedor || {}), nombre: prov.nombre, banco: prov.banco, numero_cuenta: prov.numero_cuenta, tipo_pago: prov.tipo_pago } : prev.proveedor } : prev)
     setShowEditarRQ(false)
     load()
   }
@@ -780,7 +780,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
             {rqsVistaActiva.length} RQs activos{rqsProyectosEliminados.length ? ` · ${rqsProyectosEliminados.length} en proyectos eliminados` : ""} · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}
           </p>
         </div>
-        {puedeAccionRQ("crear") && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
+        {puedeAccionRQ("crear") && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo"); setProyectos(projs || []); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
         <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
       </div>      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         <KpiCard
@@ -1418,6 +1418,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
 
 
 
