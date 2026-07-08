@@ -187,6 +187,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       alert("Este RQ pertenece a un proyecto eliminado y no puede procesarse.")
       return
     }
+
     if (estado === "pagado") {
       const rq = rqActual
       if (rq?.proyecto_id) {
@@ -201,6 +202,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     if (["aprobado_produccion", "aprobado", "programado", "pagado"].includes(estado)) {
       updates.aprobado_por = perfil?.id
     }
+
     if (estado === "pagado") {
       updates.fecha_pago = extra?.fecha_pago || fechaPago || new Date().toISOString().split("T")[0]
       updates.voucher_url = datosPago.voucher_url || null
@@ -699,6 +701,28 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const detalleIgv = (rq: any) => rqIgvDetalle(rq)
   const montoPresupuestadoRQ = (rq: any) => Number(rq?.monto_presupuestado || 0)
   const montoFinalRQ = (rq: any) => Number(detalleIgv(rq).total || rq?.monto_solicitado || 0)
+  const fechaYmd = (value: any) => value ? String(value).slice(0, 10) : ""
+  const fmtFecha = (value: any) => value ? new Date(String(value)).toLocaleDateString("es-PE") : "—"
+  const fechaVencimientoRQ = (rq: any) => {
+    if (rq?.tipo_pago === "credito" && rq?.dias_credito && rq?.created_at) {
+      return new Date(new Date(rq.created_at).getTime() + Number(rq.dias_credito || 0) * 86400000).toISOString().slice(0, 10)
+    }
+    if (rq?.tipo_pago === "contado" && rq?.created_at) return fechaYmd(rq.created_at)
+    return ""
+  }
+  const fechaProgramadaRQ = (rq: any) => fechaYmd(rq?.fecha_programada_pago)
+  const fechaPagoRealRQ = (rq: any) => rq?.estado === "pagado" ? fechaYmd(rq?.fecha_pago) : ""
+  const estadoPagoRQ = (rq: any) => {
+    const estado = String(rq?.estado || "")
+    if (["cancelado", "rechazado"].includes(estado)) return { label: "Anulado", bg: "#f3f4f6", color: "#6b7280", icon: "⚫" }
+    if (estado === "pagado" || fechaPagoRealRQ(rq)) return { label: "Pagado", bg: "#dcfce7", color: "#166534", icon: "🟢" }
+    const base = fechaProgramadaRQ(rq) || fechaVencimientoRQ(rq)
+    if (!base) return { label: "Sin programar", bg: "#dbeafe", color: "#1e40af", icon: "🔵" }
+    const hoy = new Date().toISOString().slice(0, 10)
+    if (base < hoy) return { label: "Vencido", bg: "#fee2e2", color: "#991b1b", icon: "🔴" }
+    if (base === hoy) return { label: "Vence hoy", bg: "#ffedd5", color: "#c2410c", icon: "🟠" }
+    return { label: "Programado", bg: "#fef9c3", color: "#92400e", icon: "🟡" }
+  }
   const variacionRQ = (rq: any) => montoFinalRQ(rq) - montoPresupuestadoRQ(rq)
   const origenRQLabel = (rq: any) => rq?.es_adicional ? "RQ Adicional" : rq?.cotizacion_item_id ? "RQ de Proyecto" : "RQ de Proyecto legacy"
   const origenRQDetalle = (rq: any) => rq?.es_adicional
@@ -1023,7 +1047,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
                 )
               })}
               {filtrados.length === 0 && (
-                <tr><td colSpan={12} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay requerimientos de pago</td></tr>
+                <tr><td colSpan={15} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay requerimientos de pago</td></tr>
               )}
             </tbody>
           </table>
@@ -1276,7 +1300,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               {/* Fecha de pago */}
               {(selected.estado === "aprobado" || selected.estado === "programado") && getSiguienteAccion(selected) && (
                 <div>
-                  <label style={lbl}>Fecha de pago</label>
+                  <label style={lbl}>{getSiguienteAccion(selected)?.nextEstado === "programado" ? "Fecha programada de pago" : "Fecha real de pago"}</label>
                   <input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)}
                     style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, width: "100%", fontFamily: "inherit", outline: "none" }} />
                 </div>
@@ -1285,7 +1309,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
               {getSiguienteAccion(selected) && (
                 <button onClick={() => {
                   const accion = getSiguienteAccion(selected)
-                  if (accion) cambiarEstado(selected.id, accion.nextEstado, fechaPago ? { fecha_pago: fechaPago } : {})
+                  if (accion) cambiarEstado(selected.id, accion.nextEstado, fechaPago ? (accion.nextEstado === "programado" ? { fecha_programada_pago: fechaPago } : { fecha_pago: fechaPago }) : {})
                 }}
                   style={{ padding: "10px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
                   {getSiguienteAccion(selected)?.label}
@@ -1426,6 +1450,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
+
 
 
 
