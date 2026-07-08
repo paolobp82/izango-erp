@@ -2008,15 +2008,22 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                 <button
                   className="btn-primary"
                   onClick={async () => {
-                    const comparacion = await compararVersionContraAprobada(cotAprobada)
+                    const cotizacionParaMigrar =
+                      cotizaciones
+                        .filter((cot: any) => cot.id !== proyecto?.cotizacion_aprobada_id)
+                        .sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0] ||
+                      cotizaciones
+                        .sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0]
+
+                    const comparacion = await compararVersionContraAprobada(cotizacionParaMigrar)
 
                     if (!comparacion) {
-                      alert("No fue posible calcular la migración.")
+                      alert("No fue posible calcular la migración. Revisa que exista una versión anterior aprobada y una versión nueva con cambios.")
                       return
                     }
 
                     setComparacionPendiente(comparacion)
-                    setCotizacionPendienteAprobar(cotAprobada)
+                    setCotizacionPendienteAprobar(cotizacionParaMigrar)
                     setShowMigracionRQ(true)
                   }}
                 >
@@ -2384,6 +2391,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
