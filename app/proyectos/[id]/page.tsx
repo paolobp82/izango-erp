@@ -128,6 +128,23 @@ export default function ProyectoDetallePage() {
     }
     setCotizaciones(cots || [])
 
+    const cotizacionPresupuestoId =
+      proy?.cotizacion_aprobada_id ||
+      (cots || []).find((c: any) => c.estado === "aprobada_cliente")?.id ||
+      [...(cots || [])].sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0]?.id ||
+      ""
+
+    if (cotizacionPresupuestoId) {
+      const { data: itemsPresupuesto } = await supabase
+        .from("cotizacion_items")
+        .select("*")
+        .eq("cotizacion_id", cotizacionPresupuestoId)
+        .order("orden")
+
+      setItemsCotizadosPresupuesto((itemsPresupuesto || []).filter((i: any) => i.tipo !== "celda_extra"))
+    } else {
+      setItemsCotizadosPresupuesto([])
+    }
     const rqSelect = "id,proyecto_id,cotizacion_item_id,codigo_rq,numero_rq,estado,descripcion,monto_solicitado,monto_presupuestado,proveedor_id,proveedor_nombre,tipo_pago,dias_credito,es_adicional,tratamiento_igv,created_at"
     const { data: rqsPorId, error: rqsPorIdError } = await supabase
       .from("requerimientos_pago")
@@ -2562,6 +2579,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     </div>
   )
 }
+
 
 
 
