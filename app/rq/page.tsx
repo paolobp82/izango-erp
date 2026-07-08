@@ -14,8 +14,16 @@ import { lifecycleEngine } from "@/lib/core/lifecycle"
 import { businessRuleEngine } from "@/lib/core/business-rules"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import { SYSTEM_COLUMNS } from "@/lib/core/configuration"
 
 const ESTADOS: Record<string, any> = getRQEstadosVisuales()
+
+const RQ_COLUMNS_CONFIG = SYSTEM_COLUMNS
+  .filter((col: any) => col.module === "rq" && col.visible)
+  .sort((a: any, b: any) => a.order - b.order)
+
+const rqColumnLabel = (column: string, fallback: string) =>
+  String(RQ_COLUMNS_CONFIG.find((col: any) => col.column === column)?.metadata?.label || fallback)
 
 const FLUJO = [
   { estado: "pendiente_aprobacion", label: "Creado", siguiente: "aprobado_produccion", accion: "Aprobar (Produccion)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
@@ -888,17 +896,17 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>N RQ</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRODUCTOR</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESCRIPCION</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MONTO</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>IGV</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO PAGO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>F. SOLICITUD</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>F. VENCIMIENTO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("codigo_rq", "N RQ")}</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("proyecto", "PROYECTO")}</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("proveedor", "PROVEEDOR")}</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("productor", "PRODUCTOR")}</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("descripcion", "DESCRIPCION")}</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("monto_solicitado", "MONTO")}</th>
+                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("tratamiento_igv", "IGV")}</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("tipo_pago", "TIPO PAGO")}</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("fecha_solicitud", "F. SOLICITUD")}</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("fecha_vencimiento", "F. VENCIMIENTO")}</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("estado", "ESTADO RQ")}</th>
                 <th style={{ padding: "10px 20px", width: 140 }}></th>
               </tr>
             </thead>
@@ -1418,6 +1426,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
 
 
 
