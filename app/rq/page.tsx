@@ -15,7 +15,7 @@ import { businessRuleEngine } from "@/lib/core/business-rules"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import { SYSTEM_COLUMNS } from "@/lib/core/configuration"
-import { buildCreateRQPPayload } from "@/lib/services/rqp"
+import { buildCreateRQPPayload, buildUpdateRQPFinancialPayload } from "@/lib/services/rqp"
 import {
   BANCOS_PAGO,
   MEDIOS_PAGO,
@@ -176,6 +176,25 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     setTimeout(() => setToastMsg(""), 4000)
   }
 
+  function accionPermisoPorEstado(estado: string): AccionPermiso {
+    if (estado === "aprobado_produccion") return "aprobar_produccion"
+    if (estado === "aprobado") return "aprobar_gg"
+    if (estado === "programado") return "programar_pago"
+    if (estado === "pagado") return "pagar"
+    if (estado === "rechazado") return "rechazar"
+    if (estado === "cancelado") return "cancelar"
+    return "ver" as AccionPermiso
+  }
+
+  function reglaPorEstado(estado: string) {
+    if (estado === "aprobado_produccion") return "aprobar_produccion"
+    if (estado === "aprobado") return "aprobar_gg"
+    if (estado === "programado") return "programar_pago"
+    if (estado === "pagado") return "pagar"
+    if (estado === "rechazado") return "rechazar"
+    if (estado === "cancelado") return "cancelar"
+    return "ver"
+  }
   async function cambiarEstado(id: string, estado: string, extra?: any) {
     const rqActual = rqs.find(r => r.id === id)
     if (!rqActual) return
@@ -202,365 +221,24 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
         }
       }
     }
-    const updates: any = { estado, ...extra }
-    if (["aprobado_produccion", "aprobado", "programado", "pagado"].includes(estado)) {
-      updates.aprobado_por = perfil?.id
-    }
-
-    if (estado === "pagado") {
-      updates.fecha_pago = extra?.fecha_pago || fechaPago || new Date().toISOString().split("T")[0]
-      updates.voucher_url = datosPago.voucher_url || null
-      updates.numero_operacion = datosPago.numero_operacion || null
-      updates.banco_pago = datosPago.banco_pago || null
-      updates.tipo_transferencia = datosPago.tipo_transferencia || null
-      updates.nota_pago = datosPago.nota_pago || null
-    }
-    const { error } = await supabase.from("requerimientos_pago").update(updates).eq("id", id)
-    if (error) {
-      console.error("RQ status update error:", error)
-      mostrarToast("No se pudo aprobar el RQ", "error")
-      alert("No se pudo actualizar el estado del RQ: " + error.message)
-      return
-    }
-    await registrarAccion({
-      accion: "cambiar_estado",
-      modulo: "rq",
-      entidad_id: id,
-      entidad_tipo: "rq",
-      descripcion: "RQ cambiado a: " + estado,
-      datos_nuevos: {
-        estado,
-        aprobado_por: perfil?.id || null,
-        aprobado_por_nombre: `${perfil?.nombre || ""} ${perfil?.apellido || ""}`.trim(),
-        fecha_aprobacion: new Date().toISOString()
-      }
-    })
-    if (["aprobado_produccion", "aprobado", "programado", "pagado"].includes(estado)) {
-      const codigoRQ = rqActual?.codigo_rq || rqActual?.numero_rq
-      mostrarToast(codigoRQ ? `${codigoRQ} aprobado correctamente` : "RQ Aprobado", "success")
-    }
-    load()
-    if (selected?.id === id) setSelected((prev: any) => ({ ...prev, estado, ...updates }))
-  }
-
-  async function cancelarRQ(rq: any) {
-    if (!puedeCancelarRQ(rq)) {
-      alert("No tienes permisos para cancelar este RQ o el estado no permite cancelación.")
-      return
-    }
-    if (!lifecycleEngine.canTransition("rq", rq.estado, "cancelado")) {
-      alert("Transición no permitida para cancelar este RQ.")
-      return
-    }
-    if (!validarReglaRQ("cancelar", rq, { desde: rq.estado, hacia: "cancelado" })) return
-
-    const codigo = rqCodigo(rq)
-    if (!confirm(`¿Cancelar ${codigo}?`)) return
-
-    const updates = {
-      estado: "cancelado",
-      cancelado_por: perfil?.id || null,
-      cancelado_at: new Date().toISOString(),
-      motivo_cancelacion: "Cancelado desde módulo RQ",
-    }
-
-    const { data: cancelado, error } = await supabase
-      .from("requerimientos_pago")
-      .update(updates)
-      .eq("id", rq.id)
-      .in("estado", ESTADOS_CANCELABLES_RQP)
-      .select("id, estado")
-      .maybeSingle()
-
-    if (error || !cancelado) {
-      console.error("Error cancelando RQ", error)
-      alert(
-        "No se pudo cancelar el RQ." +
-        "\nMensaje: " + (error?.message || "No se actualizó ningún registro. Puede ser RLS, estado cambiado o ID no encontrado.") +
-        "\nCódigo: " + (error?.code || "—") +
-        "\nDetalle: " + (error?.details || "—") +
-        "\nHint: " + (error?.hint || "—")
-      )
-      return
-    }
-
-    try {
-      await registrarAccion({
-        accion: "cancelar",
-        modulo: "rq",
-        entidad_id: rq.id,
-        entidad_tipo: "rq",
-        descripcion: codigo + " cancelado",
-        datos_nuevos: updates
-      })
-    } catch (traceError) {
-      console.warn("No se pudo registrar trazabilidad de cancelación RQ", traceError)
-    }
-
-    setRqs(prev => prev.map((item: any) => item.id === rq.id ? { ...item, ...updates } : item))
-    setSelected((prev: any) => prev?.id === rq.id ? { ...prev, ...updates } : prev)
-    mostrarToast(codigo + " cancelado correctamente", "success")
-    await load()
-  }
-
-  async function eliminarRQ(rq: any) {
-    if (!rq?.id) {
-      alert("No hay RQ seleccionado para eliminar.")
-      return
-    }
-    if (!validarAccionRQ("eliminar", rq)) return
-    if (!validarReglaRQ("eliminar", rq)) return
-
-    const codigo = rqCodigo(rq)
-
-    if (rq.estado !== "pendiente_aprobacion") {
-      alert("Solo se puede eliminar operativamente un RQ pendiente. Si ya ingresó al flujo, use Cancelar RQ.")
-      return
-    }
-
-    if (!confirm(`¿Eliminar ${codigo} de la vista operativa? Quedará registrado como cancelado para auditoría.`)) return
-
-    const updates = {
-      estado: "cancelado",
-      cancelado_por: perfil?.id || null,
-      cancelado_at: new Date().toISOString(),
-      motivo_cancelacion: "Eliminado operativamente desde módulo RQ",
-    }
-
-    const { data: eliminadoOperativo, error } = await supabase
-      .from("requerimientos_pago")
-      .update(updates)
-      .eq("id", rq.id)
-      .eq("estado", "pendiente_aprobacion")
-      .select("id, estado")
-      .maybeSingle()
-
-    if (error || !eliminadoOperativo) {
-      console.error("Error eliminando operativamente RQ", error)
-      alert(
-        "No se pudo eliminar operativamente el RQ." +
-        "\nMensaje: " + (error?.message || "No se actualizó ningún registro. Puede ser RLS, estado cambiado o ID no encontrado.") +
-        "\nCódigo: " + (error?.code || "—") +
-        "\nDetalle: " + (error?.details || "—") +
-        "\nHint: " + (error?.hint || "—")
-      )
-      return
-    }
-
-    try {
-      await registrarAccion({
-        accion: "eliminar_operativo",
-        modulo: "rq",
-        entidad_id: rq.id,
-        entidad_tipo: "rq",
-        descripcion: "RQ eliminado operativamente: " + codigo,
-        datos_nuevos: updates
-      })
-    } catch (traceError) {
-      console.warn("No se pudo registrar trazabilidad de eliminación operativa RQ", traceError)
-    }
-
-    setRqs(prev => prev.filter((item: any) => item.id !== rq.id))
-    setSelected(null)
-    mostrarToast(codigo + " eliminado de la vista operativa", "success")
-    await load()
-  }
-  async function guardarDatosPago() {
-    if (!selected) return
-    if (rqPerteneceAProyectoEliminado(selected)) {
-      alert("Este RQ pertenece a un proyecto eliminado y no puede procesarse.")
-      return
-    }
-    if (!puedeEditarPago || !validarAccionRQ("pagar", selected)) {
-      alert("Solo Controller o Superadmin pueden editar los datos de pago.")
-      return
-    }
-    if (!validarReglaRQ("pagar", selected, { edicionDatosPago: true })) return
-    const updates = {
-      voucher_url: datosPago.voucher_url || null,
-      numero_operacion: datosPago.numero_operacion || null,
-      banco_pago: datosPago.banco_pago || null,
-      tipo_transferencia: datosPago.tipo_transferencia || null,
-      nota_pago: datosPago.nota_pago || null,
-    }
-    setGuardandoPago(true)
-    const { error } = await supabase.from("requerimientos_pago").update(updates).eq("id", selected.id)
-    if (error) {
-      alert("No se pudieron guardar los datos de pago. Intenta nuevamente.")
-      setGuardandoPago(false)
-      return
-    }
-    await registrarAccion({ accion: "editar_datos_pago", modulo: "rq", entidad_id: selected.id, entidad_tipo: "rq", descripcion: "Datos de pago editados: " + rqCodigo(selected), datos_nuevos: updates })
-    setSelected((prev: any) => prev ? { ...prev, ...updates } : prev)
-    setGuardandoPago(false)
-    load()
-  }
-
-  async function guardarRendicionRQ() {
-    if (!selected) return
-    if (!validarAccionRQ("rendir", selected)) {
-      alert("Solo Controller o Superadmin pueden registrar rendiciones.")
-      return
-    }
-    if (!validarReglaRQ("rendir", selected)) return
-    if (selected.estado !== "pagado") {
-      alert("Solo se puede registrar rendición en RQs pagados.")
-      return
-    }
-
-    const montoRendido = Number(datosRendicion.monto_rendido) || 0
-    const montoSolicitado = Number(selected.monto_solicitado) || 0
-    const montoDevolucion = datosRendicion.monto_devolucion !== ""
-      ? Number(datosRendicion.monto_devolucion) || 0
-      : Math.max(0, montoSolicitado - montoRendido)
-
-    if (montoRendido < 0 || montoDevolucion < 0) {
-      alert("Los montos de rendición no pueden ser negativos.")
-      return
-    }
-
-    const updates = {
-      monto_rendido: montoRendido,
-      monto_devolucion: montoDevolucion,
-      fecha_rendicion: datosRendicion.fecha_rendicion || new Date().toISOString().split("T")[0],
-      observacion_rendicion: datosRendicion.observacion_rendicion || null,
-    }
-
-    setGuardandoRendicion(true)
-    const { error } = await supabase.from("requerimientos_pago").update(updates).eq("id", selected.id)
-    if (error) {
-      alert("No se pudo guardar la rendición: " + error.message)
-      setGuardandoRendicion(false)
-      return
-    }
-
-    await registrarAccion({
-      accion: "registrar_rendicion",
-      modulo: "rq",
-      entidad_id: selected.id,
-      entidad_tipo: "rq",
-      descripcion: "Rendición registrada: " + rqCodigo(selected),
-      datos_nuevos: updates,
-    })
-
-    setDatosRendicion({
-      monto_rendido: String(updates.monto_rendido || ""),
-      monto_devolucion: String(updates.monto_devolucion || ""),
-      fecha_rendicion: updates.fecha_rendicion || "",
-      observacion_rendicion: updates.observacion_rendicion || "",
-    })
-    setSelected((prev: any) => prev ? { ...prev, ...updates } : prev)
-    setGuardandoRendicion(false)
-    load()
-  }
-  function rolNormalizado() {
-    return String(perfil?.perfil || "").trim().toLowerCase()
-  }
-
-  function puedeAccionRQ(accion: AccionPermiso, rq?: any) {
-    return puedeEjecutarAccion(perfil, "rq", accion, { usuarioId: perfil?.id, registro: rq || null })
-  }
-
-  function validarAccionRQ(accion: AccionPermiso, rq?: any) {
-    if (puedeAccionRQ(accion, rq)) return true
-    alert("No tienes permiso para realizar esta acción.")
-    return false
-  }
-
-  function validarReglaRQ(regla: string, rq?: any, metadata?: Record<string, unknown>) {
-    const result = businessRuleEngine.evaluate("rq", regla, {
-      action: regla,
-      record: rq || null,
-      metadata,
-      user: perfil,
-    })
-
-    if (!result.allowed) {
-      alert(result.reason || "No se puede realizar esta acción.")
-      return false
-    }
-
-    if (result.warnings?.length) {
-      return confirm(result.warnings.join("\n") + "\n\n¿Deseas continuar?")
-    }
-
-    return true
-  }
-
-  function accionPermisoPorEstado(estado: string): AccionPermiso {
-    if (estado === "rechazado") return "rechazar"
-    if (estado === "cancelado") return "cancelar"
-    if (["programado", "pagado"].includes(estado)) return "pagar"
-    return "aprobar"
-  }
-
-  function reglaPorEstado(estado: string) {
-    if (estado === "rechazado") return "rechazar"
-    if (estado === "cancelado") return "cancelar"
-    if (["programado", "pagado"].includes(estado)) return "pagar"
-    return "aprobar"
-  }
-
-  function rqPerteneceAProyectoEliminado(rq: any) {
-    return Boolean(rq?.proyecto_id && (!rq.proyecto || rq.proyecto?.deleted_at))
-  }
-
-  function puedeEditarRQ(rq: any) {
-    if (!rq || rqPerteneceAProyectoEliminado(rq)) return false
-    return puedeAccionRQ("editar", rq) && puedeEditarRQPorEstado(perfil, rq)
-  }
-
-  function mensajeEdicionRQ(rq: any) {
-    if (rqPerteneceAProyectoEliminado(rq)) return "Este RQ pertenece a un proyecto eliminado y no puede editarse."
-    return mensajeEdicionRQPorEstado(perfil, rq)
-  }
-  function proyectoBloqueadoEdicion(rq: any) {
-    return Boolean(rq?.proyecto_id && rq.estado !== "pendiente_aprobacion")
-  }
-
-  function abrirEditarRQ(rq: any) {
-    if (!puedeEditarRQ(rq)) return
-    setFormEditarRQ({
-      descripcion: rq.descripcion || "",
-      proveedor_id: rq.proveedor_id || "",
-      monto_solicitado: rq.monto_solicitado ? String(rq.monto_solicitado) : "",
-      tratamiento_igv: rqTratamientoIgv(rq),
-      proyecto_id: rq.proyecto_id || "",
-      tipo_pago: rq.tipo_pago || "contado",
-      dias_credito: rq.dias_credito ? String(rq.dias_credito) : "",
-      fecha_pago: rq.fecha_pago || "",
-      voucher_url: rq.voucher_url || "",
-      nota_pago: rq.nota_pago || "",
-      numero_operacion: rq.numero_operacion || "",
-      banco_pago: rq.banco_pago || "",
-      tipo_transferencia: rq.tipo_transferencia || "Transferencia",
-    })
-    setShowEditarRQ(true)
-  }
-
-  async function guardarEdicionRQ() {
-    if (!selected || !puedeEditarRQ(selected)) return
-    if (!validarReglaRQ("editar", selected)) return
-    if (!formEditarRQ.descripcion || !formEditarRQ.monto_solicitado) {
-      alert("Descripcion y monto son obligatorios")
-      return
-    }
-    const prov = proveedoresTodos.find((p: any) => p.id === formEditarRQ.proveedor_id)
-    const updates: any = {
+    const updates: any = buildUpdateRQPFinancialPayload({
       descripcion: formEditarRQ.descripcion,
       proveedor_id: formEditarRQ.proveedor_id || null,
       proveedor_nombre: prov?.nombre || "",
       monto_solicitado: Number(formEditarRQ.monto_solicitado),
       tratamiento_igv: formEditarRQ.tratamiento_igv,
       tipo_pago: formEditarRQ.tipo_pago,
+      condicion_comercial: formEditarRQ.condicion_comercial,
+      medio_pago: formEditarRQ.medio_pago,
       dias_credito: formEditarRQ.dias_credito ? Number(formEditarRQ.dias_credito) : null,
+      fecha_necesidad_pago: formEditarRQ.fecha_necesidad_pago || null,
       fecha_pago: formEditarRQ.fecha_pago || null,
       voucher_url: formEditarRQ.voucher_url || null,
       nota_pago: formEditarRQ.nota_pago || null,
       numero_operacion: formEditarRQ.numero_operacion || null,
       banco_pago: formEditarRQ.banco_pago || null,
       tipo_transferencia: formEditarRQ.tipo_transferencia || null,
-    }
+    })
     if (!proyectoBloqueadoEdicion(selected)) {
       updates.proyecto_id = formEditarRQ.proyecto_id || null
     }
@@ -1454,6 +1132,9 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
+
+
 
 
 
