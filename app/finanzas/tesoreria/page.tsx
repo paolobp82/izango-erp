@@ -181,6 +181,8 @@ export default function TesoreriaPage() {
                 <th style={th}>Proyecto</th>
                 <th style={th}>F. Necesidad</th>
                 <th style={th}>F. Programada</th>
+                <th style={th}>Condición</th>
+                <th style={th}>Medio</th>
                 <th style={th}>Estado</th>
                 <th style={thRight}>Monto</th>
               </tr>
@@ -194,6 +196,8 @@ export default function TesoreriaPage() {
                   <td style={td}>{item.proyecto || "—"}</td>
                   <td style={td}>{fmtDate(item.fecha_necesidad_pago)}</td>
                   <td style={td}>{fmtDate(item.fecha_programada_pago)}</td>
+                  <td style={td}>{item.condicion_comercial || "—"}</td>
+                  <td style={td}>{item.medio_pago || "—"}</td>
                   <td style={td}>
                     <span style={{ border: "1px solid #d1d5db", borderRadius: 999, padding: "3px 8px", whiteSpace: "nowrap" }}>
                       {estadoLabel[item.estado_pago] || item.estado_pago}
@@ -205,7 +209,7 @@ export default function TesoreriaPage() {
 
               {!loading && itemsFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
+                  <td colSpan={10} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
                     No hay pagos para mostrar.
                   </td>
                 </tr>
@@ -213,7 +217,7 @@ export default function TesoreriaPage() {
 
               {loading && (
                 <tr>
-                  <td colSpan={8} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
+                  <td colSpan={10} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
                     Cargando pagos...
                   </td>
                 </tr>
@@ -265,3 +269,4 @@ const tdRight: React.CSSProperties = {
   textAlign: "right",
   fontWeight: 700,
 }
+
