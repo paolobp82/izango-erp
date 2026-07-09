@@ -15,6 +15,13 @@ import { businessRuleEngine } from "@/lib/core/business-rules"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import { SYSTEM_COLUMNS } from "@/lib/core/configuration"
+import {
+  BANCOS_PAGO,
+  MEDIOS_PAGO,
+  ESTADOS_CANCELABLES_RQP,
+  ROLES_CANCELAR_RQP,
+} from "./config/constants"
+
 
 const ESTADOS: Record<string, any> = getRQEstadosVisuales()
 
@@ -33,10 +40,6 @@ const FLUJO = [
   { estado: "pagado", label: "Pagado", siguiente: null, accion: null, roles: [] },
 ]
 
-const BANCOS_PAGO = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
-const MEDIOS_PAGO = ["Transferencia", "Efectivo"]
-const ESTADOS_CANCELABLES_RQ = ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "programado"]
-const ROLES_CANCELAR_RQ = ["superadmin", "controller", "gerente_general"]
 const FORM_RQ_VACIO = {
   descripcion: "",
   proveedor_id: "",
@@ -264,7 +267,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       .from("requerimientos_pago")
       .update(updates)
       .eq("id", rq.id)
-      .in("estado", ESTADOS_CANCELABLES_RQ)
+      .in("estado", ESTADOS_CANCELABLES_RQP)
       .select("id, estado")
       .maybeSingle()
 
@@ -589,7 +592,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       .from("requerimientos_pago")
       .update(updates)
       .eq("id", selected.id)
-      .select("id, estado, descripcion, proveedor_id, proveedor_nombre, proveedor_banco, proveedor_cuenta, proveedor_tipo_pago, monto_solicitado, tratamiento_igv, tipo_pago, dias_credito, fecha_pago, voucher_url, nota_pago, numero_operacion, banco_pago, tipo_transferencia, proyecto_id")
+      .select("id, estado, descripcion, proveedor_id, proveedor_nombre, proveedor_banco, proveedor_cuenta, proveedor_tipo_pago, monto_solicitado, tratamiento_igv, tipo_pago, condicion_comercial, medio_pago, dias_credito, fecha_necesidad_pago, fecha_pago, voucher_url, nota_pago, numero_operacion, banco_pago, tipo_transferencia, proyecto_id")
       .maybeSingle()
 
     if (error || !updated) {
@@ -1450,6 +1453,10 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
+
+
+
 
 
 
