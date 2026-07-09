@@ -68,7 +68,7 @@ const ALL_NAV = [
     { label: "Rentabilidad", href: "/finanzas/rentabilidad", icon: "∿" },
     { label: "Rentabilidad por Proyecto", href: "/finanzas/centro-costos", icon: "◆" },
     { label: "Flujo Ejecutivo", href: "/finanzas/flujo-ejecutivo", icon: "▥" },
-    { label: "Deudas y Financiamientos", href: "/prestamos", icon: "▰" },
+    { label: "Obligaciones Financieras", href: "/prestamos", icon: "▰" },
   ]},
   { section: "Personas", items: [
     { label: "Trabajadores", href: "/rrhh/trabajadores", icon: "♙" },
@@ -288,6 +288,7 @@ export default function Sidebar({ perfil }: { perfil: SidebarProfile }) {
     </aside>
   )
 }
+
 
 
 
