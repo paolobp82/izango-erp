@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase"
-import { mapRQPToTreasuryPayment } from "@/lib/services/treasury"
+import { mapCajaChicaToTreasuryPayment, mapRQPToTreasuryPayment } from "@/lib/services/treasury"
 import type { TreasuryPaymentItem } from "@/lib/domain/treasury"
 
 const estadoLabel: Record<string, string> = {
@@ -42,7 +42,7 @@ export default function TesoreriaPage() {
     setLoading(true)
     setErrorMsg("")
 
-    const { data, error } = await supabase
+    const { data: rqpData, error: rqpError } = await supabase
       .from("requerimientos_pago")
       .select(`
         id,
@@ -64,14 +64,37 @@ export default function TesoreriaPage() {
       .order("created_at", { ascending: false })
       .limit(100)
 
-    if (error) {
-      setErrorMsg(error.message)
+    const { data: cajaData, error: cajaError } = await supabase
+      .from("caja_chica")
+      .select(`
+        id,
+        concepto,
+        monto_debe,
+        monto_haber,
+        fecha,
+        estado,
+        aprobado_at,
+        entidad,
+        destinatario,
+        proveedor_nombre,
+        numero_operacion,
+        proyecto:proyectos(nombre,codigo)
+      `)
+      .in("estado", ["pendiente", "aprobado"])
+      .order("created_at", { ascending: false })
+      .limit(100)
+
+    if (rqpError || cajaError) {
+      setErrorMsg(rqpError?.message || cajaError?.message || "Error cargando Tesorería")
       setItems([])
       setLoading(false)
       return
     }
 
-    setItems((data || []).map(mapRQPToTreasuryPayment))
+    const rqpItems = (rqpData || []).map(mapRQPToTreasuryPayment)
+    const cajaItems = (cajaData || []).map(mapCajaChicaToTreasuryPayment)
+
+    setItems([...rqpItems, ...cajaItems])
     setLoading(false)
   }
 
@@ -269,4 +292,5 @@ const tdRight: React.CSSProperties = {
   textAlign: "right",
   fontWeight: 700,
 }
+
 

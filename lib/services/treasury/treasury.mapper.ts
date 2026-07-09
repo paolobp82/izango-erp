@@ -23,3 +23,26 @@ export function mapRQPToTreasuryPayment(rq: any): TreasuryPaymentItem {
     estado_pago: calcularEstadoPagoTreasury(item),
   }
 }
+
+export function mapCajaChicaToTreasuryPayment(row: any): TreasuryPaymentItem {
+  const item: TreasuryPaymentItem = {
+    id: String(row.id),
+    origen: "caja_chica",
+    documento: row.numero_operacion || row.concepto || row.id,
+    empresa: row.entidad || "Izango 360",
+    beneficiario: row.destinatario || row.proveedor_nombre || "",
+    proyecto: row.proyecto?.nombre || row.proyecto_nombre || "",
+    fecha_necesidad_pago: row.fecha || null,
+    fecha_programada_pago: row.fecha || null,
+    fecha_pago: row.estado === "aprobado" ? row.aprobado_at || row.fecha : null,
+    condicion_comercial: "contado",
+    medio_pago: "Efectivo",
+    estado_pago: row.estado === "rechazado" ? "anulado" : "sin_programar",
+    monto: Number(row.monto_debe || 0),
+  }
+
+  return {
+    ...item,
+    estado_pago: row.estado === "rechazado" ? "anulado" : calcularEstadoPagoTreasury(item),
+  }
+}
