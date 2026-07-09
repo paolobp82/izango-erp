@@ -1,83 +1,296 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type CSSProperties } from "react"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase"
-import KpiCard from "@/components/ui/KpiCard"
-import SectionCard from "@/components/ui/SectionCard"
-import StatusBadge from "@/components/ui/StatusBadge"
-import FinanceNav from "@/components/finanzas/FinanceNav"
-import FinanceDataError from "@/components/finanzas/FinanceDataError"
-import { useFinanceAccess } from "@/components/finanzas/useFinanceAccess"
-import { RQS_POR_PAGAR, agingBucket, financeMoney, financeNumber } from "@/lib/finance"
-import { rqCodigo } from "@/lib/rq-code"
+
+type CxpItem = {
+  id: string
+  codigo_rq?: string | null
+  numero_rq?: string | null
+  proveedor_nombre?: string | null
+  monto_solicitado?: number | null
+  fecha_necesidad_pago?: string | null
+  fecha_programada_pago?: string | null
+  fecha_pago?: string | null
+  condicion_comercial?: string | null
+  medio_pago?: string | null
+  estado?: string | null
+  proyecto_id?: string | null
+  proyecto_nombre?: string | null
+  proyecto_codigo?: string | null
+}
+
+function ymd(value?: string | null) {
+  return value ? String(value).slice(0, 10) : ""
+}
+
+function money(value: number) {
+  return new Intl.NumberFormat("es-PE", {
+    style: "currency",
+    currency: "PEN",
+    maximumFractionDigits: 2,
+  }).format(value || 0)
+}
+
+function estadoPago(item: CxpItem) {
+  if (["cancelado", "rechazado"].includes(String(item.estado || ""))) return "Anulado"
+  if (ymd(item.fecha_pago)) return "Pagado"
+
+  const fecha = ymd(item.fecha_programada_pago) || ymd(item.fecha_necesidad_pago)
+  if (!fecha) return "Sin programar"
+
+  const hoy = new Date().toISOString().slice(0, 10)
+  if (fecha < hoy) return "Vencido"
+  if (fecha === hoy) return "Vence hoy"
+
+  return "Programado"
+}
 
 export default function CuentasPorPagarPage() {
-  const supabase = useMemo(() => createClient(), [])
-  const { loadingAccess, authorized } = useFinanceAccess()
+  const supabase = createClient()
+  const [items, setItems] = useState<CxpItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [rows, setRows] = useState<any[]>([])
-  const [source, setSource] = useState("todas")
-  const [error, setError] = useState("")
+  const [errorMsg, setErrorMsg] = useState("")
+  const [busqueda, setBusqueda] = useState("")
+  const [filtroEstado, setFiltroEstado] = useState("pendientes")
 
-  useEffect(() => {
-    if (!authorized) {
-      if (!loadingAccess) setLoading(false)
+  async function load() {
+    setLoading(true)
+    setErrorMsg("")
+
+    const { data, error } = await supabase
+      .from("requerimientos_pago")
+      .select(`
+        id,
+        codigo_rq,
+        numero_rq,
+        proveedor_nombre,
+        monto_solicitado,
+        fecha_necesidad_pago,
+        fecha_programada_pago,
+        fecha_pago,
+        condicion_comercial,
+        medio_pago,
+        estado,
+        proyecto_id
+      `)
+      .order("created_at", { ascending: false })
+      .limit(500)
+
+    if (error) {
+      setErrorMsg(error.message)
+      setItems([])
+      setLoading(false)
       return
     }
 
-    setError("")
-    Promise.all([
-      supabase.from("requerimientos_pago").select("id,codigo_rq,numero_rq,descripcion,proveedor_nombre,monto_solicitado,estado,fecha_pago,created_at").in("estado", RQS_POR_PAGAR),
-      supabase.from("caja_chica").select("id,concepto,monto_debe,estado,fecha,destinatario").in("estado", ["pendiente", "aprobado"]),
-      supabase.from("gastos_oficina").select("id,descripcion,proveedor_nombre,monto,estado_pago,fecha,fecha_vencimiento").in("estado_pago", ["pendiente", "vencido"]),
-    ]).then(results => {
-      const errors = results.map(result => result.error?.message).filter(Boolean)
-      if (errors.length) setError(errors.join(" · "))
-      const rqs = (results[0].data || []).map((r: any) => ({ ...r, source: "rq", label: rqCodigo(r), tercero: r.proveedor_nombre, monto: r.monto_solicitado, fecha_ref: r.fecha_pago || r.created_at }))
-      const caja = (results[1].data || []).map((r: any) => ({ ...r, source: "caja", label: "Caja chica", descripcion: r.concepto, tercero: r.destinatario, monto: r.monto_debe, fecha_ref: r.fecha }))
-      const gastos = (results[2].data || []).map((r: any) => ({ ...r, source: "oficina", label: "Gasto oficina", tercero: r.proveedor_nombre, estado: r.estado_pago, fecha_ref: r.fecha_vencimiento || r.fecha }))
-      setRows([...rqs, ...caja, ...gastos])
-      setLoading(false)
-    }).catch((loadError: unknown) => {
-      setError(loadError instanceof Error ? loadError.message : "Error inesperado al cargar obligaciones")
-      setLoading(false)
+    setItems((data || []) as CxpItem[])
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  const filtrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
+
+    return items.filter(item => {
+      const estado = estadoPago(item).toLowerCase()
+      const matchEstado =
+        filtroEstado === "todos" ||
+        (filtroEstado === "pendientes" && !["pagado", "anulado"].includes(estado)) ||
+        estado === filtroEstado
+
+      const texto = [
+        item.codigo_rq,
+        item.numero_rq,
+        item.proveedor_nombre,
+        item.proyecto_nombre,
+        item.proyecto_codigo,
+        item.condicion_comercial,
+        item.medio_pago,
+        item.estado,
+      ].join(" ").toLowerCase()
+
+      return matchEstado && (!q || texto.includes(q))
     })
-  }, [authorized, loadingAccess, supabase])
+  }, [items, busqueda, filtroEstado])
 
-  const filtered = source === "todas" ? rows : rows.filter(row => row.source === source)
-  const total = rows.reduce((s, row) => s + financeNumber(row.monto), 0)
-  const bySource = (key: string) => rows.filter(row => row.source === key).reduce((s, row) => s + financeNumber(row.monto), 0)
+  const resumen = useMemo(() => {
+    const pendientes = filtrados.filter(i => !["Pagado", "Anulado"].includes(estadoPago(i)))
+    const vencidos = filtrados.filter(i => estadoPago(i) === "Vencido")
 
-  if (loadingAccess || loading) return <div style={{ color: "#64748B" }}>Cargando cuentas por pagar...</div>
-  if (!authorized) return <div style={{ color: "#991B1B", fontWeight: 800 }}>Acceso no autorizado</div>
+    return {
+      total: filtrados.length,
+      pendientes: pendientes.length,
+      vencidos: vencidos.length,
+      montoPendiente: pendientes.reduce((sum, i) => sum + Number(i.monto_solicitado || 0), 0),
+      montoVencido: vencidos.reduce((sum, i) => sum + Number(i.monto_solicitado || 0), 0),
+    }
+  }, [filtrados])
 
   return (
-    <div>
-      <div style={{ marginBottom: 18 }}><h1 style={{ margin: 0, fontSize: 22 }}>Cuentas por Pagar</h1><p style={{ margin: "4px 0 0", color: "#64748B", fontSize: 13 }}>Obligaciones operativas pendientes de programación o pago</p></div>
-      <FinanceNav />
-      <FinanceDataError detail={error} />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
-        <KpiCard icon="wallet" label="TOTAL POR PAGAR" value={financeMoney(total)} sub={`${rows.length} obligaciones`} borderColor="#DC2626" valueColor="#B91C1C" />
-        <KpiCard icon="file" label="REQUERIMIENTOS" value={financeMoney(bySource("rq"))} sub="Flujo de aprobación RQ" borderColor="#F97316" valueColor="#C2410C" />
-        <KpiCard icon="money" label="CAJA CHICA" value={financeMoney(bySource("caja"))} sub="Pendiente y aprobada" borderColor="#7C3AED" valueColor="#6D28D9" />
-        <KpiCard icon="shield" label="GASTOS DE OFICINA" value={financeMoney(bySource("oficina"))} sub="Pendientes y vencidos" borderColor="#2563EB" valueColor="#1D4ED8" />
+    <main style={{ padding: 24, display: "grid", gap: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14 }}>
+        <div>
+          <Link href="/finanzas/dashboard" style={{ color: "#6b7280", fontSize: 13, textDecoration: "none" }}>
+            ← Dashboard Financiero
+          </Link>
+          <h1 style={{ margin: "10px 0 4px", fontSize: 28, fontWeight: 800, color: "#111827" }}>
+            Cuentas por Pagar Comercial
+          </h1>
+          <p style={{ margin: 0, color: "#6b7280", maxWidth: 860 }}>
+            Vista comercial de pagos originados por RQP. Muestra proveedor, proyecto, fechas críticas, estado y monto.
+          </p>
+        </div>
+
+        <button onClick={load} disabled={loading} style={button}>
+          {loading ? "Cargando..." : "Actualizar"}
+        </button>
       </div>
-      <SectionCard title="Obligaciones pendientes" action={<select value={source} onChange={e => setSource(e.target.value)} style={{ padding: "7px 10px", border: "1px solid #CBD5E1", borderRadius: 7 }}><option value="todas">Todas las fuentes</option><option value="rq">RQ</option><option value="caja">Caja chica</option><option value="oficina">Gastos oficina</option></select>}>
+
+      {errorMsg && (
+        <div style={{ padding: 14, borderRadius: 12, background: "#fef2f2", color: "#991b1b", fontSize: 13 }}>
+          Error cargando CxP Comercial: {errorMsg}
+        </div>
+      )}
+
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
+        <div style={card}><strong>{resumen.total}</strong><span>Total registros</span></div>
+        <div style={card}><strong>{resumen.pendientes}</strong><span>Pendientes</span></div>
+        <div style={card}><strong>{resumen.vencidos}</strong><span>Vencidos</span></div>
+        <div style={card}><strong>{money(resumen.montoPendiente)}</strong><span>Monto pendiente</span></div>
+        <div style={card}><strong>{money(resumen.montoVencido)}</strong><span>Monto vencido</span></div>
+      </section>
+
+      <section style={{ border: "1px solid #e5e7eb", borderRadius: 14, background: "white", overflow: "hidden" }}>
+        <div style={{ padding: 16, borderBottom: "1px solid #e5e7eb", display: "grid", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(240px, 1fr) 190px", gap: 10 }}>
+            <input
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar RQP, proveedor o proyecto..."
+              style={input}
+            />
+
+            <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} style={input}>
+              <option value="pendientes">Pendientes</option>
+              <option value="todos">Todos</option>
+              <option value="sin programar">Sin programar</option>
+              <option value="programado">Programado</option>
+              <option value="vence hoy">Vence hoy</option>
+              <option value="vencido">Vencido</option>
+              <option value="pagado">Pagado</option>
+              <option value="anulado">Anulado</option>
+            </select>
+          </div>
+        </div>
+
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead><tr style={{ background: "#F8FAFC" }}>{["ORIGEN","CONCEPTO","TERCERO","FECHA","AGING","ESTADO","MONTO"].map(h => <th key={h} style={{ padding: "10px 12px", textAlign: h === "MONTO" ? "right" : "left", fontSize: 11, color: "#64748B" }}>{h}</th>)}</tr></thead>
-            <tbody>{filtered.map(row => <tr key={`${row.source}-${row.id}`} style={{ borderTop: "1px solid #E2E8F0" }}>
-              <td style={{ padding: 12, fontWeight: 800 }}>{row.label}</td>
-              <td style={{ padding: 12 }}>{row.descripcion || row.concepto || "—"}</td>
-              <td style={{ padding: 12 }}>{row.tercero || "—"}</td>
-              <td style={{ padding: 12 }}>{String(row.fecha_ref || "").slice(0, 10) || "—"}</td>
-              <td style={{ padding: 12 }}><StatusBadge label={agingBucket(row.fecha_ref)} type={row.estado === "vencido" ? "cancelado" : "pendiente"} /></td>
-              <td style={{ padding: 12 }}><StatusBadge label={row.estado} type={row.estado} /></td>
-              <td style={{ padding: 12, textAlign: "right", fontWeight: 800, color: "#B91C1C" }}>{financeMoney(row.monto)}</td>
-            </tr>)}</tbody>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead style={{ background: "#f9fafb", color: "#6b7280" }}>
+              <tr>
+                <th style={th}>RQP</th>
+                <th style={th}>Proveedor</th>
+                <th style={th}>Proyecto</th>
+                <th style={th}>Condición</th>
+                <th style={th}>Medio</th>
+                <th style={th}>F. Necesidad</th>
+                <th style={th}>F. Programada</th>
+                <th style={th}>F. Pago</th>
+                <th style={th}>Estado</th>
+                <th style={thRight}>Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtrados.map(item => (
+                <tr key={item.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                  <td style={td}>{item.codigo_rq || item.numero_rq || item.id}</td>
+                  <td style={td}>{item.proveedor_nombre || "—"}</td>
+                  <td style={td}>{item.proyecto_nombre || item.proyecto_codigo || item.proyecto_id || "—"}</td>
+                  <td style={td}>{item.condicion_comercial || "—"}</td>
+                  <td style={td}>{item.medio_pago || "—"}</td>
+                  <td style={td}>{ymd(item.fecha_necesidad_pago) || "—"}</td>
+                  <td style={td}>{ymd(item.fecha_programada_pago) || "—"}</td>
+                  <td style={td}>{ymd(item.fecha_pago) || "—"}</td>
+                  <td style={td}>{estadoPago(item)}</td>
+                  <td style={tdRight}>{money(Number(item.monto_solicitado || 0))}</td>
+                </tr>
+              ))}
+
+              {!loading && filtrados.length === 0 && (
+                <tr>
+                  <td colSpan={10} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
+                    No hay cuentas por pagar para mostrar.
+                  </td>
+                </tr>
+              )}
+
+              {loading && (
+                <tr>
+                  <td colSpan={10} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
+                    Cargando cuentas por pagar...
+                  </td>
+                </tr>
+              )}
+            </tbody>
           </table>
         </div>
-      </SectionCard>
-    </div>
+      </section>
+    </main>
   )
 }
+
+const card: CSSProperties = {
+  border: "1px solid #e5e7eb",
+  borderRadius: 14,
+  padding: 16,
+  background: "white",
+  display: "grid",
+  gap: 4,
+}
+
+const input: CSSProperties = {
+  border: "1px solid #d1d5db",
+  borderRadius: 8,
+  padding: "9px 10px",
+  fontSize: 13,
+  outline: "none",
+}
+
+const button: CSSProperties = {
+  border: "1px solid #d1d5db",
+  background: "white",
+  borderRadius: 8,
+  padding: "8px 11px",
+  cursor: "pointer",
+  fontSize: 13,
+}
+
+const th: CSSProperties = {
+  textAlign: "left",
+  padding: "10px 12px",
+  fontWeight: 700,
+  fontSize: 11,
+  whiteSpace: "nowrap",
+}
+
+const thRight: CSSProperties = {
+  ...th,
+  textAlign: "right",
+}
+
+const td: CSSProperties = {
+  padding: "11px 12px",
+  color: "#374151",
+  whiteSpace: "nowrap",
+}
+
+const tdRight: CSSProperties = {
+  ...td,
+  textAlign: "right",
+  fontWeight: 700,
+}
+
