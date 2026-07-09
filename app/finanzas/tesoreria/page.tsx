@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase"
-import { mapCajaChicaToTreasuryPayment, mapRQPToTreasuryPayment } from "@/lib/services/treasury"
+import { mapCajaChicaToTreasuryPayment, mapGastoOficinaToTreasuryPayment, mapRQPToTreasuryPayment } from "@/lib/services/treasury"
 import type { TreasuryPaymentItem } from "@/lib/domain/treasury"
 
 const estadoLabel: Record<string, string> = {
@@ -91,10 +91,44 @@ export default function TesoreriaPage() {
       return
     }
 
+    const { data: gastosData, error: gastosError } = await supabase
+      .from("gastos_oficina")
+      .select(`
+        id,
+        descripcion,
+        tipo,
+        monto,
+        monto_pen,
+        moneda,
+        tipo_cambio,
+        fecha,
+        fecha_vencimiento,
+        estado_pago,
+        proveedor_nombre,
+        numero_comprobante,
+        numero_operacion,
+        banco_origen,
+        tipo_transferencia,
+        voucher_url,
+        entidad,
+        proveedor:proveedores(nombre)
+      `)
+      .not("estado_pago", "eq", "pagado")
+      .order("fecha", { ascending: false })
+      .limit(100)
+
+    if (gastosError) {
+      setErrorMsg(gastosError.message || "Error cargando Gastos de Oficina")
+      setItems([])
+      setLoading(false)
+      return
+    }
+
     const rqpItems = (rqpData || []).map(mapRQPToTreasuryPayment)
     const cajaItems = (cajaData || []).map(mapCajaChicaToTreasuryPayment)
+    const gastoItems = (gastosData || []).map(mapGastoOficinaToTreasuryPayment)
 
-    setItems([...rqpItems, ...cajaItems])
+    setItems([...rqpItems, ...cajaItems, ...gastoItems])
     setLoading(false)
   }
 
@@ -292,5 +326,6 @@ const tdRight: React.CSSProperties = {
   textAlign: "right",
   fontWeight: 700,
 }
+
 
 

@@ -46,3 +46,26 @@ export function mapCajaChicaToTreasuryPayment(row: any): TreasuryPaymentItem {
     estado_pago: row.estado === "rechazado" ? "anulado" : calcularEstadoPagoTreasury(item),
   }
 }
+
+export function mapGastoOficinaToTreasuryPayment(row: any): TreasuryPaymentItem {
+  const item: TreasuryPaymentItem = {
+    id: String(row.id),
+    origen: "administracion",
+    documento: row.numero_comprobante || row.descripcion || row.id,
+    empresa: row.entidad || "Izango 360",
+    beneficiario: row.proveedor_nombre || row.proveedor?.nombre || "",
+    proyecto: "",
+    fecha_necesidad_pago: row.fecha_vencimiento || row.fecha || null,
+    fecha_programada_pago: row.fecha_vencimiento || row.fecha || null,
+    fecha_pago: row.estado_pago === "pagado" ? row.fecha_pago || row.fecha : null,
+    condicion_comercial: "contado",
+    medio_pago: row.tipo_transferencia === "efectivo" ? "Efectivo" : "Transferencia",
+    estado_pago: row.estado_pago === "pagado" ? "pagado" : "sin_programar",
+    monto: Number(row.monto_pen || row.monto || 0),
+  }
+
+  return {
+    ...item,
+    estado_pago: row.estado_pago === "pagado" ? "pagado" : calcularEstadoPagoTreasury(item),
+  }
+}
