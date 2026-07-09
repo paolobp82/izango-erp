@@ -69,3 +69,4 @@ export function mapGastoOficinaToTreasuryPayment(row: any): TreasuryPaymentItem 
     estado_pago: row.estado_pago === "pagado" ? "pagado" : calcularEstadoPagoTreasury(item),
   }
 }
+
