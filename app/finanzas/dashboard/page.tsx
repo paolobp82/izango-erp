@@ -141,6 +141,7 @@ export default function DashboardFinancieroPage() {
 
         <div style={{ display: "flex", gap: 8 }}>
           <Link href="/finanzas/tesoreria" style={buttonLink}>Tesorería</Link>
+          <Link href="/finanzas/flujo-ejecutivo" style={buttonLink}>Flujo Ejecutivo</Link>
           <button onClick={load} disabled={loading} style={button}>
             {loading ? "Cargando..." : "Actualizar"}
           </button>
@@ -230,3 +231,4 @@ const buttonLink: CSSProperties = {
   textDecoration: "none",
   color: "#111827",
 }
+
