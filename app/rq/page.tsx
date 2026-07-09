@@ -177,23 +177,20 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   }
 
   function accionPermisoPorEstado(estado: string): AccionPermiso {
-    if (estado === "aprobado_produccion") return "aprobar_produccion"
-    if (estado === "aprobado") return "aprobar_gg"
-    if (estado === "programado") return "programar_pago"
-    if (estado === "pagado") return "pagar"
     if (estado === "rechazado") return "rechazar"
     if (estado === "cancelado") return "cancelar"
-    return "ver" as AccionPermiso
+    if (estado === "programado") return "pagar"
+    if (estado === "pagado") return "pagar"
+    if (estado === "aprobado_produccion") return "aprobar_produccion"
+    return "aprobar"
   }
 
   function reglaPorEstado(estado: string) {
-    if (estado === "aprobado_produccion") return "aprobar_produccion"
-    if (estado === "aprobado") return "aprobar_gg"
-    if (estado === "programado") return "programar_pago"
-    if (estado === "pagado") return "pagar"
     if (estado === "rechazado") return "rechazar"
     if (estado === "cancelado") return "cancelar"
-    return "ver"
+    if (estado === "programado") return "pagar"
+    if (estado === "pagado") return "pagar"
+    return "aprobar"
   }
   async function cambiarEstado(id: string, estado: string, extra?: any) {
     const rqActual = rqs.find(r => r.id === id)
@@ -1132,6 +1129,11 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
+
+
+
+
 
 
 
