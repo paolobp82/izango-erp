@@ -15,6 +15,7 @@ import { businessRuleEngine } from "@/lib/core/business-rules"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import { SYSTEM_COLUMNS } from "@/lib/core/configuration"
+import { buildCreateRQPPayload } from "@/lib/services/rqp"
 import {
   BANCOS_PAGO,
   MEDIOS_PAGO,
@@ -1453,6 +1454,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
 
 
 
