@@ -7,6 +7,7 @@ import { mapRQPToTreasuryPayment } from "@/lib/services/treasury"
 import type { TreasuryPaymentItem } from "@/lib/domain/treasury"
 
 const estadoLabel: Record<string, string> = {
+  todos: "Todos",
   sin_programar: "Sin programar",
   programado: "Programado",
   vence_hoy: "Vence hoy",
@@ -33,6 +34,9 @@ export default function TesoreriaPage() {
   const [items, setItems] = useState<TreasuryPaymentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState("")
+  const [filtroEstado, setFiltroEstado] = useState("todos")
+  const [filtroOrigen, setFiltroOrigen] = useState("todos")
+  const [busqueda, setBusqueda] = useState("")
 
   async function load() {
     setLoading(true)
@@ -75,17 +79,36 @@ export default function TesoreriaPage() {
     load()
   }, [])
 
+  const itemsFiltrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
+
+    return items.filter(item => {
+      const matchEstado = filtroEstado === "todos" || item.estado_pago === filtroEstado
+      const matchOrigen = filtroOrigen === "todos" || item.origen === filtroOrigen
+      const texto = [
+        item.documento,
+        item.beneficiario,
+        item.proyecto,
+        item.empresa,
+        item.origen,
+        item.estado_pago,
+      ].join(" ").toLowerCase()
+
+      return matchEstado && matchOrigen && (!q || texto.includes(q))
+    })
+  }, [items, filtroEstado, filtroOrigen, busqueda])
+
   const resumen = useMemo(() => {
     return {
-      total: items.length,
-      vencidos: items.filter(i => i.estado_pago === "vencido").length,
-      hoy: items.filter(i => i.estado_pago === "vence_hoy").length,
-      programados: items.filter(i => i.estado_pago === "programado").length,
-      montoPendiente: items
+      total: itemsFiltrados.length,
+      vencidos: itemsFiltrados.filter(i => i.estado_pago === "vencido").length,
+      hoy: itemsFiltrados.filter(i => i.estado_pago === "vence_hoy").length,
+      programados: itemsFiltrados.filter(i => i.estado_pago === "programado").length,
+      montoPendiente: itemsFiltrados
         .filter(i => i.estado_pago !== "pagado" && i.estado_pago !== "anulado")
         .reduce((sum, i) => sum + Number(i.monto || 0), 0),
     }
-  }, [items])
+  }, [itemsFiltrados])
 
   return (
     <main style={{ padding: 24, display: "grid", gap: 18 }}>
@@ -110,11 +133,36 @@ export default function TesoreriaPage() {
       </section>
 
       <section style={{ border: "1px solid #e5e7eb", borderRadius: 14, background: "white", overflow: "hidden" }}>
-        <div style={{ padding: 16, borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ margin: 0, fontSize: 16 }}>Bandeja de Pagos</h2>
-          <button onClick={load} disabled={loading} style={{ border: "1px solid #d1d5db", background: "white", borderRadius: 8, padding: "7px 10px", cursor: "pointer" }}>
-            {loading ? "Cargando..." : "Actualizar"}
-          </button>
+        <div style={{ padding: 16, borderBottom: "1px solid #e5e7eb", display: "grid", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Bandeja de Pagos</h2>
+            <button onClick={load} disabled={loading} style={{ border: "1px solid #d1d5db", background: "white", borderRadius: 8, padding: "7px 10px", cursor: "pointer" }}>
+              {loading ? "Cargando..." : "Actualizar"}
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) 180px 180px", gap: 10 }}>
+            <input
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar documento, proveedor o proyecto..."
+              style={inputStyle}
+            />
+
+            <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} style={inputStyle}>
+              {Object.entries(estadoLabel).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+
+            <select value={filtroOrigen} onChange={e => setFiltroOrigen(e.target.value)} style={inputStyle}>
+              <option value="todos">Todos los orígenes</option>
+              <option value="rqp">RQP</option>
+              <option value="administracion">Administración</option>
+              <option value="caja_chica">Caja Chica</option>
+              <option value="obligacion_financiera">Obligaciones</option>
+            </select>
+          </div>
         </div>
 
         {errorMsg && (
@@ -138,7 +186,7 @@ export default function TesoreriaPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map(item => (
+              {itemsFiltrados.map(item => (
                 <tr key={`${item.origen}-${item.id}`} style={{ borderTop: "1px solid #f3f4f6" }}>
                   <td style={td}>{item.origen.toUpperCase()}</td>
                   <td style={td}>{item.documento}</td>
@@ -155,7 +203,7 @@ export default function TesoreriaPage() {
                 </tr>
               ))}
 
-              {!loading && items.length === 0 && (
+              {!loading && itemsFiltrados.length === 0 && (
                 <tr>
                   <td colSpan={8} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
                     No hay pagos para mostrar.
@@ -185,6 +233,14 @@ const cardStyle: React.CSSProperties = {
   background: "white",
   display: "grid",
   gap: 4,
+}
+
+const inputStyle: React.CSSProperties = {
+  border: "1px solid #d1d5db",
+  borderRadius: 8,
+  padding: "9px 10px",
+  fontSize: 13,
+  outline: "none",
 }
 
 const th: React.CSSProperties = {
