@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase"
-import { mapCajaChicaToTreasuryPayment, mapGastoOficinaToTreasuryPayment, mapRQPToTreasuryPayment } from "@/lib/services/treasury"
+import { calculateTreasuryKpis, loadTreasuryPaymentItems } from "@/lib/services/treasury"
 import type { TreasuryPaymentItem } from "@/lib/domain/treasury"
 
 const estadoLabel: Record<string, string> = {
@@ -14,6 +14,14 @@ const estadoLabel: Record<string, string> = {
   vencido: "Vencido",
   pagado: "Pagado",
   anulado: "Anulado",
+}
+
+const origenLabel: Record<string, string> = {
+  todos: "Todos los orígenes",
+  rqp: "RQP",
+  administracion: "Administración / RPA",
+  caja_chica: "Caja Chica",
+  obligacion_financiera: "Obligaciones Financieras",
 }
 
 function fmtMoney(value: number) {
@@ -29,112 +37,48 @@ function fmtDate(value?: string | null) {
   return String(value).slice(0, 10)
 }
 
+function fechaFiltro(item: TreasuryPaymentItem) {
+  return fmtDate(item.fecha_programada_pago) !== "—"
+    ? fmtDate(item.fecha_programada_pago)
+    : fmtDate(item.fecha_necesidad_pago) !== "—"
+      ? fmtDate(item.fecha_necesidad_pago)
+      : fmtDate(item.fecha_pago) !== "—"
+        ? fmtDate(item.fecha_pago)
+        : ""
+}
+
 export default function TesoreriaPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [items, setItems] = useState<TreasuryPaymentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState("")
   const [filtroEstado, setFiltroEstado] = useState("todos")
   const [filtroOrigen, setFiltroOrigen] = useState("todos")
+  const [filtroEmpresa, setFiltroEmpresa] = useState("todos")
+  const [fechaDesde, setFechaDesde] = useState("")
+  const [fechaHasta, setFechaHasta] = useState("")
   const [busqueda, setBusqueda] = useState("")
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     setErrorMsg("")
 
-    const { data: rqpData, error: rqpError } = await supabase
-      .from("requerimientos_pago")
-      .select(`
-        id,
-        codigo_rq,
-        numero_rq,
-        proveedor_nombre,
-        monto_solicitado,
-        tipo_pago,
-        condicion_comercial,
-        medio_pago,
-        tipo_transferencia,
-        fecha_necesidad_pago,
-        fecha_programada_pago,
-        fecha_pago,
-        estado,
-        proyecto:proyectos(id, nombre, codigo)
-      `)
-      .not("estado", "in", '("cancelado","rechazado")')
-      .order("created_at", { ascending: false })
-      .limit(100)
-
-    const { data: cajaData, error: cajaError } = await supabase
-      .from("caja_chica")
-      .select(`
-        id,
-        concepto,
-        monto_debe,
-        monto_haber,
-        fecha,
-        estado,
-        aprobado_at,
-        entidad,
-        destinatario,
-        proveedor_nombre,
-        numero_operacion,
-        proyecto:proyectos(nombre,codigo)
-      `)
-      .in("estado", ["pendiente", "aprobado"])
-      .order("created_at", { ascending: false })
-      .limit(100)
-
-    if (rqpError || cajaError) {
-      setErrorMsg(rqpError?.message || cajaError?.message || "Error cargando Tesorería")
+    try {
+      setItems(await loadTreasuryPaymentItems(supabase))
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Error cargando Tesorería")
       setItems([])
-      setLoading(false)
-      return
     }
-
-    const { data: gastosData, error: gastosError } = await supabase
-      .from("gastos_oficina")
-      .select(`
-        id,
-        descripcion,
-        tipo,
-        monto,
-        monto_pen,
-        moneda,
-        tipo_cambio,
-        fecha,
-        fecha_vencimiento,
-        estado_pago,
-        proveedor_nombre,
-        numero_comprobante,
-        numero_operacion,
-        banco_origen,
-        tipo_transferencia,
-        voucher_url,
-        entidad,
-        proveedor:proveedores(nombre)
-      `)
-      .not("estado_pago", "eq", "pagado")
-      .order("fecha", { ascending: false })
-      .limit(100)
-
-    if (gastosError) {
-      setErrorMsg(gastosError.message || "Error cargando Gastos de Oficina")
-      setItems([])
-      setLoading(false)
-      return
-    }
-
-    const rqpItems = (rqpData || []).map(mapRQPToTreasuryPayment)
-    const cajaItems = (cajaData || []).map(mapCajaChicaToTreasuryPayment)
-    const gastoItems = (gastosData || []).map(mapGastoOficinaToTreasuryPayment)
-
-    setItems([...rqpItems, ...cajaItems, ...gastoItems])
     setLoading(false)
-  }
+  }, [supabase])
 
   useEffect(() => {
-    load()
-  }, [])
+    const timer = window.setTimeout(() => {
+      void load()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [load])
 
   const itemsFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
@@ -142,6 +86,10 @@ export default function TesoreriaPage() {
     return items.filter(item => {
       const matchEstado = filtroEstado === "todos" || item.estado_pago === filtroEstado
       const matchOrigen = filtroOrigen === "todos" || item.origen === filtroOrigen
+      const matchEmpresa = filtroEmpresa === "todos" || item.empresa === filtroEmpresa
+      const fecha = fechaFiltro(item)
+      const matchFechaDesde = !fechaDesde || (fecha && fecha >= fechaDesde)
+      const matchFechaHasta = !fechaHasta || (fecha && fecha <= fechaHasta)
       const texto = [
         item.documento,
         item.beneficiario,
@@ -151,21 +99,15 @@ export default function TesoreriaPage() {
         item.estado_pago,
       ].join(" ").toLowerCase()
 
-      return matchEstado && matchOrigen && (!q || texto.includes(q))
+      return matchEstado && matchOrigen && matchEmpresa && matchFechaDesde && matchFechaHasta && (!q || texto.includes(q))
     })
-  }, [items, filtroEstado, filtroOrigen, busqueda])
+  }, [items, filtroEstado, filtroOrigen, filtroEmpresa, fechaDesde, fechaHasta, busqueda])
 
-  const resumen = useMemo(() => {
-    return {
-      total: itemsFiltrados.length,
-      vencidos: itemsFiltrados.filter(i => i.estado_pago === "vencido").length,
-      hoy: itemsFiltrados.filter(i => i.estado_pago === "vence_hoy").length,
-      programados: itemsFiltrados.filter(i => i.estado_pago === "programado").length,
-      montoPendiente: itemsFiltrados
-        .filter(i => i.estado_pago !== "pagado" && i.estado_pago !== "anulado")
-        .reduce((sum, i) => sum + Number(i.monto || 0), 0),
-    }
-  }, [itemsFiltrados])
+  const empresasDisponibles = useMemo(() => {
+    return Array.from(new Set(items.map(item => item.empresa).filter(Boolean) as string[])).sort()
+  }, [items])
+
+  const resumen = useMemo(() => calculateTreasuryKpis(itemsFiltrados), [itemsFiltrados])
 
   return (
     <main style={{ padding: 24, display: "grid", gap: 18 }}>
@@ -177,16 +119,16 @@ export default function TesoreriaPage() {
           Tesorería
         </h1>
         <p style={{ margin: 0, color: "#6b7280", maxWidth: 820 }}>
-          Bandeja operativa de pagos. Primera versión conectada a RQP en modo lectura.
+          Bandeja operativa de pagos consolidada: RQP, Caja Chica, Administración/RPA y Obligaciones Financieras.
         </p>
       </div>
 
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-        <div style={cardStyle}><strong>{resumen.total}</strong><span>Total pagos</span></div>
-        <div style={cardStyle}><strong>{resumen.vencidos}</strong><span>Vencidos</span></div>
-        <div style={cardStyle}><strong>{resumen.hoy}</strong><span>Vencen hoy</span></div>
-        <div style={cardStyle}><strong>{resumen.programados}</strong><span>Programados</span></div>
-        <div style={cardStyle}><strong>{fmtMoney(resumen.montoPendiente)}</strong><span>Monto pendiente</span></div>
+        <div style={cardStyle}><strong>{fmtMoney(resumen.totalPendiente)}</strong><span>Total pendiente</span></div>
+        <div style={cardStyle}><strong>{fmtMoney(resumen.totalVencido)}</strong><span>Total vencido</span></div>
+        <div style={cardStyle}><strong>{fmtMoney(resumen.pagosHoy)}</strong><span>Pagos de hoy</span></div>
+        <div style={cardStyle}><strong>{fmtMoney(resumen.proximos7Dias)}</strong><span>Próximos 7 días</span></div>
+        <div style={cardStyle}><strong>{resumen.obligacionesPendientes}</strong><span>Obligaciones pendientes</span></div>
       </section>
 
       <section style={{ border: "1px solid #e5e7eb", borderRadius: 14, background: "white", overflow: "hidden" }}>
@@ -198,11 +140,11 @@ export default function TesoreriaPage() {
             </button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) 180px 180px", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) repeat(5, minmax(150px, 180px))", gap: 10 }}>
             <input
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
-              placeholder="Buscar documento, proveedor o proyecto..."
+              placeholder="Buscar documento, beneficiario, proyecto o empresa..."
               style={inputStyle}
             />
 
@@ -213,12 +155,20 @@ export default function TesoreriaPage() {
             </select>
 
             <select value={filtroOrigen} onChange={e => setFiltroOrigen(e.target.value)} style={inputStyle}>
-              <option value="todos">Todos los orígenes</option>
-              <option value="rqp">RQP</option>
-              <option value="administracion">Administración</option>
-              <option value="caja_chica">Caja Chica</option>
-              <option value="obligacion_financiera">Obligaciones</option>
+              {Object.entries(origenLabel).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
+
+            <select value={filtroEmpresa} onChange={e => setFiltroEmpresa(e.target.value)} style={inputStyle}>
+              <option value="todos">Todas las empresas</option>
+              {empresasDisponibles.map(empresa => (
+                <option key={empresa} value={empresa}>{empresa}</option>
+              ))}
+            </select>
+
+            <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} style={inputStyle} />
+            <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} style={inputStyle} />
           </div>
         </div>
 
@@ -234,6 +184,7 @@ export default function TesoreriaPage() {
               <tr>
                 <th style={th}>Origen</th>
                 <th style={th}>Documento</th>
+                <th style={th}>Empresa</th>
                 <th style={th}>Beneficiario</th>
                 <th style={th}>Proyecto</th>
                 <th style={th}>F. Necesidad</th>
@@ -247,8 +198,9 @@ export default function TesoreriaPage() {
             <tbody>
               {itemsFiltrados.map(item => (
                 <tr key={`${item.origen}-${item.id}`} style={{ borderTop: "1px solid #f3f4f6" }}>
-                  <td style={td}>{item.origen.toUpperCase()}</td>
+                  <td style={td}>{origenLabel[item.origen] || item.origen.toUpperCase()}</td>
                   <td style={td}>{item.documento}</td>
+                  <td style={td}>{item.empresa || "—"}</td>
                   <td style={td}>{item.beneficiario || "—"}</td>
                   <td style={td}>{item.proyecto || "—"}</td>
                   <td style={td}>{fmtDate(item.fecha_necesidad_pago)}</td>
@@ -266,7 +218,7 @@ export default function TesoreriaPage() {
 
               {!loading && itemsFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan={10} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
+                  <td colSpan={11} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
                     No hay pagos para mostrar.
                   </td>
                 </tr>
@@ -274,7 +226,7 @@ export default function TesoreriaPage() {
 
               {loading && (
                 <tr>
-                  <td colSpan={10} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
+                  <td colSpan={11} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
                     Cargando pagos...
                   </td>
                 </tr>
