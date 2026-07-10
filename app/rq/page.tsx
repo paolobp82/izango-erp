@@ -105,11 +105,11 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
 
   useEffect(() => {
     setPagina(1)
-  }, [busquedaRQ, filtroEstados, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
+  }, [busquedaRQ, filtroEstados, filtroProveedor, filtroProyecto, filtroTipoPago, filtroExcepcion, incluirProyectosEliminados])
 
   useEffect(() => {
     setPagina(1)
-  }, [busquedaRQ, filtroEstados, filtroProveedor, filtroProyecto, filtroTipoPago, incluirProyectosEliminados])
+  }, [busquedaRQ, filtroEstados, filtroProveedor, filtroProyecto, filtroTipoPago, filtroExcepcion, incluirProyectosEliminados])
 
   async function load() {
     const params = new URLSearchParams(window.location.search)
@@ -793,6 +793,8 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       if (!coincideId && !coincideCodigo) return false
     }
     if (filtroTipoPago && r.tipo_pago !== filtroTipoPago) return false
+    if (filtroExcepcion === "solo" && !r.es_excepcion) return false
+    if (filtroExcepcion === "sin" && r.es_excepcion) return false
     return true
   })
   const filtrados = filtradosBase
@@ -924,6 +926,22 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
             <option value="adelanto">Adelanto</option>
             <option value="credito">Credito</option>
           </select>
+          <select
+            value={filtroExcepcion}
+            onChange={e => setFiltroExcepcion(e.target.value)}
+            style={{
+              padding: "7px 10px",
+              border: "1px solid #e5e7eb",
+              borderRadius: 7,
+              fontSize: 13,
+              fontFamily: "inherit",
+              background: "#fff"
+            }}
+          >
+            <option value="todos">Todas las solicitudes</option>
+            <option value="solo">🚩 Solo excepciones</option>
+            <option value="sin">Sin excepción</option>
+          </select>
           {filtroProyecto && (
             <span style={{ fontSize: 12, color: "#0F6E56", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 99, padding: "4px 10px", fontWeight: 700 }}>
               Proyecto filtrado
@@ -933,8 +951,8 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
             <input type="checkbox" checked={incluirProyectosEliminados} onChange={e => setIncluirProyectosEliminados(e.target.checked)} />
             Incluir proyectos eliminados
           </label>
-          {(filtroEstados.length > 0 || filtroProveedor || filtroTipoPago || filtroProyecto || incluirProyectosEliminados) && (
-            <button onClick={() => { setFiltroEstados([]); setFiltroProveedor(""); setFiltroTipoPago(""); setFiltroProyecto(""); setIncluirProyectosEliminados(false) }}
+          {(filtroEstados.length > 0 || filtroProveedor || filtroTipoPago || filtroExcepcion !== "todos" || filtroProyecto || incluirProyectosEliminados) && (
+            <button onClick={() => { setFiltroEstados([]); setFiltroProveedor(""); setFiltroTipoPago(""); setFiltroExcepcion("todos"); setFiltroProyecto(""); setIncluirProyectosEliminados(false) }}
               style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
               Limpiar filtros
             </button>
@@ -1495,6 +1513,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     </div>
   )
 }
+
 
 
 
