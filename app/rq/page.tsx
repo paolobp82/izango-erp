@@ -1025,9 +1025,26 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
                     </td>
                     <td style={{ padding: "12px", fontSize: 12 }}>
                       {rq.tipo_pago ? (
-                        <span style={{ background: rq.tipo_pago === "credito" ? "#dbeafe" : rq.tipo_pago === "adelanto" ? "#fef9c3" : "#f0fdf4", color: rq.tipo_pago === "credito" ? "#1e40af" : rq.tipo_pago === "adelanto" ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
-                          {rq.tipo_pago}{rq.dias_credito ? " " + rq.dias_credito + "d" : ""}
-                        </span>
+                        <>
+                          <span style={{ background: rq.tipo_pago === "credito" ? "#dbeafe" : rq.tipo_pago === "adelanto" ? "#fef9c3" : "#f0fdf4", color: rq.tipo_pago === "credito" ? "#1e40af" : rq.tipo_pago === "adelanto" ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+                            {rq.tipo_pago}{rq.dias_credito ? " " + rq.dias_credito + "d" : ""}
+                          </span>
+
+                          {rq.es_excepcion && (
+                            <div
+                              title={rq.motivo_excepcion || "Excepción de pago"}
+                              style={{
+                                marginTop: 4,
+                                color: "#dc2626",
+                                fontSize: 10,
+                                fontWeight: 800,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              🚩 Excepción
+                            </div>
+                          )}
+                        </>
                       ) : "—"}
                     </td>
                     <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
@@ -1478,6 +1495,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     </div>
   )
 }
+
 
 
 
