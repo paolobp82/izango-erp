@@ -46,13 +46,23 @@ end
 where fecha_necesidad_pago is null;
 
 alter table public.requerimientos_pago
+  drop constraint if exists requerimientos_pago_condicion_comercial_check;
+
+alter table public.requerimientos_pago
   add constraint requerimientos_pago_condicion_comercial_check
   check (condicion_comercial is null or condicion_comercial in ('contado', 'credito', 'adelanto'));
+
+alter table public.requerimientos_pago
+  drop constraint if exists requerimientos_pago_medio_pago_check;
 
 alter table public.requerimientos_pago
   add constraint requerimientos_pago_medio_pago_check
   check (medio_pago is null or medio_pago in ('Transferencia', 'Efectivo'));
 
 alter table public.requerimientos_pago
+  drop constraint if exists requerimientos_pago_estado_documentario_check;
+
+alter table public.requerimientos_pago
   add constraint requerimientos_pago_estado_documentario_check
   check (estado_documentario is null or estado_documentario in ('sin_comprobante', 'pendiente', 'recibido', 'validado', 'observado'));
+
