@@ -13,6 +13,12 @@ export type RQPFinancialModel = {
   tipo_transferencia?: string | null
   estado?: string | null
   created_at?: string | null
+  es_excepcion?: boolean | null
+  motivo_excepcion?: string | null
+  excepcion_solicitada_por?: string | null
+  excepcion_solicitada_at?: string | null
+  excepcion_autorizada_por?: string | null
+  excepcion_autorizada_at?: string | null
 }
 
 export type RQPComprobanteModel = {
@@ -36,3 +42,4 @@ export type RQPComprobanteModel = {
   comprobante_xml_url?: string | null
   comprobante_cdr_url?: string | null
 }
+

@@ -71,5 +71,18 @@ export function buildUpdateRQPFinancialPayload(input: UpdateRQPFinancialInput) {
     numero_operacion: input.numero_operacion || null,
     banco_pago: input.banco_pago || null,
     tipo_transferencia: input.tipo_transferencia || null,
+    es_excepcion: Boolean(input.es_excepcion),
+    motivo_excepcion: input.es_excepcion
+      ? String(input.motivo_excepcion || "").trim() || null
+      : null,
+    excepcion_solicitada_por: input.es_excepcion
+      ? input.excepcion_solicitada_por || null
+      : null,
+    excepcion_solicitada_at: input.es_excepcion
+      ? input.excepcion_solicitada_at || null
+      : null,
+    excepcion_autorizada_por: input.excepcion_autorizada_por || null,
+    excepcion_autorizada_at: input.excepcion_autorizada_at || null,
   }
 }
+

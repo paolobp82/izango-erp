@@ -50,6 +50,8 @@ const FORM_RQ_VACIO = {
   tipo_pago: "contado",
   condicion_comercial: "contado",
   medio_pago: "Transferencia",
+  es_excepcion: false,
+  motivo_excepcion: "",
   dias_credito: "",
   fecha_necesidad_pago: "",
   fecha_pago: "",
@@ -84,6 +86,7 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
   const [formEditarRQ, setFormEditarRQ] = useState(FORM_RQ_VACIO)
   const [fechaPago, setFechaPago] = useState("")
   const [filtroTipoPago, setFiltroTipoPago] = useState("")
+const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const [datosPago, setDatosPago] = useState({
     voucher_url: "", numero_operacion: "", banco_pago: "", tipo_transferencia: "Transferencia", nota_pago: ""
   })
@@ -532,6 +535,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       tipo_pago: rq.tipo_pago || rq.condicion_comercial || "contado",
       condicion_comercial: rq.condicion_comercial || rq.tipo_pago || "contado",
       medio_pago: rq.medio_pago || rq.tipo_transferencia || "Transferencia",
+      es_excepcion: Boolean(rq.es_excepcion),
+      motivo_excepcion: rq.motivo_excepcion || "",
       dias_credito: rq.dias_credito ? String(rq.dias_credito) : "",
       fecha_necesidad_pago: rq.fecha_necesidad_pago || "",
       fecha_pago: rq.fecha_pago || "",
@@ -569,6 +574,16 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
       numero_operacion: formEditarRQ.numero_operacion || null,
       banco_pago: formEditarRQ.banco_pago || null,
       tipo_transferencia: formEditarRQ.tipo_transferencia || null,
+      es_excepcion: formEditarRQ.es_excepcion,
+      motivo_excepcion: formEditarRQ.es_excepcion ? formEditarRQ.motivo_excepcion : null,
+      excepcion_solicitada_por: formEditarRQ.es_excepcion
+        ? selected.excepcion_solicitada_por || perfil?.id || null
+        : null,
+      excepcion_solicitada_at: formEditarRQ.es_excepcion
+        ? selected.excepcion_solicitada_at || new Date().toISOString()
+        : null,
+      excepcion_autorizada_por: selected.excepcion_autorizada_por || null,
+      excepcion_autorizada_at: selected.excepcion_autorizada_at || null,
     })
     if (!proyectoBloqueadoEdicion(selected)) {
       updates.proyecto_id = formEditarRQ.proyecto_id || null
@@ -1463,6 +1478,8 @@ const [proveedoresTodos, setProveedoresTodos] = useState<any[]>([])
     </div>
   )
 }
+
+
 
 
 
