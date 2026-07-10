@@ -666,6 +666,10 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     if (!formRQ.descripcion.trim()) { setErrorNuevoRQ("Ingresa la descripcion o concepto del RQ."); return }
     if (!formRQ.proveedor_id) { setErrorNuevoRQ("Selecciona un proveedor."); return }
     if (!Number.isFinite(monto) || monto <= 0) { setErrorNuevoRQ("Ingresa un monto valido mayor a cero."); return }
+    if (formRQ.es_excepcion && !String(formRQ.motivo_excepcion || "").trim()) {
+      setErrorNuevoRQ("El motivo de la excepción es obligatorio.")
+      return
+    }
 
     setGuardandoRQ(true)
     try {
@@ -680,6 +684,18 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
         descripcion: formRQ.descripcion.trim(),
         tipo_pago: formRQ.tipo_pago,
         dias_credito: formRQ.dias_credito ? Number(formRQ.dias_credito) : null,
+        condicion_comercial: formRQ.condicion_comercial || formRQ.tipo_pago,
+        medio_pago: formRQ.medio_pago || "Transferencia",
+        es_excepcion: Boolean(formRQ.es_excepcion),
+        motivo_excepcion: formRQ.es_excepcion
+          ? String(formRQ.motivo_excepcion || "").trim()
+          : null,
+        excepcion_solicitada_por: formRQ.es_excepcion
+          ? perfil?.id || null
+          : null,
+        excepcion_solicitada_at: formRQ.es_excepcion
+          ? new Date().toISOString()
+          : null,
         es_adicional: true,
         solicitado_por: perfil?.id || null,
       }
@@ -1496,6 +1512,63 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
               )}
               <div><label style={lbl}>TIPO DE PAGO</label><select style={inp} value={formRQ.tipo_pago} onChange={e => setFormRQ({ ...formRQ, tipo_pago: e.target.value })}><option value="contado">Contado</option><option value="adelanto">Adelanto</option><option value="credito">Credito</option></select></div>
               <div><label style={lbl}>DIAS DE PAGO (opcional)</label><input type="number" style={inp} value={formRQ.dias_credito} placeholder="Ej: 30, 45, 60..." onChange={e => setFormRQ({ ...formRQ, dias_credito: e.target.value })} /></div>
+
+              <div style={{
+                padding: 12,
+                borderRadius: 10,
+                border: formRQ.es_excepcion
+                  ? "1px solid #fecaca"
+                  : "1px solid #e5e7eb",
+                background: formRQ.es_excepcion
+                  ? "#fef2f2"
+                  : "#f9fafb"
+              }}>
+                <label style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: formRQ.es_excepcion ? "#b91c1c" : "#374151",
+                  cursor: "pointer"
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formRQ.es_excepcion)}
+                    onChange={e => setFormRQ({
+                      ...formRQ,
+                      es_excepcion: e.target.checked,
+                      motivo_excepcion: e.target.checked
+                        ? formRQ.motivo_excepcion
+                        : ""
+                    })}
+                  />
+                  🚩 Marcar como excepción de pago
+                </label>
+
+                {formRQ.es_excepcion && (
+                  <div style={{ marginTop: 10 }}>
+                    <label style={{ ...lbl, color: "#b91c1c" }}>
+                      MOTIVO DE LA EXCEPCIÓN *
+                    </label>
+
+                    <textarea
+                      rows={3}
+                      value={formRQ.motivo_excepcion}
+                      placeholder="Explica por qué este pago requiere una excepción..."
+                      onChange={e => setFormRQ({
+                        ...formRQ,
+                        motivo_excepcion: e.target.value
+                      })}
+                      style={{
+                        ...inp,
+                        resize: "vertical",
+                        borderColor: "#fca5a5"
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
               {errorNuevoRQ && (
