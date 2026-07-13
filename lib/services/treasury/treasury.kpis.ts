@@ -32,6 +32,7 @@ export function calculateTreasuryKpis(items: TreasuryPaymentItem[]) {
       .reduce((sum, item) => sum + Number(item.monto || 0), 0),
     pagosHoy: dueTodayItems.reduce((sum, item) => sum + Number(item.monto || 0), 0),
     proximos7Dias: next7Items.reduce((sum, item) => sum + Number(item.monto || 0), 0),
+    totalExcepciones: items.filter(item => item.es_excepcion).length,
     obligacionesPendientes: pendingItems.filter(item => item.origen === "obligacion_financiera").length,
   }
 }

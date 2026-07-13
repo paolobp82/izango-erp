@@ -61,7 +61,7 @@ const ALL_NAV = [
     { label: "Centros de Costo", href: "/centro-costos", icon: "◆" },
   ]},
   { section: "Finanzas Corporativas", items: [
-    { label: "Dashboard Ejecutivo", href: "/finanzas/dashboard", icon: "◫" },
+    { label: "Dashboard Financiero", href: "/finanzas/dashboard", icon: "◫" },
     { label: "Centro de Tesorería", href: "/finanzas/tesoreria", icon: "▣" },
     { label: "Cuentas por Cobrar", href: "/finanzas/cuentas-por-cobrar", icon: "↙" },
     { label: "Cuentas por Pagar", href: "/finanzas/cuentas-por-pagar", icon: "↗" },

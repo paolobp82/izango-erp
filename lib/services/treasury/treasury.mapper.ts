@@ -42,6 +42,9 @@ export function mapRQPToTreasuryPayment(rq: TreasurySourceRow): TreasuryPaymentI
     medio_pago: nullableText(rq.medio_pago) || nullableText(rq.tipo_transferencia),
     estado_pago: "sin_programar",
     monto: num(rq.monto_solicitado),
+    es_excepcion: Boolean(rq.es_excepcion),
+    motivo_excepcion: nullableText(rq.motivo_excepcion),
+    prioridad: rq.es_excepcion ? "alta" : "normal",
   }
 
   return {

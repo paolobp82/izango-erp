@@ -25,6 +25,8 @@ export async function loadTreasuryPaymentItems(supabase: SupabaseClient): Promis
       fecha_necesidad_pago,
       fecha_programada_pago,
       fecha_pago,
+      es_excepcion,
+      motivo_excepcion,
       estado,
       proyecto:proyectos(id, nombre, codigo)
     `)
