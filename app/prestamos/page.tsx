@@ -128,6 +128,8 @@ export default function PrestamosPage() {
   const [filtroTipo, setFiltroTipo] = useState("todos")
   const [filtroEstado, setFiltroEstado] = useState("todos")
   const [cuotasPreview, setCuotasPreview] = useState<any[]>([])
+  const [cuotasResumen, setCuotasResumen] = useState<any[]>([])
+  const [pagosResumen, setPagosResumen] = useState<any[]>([])
 
   useEffect(() => { load() }, [])
 
@@ -157,6 +159,26 @@ export default function PrestamosPage() {
       .order("created_at", { ascending: false })
 
     setPrestamos(pr || [])
+
+    const idsPrestamos = (pr || []).map((p: any) => p.id)
+
+    if (idsPrestamos.length > 0) {
+      const { data: cuotasAll } = await supabase
+        .from("prestamo_cuotas")
+        .select("*")
+        .in("prestamo_id", idsPrestamos)
+
+      const { data: pagosAll } = await supabase
+        .from("prestamo_pagos")
+        .select("*")
+        .in("prestamo_id", idsPrestamos)
+
+      setCuotasResumen(cuotasAll || [])
+      setPagosResumen(pagosAll || [])
+    } else {
+      setCuotasResumen([])
+      setPagosResumen([])
+    }
 
     const { data: em } = await supabase
       .from("rrhh_trabajadores")
@@ -271,6 +293,23 @@ export default function PrestamosPage() {
 
   const totalDeuda = prestamos.filter(p => p.estado === "activo").reduce((s, p) => s + (p.monto_original || 0), 0)
 
+  const obligacionesActivas = prestamos.filter(p => p.estado === "activo")
+  const idsActivos = new Set(obligacionesActivas.map(p => p.id))
+  const cuotasActivas = cuotasResumen.filter(c => idsActivos.has(c.prestamo_id))
+  const pagosActivos = pagosResumen.filter(p => idsActivos.has(p.prestamo_id))
+
+  const capitalActivo = obligacionesActivas.reduce((s, p) => s + Number(p.monto_original || 0), 0)
+  const gastoFinancieroActivo = cuotasActivas.reduce((s, c) => s + Number(c.monto_interes || 0), 0)
+  const cronogramaActivo = cuotasActivas.reduce((s, c) => s + Number(c.monto_total || 0), 0)
+  const pagadoActivo = pagosActivos.reduce((s, p) => s + Number(p.monto || 0), 0)
+  const saldoFinancieroActivo = Math.max(cronogramaActivo - pagadoActivo, 0)
+  const hoyObligaciones = new Date().toISOString().slice(0, 10)
+  const cuotasPendientesActivas = cuotasActivas.filter(c => c.estado !== "pagado")
+  const cuotasVencidasActivas = cuotasPendientesActivas.filter(c => c.fecha_vencimiento && c.fecha_vencimiento < hoyObligaciones)
+  const proximaCuotaGlobal = cuotasPendientesActivas
+    .slice()
+    .sort((a, b) => String(a.fecha_vencimiento || "").localeCompare(String(b.fecha_vencimiento || "")))[0]
+
   // Calcular saldo de préstamo seleccionado
   const totalPagadoSelected = pagos.reduce((s, p) => s + (p.monto || 0), 0)
   const saldoSelected = selected ? selected.monto_original - totalPagadoSelected : 0
@@ -287,7 +326,7 @@ export default function PrestamosPage() {
       <div style={{ flex: 1, overflowY: "auto", paddingRight: 4 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Deudas y Financiamientos</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Obligaciones Financieras</h1>
             <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{prestamos.length} obligaciones registradas · Deuda activa: {fmt(totalDeuda)}</p>
           </div>
           {puedeGestionar && (
@@ -295,7 +334,22 @@ export default function PrestamosPage() {
           )}
         </div>
 
-        {/* Filtros */}
+        {/* Filtros */}        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 16 }}>
+          {[
+            { label: "Capital activo", value: fmt(capitalActivo) },
+            { label: "Gasto financiero", value: fmt(gastoFinancieroActivo) },
+            { label: "Cronograma total", value: fmt(cronogramaActivo) },
+            { label: "Saldo financiero", value: fmt(saldoFinancieroActivo) },
+            { label: "Cuotas vencidas", value: `${cuotasVencidasActivas.length}` },
+            { label: "Próximo vencimiento", value: proximaCuotaGlobal?.fecha_vencimiento || "—" },
+          ].map(kpi => (
+            <div key={kpi.label} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>{kpi.label}</div>
+              <div style={{ fontSize: 16, color: "#111827", fontWeight: 800 }}>{kpi.value}</div>
+            </div>
+          ))}
+        </div>
+
         <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
           <select style={{ ...inp, width: "auto" }} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
             <option value="todos">Todos los tipos</option>
@@ -700,6 +754,7 @@ export default function PrestamosPage() {
     </div>
   )
 }
+
 
 
 
