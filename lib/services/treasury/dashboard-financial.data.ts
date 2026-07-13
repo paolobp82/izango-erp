@@ -94,6 +94,25 @@ function dedupePayments(items: TreasuryPaymentItem[]) {
   return Array.from(map.values())
 }
 
+function logDashboardSourceError(source: string, error: { message?: string; code?: string; details?: string; hint?: string } | null) {
+  if (!error) return
+  console.error("[Dashboard Financiero]", source, {
+    message: error.message,
+    code: error.code,
+    details: error.details,
+    hint: error.hint,
+  })
+}
+
+function userFacingError(source: string, error: { message?: string; code?: string } | null) {
+  if (!error) return ""
+  const message = String(error.message || "").toLowerCase()
+  if (message.includes("does not exist") || message.includes("schema cache") || error.code === "42P01" || error.code === "PGRST205") {
+    return `${source}: falta aplicar o refrescar la configuración de tesorería.`
+  }
+  return `${source}: no se pudo cargar la información.`
+}
+
 async function loadBalances(supabase: SupabaseClient, fecha: string) {
   const { data, error } = await supabase
     .from("tesoreria_saldos_diarios")
@@ -101,6 +120,7 @@ async function loadBalances(supabase: SupabaseClient, fecha: string) {
     .eq("fecha", fecha)
     .order("empresa", { ascending: true })
 
+  logDashboardSourceError("Saldos diarios", error)
   return { rows: asRows(data).map(normalizeBalance), error }
 }
 
@@ -111,6 +131,7 @@ async function loadParameters(supabase: SupabaseClient) {
     .eq("activo", true)
     .order("empresa", { ascending: true })
 
+  logDashboardSourceError("Parámetros", error)
   return { rows: asRows(data).map(normalizeParameter), error }
 }
 
@@ -122,6 +143,7 @@ async function loadInvoices(supabase: SupabaseClient, fecha: string) {
     .or(`fecha_vencimiento.gte.${firstDay},fecha_emision.gte.${firstDay},fecha_abono.gte.${firstDay}`)
     .limit(1000)
 
+  logDashboardSourceError("Facturación", error)
   return { rows: asRows(data).map(normalizeInvoice), error }
 }
 
@@ -137,6 +159,7 @@ async function loadDailyCloses(supabase: SupabaseClient, fecha: string) {
     .lte("fecha", fecha)
     .order("fecha", { ascending: true })
 
+  logDashboardSourceError("Cierres diarios", error)
   return { rows: asRows(data).map(normalizeClose), error }
 }
 
@@ -162,14 +185,16 @@ async function loadTreasuryPaymentsForDashboard(supabase: SupabaseClient) {
       es_excepcion,
       motivo_excepcion,
       estado,
-      empresa,
       proyecto:proyectos(id, nombre, codigo)
     `)
     .not("estado", "in", '("cancelado","rechazado")')
     .order("created_at", { ascending: false })
     .limit(1000)
 
-  if (rqpError) errors.push(`RQP: ${rqpError.message}`)
+  if (rqpError) {
+    logDashboardSourceError("RQP", rqpError)
+    errors.push(userFacingError("RQP", rqpError))
+  }
   else items.push(...asRows(rqpData).map(mapRQPToTreasuryPayment).map(item => ({ ...item, categoria: "Producción" })))
 
   const { data: cajaData, error: cajaError } = await supabase
@@ -181,9 +206,6 @@ async function loadTreasuryPaymentsForDashboard(supabase: SupabaseClient) {
       monto_haber,
       fecha,
       estado,
-      fecha_pago,
-      fecha_desembolso,
-      pagado_at,
       entidad,
       destinatario,
       proveedor_nombre,
@@ -195,7 +217,10 @@ async function loadTreasuryPaymentsForDashboard(supabase: SupabaseClient) {
     .order("created_at", { ascending: false })
     .limit(1000)
 
-  if (cajaError) errors.push(`Caja Chica: ${cajaError.message}`)
+  if (cajaError) {
+    logDashboardSourceError("Caja Chica", cajaError)
+    errors.push(userFacingError("Caja Chica", cajaError))
+  }
   else items.push(...asRows(cajaData).map(row => {
     const item = mapCajaChicaToTreasuryPayment(row)
     return { ...item, categoria: String(row.categoria || "Otros") }
@@ -213,10 +238,6 @@ async function loadTreasuryPaymentsForDashboard(supabase: SupabaseClient) {
       tipo_cambio,
       fecha,
       fecha_vencimiento,
-      fecha_pago,
-      pagado_at,
-      fecha_pagado,
-      fecha_abono,
       estado_pago,
       proveedor_nombre,
       numero_comprobante,
@@ -231,7 +252,10 @@ async function loadTreasuryPaymentsForDashboard(supabase: SupabaseClient) {
     .order("fecha", { ascending: false })
     .limit(1000)
 
-  if (gastosError) errors.push(`Gastos Oficina: ${gastosError.message}`)
+  if (gastosError) {
+    logDashboardSourceError("Gastos Oficina", gastosError)
+    errors.push(userFacingError("Gastos Oficina", gastosError))
+  }
   else items.push(...asRows(gastosData).map(row => {
     const item = mapGastoOficinaToTreasuryPayment(row)
     return { ...item, categoria: String(row.tipo || "Administrativo") }
@@ -245,7 +269,8 @@ async function loadTreasuryPaymentsForDashboard(supabase: SupabaseClient) {
     .limit(500)
 
   if (prestamosError) {
-    errors.push(`Obligaciones: ${prestamosError.message}`)
+    logDashboardSourceError("Obligaciones", prestamosError)
+    errors.push(userFacingError("Obligaciones", prestamosError))
   } else {
     const prestamos = asRows(prestamosData)
     const prestamosPorId = new Map(prestamos.map(prestamo => [String(prestamo.id), prestamo]))
@@ -259,7 +284,10 @@ async function loadTreasuryPaymentsForDashboard(supabase: SupabaseClient) {
         .order("fecha_vencimiento", { ascending: true })
         .limit(1000)
 
-      if (cuotasError) errors.push(`Cuotas obligaciones: ${cuotasError.message}`)
+      if (cuotasError) {
+        logDashboardSourceError("Cuotas obligaciones", cuotasError)
+        errors.push(userFacingError("Cuotas obligaciones", cuotasError))
+      }
       else {
         items.push(...asRows(cuotasData)
           .map(cuota => ({ ...cuota, prestamo: prestamosPorId.get(String(cuota.prestamo_id)) }))
@@ -287,10 +315,10 @@ export async function loadFinancialDashboardInputs(supabase: SupabaseClient, fec
   ])
 
   const errors = [
-    balances.error ? `Saldos diarios: ${balances.error.message}` : "",
-    parameters.error ? `Parámetros: ${parameters.error.message}` : "",
-    invoices.error ? `Facturación: ${invoices.error.message}` : "",
-    history.error ? `Cierres diarios: ${history.error.message}` : "",
+    userFacingError("Saldos diarios", balances.error),
+    userFacingError("Parámetros", parameters.error),
+    userFacingError("Facturación", invoices.error),
+    userFacingError("Cierres diarios", history.error),
     ...payments.errors,
   ].filter(Boolean)
 

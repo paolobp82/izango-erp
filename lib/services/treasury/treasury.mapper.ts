@@ -3,10 +3,6 @@ import { calcularEstadoPagoTreasury } from "@/lib/domain/treasury"
 
 type TreasurySourceRow = Record<string, unknown>
 
-function firstDate(...values: Array<string | null | undefined>) {
-  return values.find(Boolean) || null
-}
-
 function asRecord(value: unknown): TreasurySourceRow {
   return value && typeof value === "object" && !Array.isArray(value) ? value as TreasurySourceRow : {}
 }
@@ -55,7 +51,6 @@ export function mapRQPToTreasuryPayment(rq: TreasurySourceRow): TreasuryPaymentI
 
 export function mapCajaChicaToTreasuryPayment(row: TreasurySourceRow): TreasuryPaymentItem {
   const proyecto = asRecord(row.proyecto)
-  const fechaPagoReal = firstDate(nullableText(row.fecha_pago), nullableText(row.fecha_desembolso), nullableText(row.pagado_at))
   const item: TreasuryPaymentItem = {
     id: text(row.id),
     origen: "caja_chica",
@@ -65,7 +60,7 @@ export function mapCajaChicaToTreasuryPayment(row: TreasurySourceRow): TreasuryP
     proyecto: text(proyecto.nombre) || text(row.proyecto_nombre),
     fecha_necesidad_pago: nullableText(row.fecha),
     fecha_programada_pago: nullableText(row.fecha),
-    fecha_pago: fechaPagoReal,
+    fecha_pago: null,
     condicion_comercial: "contado",
     medio_pago: "Efectivo",
     estado_pago: row.estado === "rechazado" ? "anulado" : "sin_programar",
@@ -80,7 +75,7 @@ export function mapCajaChicaToTreasuryPayment(row: TreasurySourceRow): TreasuryP
 
 export function mapGastoOficinaToTreasuryPayment(row: TreasurySourceRow): TreasuryPaymentItem {
   const proveedor = asRecord(row.proveedor)
-  const fechaPagoReal = firstDate(nullableText(row.fecha_pago), nullableText(row.pagado_at), nullableText(row.fecha_pagado), nullableText(row.fecha_abono))
+  const fechaPagoReal = null
   const item: TreasuryPaymentItem = {
     id: text(row.id),
     origen: "administracion",
