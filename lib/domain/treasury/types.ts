@@ -35,6 +35,7 @@ export type TreasuryPaymentItem = {
   medio_pago?: TreasuryPaymentMethod | string | null
   estado_pago: TreasuryPaymentStatus
   monto: number
+  categoria?: string | null
   es_excepcion?: boolean | null
   motivo_excepcion?: string | null
   prioridad?: "alta" | "media" | "normal" | string | null
