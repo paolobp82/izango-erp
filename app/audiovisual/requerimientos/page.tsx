@@ -3,6 +3,8 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import { filtrarPorAlcance } from "@/lib/permisos"
+import { esProductorAsignadoProyecto } from "@/lib/permisos/proyectos"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 
@@ -90,25 +92,27 @@ export default function AudiovisualRequerimientosPage() {
     const proyectoIdParam = new URLSearchParams(window.location.search).get("proyecto_id") || ""
     const requerimientoIdParam = new URLSearchParams(window.location.search).get("requerimiento_id") || ""
     const { data: { user } } = await supabase.auth.getUser()
+    let perfilActual: any = null
     if (user) {
       const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+      perfilActual = p
       setPerfil(p)
     }
 
     const { data: reqs } = await supabase
       .from("audiovisual_requerimientos")
-      .select("*, proyecto:proyectos(id,nombre,codigo,deleted_at), cotizacion:cotizaciones(id,version,total_cliente), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido), creador:perfiles!creado_por(nombre,apellido)")
+        .select("*, proyecto:proyectos(id,nombre,codigo,deleted_at,productor_id), cotizacion:cotizaciones(id,version,total_cliente), productor:perfiles!productor_id(nombre,apellido), responsable:perfiles!responsable_audiovisual_id(nombre,apellido), creador:perfiles!creado_por(nombre,apellido)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
     const reqsActivos = (reqs || []).filter((req: any) => !rowBelongsToDeletedProject(req))
-    setRequerimientos(reqsActivos)
+    setRequerimientos(filtrarPorAlcance(reqsActivos, perfilActual, "proyectos", { usuarioId: user?.id }))
 
     const { data: proys } = await supabase
       .from("proyectos")
       .select("id,nombre,codigo,productor_id,fecha_inicio,fecha_fin_estimada,productor:perfiles!productor_id(nombre,apellido)")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-    setProyectos(proys || [])
+    setProyectos(filtrarPorAlcance(proys || [], perfilActual, "proyectos", { usuarioId: user?.id }))
 
     const { data: prods } = await supabase.from("perfiles").select("id,nombre,apellido,perfil").eq("activo", true).order("nombre")
     setProductores(prods || [])
@@ -482,7 +486,7 @@ export default function AudiovisualRequerimientosPage() {
     return Boolean(req && esGerencia)
   }
   function esProductorDelPedido(req: any) {
-    return Boolean(req && perfil?.id && (req.creado_por === perfil.id || req.productor_id === perfil.id))
+    return Boolean(req && perfil?.id && esProductorAsignadoProyecto(perfil, req.proyecto || req, perfil.id))
   }
   function esResponsableAudiovisual(req: any) {
     return Boolean(req && perfil?.id && req.responsable_audiovisual_id === perfil.id)

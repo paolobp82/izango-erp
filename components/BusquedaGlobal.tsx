@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { buscarItemsCotizados } from "@/lib/quote-item-search"
+import { filtrarPorAlcance } from "@/lib/permisos"
 
 const TIPOS: Record<string, { icon: string, color: string }> = {
   proyecto:    { icon: "📁", color: "#1e40af" },
@@ -59,6 +60,8 @@ export default function BusquedaGlobal() {
   async function buscar(q: string) {
     setLoading(true)
     const like = `%${q}%`
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: perfil } = user ? await supabase.from("perfiles").select("*").eq("id", user.id).single() : { data: null }
     const [
       { data: proyectos },
       { data: clientes },
@@ -66,7 +69,7 @@ export default function BusquedaGlobal() {
       { data: facturas },
       { data: leads },
     ] = await Promise.all([
-      supabase.from("proyectos").select("id, nombre, codigo, estado").is("deleted_at", null).or(`nombre.ilike.${like},codigo.ilike.${like}`).limit(4),
+      supabase.from("proyectos").select("id, nombre, codigo, estado, productor_id").is("deleted_at", null).or(`nombre.ilike.${like},codigo.ilike.${like}`).limit(8),
       supabase.from("clientes").select("id, razon_social, ruc").or(`razon_social.ilike.${like},ruc.ilike.${like}`).limit(4),
       supabase.from("proveedores").select("id, nombre, ruc").or(`nombre.ilike.${like},ruc.ilike.${like}`).limit(3),
       supabase.from("facturas").select("id, numero_factura, estado").ilike("numero_factura", like).limit(3),
@@ -78,7 +81,7 @@ export default function BusquedaGlobal() {
     )
 
     const res: any[] = [
-      ...(proyectos || []).map(p => ({ tipo: "proyecto", titulo: p.nombre, subtitulo: p.codigo + " · " + p.estado, href: "/proyectos/" + p.id })),
+      ...filtrarPorAlcance(proyectos || [], perfil, "proyectos", { usuarioId: user?.id }).slice(0, 4).map(p => ({ tipo: "proyecto", titulo: p.nombre, subtitulo: p.codigo + " · " + p.estado, href: "/proyectos/" + p.id })),
       ...(clientes || []).map(c => ({ tipo: "cliente", titulo: c.razon_social, subtitulo: c.ruc || "Sin RUC", href: "/clientes" })),
       ...(proveedores || []).map(p => ({ tipo: "proveedor", titulo: p.nombre, subtitulo: p.ruc || "Sin RUC", href: "/proveedores" })),
       ...(facturas || []).map(f => ({ tipo: "factura", titulo: f.numero_factura, subtitulo: "Estado: " + f.estado, href: "/facturacion" })),

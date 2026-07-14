@@ -18,6 +18,10 @@ import {
   type ModuloPermiso,
   type PerfilUsuario,
 } from "./permisos/matriz"
+import {
+  esProductorAsignadoProyecto,
+  productorVigenteProyecto,
+} from "./permisos/proyectos"
 
 export type {
   AccionPermiso,
@@ -100,7 +104,7 @@ export function puedeEjecutarAccion(
   if (esSoloLectura(alcance)) return accion === "ver"
 
   const registro = contexto?.registro || contexto?.proyecto
-  if (esPropio(alcance)) return esResponsableDelProyecto(registro, contexto?.usuarioId)
+  if (esPropio(alcance)) return esPropioPorModulo(rol, modulo, registro, contexto)
   if (esAsignado(alcance)) return esRegistroAsignadoAUsuario(registro, contexto?.usuarioId)
   if (esEquipo(alcance)) return perteneceAlEquipo(registro, contexto)
 
@@ -165,11 +169,41 @@ export function filtrarPorAlcance<T extends RegistroConPropiedad>(
 
   return rows.filter(row => {
     const ctx = { ...contexto, registro: row }
-    if (esPropio(alcance)) return esResponsableDelProyecto(row, contexto?.usuarioId)
+    if (esPropio(alcance)) return esPropioPorModulo(normalizarPerfil(perfil), modulo, row, contexto)
     if (esAsignado(alcance)) return esRegistroAsignadoAUsuario(row, contexto?.usuarioId)
     if (esEquipo(alcance)) return perteneceAlEquipo(row, ctx)
     return false
   })
+}
+
+function esPropioPorModulo(
+  rol: PerfilUsuario | null,
+  modulo: ModuloPermiso,
+  registro: RegistroConPropiedad | null | undefined,
+  contexto?: ContextoPermiso
+) {
+  if (rol === "productor" && moduloDependeDeProyecto(modulo)) {
+    const proyectoIds = new Set((contexto?.proyectoIds || []).filter(Boolean).map(String))
+    if (registro?.proyecto_id && proyectoIds.has(String(registro.proyecto_id))) return true
+    return esProductorAsignadoProyecto({ id: contexto?.usuarioId, perfil: rol }, registro, contexto?.usuarioId)
+  }
+  return esResponsableDelProyecto(registro, contexto?.usuarioId)
+}
+
+function moduloDependeDeProyecto(modulo: ModuloPermiso) {
+  return [
+    "dashboard",
+    "proyectos",
+    "proformas",
+    "gestor",
+    "rq",
+    "liquidaciones",
+    "caja_chica",
+    "envios_materiales",
+    "traslados",
+    "calendario",
+    "reporteria",
+  ].includes(modulo)
 }
 
 function esRegistroAsignadoAUsuario(registro: RegistroConPropiedad | null | undefined, usuarioId?: string | null): boolean {
@@ -194,6 +228,8 @@ function esRegistroAsignadoAUsuario(registro: RegistroConPropiedad | null | unde
 
 function idsPropiedad(registro: RegistroConPropiedad | null | undefined) {
   if (!registro) return []
+  const productorVigente = productorVigenteProyecto(registro)
+  if (productorVigente) return [productorVigente].map(String)
   return [
     registro.usuario_id,
     registro.user_id,

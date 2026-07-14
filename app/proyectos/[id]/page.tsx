@@ -242,6 +242,10 @@ export default function ProyectoDetallePage() {
       alert("No tienes permiso para realizar esta acción.")
       return
     }
+    const productorAnteriorId = proyecto?.productor_id || null
+    const productorNuevoId = formEditar.productor_id || null
+    const productorAnterior = productores.find((prod: any) => prod.id === productorAnteriorId)
+    const productorNuevo = productores.find((prod: any) => prod.id === productorNuevoId)
     await supabase.from("proyectos").update({
       nombre: formEditar.nombre,
       cliente_id: formEditar.cliente_id || null,
@@ -250,7 +254,21 @@ export default function ProyectoDetallePage() {
       fecha_fin_estimada: formEditar.fecha_fin_estimada || null,
       presupuesto_referencial: formEditar.presupuesto_referencial ? Number(formEditar.presupuesto_referencial) : null,
     }).eq("id", id)
-    await registrarAccion({ accion: "editar", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Proyecto editado: " + formEditar.nombre })
+    if (productorAnteriorId !== productorNuevoId) {
+      const nombreAnterior = productorAnterior ? `${productorAnterior.nombre || ""} ${productorAnterior.apellido || ""}`.trim() : "Sin productor"
+      const nombreNuevo = productorNuevo ? `${productorNuevo.nombre || ""} ${productorNuevo.apellido || ""}`.trim() : "Sin productor"
+      await registrarAccion({
+        accion: "reasignar_productor",
+        modulo: "proyectos",
+        entidad_id: id,
+        entidad_tipo: "proyecto",
+        descripcion: `Proyecto reasignado de ${nombreAnterior} a ${nombreNuevo}.`,
+        datos_anteriores: { productor_id: productorAnteriorId, productor_nombre: nombreAnterior },
+        datos_nuevos: { productor_id: productorNuevoId, productor_nombre: nombreNuevo },
+      })
+    } else {
+      await registrarAccion({ accion: "editar", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Proyecto editado: " + formEditar.nombre })
+    }
     setProyecto((prev: any) => ({ ...prev, ...formEditar }))
     setShowEditar(false)
     setTimeout(() => load(), 500)

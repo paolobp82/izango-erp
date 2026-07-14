@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { filtrarPorAlcance } from "@/lib/permisos"
 
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 const DIAS = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"]
@@ -24,6 +25,8 @@ export default function CalendarioPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: perfil } = user ? await supabase.from("perfiles").select("*").eq("id", user.id).single() : { data: null }
     const { data } = await supabase
       .from("proyectos")
       .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)")
@@ -31,7 +34,7 @@ export default function CalendarioPage() {
       .is("deleted_at", null)
       .not("fecha_inicio", "is", null)
       .order("fecha_inicio")
-    setProyectos(data || [])
+    setProyectos(filtrarPorAlcance(data || [], perfil, "calendario", { usuarioId: user?.id }))
     setLoading(false)
   }
 
