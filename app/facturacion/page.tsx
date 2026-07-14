@@ -9,6 +9,7 @@ import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { puedeAccederRuta } from "@/lib/permissions"
+import { sincronizarLeadPorProyecto } from "@/lib/comercial/sincronizacion"
 import {
   esFacturaAnulada,
   montoCobradoFactura,
@@ -195,7 +196,7 @@ export default function FacturacionPage() {
     }
     setSaving(true)
     const m = calcularMontos()
-    await supabase.from("facturas").insert({
+    const facturaPayload = {
       proyecto_id: form.proyecto_id,
       numero_factura: form.numero_factura,
       estado: form.estado,
@@ -216,9 +217,28 @@ export default function FacturacionPage() {
       fecha_vencimiento: form.fecha_vencimiento || (form.fecha_emision ? calcularFechaVencimiento(form.fecha_emision, form.dias_credito) : null),
       fecha_abono: form.fecha_abono || null,
       link_reporte: form.link_reporte || null,
-    })
+    }
+    const { data: facturaCreada, error: facturaError } = await supabase
+      .from("facturas")
+      .insert(facturaPayload)
+      .select()
+      .single()
+    if (facturaError) {
+      setSaving(false)
+      alert("No se pudo crear la factura: " + facturaError.message)
+      return
+    }
     await enviarAlerta("proyecto_facturacion", { nombre: proyectos.find((p:any) => p.id === form.proyecto_id)?.nombre || "—", codigo: proyectos.find((p:any) => p.id === form.proyecto_id)?.codigo || "—", cliente: "—" })
     await registrarAccion({ accion: "crear", modulo: "facturacion", entidad_tipo: "factura", descripcion: "Factura creada: " + form.numero_factura })
+    await sincronizarLeadPorProyecto({
+      supabase,
+      proyectoId: form.proyecto_id,
+      evento: ["cobrada", "pagada"].includes(form.estado) ? "factura_cobrada" : "factura_emitida",
+      factura: facturaCreada || facturaPayload,
+    })
+    if (["cobrada", "pagada"].includes(form.estado)) {
+      await intentarCerrarFinancieramente(facturaCreada || facturaPayload)
+    }
     setSaving(false)
     setShowForm(false)
     setVencimientoManual(false)
@@ -258,6 +278,14 @@ export default function FacturacionPage() {
 
     load()
     if (selected?.id === id) setSelected({ ...selected, estado })
+    if (estado === "emitida") {
+      await sincronizarLeadPorProyecto({
+        supabase,
+        proyectoId: facturaActual?.proyecto_id,
+        evento: "factura_emitida",
+        factura: { ...facturaActual, estado },
+      })
+    }
   }
 
   async function guardarFacturaSeleccionada() {
@@ -320,6 +348,12 @@ export default function FacturacionPage() {
 
     const facturaActualizada = { ...selected, ...updates }
     setSelected((prev:any) => prev ? { ...prev, ...updates } : prev)
+    await sincronizarLeadPorProyecto({
+      supabase,
+      proyectoId: facturaActualizada.proyecto_id,
+      evento: ["cobrada", "pagada"].includes(facturaActualizada.estado) ? "factura_cobrada" : "factura_emitida",
+      factura: facturaActualizada,
+    })
     await intentarCerrarFinancieramente(facturaActualizada)
     load()
   }

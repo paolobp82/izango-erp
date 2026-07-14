@@ -16,6 +16,15 @@ import {
 import { businessRuleEngine } from "@/lib/core/business-rules"
 import { lifecycleEngine } from "@/lib/core/lifecycle"
 import {
+  estadoCobroFactura,
+  facturaVigenteProyecto,
+  montoCobradoFacturaComercial,
+  totalCotizacionComercial,
+  totalFacturaComercial,
+  cotizacionVigenteProyecto,
+} from "@/lib/comercial/cotizaciones"
+import { sincronizarLeadPorProyecto } from "@/lib/comercial/sincronizacion"
+import {
   filtrarPorAlcance,
   puedeEjecutarAccion,
   puedeVerModulo,
@@ -59,6 +68,7 @@ const emptyForm = {
   temperatura: "frio", industria: "", presupuesto_estimado: "",
   probabilidad_cierre: 0, fecha_proxima_accion: "", notas: "",
   responsable_id: "", cliente_id: "", periodo_pipeline: periodoActual(),
+  proyecto_id: "",
   referencias_cotizacion: "",
   crear_cliente: false,
 }
@@ -68,6 +78,9 @@ export default function CRMPage() {
   const router = useRouter()
   const [leads, setLeads] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
+  const [proyectos, setProyectos] = useState<any[]>([])
+  const [cotizaciones, setCotizaciones] = useState<any[]>([])
+  const [facturas, setFacturas] = useState<any[]>([])
   const [responsables, setResponsables] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -96,6 +109,9 @@ export default function CRMPage() {
       setPerfilActual(null)
       setLeads([])
       setClientes([])
+      setProyectos([])
+      setCotizaciones([])
+      setFacturas([])
       setResponsables([])
       setLoading(false)
       return
@@ -108,15 +124,18 @@ export default function CRMPage() {
     if (!puedeVerModulo(perfil, "crm")) {
       setLeads([])
       setClientes([])
+      setProyectos([])
+      setCotizaciones([])
+      setFacturas([])
       setResponsables([])
       setLoading(false)
       return
     }
 
-    const [leadsRes, clientesRes, perfilesRes] = await Promise.all([
+    const [leadsRes, clientesRes, perfilesRes, proyectosRes, cotizacionesRes, facturasRes] = await Promise.all([
       supabase
         .from("crm_leads")
-        .select("*, cliente:clientes(id, razon_social, ruc, direccion, nombre_contacto, email_contacto, telefono_contacto, nombre_contacto_admin, email_contacto_admin, telefono_contacto_admin)")
+        .select("*, cliente:clientes(id, razon_social, ruc, direccion, nombre_contacto, email_contacto, telefono_contacto, nombre_contacto_admin, email_contacto_admin, telefono_contacto_admin), proyecto:proyectos(id, codigo, nombre, estado, cliente_id, deleted_at, cliente:clientes(id, razon_social))")
         .order("created_at", { ascending: false }),
       supabase
         .from("clientes")
@@ -127,6 +146,19 @@ export default function CRMPage() {
         .select("id, nombre, apellido, perfil")
         .eq("activo", true)
         .order("apellido"),
+      supabase
+        .from("proyectos")
+        .select("id, codigo, nombre, estado, cliente_id, deleted_at, cliente:clientes(id, razon_social)")
+        .is("deleted_at", null)
+        .order("codigo", { ascending: false }),
+      supabase
+        .from("cotizaciones")
+        .select("id, proyecto_id, version, estado, created_at, updated_at, total_cliente, subtotal_precio_cliente, subtotal_con_fee, igv_monto, fee_agencia_pct, fee_activo, igv_pct, descuento_pct, items:cotizacion_items(precio_cliente,incluir_en_total)")
+        .order("updated_at", { ascending: false }),
+      supabase
+        .from("facturas")
+        .select("id, proyecto_id, numero_factura, estado, tipo_factura, fecha_emision, fecha_abono, subtotal, igv, monto_final_abonado, updated_at, created_at")
+        .order("updated_at", { ascending: false }),
     ])
     if (leadsRes.error) {
       console.error("Error CRM leads", leadsRes.error)
@@ -146,6 +178,24 @@ export default function CRMPage() {
       setResponsables([])
     } else {
       setResponsables(perfilesRes.data || [])
+    }
+    if (proyectosRes.error) {
+      console.error("Error CRM proyectos", proyectosRes.error)
+      setProyectos([])
+    } else {
+      setProyectos(proyectosRes.data || [])
+    }
+    if (cotizacionesRes.error) {
+      console.error("Error CRM cotizaciones", cotizacionesRes.error)
+      setCotizaciones([])
+    } else {
+      setCotizaciones(cotizacionesRes.data || [])
+    }
+    if (facturasRes.error) {
+      console.error("Error CRM facturas", facturasRes.error)
+      setFacturas([])
+    } else {
+      setFacturas(facturasRes.data || [])
     }
     setLoading(false)
   }
@@ -173,6 +223,7 @@ export default function CRMPage() {
       telefono_contacto: lead.telefono_contacto || lead.cliente?.telefono_contacto || "",
       direccion: lead.direccion || lead.cliente?.direccion || "",
       cliente_id: lead.cliente_id || null,
+      proyecto_id: lead.proyecto_id || null,
       referencias_cotizacion: String(lead.referencias_cotizacion || "").trim(),
       archivado: Boolean(lead.archivado),
     }
@@ -231,6 +282,7 @@ export default function CRMPage() {
       fecha_proxima_accion: normalizado.fecha_proxima_accion || "", notas: normalizado.notas || "",
       responsable_id: normalizado.responsable_id || "", cliente_id: normalizado.cliente_id || "",
       periodo_pipeline: normalizado.periodo_pipeline || periodoActual(),
+      proyecto_id: normalizado.proyecto_id || "",
       referencias_cotizacion: normalizado.referencias_cotizacion || "",
       crear_cliente: false,
     })
@@ -253,6 +305,30 @@ export default function CRMPage() {
       telefono_contacto: cliente.telefono_contacto || prev.telefono_contacto,
       direccion: cliente.direccion || prev.direccion,
       crear_cliente: false,
+    }))
+  }
+
+  function proyectoLabel(proyecto: any) {
+    const cotizacion = cotizacionVigenteProyecto(proyecto?.id, cotizaciones)
+    const monto = cotizacion ? fmt(totalCotizacionComercial(cotizacion)) : "Sin cotización"
+    return `${proyecto?.codigo || "Sin código"} — ${proyecto?.nombre || "Sin nombre"} — ${monto}`
+  }
+
+  function aplicarProyecto(proyectoId: string) {
+    if (!proyectoId) {
+      setForm((prev: any) => ({ ...prev, proyecto_id: "" }))
+      return
+    }
+    const proyecto = proyectos.find(p => p.id === proyectoId)
+    if (!proyecto) {
+      setForm((prev: any) => ({ ...prev, proyecto_id: proyectoId }))
+      return
+    }
+    setForm((prev: any) => ({
+      ...prev,
+      proyecto_id: proyecto.id,
+      cliente_id: proyecto.cliente_id || prev.cliente_id,
+      razon_social: proyecto.cliente?.razon_social || prev.razon_social,
     }))
   }
 
@@ -287,6 +363,7 @@ export default function CRMPage() {
       fecha_proximo_contacto: form.fecha_proxima_accion || null,
       responsable_id: form.responsable_id || null,
       cliente_id: clienteId,
+      proyecto_id: form.proyecto_id || null,
       periodo_pipeline: form.periodo_pipeline || periodoActual(),
       referencias_cotizacion: String(form.referencias_cotizacion || "").trim() || null,
       archivado: false,
@@ -300,6 +377,13 @@ export default function CRMPage() {
     setSaving(false)
     if (error) { alert("No se pudo guardar el lead: " + error.message); return }
     await registrarAccion({ accion: editando ? "editar" : "crear", modulo: "crm", entidad_tipo: "lead", entidad_id: data?.id, descripcion: (editando ? "Lead editado: " : "Lead creado: ") + form.razon_social })
+    if (payload.proyecto_id) {
+      await sincronizarLeadPorProyecto({
+        supabase,
+        proyectoId: payload.proyecto_id,
+        evento: "proyecto_vinculado",
+      })
+    }
     setShowForm(false)
     load()
   }
@@ -451,6 +535,7 @@ export default function CRMPage() {
         estado: ESTADOS[r.estado] ? r.estado : "nuevo",
         temperatura: TEMPERATURAS[r.temperatura] ? r.temperatura : "frio",
         periodo_pipeline: r.periodo_pipeline || periodoActual(),
+        proyecto_id: /^[0-9a-f-]{36}$/i.test(String(r.proyecto_id || "")) ? String(r.proyecto_id) : null,
         referencias_cotizacion: String(r.referencias_cotizacion || "").trim() || null,
         archivado: false,
       }
@@ -493,7 +578,7 @@ export default function CRMPage() {
     if (filtroTemp && l.temperatura !== filtroTemp) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
-      const texto = [l.razon_social, l.ruc, l.nombre_contacto, l.email_contacto, l.telefono_contacto, l.direccion, l.referencias_cotizacion].filter(Boolean).join(" ").toLowerCase()
+      const texto = [l.razon_social, l.ruc, l.nombre_contacto, l.email_contacto, l.telefono_contacto, l.direccion, l.proyecto?.codigo, l.proyecto?.nombre, l.referencias_cotizacion].filter(Boolean).join(" ").toLowerCase()
       const textoNormalizado = normalizarBusqueda(texto)
       const qNormalizado = normalizarBusqueda(q)
       if (!texto.includes(q) && (!qNormalizado || !textoNormalizado.includes(qNormalizado))) return false
@@ -508,6 +593,9 @@ export default function CRMPage() {
   const leadsCalientes = leadsPeriodo.filter(l => l.temperatura === "caliente")
   const propuestasAbiertas = leadsPeriodo.filter(l => ["propuesta","negociacion"].includes(l.estado))
   const cierreEsperado = leadsActivos.reduce((s, l) => s + ((Number(l.presupuesto_estimado) || 0) * ((Number(l.probabilidad_cierre) || 0) / 100)), 0)
+  const selectedProject = selected ? (selected.proyecto || proyectos.find(p => p.id === selected.proyecto_id)) : null
+  const selectedQuote = selected ? cotizacionVigenteProyecto(selected.proyecto_id, cotizaciones) : null
+  const selectedInvoice = selected ? facturaVigenteProyecto(selected.proyecto_id, facturas) : null
 
   const leadsPorEstado = (estado: string) => filtrados.filter(l => l.estado === estado)
 
@@ -535,7 +623,7 @@ export default function CRMPage() {
       subtitle={`Gestion de oportunidades comerciales · ${leadsPeriodo.length} leads`}
       actions={
         <>
-          {puedeCrearCRM && <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"referencias_cotizacion",label:"Referencias de cotización"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={importarLeads} />}
+          {puedeCrearCRM && <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"proyecto_id",label:"Proyecto ID (UUID)"},{key:"referencias_cotizacion",label:"Referencia externa"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={importarLeads} />}
           {puedeCrearCRM && <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>}
         </>
       }
@@ -613,16 +701,28 @@ export default function CRMPage() {
                 <div><label style={lbl}>Probabilidad %</label><input type="number" min={0} max={100} style={inp} value={form.probabilidad_cierre} onChange={e => setForm({ ...form, probabilidad_cierre: Number(e.target.value) })} /></div>
               </div>
               <div>
-                <label style={lbl}>N° COTIZACIÓN / PRESUPUESTO CLIENTE</label>
+                <label style={lbl}>Proyecto / presupuesto asociado</label>
+                <select style={inp} value={form.proyecto_id} onChange={e => aplicarProyecto(e.target.value)}>
+                  <option value="">Sin proyecto asociado</option>
+                  {proyectos.map(proyecto => <option key={proyecto.id} value={proyecto.id}>{proyectoLabel(proyecto)}</option>)}
+                </select>
+                {form.proyecto_id && (
+                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                    La cotización vigente del proyecto será la fuente del monto cotizado.
+                  </div>
+                )}
+              </div>
+              <div>
+                <label style={lbl}>Referencia externa</label>
                 <input
                   type="text"
                   style={inp}
                   value={form.referencias_cotizacion}
-                  placeholder="Ej: IZ-26410, COT-00125"
+                  placeholder="Ej: código enviado por el cliente o referencia histórica"
                   onChange={e => setForm({ ...form, referencias_cotizacion: e.target.value })}
                 />
                 <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
-                  Puedes registrar varias referencias separadas por coma.
+                  Campo compatible con registros anteriores; no se usa para KPIs.
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -714,6 +814,9 @@ export default function CRMPage() {
                       ) : lista.map(lead => {
                         const tc = TEMPERATURAS[lead.temperatura] || { color: "#6b7280", label: lead.temperatura }
                         const responsable = responsableNombre(lead.responsable_id)
+                        const proyecto = lead.proyecto || proyectos.find(p => p.id === lead.proyecto_id)
+                        const cotizacionVigente = cotizacionVigenteProyecto(lead.proyecto_id, cotizaciones)
+                        const facturaVigente = facturaVigenteProyecto(lead.proyecto_id, facturas)
                         const referencias = referenciasCotizacion(lead.referencias_cotizacion)
                         return (
                           <div key={lead.id}
@@ -750,6 +853,19 @@ export default function CRMPage() {
                             <div style={{ display: "grid", gap: 6, fontSize: 12, color: "#4b5563" }}>
                               {lead.nombre_contacto && <div>Contacto: {lead.nombre_contacto}</div>}
                               {(lead.telefono_contacto || lead.email_contacto) && <div>{lead.telefono_contacto || lead.email_contacto}</div>}
+                              {proyecto && (
+                                <div style={{ display: "grid", gap: 3, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 8px" }}>
+                                  <a href={`/proyectos/${proyecto.id}`} onClick={e => e.stopPropagation()} style={{ fontSize: 11, fontWeight: 800, color: "#0F6E56", textDecoration: "none" }}>
+                                    Proyecto: {proyecto.codigo || proyecto.nombre}
+                                  </a>
+                                  <div style={{ fontSize: 11, color: "#64748b" }}>
+                                    {cotizacionVigente ? `Cotización: V${cotizacionVigente.version || "-"} · ${fmt(totalCotizacionComercial(cotizacionVigente))}` : "Sin cotización registrada"}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "#64748b" }}>
+                                    {facturaVigente ? `Factura: ${facturaVigente.numero_factura || facturaVigente.id} · ${estadoCobroFactura(facturaVigente)}` : "Sin factura registrada"}
+                                  </div>
+                                </div>
+                              )}
                               {referencias.length > 0 && (
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                                   {referencias.slice(0, 3).map(ref => (
@@ -853,9 +969,31 @@ export default function CRMPage() {
                   <div style={{ fontSize: 12, color: "#6b7280" }}>Prob. cierre: {selected.probabilidad_cierre}%</div>
                 </div>
               )}
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 8 }}>PROYECTO ASOCIADO</div>
+                {selectedProject ? (
+                  <div style={{ display: "grid", gap: 6, fontSize: 13 }}>
+                    <div><span style={{ color: "#9ca3af" }}>Código: </span>{selectedProject.codigo || "Sin código"}</div>
+                    <div><span style={{ color: "#9ca3af" }}>Nombre: </span>{selectedProject.nombre || "Sin nombre"}</div>
+                    <div><span style={{ color: "#9ca3af" }}>Cliente: </span>{selectedProject.cliente?.razon_social || selected.cliente?.razon_social || "Sin cliente"}</div>
+                    <div><span style={{ color: "#9ca3af" }}>Estado: </span>{selectedProject.estado || "Sin estado"}</div>
+                    <div><span style={{ color: "#9ca3af" }}>Cotización vigente: </span>{selectedQuote ? `V${selectedQuote.version || "-"} · ${fmt(totalCotizacionComercial(selectedQuote))}` : "Sin cotización registrada"}</div>
+                    {selectedQuote && <div><span style={{ color: "#9ca3af" }}>Estado cotización: </span>{selectedQuote.estado || "Sin estado"}</div>}
+                    <div><span style={{ color: "#9ca3af" }}>Factura: </span>{selectedInvoice ? `${selectedInvoice.numero_factura || selectedInvoice.id} · ${fmt(totalFacturaComercial(selectedInvoice))}` : "Sin factura registrada"}</div>
+                    <div><span style={{ color: "#9ca3af" }}>Cobranza: </span>{selectedInvoice ? `${estadoCobroFactura(selectedInvoice)} · cobrado ${fmt(montoCobradoFacturaComercial(selectedInvoice))}` : "Sin cobranza"}</div>
+                    <div style={{ display: "grid", gridTemplateColumns: selectedQuote ? "1fr 1fr" : "1fr", gap: 8, marginTop: 4 }}>
+                      <button onClick={() => router.push(`/proyectos/${selectedProject.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver proyecto</button>
+                      {selectedQuote && <button onClick={() => router.push(`/proyectos/${selectedProject.id}/cotizaciones/${selectedQuote.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver cotización</button>}
+                      {selectedInvoice && <button onClick={() => router.push(`/facturacion?proyecto_id=${selectedProject.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver factura</button>}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: "#94a3b8" }}>Sin proyecto asociado.</div>
+                )}
+              </div>
               {referenciasCotizacion(selected.referencias_cotizacion).length > 0 && (
                 <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 8 }}>REFERENCIAS DE COTIZACIÓN</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 8 }}>REFERENCIA EXTERNA</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {referenciasCotizacion(selected.referencias_cotizacion).map(ref => (
                       <span key={ref} title={ref} style={{ fontSize: 11, fontWeight: 700, color: "#0F6E56", background: "#ecfdf5", border: "1px solid #bbf7d0", borderRadius: 999, padding: "3px 8px" }}>

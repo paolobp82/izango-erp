@@ -7,6 +7,7 @@ import { registrarAccion } from "@/lib/trazabilidad"
 import { registrarHistorial } from "@/lib/historial"
 import { enviarAlerta } from "@/lib/alertas"
 import { puedeEjecutarAccion, puedeVerModulo } from "@/lib/permisos"
+import { sincronizarLeadPorProyecto } from "@/lib/comercial/sincronizacion"
 
 const COSTOS_INTERNOS = [
   { key: "costo_almacenaje", label: "Almacenaje" },
@@ -699,6 +700,17 @@ if (idsAEliminar.length > 0) {
     })
     await registrarAccion({ accion: "aprobar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotización marcada como aprobada por cliente", datos_nuevos: { aprobado_por: perfilActual?.id || null, aprobado_at: aprobadoAt } })
     await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, codigo: proyecto?.codigo, version: cotizacion?.version, total: totalFinal, proyecto_id: id })
+    await sincronizarLeadPorProyecto({
+      supabase,
+      proyectoId: String(id),
+      evento: "cotizacion_aprobada_cliente",
+      cotizacion: {
+        id: cotId,
+        estado: "aprobada_cliente",
+        version: cotizacion?.version,
+        total_cliente: totalFinal,
+      },
+    })
     setCotizacion((prev: any) => ({ ...prev, estado: "aprobada_cliente", bloqueada: true, bloqueada_por: perfilActual?.id }))
     setBloqueada(true)
     setHistorialAprobacion(prev => [{

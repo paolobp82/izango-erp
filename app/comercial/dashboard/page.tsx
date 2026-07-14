@@ -8,15 +8,20 @@ import { getCRMEstadosPipeline, getCRMEstadosVisuales, getCRMTemperaturasVisuale
 import { EmptyState, ExecutiveSummary, FiltersBar, MasterPage } from "@/components/design-system"
 import StatusBadge from "@/components/ui/StatusBadge"
 import SectionCard from "@/components/ui/SectionCard"
+import {
+  ESTADOS_FACTURA_ANULADA,
+  ESTADOS_FACTURA_COBRADA,
+  cotizacionVigenteProyecto,
+  montoCobradoFacturaComercial,
+  totalCotizacionComercial,
+  totalFacturaComercial,
+} from "@/lib/comercial/cotizaciones"
 
 const PERFILES_AUTORIZADOS = ["superadmin", "gerente_general", "gerente_produccion", "comercial"]
 const ESTADOS_CERRADOS = ["ganado", "perdido"]
 const ESTADOS_COT_APROBADAS = ["aprobada_cliente", "aprobado_cliente"]
 const ESTADOS_COT_RECHAZADAS = ["rechazada", "rechazado", "anulada", "anulado", "cancelada", "cancelado"]
-const ESTADOS_PRODUCCION = ["en_curso", "aprobado_cliente"]
 const ESTADOS_TERMINADOS = ["terminado", "liquidado", "pendiente_facturacion", "facturado", "cerrado_financiero"]
-const ESTADOS_FACTURADOS = ["facturado", "cerrado_financiero"]
-const FACTURAS_COBRADAS = ["cobrada", "pagada"]
 
 function todayYmd() {
   return new Date().toISOString().slice(0, 10)
@@ -74,30 +79,11 @@ function diasEntre(desde: string | null | undefined, hasta: string | null | unde
 }
 
 function totalCotizacion(cotizacion: any) {
-  const totalGuardado = [
-    cotizacion?.total_cliente,
-    cotizacion?.subtotal_con_fee && num(cotizacion.subtotal_con_fee) + num(cotizacion.igv_monto),
-    cotizacion?.subtotal_precio_cliente,
-  ].map(num).find(total => total > 0)
-  if (totalGuardado) return totalGuardado
-  const items = Array.isArray(cotizacion?.items) ? cotizacion.items : []
-  const totalPrecioCliente = items
-    .filter((item: any) => item.incluir_en_total !== false)
-    .reduce((s: number, item: any) => s + num(item.precio_cliente), 0)
-  if (totalPrecioCliente <= 0) return 0
-  const feePct = cotizacion?.fee_activo === false ? 0 : num(cotizacion?.fee_agencia_pct)
-  const subtotalConFee = totalPrecioCliente + (totalPrecioCliente * feePct / 100)
-  const subtotalConDescuento = subtotalConFee - (subtotalConFee * num(cotizacion?.descuento_pct) / 100)
-  const igvPct = cotizacion?.igv_pct === null || cotizacion?.igv_pct === undefined ? 18 : num(cotizacion.igv_pct)
-  return subtotalConDescuento + (subtotalConDescuento * igvPct / 100)
+  return totalCotizacionComercial(cotizacion)
 }
 
 function nombrePersona(persona: any) {
   return `${persona?.nombre || ""} ${persona?.apellido || ""}`.trim() || "Sin responsable"
-}
-
-function referencias(value: string | null | undefined) {
-  return String(value || "").split(",").map(item => item.trim()).filter(Boolean)
 }
 
 function taskSort(a: any, b: any) {
@@ -129,6 +115,7 @@ export default function DashboardComercialPage() {
   const [desde, setDesde] = useState(monthStart(0))
   const [hasta, setHasta] = useState(monthEnd(0))
   const [clienteId, setClienteId] = useState("")
+  const [proyectoId, setProyectoId] = useState("")
   const [estadoCRM, setEstadoCRM] = useState("")
   const [temperatura, setTemperatura] = useState("")
   const [estadoProyecto, setEstadoProyecto] = useState("")
@@ -153,13 +140,13 @@ export default function DashboardComercialPage() {
     }
 
     const [leadsRes, cotRes, proyRes, tareasRes, clientesRes, perfilesRes, facturasRes] = await Promise.all([
-      supabase.from("crm_leads").select("id, razon_social, estado, temperatura, presupuesto_estimado, probabilidad_cierre, fecha_proxima_accion, fecha_proximo_contacto, responsable_id, cliente_id, referencias_cotizacion, periodo_pipeline, archivado, created_at, updated_at, cliente:clientes(id,razon_social,ruc)"),
+      supabase.from("crm_leads").select("id, razon_social, estado, temperatura, presupuesto_estimado, probabilidad_cierre, fecha_proxima_accion, fecha_proximo_contacto, responsable_id, cliente_id, proyecto_id, referencias_cotizacion, periodo_pipeline, archivado, created_at, updated_at, cliente:clientes(id,razon_social,ruc), proyecto:proyectos(id,nombre,codigo,estado,cliente_id,deleted_at,cliente:clientes(id,razon_social))"),
       supabase.from("cotizaciones").select("id,proyecto_id,version,estado,created_at,updated_at,total_cliente,subtotal_precio_cliente,subtotal_con_fee,igv_monto,fee_agencia_pct,fee_activo,igv_pct,descuento_pct,items:cotizacion_items(precio_cliente,incluir_en_total),proyecto:proyectos(id,nombre,codigo,estado,cliente_id,deleted_at,cliente:clientes(id,razon_social),comercial_id,productor_id)"),
       supabase.from("proyectos").select("id,nombre,codigo,estado,cliente_id,created_at,updated_at,deleted_at,cotizacion_aprobada_id,comercial_id,productor_id,cliente:clientes(id,razon_social)").is("deleted_at", null),
       supabase.from("tareas").select("id,titulo,estado,prioridad,fecha_limite,cliente_id,proyecto_id,asignado_a,creado_por,created_at,updated_at,cliente:clientes(id,razon_social),proyecto:proyectos(id,nombre,codigo,deleted_at),asignado:perfiles!asignado_a(id,nombre,apellido,perfil),creador:perfiles!creado_por(id,nombre,apellido,perfil)").order("created_at", { ascending: false }).limit(500),
       supabase.from("clientes").select("id,razon_social,created_at").order("razon_social"),
       supabase.from("perfiles").select("id,nombre,apellido,perfil").eq("activo", true),
-      supabase.from("facturas").select("id,proyecto_id,estado,fecha_emision,fecha_abono,subtotal,igv,monto_final_abonado"),
+      supabase.from("facturas").select("id,proyecto_id,numero_factura,estado,tipo_factura,fecha_emision,fecha_abono,subtotal,igv,monto_final_abonado,created_at,updated_at"),
     ])
 
     const results = [
@@ -183,6 +170,7 @@ export default function DashboardComercialPage() {
       fecha_proxima_accion: lead.fecha_proxima_accion || lead.fecha_proximo_contacto || "",
       presupuesto_estimado: num(lead.presupuesto_estimado),
       probabilidad_cierre: num(lead.probabilidad_cierre),
+      proyecto_id: lead.proyecto_id || null,
       archivado: Boolean(lead.archivado),
     })))
     setCotizaciones((cotRes.data || []).filter((cot: any) => !cot.proyecto?.deleted_at))
@@ -198,45 +186,83 @@ export default function DashboardComercialPage() {
   useEffect(() => { load() }, [])
 
   const range = useMemo(() => periodRange(periodo, desde, hasta), [periodo, desde, hasta])
+  const projectById = useMemo(() => new Map(proyectos.map(project => [project.id, project])), [proyectos])
 
   const filteredLeads = useMemo(() => leads.filter(lead => {
     if (lead.archivado) return false
     if (!inRange(lead.created_at, range.desde, range.hasta)) return false
     if (clienteId && lead.cliente_id !== clienteId) return false
+    if (proyectoId && lead.proyecto_id !== proyectoId) return false
     if (estadoCRM && lead.estado !== estadoCRM) return false
     if (temperatura && lead.temperatura !== temperatura) return false
     return true
-  }), [leads, range, clienteId, estadoCRM, temperatura])
+  }), [leads, range, clienteId, proyectoId, estadoCRM, temperatura])
 
   const filteredProjects = useMemo(() => proyectos.filter(proyecto => {
     if (clienteId && proyecto.cliente_id !== clienteId) return false
+    if (proyectoId && proyecto.id !== proyectoId) return false
     if (estadoProyecto && proyecto.estado !== estadoProyecto) return false
     return true
-  }), [proyectos, clienteId, estadoProyecto])
+  }), [proyectos, clienteId, proyectoId, estadoProyecto])
 
   const filteredProjectIds = useMemo(() => new Set(filteredProjects.map(proyecto => proyecto.id)), [filteredProjects])
 
-  const filteredQuotes = useMemo(() => cotizaciones.filter(cot => {
-    if (!inRange(cot.created_at, range.desde, range.hasta)) return false
-    if (clienteId && cot.proyecto?.cliente_id !== clienteId) return false
-    if (estadoProyecto && cot.proyecto?.estado !== estadoProyecto) return false
-    return true
-  }), [cotizaciones, range, clienteId, estadoProyecto])
+  const cotizacionesVinculadas = useMemo(() => {
+    const rows = new Map<string, any>()
+    filteredLeads.forEach(lead => {
+      if (!lead.proyecto_id) return
+      const proyecto = lead.proyecto || projectById.get(lead.proyecto_id)
+      if (!proyecto || proyecto.deleted_at) return
+      if (estadoProyecto && proyecto.estado !== estadoProyecto) return
+      const cotizacion = cotizacionVigenteProyecto(lead.proyecto_id, cotizaciones)
+      const key = cotizacion?.id || lead.proyecto_id
+      if (!rows.has(key)) {
+        rows.set(key, { lead, proyecto, cotizacion })
+      }
+    })
+    return Array.from(rows.values())
+  }, [filteredLeads, projectById, cotizaciones, estadoProyecto])
+
+  const filteredQuotes = useMemo(() => cotizacionesVinculadas.filter(row => row.cotizacion).map(row => ({
+    ...row.cotizacion,
+    lead: row.lead,
+    proyecto: row.cotizacion.proyecto || row.proyecto,
+  })), [cotizacionesVinculadas])
 
   const filteredTasks = useMemo(() => tareas.filter(tarea => {
+    if (tarea.creador?.perfil !== "comercial") return false
     const fecha = tarea.fecha_limite || tarea.created_at
     if (!inRange(fecha, range.desde, range.hasta) && tarea.estado !== "pendiente" && tarea.estado !== "en_progreso") return false
     if (clienteId && tarea.cliente_id !== clienteId && tarea.proyecto?.cliente_id !== clienteId) return false
+    if (proyectoId && tarea.proyecto_id !== proyectoId) return false
     if (estadoProyecto && tarea.proyecto_id && !filteredProjectIds.has(tarea.proyecto_id)) return false
     return true
-  }), [tareas, range, clienteId, estadoProyecto, filteredProjectIds])
+  }), [tareas, range, clienteId, proyectoId, estadoProyecto, filteredProjectIds])
 
   const activeLeads = filteredLeads.filter(lead => !ESTADOS_CERRADOS.includes(lead.estado))
   const wonLeads = filteredLeads.filter(lead => lead.estado === "ganado")
   const closedLeads = filteredLeads.filter(lead => ESTADOS_CERRADOS.includes(lead.estado))
+  const linkedProjectIds = new Set(filteredLeads.map(lead => lead.proyecto_id).filter(Boolean))
+  const proyectosVinculados = filteredProjects.filter(proyecto => linkedProjectIds.has(proyecto.id))
+  const facturasVinculadas = facturas.filter(factura =>
+    linkedProjectIds.has(factura.proyecto_id) &&
+    !ESTADOS_FACTURA_ANULADA.includes(String(factura.estado || ""))
+  )
+  const facturasEmitidasPeriodo = facturasVinculadas.filter(factura => inRange(factura.fecha_emision || factura.created_at, range.desde, range.hasta))
+  const facturasCobradasPeriodo = facturasVinculadas.filter(factura =>
+    ESTADOS_FACTURA_COBRADA.includes(String(factura.estado || "")) &&
+    inRange(factura.fecha_abono || factura.updated_at || factura.created_at, range.desde, range.hasta)
+  )
   const pipeline = activeLeads.reduce((sum, lead) => sum + lead.presupuesto_estimado, 0)
   const pipelinePonderado = activeLeads.reduce((sum, lead) => sum + lead.presupuesto_estimado * (lead.probabilidad_cierre / 100), 0)
-  const ganado = wonLeads.reduce((sum, lead) => sum + lead.presupuesto_estimado, 0)
+  const montoCotizado = filteredQuotes.reduce((sum, cotizacion) => sum + totalCotizacion(cotizacion), 0)
+  const facturado = facturasEmitidasPeriodo.reduce((sum, factura) => sum + totalFacturaComercial(factura), 0)
+  const cobrado = facturasCobradasPeriodo.reduce((sum, factura) => sum + montoCobradoFacturaComercial(factura), 0)
+  const ganado = wonLeads.reduce((sum, lead) => {
+    const cotizacion = cotizacionVigenteProyecto(lead.proyecto_id, cotizaciones)
+    const total = cotizacion ? totalCotizacion(cotizacion) : 0
+    return sum + (total > 0 ? total : lead.presupuesto_estimado)
+  }, 0)
   const conversion = closedLeads.length > 0 ? Math.round((wonLeads.length / closedLeads.length) * 100) : 0
   const ticketPromedio = wonLeads.length > 0 ? ganado / wonLeads.length : 0
   const cotPendientes = filteredQuotes.filter(cot => !ESTADOS_COT_APROBADAS.includes(cot.estado) && !ESTADOS_COT_RECHAZADAS.includes(cot.estado))
@@ -258,7 +284,7 @@ export default function DashboardComercialPage() {
   const highProb = activeLeads.filter(lead => lead.probabilidad_cierre >= 70).reduce((s, l) => s + l.presupuesto_estimado, 0)
   const midProb = activeLeads.filter(lead => lead.probabilidad_cierre >= 40 && lead.probabilidad_cierre < 70).reduce((s, l) => s + l.presupuesto_estimado, 0)
   const lowProb = activeLeads.filter(lead => lead.probabilidad_cierre < 40).reduce((s, l) => s + l.presupuesto_estimado, 0)
-  const maxForecast = Math.max(pipeline, pipelinePonderado, ganado, 1)
+  const maxForecast = Math.max(pipeline, pipelinePonderado, ganado, montoCotizado, facturado, cobrado, 1)
 
   const cotAprobadas = filteredQuotes.filter(cot => ESTADOS_COT_APROBADAS.includes(cot.estado))
   const cotRechazadas = filteredQuotes.filter(cot => ESTADOS_COT_RECHAZADAS.includes(cot.estado))
@@ -269,32 +295,34 @@ export default function DashboardComercialPage() {
 
   const cotizacionesTabla = [...cotPendientes]
     .sort((a, b) => {
+      const overdue = (diasDesde(b.created_at) > 7 ? 1 : 0) - (diasDesde(a.created_at) > 7 ? 1 : 0)
+      if (overdue !== 0) return overdue
       const dateDiff = String(a.created_at || "").localeCompare(String(b.created_at || ""))
       if (dateDiff !== 0) return dateDiff
       return totalCotizacion(b) - totalCotizacion(a)
     })
     .slice(0, 10)
 
-  const facturadosProjectIds = new Set(facturas.map(factura => factura.proyecto_id).filter(Boolean))
-  const cobradosProjectIds = new Set(facturas.filter(factura => FACTURAS_COBRADAS.includes(factura.estado)).map(factura => factura.proyecto_id).filter(Boolean))
-  const linkedClienteIds = new Set(wonLeads.map(lead => lead.cliente_id).filter(Boolean))
-  const proyectosDeClientesGanados = filteredProjects.filter(proyecto => linkedClienteIds.has(proyecto.cliente_id))
+  const facturadosProjectIds = new Set(facturasVinculadas.map(factura => factura.proyecto_id).filter(Boolean))
+  const linkedWonProjectIds = new Set(wonLeads.map(lead => lead.proyecto_id).filter(Boolean))
+  const proyectosDeClientesGanados = filteredProjects.filter(proyecto => linkedWonProjectIds.has(proyecto.id))
   const radar = [
-    { label: "Leads registrados", value: filteredLeads.length },
-    { label: "Leads ganados", value: wonLeads.length },
-    { label: "Clientes vinculados", value: linkedClienteIds.size },
-    { label: "Proyectos creados", value: proyectosDeClientesGanados.length, approx: true },
-    { label: "En producción", value: proyectosDeClientesGanados.filter(p => ESTADOS_PRODUCCION.includes(p.estado)).length, approx: true },
-    { label: "Terminados", value: proyectosDeClientesGanados.filter(p => ESTADOS_TERMINADOS.includes(p.estado)).length, approx: true },
-    { label: "Facturados", value: proyectosDeClientesGanados.filter(p => ESTADOS_FACTURADOS.includes(p.estado) || facturadosProjectIds.has(p.id)).length, approx: true },
-    { label: "Cobrados", value: proyectosDeClientesGanados.filter(p => cobradosProjectIds.has(p.id)).length, approx: true },
+    { label: "Leads", value: filteredLeads.length, amount: pipeline + ganado },
+    { label: "Cotizaciones emitidas", value: filteredQuotes.length, amount: montoCotizado },
+    { label: "Cotizaciones aprobadas", value: cotAprobadas.length, amount: cotAprobadas.reduce((sum, cot) => sum + totalCotizacion(cot), 0) },
+    { label: "Proyectos creados", value: proyectosVinculados.length, amount: montoCotizado },
+    { label: "Proyectos terminados", value: proyectosVinculados.filter(p => ESTADOS_TERMINADOS.includes(p.estado)).length, amount: 0 },
+    { label: "Facturas emitidas", value: facturasEmitidasPeriodo.length, amount: facturado },
+    { label: "Facturas cobradas", value: facturasCobradasPeriodo.length, amount: cobrado },
   ]
 
   const clienteRows = useMemo(() => clientes.map(cliente => {
     const clienteLeads = filteredLeads.filter(lead => lead.cliente_id === cliente.id)
     const clienteProjects = filteredProjects.filter(proyecto => proyecto.cliente_id === cliente.id)
     const clienteQuotes = filteredQuotes.filter(cot => cot.proyecto?.cliente_id === cliente.id)
-    const lastDates = [...clienteLeads.map(l => l.updated_at || l.created_at), ...clienteQuotes.map(c => c.updated_at || c.created_at), ...clienteProjects.map(p => p.updated_at || p.created_at)].filter(Boolean).sort().reverse()
+    const clienteProjectIds = new Set(clienteProjects.map(proyecto => proyecto.id))
+    const clienteFacturas = facturasVinculadas.filter(factura => clienteProjectIds.has(factura.proyecto_id))
+    const lastDates = [...clienteLeads.map(l => l.updated_at || l.created_at), ...clienteQuotes.map(c => c.updated_at || c.created_at), ...clienteProjects.map(p => p.updated_at || p.created_at), ...clienteFacturas.map(f => f.fecha_abono || f.fecha_emision || f.updated_at || f.created_at)].filter(Boolean).sort().reverse()
     return {
       cliente,
       active: clienteLeads.filter(lead => !ESTADOS_CERRADOS.includes(lead.estado)).length,
@@ -302,9 +330,11 @@ export default function DashboardComercialPage() {
       quotes: clienteQuotes.length,
       projects: clienteProjects.length,
       won: clienteLeads.filter(lead => lead.estado === "ganado").reduce((s, l) => s + l.presupuesto_estimado, 0),
+      facturado: clienteFacturas.reduce((sum, factura) => sum + totalFacturaComercial(factura), 0),
+      cobrado: clienteFacturas.reduce((sum, factura) => sum + montoCobradoFacturaComercial(factura), 0),
       last: lastDates[0] || "",
     }
-  }).filter(row => row.active || row.quotes || row.projects || row.won).sort((a, b) => (b.pipeline + b.won) - (a.pipeline + a.won)).slice(0, 8), [clientes, filteredLeads, filteredProjects, filteredQuotes])
+  }).filter(row => row.active || row.quotes || row.projects || row.won || row.facturado || row.cobrado).sort((a, b) => (b.pipeline + b.won + b.facturado + b.cobrado) - (a.pipeline + a.won + a.facturado + a.cobrado)).slice(0, 8), [clientes, filteredLeads, filteredProjects, filteredQuotes, facturasVinculadas])
 
   const alerts = useMemo(() => {
     const list: any[] = []
@@ -314,19 +344,43 @@ export default function DashboardComercialPage() {
       if (!lead.fecha_proxima_accion) list.push({ level: "warning", msg: "Lead sin próxima acción", subject: name, days: diasDesde(lead.updated_at || lead.created_at), href: "/crm" })
       if (lead.temperatura === "caliente" && !lead.fecha_proxima_accion) list.push({ level: "critical", msg: "Lead caliente sin seguimiento", subject: name, days: diasDesde(lead.updated_at || lead.created_at), href: "/crm" })
       if (lead.fecha_proxima_accion && lead.fecha_proxima_accion < todayYmd()) list.push({ level: "critical", msg: "Próxima acción vencida", subject: name, days: diasDesde(lead.fecha_proxima_accion), href: "/crm" })
+      if (!lead.proyecto_id) list.push({ level: lead.estado === "ganado" ? "critical" : "warning", msg: lead.estado === "ganado" ? "Lead ganado sin proyecto asociado" : "Lead sin proyecto asociado", subject: name, days: diasDesde(lead.updated_at || lead.created_at), href: "/crm" })
       if (lead.estado === "ganado" && !lead.cliente_id) list.push({ level: "critical", msg: "Ganado sin cliente vinculado", subject: name, days: diasDesde(lead.updated_at || lead.created_at), href: "/crm" })
+      if (lead.proyecto_id) {
+        const cotizacion = cotizacionVigenteProyecto(lead.proyecto_id, cotizaciones)
+        const proyecto = lead.proyecto || projectById.get(lead.proyecto_id)
+        if (!cotizacion) {
+          list.push({ level: "warning", msg: "Proyecto asociado sin cotización", subject: proyecto?.codigo || name, days: diasDesde(lead.updated_at || lead.created_at), href: proyecto ? `/proyectos/${proyecto.id}` : "/crm" })
+        } else {
+          const estimado = num(lead.presupuesto_estimado)
+          const cotizado = totalCotizacion(cotizacion)
+          const variacion = estimado > 0 ? Math.abs(cotizado - estimado) / estimado : 0
+          if (variacion > 0.1) {
+            list.push({ level: "warning", msg: `Estimado CRM: ${money(estimado)} · Cotizado real: ${money(cotizado)} · Variación: ${Math.round(variacion * 100)}%`, subject: proyecto?.codigo || name, days: diasDesde(cotizacion.updated_at || cotizacion.created_at), href: proyecto ? `/proyectos/${proyecto.id}` : "/crm" })
+          }
+        }
+      }
     })
     cotPendientes.forEach(cot => {
       const days = diasDesde(cot.created_at)
       if (days > 7) list.push({ level: "warning", msg: "Cotización pendiente por más de 7 días", subject: cot.proyecto?.codigo || cot.id, days, href: `/proyectos/${cot.proyecto_id}/cotizaciones/${cot.id}` })
     })
+    cotRechazadas.forEach(cot => {
+      list.push({ level: "warning", msg: "Cotización rechazada/anulada requiere revisión comercial", subject: cot.proyecto?.codigo || cot.id, days: diasDesde(cot.updated_at || cot.created_at), href: `/proyectos/${cot.proyecto_id}/cotizaciones/${cot.id}` })
+    })
+    facturasVinculadas
+      .filter(factura => !ESTADOS_FACTURA_COBRADA.includes(String(factura.estado || "")))
+      .forEach(factura => {
+        const days = diasDesde(factura.fecha_emision || factura.created_at)
+        if (days > 7) list.push({ level: "warning", msg: "Factura emitida pendiente de cobro", subject: factura.numero_factura || factura.id, days, href: `/facturacion?proyecto_id=${factura.proyecto_id}` })
+      })
     proyectosDeClientesGanados.forEach(proyecto => {
       if (ESTADOS_TERMINADOS.includes(proyecto.estado) && !facturadosProjectIds.has(proyecto.id)) {
         list.push({ level: "critical", msg: "Proyecto terminado sin factura", subject: proyecto.codigo || proyecto.nombre, days: diasDesde(proyecto.updated_at || proyecto.created_at), href: `/proyectos/${proyecto.id}` })
       }
     })
     return list.sort((a, b) => (a.level === "critical" ? -1 : 1) - (b.level === "critical" ? -1 : 1) || b.days - a.days).slice(0, 12)
-  }, [activeLeads, cotPendientes, proyectosDeClientesGanados, facturadosProjectIds])
+  }, [activeLeads, cotPendientes, cotRechazadas, proyectosDeClientesGanados, facturadosProjectIds, cotizaciones, projectById, facturasVinculadas])
 
   const tareasPendientes = filteredTasks.filter(t => ["pendiente", "en_progreso"].includes(t.estado))
   const tareasVencidas = tareasPendientes.filter(t => t.fecha_limite && t.fecha_limite < todayYmd())
@@ -344,15 +398,25 @@ export default function DashboardComercialPage() {
     return (b.presupuesto_estimado * b.probabilidad_cierre) - (a.presupuesto_estimado * a.probabilidad_cierre)
   }).slice(0, 12)
 
-  const projectByClient = new Map(filteredProjects.map(project => [project.cliente_id, project]))
   const responsableById = new Map(perfiles.map(persona => [persona.id, persona]))
   const projectStates = Array.from(new Set(proyectos.map(proyecto => proyecto.estado).filter(Boolean))).sort()
+  const linkedProjectOptions = Array.from(
+    new Map(leads
+      .filter(lead => lead.proyecto_id)
+      .map(lead => {
+        const proyecto = lead.proyecto || projectById.get(lead.proyecto_id)
+        return proyecto && !proyecto.deleted_at ? [proyecto.id, proyecto] : null
+      })
+      .filter(Boolean) as [string, any][]
+    ).values()
+  ).sort((a, b) => String(a.codigo || a.nombre || "").localeCompare(String(b.codigo || b.nombre || "")))
 
   function clearFilters() {
     setPeriodo("mes_actual")
     setDesde(monthStart(0))
     setHasta(monthEnd(0))
     setClienteId("")
+    setProyectoId("")
     setEstadoCRM("")
     setTemperatura("")
     setEstadoProyecto("")
@@ -387,6 +451,10 @@ export default function DashboardComercialPage() {
           <option value="">Todos los clientes</option>
           {clientes.map(cliente => <option key={cliente.id} value={cliente.id}>{cliente.razon_social}</option>)}
         </select>
+        <select value={proyectoId} onChange={e => setProyectoId(e.target.value)} style={inputStyle}>
+          <option value="">Todos los proyectos vinculados</option>
+          {linkedProjectOptions.map(proyecto => <option key={proyecto.id} value={proyecto.id}>{proyecto.codigo || "Sin código"} — {proyecto.nombre || "Sin nombre"}</option>)}
+        </select>
         <select value={estadoCRM} onChange={e => setEstadoCRM(e.target.value)} style={inputStyle}>
           <option value="">Todos los estados CRM</option>
           {estadosPipeline.map(estado => <option key={estado} value={estado}>{estadosCRM[estado]?.label || estado}</option>)}
@@ -402,13 +470,15 @@ export default function DashboardComercialPage() {
       </FiltersBar>
 
       <div style={{ marginTop: 18 }}>
-        <ExecutiveSummary columns={6} items={[
+        <ExecutiveSummary columns={4} items={[
           { label: "Pipeline comercial", value: money(pipeline), subtitle: `${activeLeads.length} oportunidades activas`, tone: "success" },
-          { label: "Pipeline ponderado", value: money(pipelinePonderado), subtitle: "Presupuesto x probabilidad", tone: "info" },
-          { label: "Negocios ganados", value: money(ganado), subtitle: `${wonLeads.length} leads ganados`, tone: "success" },
+          { label: "Pipeline ponderado", value: money(pipelinePonderado), subtitle: "Presupuesto estimado CRM x probabilidad", tone: "info" },
+          { label: "Monto cotizado real", value: money(montoCotizado), subtitle: `${filteredQuotes.length} cotizaciones vinculadas`, tone: "default" },
+          { label: "Negocios ganados", value: money(ganado), subtitle: "Cotizado real o estimado CRM", tone: "success" },
+          { label: "Facturado", value: money(facturado), subtitle: `${facturasEmitidasPeriodo.length} facturas emitidas`, tone: "info" },
+          { label: "Cobrado", value: money(cobrado), subtitle: `${facturasCobradasPeriodo.length} facturas cobradas`, tone: "success" },
           { label: "Tasa de conversión", value: `${conversion}%`, subtitle: "Ganados / cerrados", tone: "warning" },
           { label: "Ticket promedio ganado", value: money(ticketPromedio), subtitle: wonLeads.length ? `${wonLeads.length} negocios` : "Sin ganados", tone: "default" },
-          { label: "Cotizaciones pendientes", value: String(cotPendientes.length), subtitle: "Pendientes de aprobación", tone: "danger" },
         ]} />
       </div>
 
@@ -435,6 +505,9 @@ export default function DashboardComercialPage() {
         <div style={{ gridColumn: "span 5" }}>
           <SectionCard title="Forecast del periodo">
             <ForecastRow label="Monto ganado" value={ganado} max={maxForecast} color="#03E373" />
+            <ForecastRow label="Monto cotizado real" value={montoCotizado} max={maxForecast} color="#0f766e" />
+            <ForecastRow label="Facturado" value={facturado} max={maxForecast} color="#2563eb" />
+            <ForecastRow label="Cobrado" value={cobrado} max={maxForecast} color="#16a34a" />
             <ForecastRow label="Forecast ponderado" value={pipelinePonderado} max={maxForecast} color="#3b82f6" />
             <ForecastRow label="Pipeline bruto" value={pipeline} max={maxForecast} color="#94a3b8" />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 14 }}>
@@ -452,26 +525,26 @@ export default function DashboardComercialPage() {
               <MiniMetric label="Pendientes" value={String(cotPendientes.length)} />
               <MiniMetric label="Aprobadas" value={String(cotAprobadas.length)} />
               <MiniMetric label="Rechazadas/anuladas" value={String(cotRechazadas.length)} />
-              <MiniMetric label="Monto cotizado" value={money(filteredQuotes.reduce((s, c) => s + totalCotizacion(c), 0))} />
+              <MiniMetric label="Monto cotizado" value={money(montoCotizado)} />
             </div>
             <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>
               Tiempo promedio de aprobación: {diasPromedioAprobacion == null ? "sin datos confiables" : `${diasPromedioAprobacion} días`}
             </div>
             {cotizacionesTabla.length === 0 ? <EmptyState title="No hay cotizaciones pendientes." /> : (
               <Table>
-                <thead><tr>{["Referencia", "Cliente", "Proyecto", "V", "Monto", "Estado", "Creación", "Días", "Responsable"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
+                <thead><tr>{["Lead", "Cliente", "Proyecto", "Cotización", "Monto", "Estado", "Fecha", "Días", "Próxima acción"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
                 <tbody>
                   {cotizacionesTabla.map(cot => (
                     <tr key={cot.id}>
-                      <Td><a href={`/proyectos/${cot.proyecto_id}/cotizaciones/${cot.id}`}>Cotización</a></Td>
+                      <Td><a href="/crm">{cot.lead?.razon_social || "Lead"}</a></Td>
                       <Td>{cot.proyecto?.cliente?.razon_social || "Sin cliente"}</Td>
                       <Td><a href={`/proyectos/${cot.proyecto_id}`}>{cot.proyecto?.codigo || cot.proyecto?.nombre || "Proyecto"}</a></Td>
-                      <Td>V{cot.version || "-"}</Td>
+                      <Td><a href={`/proyectos/${cot.proyecto_id}/cotizaciones/${cot.id}`}>V{cot.version || "-"}</a></Td>
                       <Td>{money(totalCotizacion(cot))}</Td>
                       <Td><StatusBadge label={cot.estado || "Sin estado"} type={cot.estado || "pendiente"} /></Td>
                       <Td>{String(cot.created_at || "").slice(0, 10)}</Td>
                       <Td>{diasDesde(cot.created_at)}</Td>
-                      <Td>{nombrePersona(responsableById.get(cot.proyecto?.comercial_id || cot.proyecto?.productor_id))}</Td>
+                      <Td>{cot.lead?.fecha_proxima_accion || "Sin acción"}</Td>
                     </tr>
                   ))}
                 </tbody>
@@ -481,13 +554,13 @@ export default function DashboardComercialPage() {
         </div>
 
         <div style={{ gridColumn: "span 5" }}>
-          <SectionCard title="Radar de conversión">
+          <SectionCard title="Conversión del negocio">
             <div style={{ display: "grid", gap: 9 }}>
               {radar.map((item, index) => (
                 <div key={item.label} style={{ display: "grid", gridTemplateColumns: "28px 1fr auto", alignItems: "center", gap: 10 }}>
                   <span style={{ width: 24, height: 24, borderRadius: 999, background: "#ecfdf5", color: "#0F6E56", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 800 }}>{index + 1}</span>
-                  <span style={{ fontSize: 13 }}>{item.label}{item.approx ? <span style={{ color: "#94a3b8" }}> aprox.</span> : null}</span>
-                  <strong>{item.value}</strong>
+                  <span style={{ fontSize: 13 }}>{item.label}</span>
+                  <strong>{item.value}{item.amount ? ` · ${money(item.amount)}` : ""}</strong>
                 </div>
               ))}
             </div>
@@ -505,7 +578,7 @@ export default function DashboardComercialPage() {
                       <span style={{ fontSize: 12, color: "#64748b" }}>{money(row.pipeline)}</span>
                     </div>
                     <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
-                      {row.active} oportunidades · {row.quotes} cotizaciones · {row.projects} proyectos · Última: {row.last ? String(row.last).slice(0, 10) : "sin fecha"}
+                      {row.active} oportunidades · {row.quotes} cotizaciones · {row.projects} proyectos · Facturado {money(row.facturado)} · Cobrado {money(row.cobrado)} · Última: {row.last ? String(row.last).slice(0, 10) : "sin fecha"}
                     </div>
                   </div>
                 ))}
@@ -555,24 +628,25 @@ export default function DashboardComercialPage() {
           <SectionCard title="Tabla de seguimiento comercial">
             {seguimiento.length === 0 ? <EmptyState title="No hay oportunidades en este periodo." /> : (
               <Table>
-                <thead><tr>{["Cliente/lead", "Estado", "Temp.", "Referencias", "Presupuesto", "Prob.", "Ponderado", "Responsable", "Próxima acción", "Sin seg.", "Proyecto", "Alerta"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
+                <thead><tr>{["Cliente/lead", "Estado", "Temp.", "Proyecto", "Presupuesto estimado", "Monto cotizado", "Prob.", "Ponderado", "Responsable", "Próxima acción", "Sin seg.", "Alerta"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
                 <tbody>
                   {seguimiento.map(lead => {
-                    const proyecto = lead.cliente_id ? projectByClient.get(lead.cliente_id) : null
+                    const proyecto = lead.proyecto || projectById.get(lead.proyecto_id)
+                    const cotizacion = cotizacionVigenteProyecto(lead.proyecto_id, cotizaciones)
                     const overdue = lead.fecha_proxima_accion && lead.fecha_proxima_accion < todayYmd()
                     return (
                       <tr key={lead.id}>
                         <Td><a href="/crm">{lead.razon_social || lead.cliente?.razon_social || "Lead"}</a></Td>
                         <Td><StatusBadge label={estadosCRM[lead.estado]?.label || lead.estado} type={lead.estado} /></Td>
                         <Td>{temperaturas[lead.temperatura]?.label || lead.temperatura}</Td>
-                        <Td>{referencias(lead.referencias_cotizacion).join(", ") || "—"}</Td>
+                        <Td>{proyecto ? <a href={`/proyectos/${proyecto.id}`}>{proyecto.codigo || proyecto.nombre}</a> : "—"}</Td>
                         <Td>{money(lead.presupuesto_estimado)}</Td>
+                        <Td>{cotizacion ? money(totalCotizacion(cotizacion)) : "—"}</Td>
                         <Td>{lead.probabilidad_cierre}%</Td>
                         <Td>{money(lead.presupuesto_estimado * lead.probabilidad_cierre / 100)}</Td>
                         <Td>{nombrePersona(responsableById.get(lead.responsable_id))}</Td>
                         <Td>{lead.fecha_proxima_accion || "—"}</Td>
                         <Td>{diasDesde(lead.updated_at || lead.created_at)}</Td>
-                        <Td>{proyecto ? <a href={`/proyectos/${proyecto.id}`}>{proyecto.codigo || proyecto.nombre}</a> : "—"}</Td>
                         <Td>{overdue ? "Vencida" : lead.temperatura === "caliente" ? "Prioridad" : "—"}</Td>
                       </tr>
                     )
