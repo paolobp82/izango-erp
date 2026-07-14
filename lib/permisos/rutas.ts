@@ -11,6 +11,7 @@ const RUTAS_MODULOS: RutaModulo[] = [
   { prefix: "/tareas", modulo: "tareas" },
   { prefix: "/calendario", modulo: "calendario" },
   { prefix: "/alertas", modulo: "alertas" },
+  { prefix: "/comercial/dashboard", perfiles: ["superadmin", "gerente_general", "gerente_produccion", "comercial"] },
   { prefix: "/crm", modulo: "crm" },
   { prefix: "/clientes", modulo: "clientes" },
   { prefix: "/buscar-items", modulo: "biblioteca" },

@@ -31,6 +31,7 @@ const ALL_NAV = [
     { label: "Alertas", href: "/alertas", icon: "⌁" },
   ]},
   { section: "Comercial", items: [
+    { label: "Dashboard Comercial", href: "/comercial/dashboard", icon: "◌" },
     { label: "CRM", href: "/crm", icon: "◎" },
     { label: "Clientes", href: "/clientes", icon: "◉" },
     { label: "Buscar ítems cotizados", href: "/buscar-items", icon: "⌕" },
