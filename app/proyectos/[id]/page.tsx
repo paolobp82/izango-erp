@@ -400,25 +400,25 @@ export default function ProyectoDetallePage() {
     try {
       const resultadoGestor = await cargarItemsAprobadosAlGestor(supabase, String(id), String(cot.id))
       if (resultadoGestor.creados > 0) {
-        console.info("Items cargados al Gestor desde proforma aprobada", resultadoGestor)
+        console.info("Items cargados al Gestor desde cotización aprobada", resultadoGestor)
       }
     } catch (gestorError) {
       console.error("No se pudieron cargar items aprobados al Gestor:", gestorError)
-      alert("La proforma fue aprobada, pero no se pudieron cargar los items al Gestor. Revisa consola.")
+      alert("La cotización fue aprobada, pero no se pudieron cargar los items al Gestor. Revisa consola.")
     }
     await registrarHistorial({
       cotizacion_id: cot.id,
       accion: "aprobada_cliente",
       estado_anterior: cot.estado || "borrador",
       estado_nuevo: "aprobada_cliente",
-      descripcion: "Cliente aprobo formalmente la proforma. Total: " + fmt(cot.total_cliente || 0),
+      descripcion: "Cliente aprobo formalmente la cotización. Total: " + fmt(cot.total_cliente || 0),
       datos: { aprobado_por: perfil?.id || null, aprobado_at: aprobadoAt },
     })
-    await registrarAccion({ accion: "aprobar", modulo: "cotizaciones", entidad_id: cot.id, entidad_tipo: "cotizacion", descripcion: "Proforma marcada como aprobada por cliente", datos_nuevos: { aprobado_por: perfil?.id || null, aprobado_at: aprobadoAt } })
+    await registrarAccion({ accion: "aprobar", modulo: "cotizaciones", entidad_id: cot.id, entidad_tipo: "cotizacion", descripcion: "Cotización marcada como aprobada por cliente", datos_nuevos: { aprobado_por: perfil?.id || null, aprobado_at: aprobadoAt } })
     setVersionAprobar(cot.id)
     setProyecto((prev: any) => prev ? { ...prev, cotizacion_aprobada_id: cot.id, estado: "aprobado_cliente" } : prev)
     await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, codigo: proyecto?.codigo, version: cot.version, total: cot.total_cliente || 0, proyecto_id: id })
-    alert("Proforma marcada como aprobada por cliente")
+    alert("Cotización marcada como aprobada por cliente")
     load()
   }
 
@@ -736,7 +736,7 @@ export default function ProyectoDetallePage() {
       return
     }
 
-    if (!confirm("¿Confirmas que el cliente aprobó formalmente esta proforma?")) return
+    if (!confirm("¿Confirmas que el cliente aprobó formalmente esta cotización?")) return
     await aprobarCotizacionClienteFinal(cot)
   }
 
@@ -802,14 +802,14 @@ export default function ProyectoDetallePage() {
         cotizaciones[cotizaciones.length - 1]?.id
 
       if (!cotizacionActivaId) {
-        alert("No hay una proforma disponible para aprobar por cliente.")
+        alert("No hay una cotización disponible para aprobar por cliente.")
         setCambiando(false)
         return
       }
 
       const cotActiva = cotizaciones.find((c: any) => c.id === cotizacionActivaId)
 
-      if (!confirm("¿Confirmas que el cliente aprobó la proforma " + (cotActiva?.version ? "V" + cotActiva.version : "seleccionada") + "?")) {
+      if (!confirm("¿Confirmas que el cliente aprobó la cotización " + (cotActiva?.version ? "V" + cotActiva.version : "seleccionada") + "?")) {
         setCambiando(false)
         return
       }
@@ -848,7 +848,7 @@ export default function ProyectoDetallePage() {
         versionAprobar
 
       if (!cotizacionActivaId) {
-        alert("No hay una proforma aprobada por cliente para generar RQs.")
+        alert("No hay una cotización aprobada por cliente para generar RQs.")
         setCambiando(false)
         return
       }
@@ -983,7 +983,7 @@ export default function ProyectoDetallePage() {
     if (!esAdicional) {
       const cotSeleccionada = cotizaciones.find(cot => cot.id === versionAprobar)
       if (cotSeleccionada?.estado !== "aprobada_cliente") {
-        alert("La proforma debe estar aprobada por cliente antes de iniciar el proyecto")
+        alert("La cotización debe estar aprobada por cliente antes de iniciar el proyecto")
         setGuardandoPreCuadre(false)
         return
       }
@@ -1137,7 +1137,7 @@ export default function ProyectoDetallePage() {
       alert("No tienes permiso para realizar esta acción.")
       return
     }
-    if (!confirm(`¿Eliminar proforma V${version}? Podrás recuperarla en los próximos 2 días.`)) return
+    if (!confirm(`¿Eliminar cotización V${version}? Podrás recuperarla en los próximos 2 días.`)) return
     await supabase.from("cotizaciones").update({ deleted_at: new Date().toISOString() }).eq("id", cotId)
     load()
   }
@@ -1174,7 +1174,7 @@ export default function ProyectoDetallePage() {
 
     const registros = nuevos.map(item => ({
       descripcion: item.descripcion,
-      categoria: item.categoria || "Proforma",
+      categoria: item.categoria || "Cotización",
       notas: item.notas || null,
       centro_costos: item.centro_costos || null,
       margen_pct: Number(item.margen_pct) || 0,
@@ -1405,7 +1405,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
   const requiereMigracionRQ = rqsVersionAnterior.length > 0
   const resumenAlertas = [
-    !tieneCotizacion ? { label: "Sin proforma", detalle: "Crea una proforma para continuar el flujo comercial." } : null,
+    !tieneCotizacion ? { label: "Sin cotización", detalle: "Crea una cotización para continuar el flujo comercial." } : null,
     tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
     ["aprobado", "aprobado_cliente"].includes(proyecto?.estado) && cotAprobada ? { label: "Pendiente de RQ", detalle: "Al iniciar el proyecto se mantiene el flujo actual de pre-cuadre y generacion de RQs." } : null,
     proyecto?.estado === "terminado" ? { label: "Pendiente de liquidacion", detalle: "El proyecto esta terminado y debe pasar por liquidacion." } : null,
@@ -1422,7 +1422,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
   const historialCount = Object.values(historial).reduce((total, items) => total + items.length, 0)
   const tabsProyecto360 = [
-    { label: "Proformas", href: "#tab-proformas", count: cotizaciones.length },
+    { label: "Cotizaciones", href: "#tab-proformas", count: cotizaciones.length },
     { label: "Costos / RQ", href: "#tab-costos-rq", count: rqsProyecto.length },
     { label: "Resumen", href: "#tab-resumen" },
     { label: "Cliente", href: "#tab-cliente", count: proyecto?.cliente ? 1 : 0 },
@@ -1767,7 +1767,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             const val = sel?.value
             nuevaVersion(val && val !== "" ? val : undefined)
           }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
-            {creando ? "Creando..." : "Crear proforma / cotización"}
+            {creando ? "Creando..." : "Crear cotización"}
           </button>
           )}
           {puedeCrearRQ && (
@@ -1881,7 +1881,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             ? `Responsable del siguiente paso: ${rolLabels[rolResponsable] || rolResponsable}${nombreResponsable ? ` (${nombreResponsable})` : ""}`
             : "Responsable del siguiente paso: Sin responsable asignado"
           const descripcionAccion = proyecto?.estado === "aprobado_gerencia"
-            ? "Esperando aprobación del cliente desde la proforma."
+            ? "Esperando aprobación del cliente desde la cotización."
             : proyecto?.estado === "aprobado_cliente"
               ? "Abre el pre-cuadre para revisar proveedores, costos y generar los RQs iniciales."
               : estadoInfo.accion
@@ -1894,7 +1894,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
               <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Siguiente acción disponible</div>
               <div style={{ fontSize: 14, color: "#111827", fontWeight: 700, marginBottom: 4 }}>
-                {proyecto?.estado === "aprobado_gerencia" ? "Aprobación desde proforma" : puedeAvanzar && estadoInfo.accion ? estadoInfo.accion : esEstadoFinal ? "Sin acciones pendientes" : "Sin acción disponible"}
+                {proyecto?.estado === "aprobado_gerencia" ? "Aprobación desde cotización" : puedeAvanzar && estadoInfo.accion ? estadoInfo.accion : esEstadoFinal ? "Sin acciones pendientes" : "Sin acción disponible"}
               </div>
               <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 6 }}>{descripcionAccion}</div>
               <div style={{ fontSize: 13, color: "#374151", marginBottom: 12 }}>{responsableTexto}</div>
@@ -1927,10 +1927,10 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       <div className="card" style={{ marginBottom: 16, padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Proformas</div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Proformas / cotizaciones</h2>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Cotizaciones</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Cotizaciones</h2>
             <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-              Administra versiones, estados, previews y recuperacion de proformas del proyecto.
+              Administra versiones, estados, previews y recuperacion de cotizaciones del proyecto.
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -1956,7 +1956,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               const val = sel?.value
               nuevaVersion(val && val !== "" ? val : undefined)
             }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
-              {creando ? "Creando..." : "+ Crear proforma"}
+              {creando ? "Creando..." : "+ Crear cotización"}
             </button>
             )}
           </div>
@@ -1999,7 +1999,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
         </div>
         {cotizaciones.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af" }}>
-            <div style={{ fontSize: 14, marginBottom: 4 }}>No hay proformas aun</div>
+            <div style={{ fontSize: 14, marginBottom: 4 }}>No hay cotizaciones aun</div>
             <div style={{ fontSize: 12 }}>Crea la primera version para comenzar</div>
           </div>
         ) : (
@@ -2120,7 +2120,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                 {cotAprobada ? `V${cotAprobada.version}` : "Pendiente"}
               </div>
               <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                {cotAprobada?.total_cliente ? fmt(cotAprobada.total_cliente) : "Se define desde Proformas / aprobación"}
+                {cotAprobada?.total_cliente ? fmt(cotAprobada.total_cliente) : "Se define desde Cotizaciones / aprobación"}
               </div>
             </div>
             <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
@@ -2550,7 +2550,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
         </div>
         <div style={{ padding: 20 }}>
           <div style={placeholderStyle}>
-            Fase 1: placeholder para reporte PDF, previews de proforma, facturas, vouchers, sustentos y enlaces externos del proyecto.
+            Fase 1: placeholder para reporte PDF, previews de cotización, facturas, vouchers, sustentos y enlaces externos del proyecto.
           </div>
         </div>
       </section>
@@ -2558,11 +2558,11 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       <section id="tab-historial" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
         <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Historial</h2>
-          <span style={{ fontSize: 12, color: "#9ca3af" }}>{historialCount} evento{historialCount !== 1 ? "s" : ""} de proformas</span>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>{historialCount} evento{historialCount !== 1 ? "s" : ""} de cotizaciones</span>
         </div>
         <div style={{ padding: 20 }}>
           <div style={placeholderStyle}>
-            Fase 1: placeholder para trazabilidad consolidada del proyecto. Por ahora el historial visible se mantiene dentro de cada proforma.
+            Fase 1: placeholder para trazabilidad consolidada del proyecto. Por ahora el historial visible se mantiene dentro de cada cotización.
           </div>
         </div>
       </section>

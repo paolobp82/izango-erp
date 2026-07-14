@@ -48,7 +48,7 @@ export const PROYECTOS_BUSINESS_RULES: BusinessRuleDefinition = {
       evaluate: context => {
         const record = context?.record || {}
         const tieneCotizacion = Boolean(record.cotizacion_aprobada_id || context?.metadata?.cotizacion_id)
-        return tieneCotizacion ? allow() : { allowed: false, reason: "No se puede aprobar por cliente sin una proforma seleccionada." }
+        return tieneCotizacion ? allow() : { allowed: false, reason: "No se puede aprobar por cliente sin una cotización seleccionada." }
       },
     },
     {

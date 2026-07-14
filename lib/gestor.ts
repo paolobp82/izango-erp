@@ -97,7 +97,7 @@ export async function cargarItemsAprobadosAlGestor(
     descripcion: [
       item.descripcion ? `Item aprobado: ${item.descripcion}` : "",
       item.proveedor_nombre ? `Proveedor: ${item.proveedor_nombre}` : "",
-      cotizacion.version ? `Origen: Proforma V${cotizacion.version}` : "Origen: Proforma aprobada",
+      cotizacion.version ? `Origen: Cotización V${cotizacion.version}` : "Origen: Cotización aprobada",
     ].filter(Boolean).join("\n"),
 
     proveedor_id: item.proveedor_id || null,

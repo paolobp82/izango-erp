@@ -158,7 +158,7 @@ export default function BibliotecaPage() {
         i.categoria,
         i.origen_proyecto_nombre,
         i.origen_proyecto_codigo,
-        i.origen_cotizacion_version ? `proforma v${i.origen_cotizacion_version}` : "",
+        i.origen_cotizacion_version ? `cotización v${i.origen_cotizacion_version}` : "",
         i.origen_fecha ? new Date(i.origen_fecha).toLocaleDateString("es-PE") : "",
         i.proveedor?.nombre,
         i.proveedor_nombre,
@@ -371,7 +371,7 @@ export default function BibliotecaPage() {
                     {item.origen_cotizacion_id && (
                       <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
                         Origen: {item.origen_proyecto_codigo ? item.origen_proyecto_codigo + " - " : ""}{item.origen_proyecto_nombre || "Proyecto"}
-                        {item.origen_cotizacion_version ? ` · Proforma v${item.origen_cotizacion_version}` : ""}
+                        {item.origen_cotizacion_version ? ` · Cotización v${item.origen_cotizacion_version}` : ""}
                       </div>
                     )}
                   </td>

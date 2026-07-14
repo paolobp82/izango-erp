@@ -138,7 +138,7 @@ export default function BuscarItemsCotizadosPage() {
               <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ÍTEM</th>
               <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PROYECTO</th>
               <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>CLIENTE</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PROFORMA</th>
+              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>COTIZACIÓN</th>
               <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PRECIO</th>
               <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>FECHA</th>
               <th style={{ padding: "10px 20px", width: 120 }}></th>

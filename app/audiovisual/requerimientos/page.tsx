@@ -723,9 +723,9 @@ export default function AudiovisualRequerimientosPage() {
                   </select>
                 </div>
                 <div>
-                  <label style={lbl}>COTIZACION / PROFORMA</label>
+                  <label style={lbl}>COTIZACIÓN</label>
                   <select style={inp} value={form.cotizacion_id} onChange={e => setForm({ ...form, cotizacion_id: e.target.value })} disabled={camposPedidoDeshabilitados || form.proyecto_id === "__OTRO__"}>
-                    <option value="">Sin proforma especifica</option>
+                    <option value="">Sin cotización específica</option>
                     {cotizaciones.map(c => <option key={c.id} value={c.id}>V{c.version} - {c.estado}</option>)}
                   </select>
                 </div>

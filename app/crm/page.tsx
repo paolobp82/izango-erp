@@ -40,12 +40,26 @@ function periodoActual() {
   return new Date().toISOString().slice(0, 7)
 }
 
+function referenciasCotizacion(value?: string | null) {
+  return String(value || "")
+    .split(",")
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
+function normalizarBusqueda(value: unknown) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+}
+
 const emptyForm = {
   razon_social: "", ruc: "", nombre_contacto: "", email_contacto: "",
   telefono_contacto: "", direccion: "", cargo_contacto: "", origen: "", estado: "nuevo",
   temperatura: "frio", industria: "", presupuesto_estimado: "",
   probabilidad_cierre: 0, fecha_proxima_accion: "", notas: "",
   responsable_id: "", cliente_id: "", periodo_pipeline: periodoActual(),
+  referencias_cotizacion: "",
   crear_cliente: false,
 }
 
@@ -159,6 +173,7 @@ export default function CRMPage() {
       telefono_contacto: lead.telefono_contacto || lead.cliente?.telefono_contacto || "",
       direccion: lead.direccion || lead.cliente?.direccion || "",
       cliente_id: lead.cliente_id || null,
+      referencias_cotizacion: String(lead.referencias_cotizacion || "").trim(),
       archivado: Boolean(lead.archivado),
     }
   }
@@ -216,6 +231,7 @@ export default function CRMPage() {
       fecha_proxima_accion: normalizado.fecha_proxima_accion || "", notas: normalizado.notas || "",
       responsable_id: normalizado.responsable_id || "", cliente_id: normalizado.cliente_id || "",
       periodo_pipeline: normalizado.periodo_pipeline || periodoActual(),
+      referencias_cotizacion: normalizado.referencias_cotizacion || "",
       crear_cliente: false,
     })
     setShowForm(true)
@@ -272,6 +288,7 @@ export default function CRMPage() {
       responsable_id: form.responsable_id || null,
       cliente_id: clienteId,
       periodo_pipeline: form.periodo_pipeline || periodoActual(),
+      referencias_cotizacion: String(form.referencias_cotizacion || "").trim() || null,
       archivado: false,
       notas: form.notas || null,
     }
@@ -434,6 +451,7 @@ export default function CRMPage() {
         estado: ESTADOS[r.estado] ? r.estado : "nuevo",
         temperatura: TEMPERATURAS[r.temperatura] ? r.temperatura : "frio",
         periodo_pipeline: r.periodo_pipeline || periodoActual(),
+        referencias_cotizacion: String(r.referencias_cotizacion || "").trim() || null,
         archivado: false,
       }
       const result = businessRuleEngine.evaluate("crm", "crear_lead", {
@@ -475,8 +493,10 @@ export default function CRMPage() {
     if (filtroTemp && l.temperatura !== filtroTemp) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
-      const texto = [l.razon_social, l.ruc, l.nombre_contacto, l.email_contacto, l.telefono_contacto, l.direccion].filter(Boolean).join(" ").toLowerCase()
-      if (!texto.includes(q)) return false
+      const texto = [l.razon_social, l.ruc, l.nombre_contacto, l.email_contacto, l.telefono_contacto, l.direccion, l.referencias_cotizacion].filter(Boolean).join(" ").toLowerCase()
+      const textoNormalizado = normalizarBusqueda(texto)
+      const qNormalizado = normalizarBusqueda(q)
+      if (!texto.includes(q) && (!qNormalizado || !textoNormalizado.includes(qNormalizado))) return false
     }
     return true
   })
@@ -515,7 +535,7 @@ export default function CRMPage() {
       subtitle={`Gestion de oportunidades comerciales · ${leadsPeriodo.length} leads`}
       actions={
         <>
-          {puedeCrearCRM && <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={importarLeads} />}
+          {puedeCrearCRM && <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"referencias_cotizacion",label:"Referencias de cotización"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={importarLeads} />}
           {puedeCrearCRM && <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>}
         </>
       }
@@ -591,6 +611,19 @@ export default function CRMPage() {
                 </div>
                 <div><label style={lbl}>Presupuesto est.</label><input type="number" style={inp} value={form.presupuesto_estimado} onChange={e => setForm({ ...form, presupuesto_estimado: e.target.value })} /></div>
                 <div><label style={lbl}>Probabilidad %</label><input type="number" min={0} max={100} style={inp} value={form.probabilidad_cierre} onChange={e => setForm({ ...form, probabilidad_cierre: Number(e.target.value) })} /></div>
+              </div>
+              <div>
+                <label style={lbl}>N° COTIZACIÓN / PRESUPUESTO CLIENTE</label>
+                <input
+                  type="text"
+                  style={inp}
+                  value={form.referencias_cotizacion}
+                  placeholder="Ej: IZ-26410, COT-00125"
+                  onChange={e => setForm({ ...form, referencias_cotizacion: e.target.value })}
+                />
+                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
+                  Puedes registrar varias referencias separadas por coma.
+                </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div><label style={lbl}>Próxima acción</label><input type="date" style={inp} value={form.fecha_proxima_accion} onChange={e => setForm({ ...form, fecha_proxima_accion: e.target.value })} /></div>
@@ -681,6 +714,7 @@ export default function CRMPage() {
                       ) : lista.map(lead => {
                         const tc = TEMPERATURAS[lead.temperatura] || { color: "#6b7280", label: lead.temperatura }
                         const responsable = responsableNombre(lead.responsable_id)
+                        const referencias = referenciasCotizacion(lead.referencias_cotizacion)
                         return (
                           <div key={lead.id}
                             onClick={() => { setSelected(lead); loadNotas(lead.id) }}
@@ -716,6 +750,35 @@ export default function CRMPage() {
                             <div style={{ display: "grid", gap: 6, fontSize: 12, color: "#4b5563" }}>
                               {lead.nombre_contacto && <div>Contacto: {lead.nombre_contacto}</div>}
                               {(lead.telefono_contacto || lead.email_contacto) && <div>{lead.telefono_contacto || lead.email_contacto}</div>}
+                              {referencias.length > 0 && (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                  {referencias.slice(0, 3).map(ref => (
+                                    <span
+                                      key={ref}
+                                      title={ref}
+                                      style={{
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        color: "#0F6E56",
+                                        background: "#ecfdf5",
+                                        border: "1px solid #bbf7d0",
+                                        borderRadius: 999,
+                                        padding: "2px 7px"
+                                      }}
+                                    >
+                                      {ref}
+                                    </span>
+                                  ))}
+                                  {referencias.length > 3 && (
+                                    <span
+                                      title={referencias.slice(3).join(", ")}
+                                      style={{ fontSize: 10, fontWeight: 700, color: "#0F6E56", background: "#ecfdf5", border: "1px solid #bbf7d0", borderRadius: 999, padding: "2px 7px" }}
+                                    >
+                                      +{referencias.length - 3}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                                 <span>{lead.presupuesto_estimado ? fmt(lead.presupuesto_estimado) : "Sin presupuesto"}</span>
                                 <strong style={{ color: lead.probabilidad_cierre >= 70 ? "#0F6E56" : lead.probabilidad_cierre >= 40 ? "#ca8a04" : "#6b7280" }}>
@@ -790,6 +853,18 @@ export default function CRMPage() {
                   <div style={{ fontSize: 12, color: "#6b7280" }}>Prob. cierre: {selected.probabilidad_cierre}%</div>
                 </div>
               )}
+              {referenciasCotizacion(selected.referencias_cotizacion).length > 0 && (
+                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 8 }}>REFERENCIAS DE COTIZACIÓN</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {referenciasCotizacion(selected.referencias_cotizacion).map(ref => (
+                      <span key={ref} title={ref} style={{ fontSize: 11, fontWeight: 700, color: "#0F6E56", background: "#ecfdf5", border: "1px solid #bbf7d0", borderRadius: 999, padding: "3px 8px" }}>
+                        {ref}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={{ display: "grid", gap: 8 }}>
                 {puedeEditarCRM && <button onClick={() => abrirEditar(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Editar</button>}
                 {puedeConvertirCRM && !selected.cliente_id && (
@@ -798,7 +873,7 @@ export default function CRMPage() {
                     Convertir a cliente
                   </button>
                 )}
-                <button disabled className="btn-secondary" style={{ fontSize: 13, width: "100%", opacity: .55, cursor: "not-allowed" }}>Crear propuesta</button>
+                <button disabled title="Próximamente" className="btn-secondary" style={{ fontSize: 13, width: "100%", opacity: .55, cursor: "not-allowed" }}>Crear cotización</button>
                 {puedeEditarCRM && <button onClick={() => archivarLead(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Archivar</button>}
                 {puedeEliminarCRM && <button onClick={() => eliminarLead(selected)}
                   style={{ width: "100%", padding: "8px", background: "#fff", border: "1px solid #fecaca", borderRadius: 8, color: "#dc2626", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>

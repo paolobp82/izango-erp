@@ -7,7 +7,7 @@ const ALERTAS = [
   { key: "rq_pendiente", label: "RQ pendiente de aprobacion", desc: "Cuando un requerimiento de pago necesita tu aprobacion", icon: "💳" },
   { key: "proyecto_facturacion", label: "Proyecto listo para facturar", desc: "Cuando un proyecto pasa a estado de facturacion", icon: "🧾" },
   { key: "proyecto_liquidado", label: "Proyecto liquidado", desc: "Cuando una liquidacion es aprobada y cerrada", icon: "✅" },
-  { key: "cotizacion_aprobada", label: "Cotizacion aprobada por cliente", desc: "Cuando el cliente aprueba una proforma", icon: "🎯" },
+  { key: "cotizacion_aprobada", label: "Cotizacion aprobada por cliente", desc: "Cuando el cliente aprueba una cotización", icon: "🎯" },
   { key: "tarea_nueva_email", label: "Nuevas tareas", desc: "Cuando alguien te asigna una tarea", icon: "📌" },
   { key: "tarea_comentario_email", label: "Comentarios en tareas", desc: "Cuando alguien comenta una tarea donde participas", icon: "💬" },
   { key: "tarea_estado_email", label: "Cambios de estado de tareas", desc: "Cuando una tarea se envia a revision, se devuelve o se completa", icon: "🔁" },

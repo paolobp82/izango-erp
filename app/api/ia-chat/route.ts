@@ -144,7 +144,7 @@ RESTRICCIONES ESTRICTAS:
 MODULOS DEL ERP QUE CONOCES:
 - Proyectos: flujo completo pendiente_aprobacion → aprobado_produccion → aprobado_gerencia → aprobado_cliente → en_curso → terminado → liquidado → facturado → pagado. Entidades Peru (IZ-) y Selva (SEL-). Filtros por estado y entidad. Subtotal visible por proyecto.
 - Pre-cuadre de costos: modal que se activa al pasar a en_curso. Permite ajustar costos finales vs presupuestados antes de generar RQs. Requiere proveedor en todos los items. Genera RQs automaticamente con monto_presupuestado y monto_solicitado (costo final).
-- Proformas/Cotizaciones: versiones con items, familias/grupos, costos internos, precio cliente manual por item, margen sobre precio de venta, fee de agencia, IGV configurable (0% para Selva), descuento, autosave cada 60 segundos, columna extra configurable, biblioteca de items. Bloqueo al aprobar por gerencia.
+- Cotizaciones: versiones con items, familias/grupos, costos internos, precio cliente manual por item, margen sobre precio de venta, fee de agencia, IGV configurable (0% para Selva), descuento, autosave cada 60 segundos, columna extra configurable, biblioteca de items. Bloqueo al aprobar por gerencia.
 - Clientes y CRM: base de clientes, pipeline de leads por etapas
 - Proveedores: base de proveedores con categorias, tipos de pago
 - Biblioteca de items: catalogo reutilizable en cotizaciones con precio cliente y margen

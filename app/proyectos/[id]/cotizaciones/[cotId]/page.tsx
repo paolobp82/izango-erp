@@ -366,7 +366,7 @@ if (idsAEliminar.length > 0) {
       }
     }
     if (rqsAInsertar.length > 0) {
-      console.info("Generando RQs desde proforma", {
+      console.info("Generando RQs desde cotización", {
         proyecto_id: proyectoId,
         cotizacion_id: cotizacionId,
         total_items: rqsAInsertar.length,
@@ -385,7 +385,7 @@ if (idsAEliminar.length > 0) {
       if (error) throw error
       const rqsSinCodigo = (rqsCreados || []).filter((rq: any) => !rq.codigo_rq && !rq.numero_rq)
       if ((rqsCreados || []).length !== rqsAInsertar.length || rqsSinCodigo.length > 0) {
-        console.error("RQs creados desde proforma con respuesta incompleta", {
+        console.error("RQs creados desde cotización con respuesta incompleta", {
           proyecto_id: proyectoId,
           cotizacion_id: cotizacionId,
           esperados: rqsAInsertar.length,
@@ -395,7 +395,7 @@ if (idsAEliminar.length > 0) {
         })
         throw new Error("Supabase no confirmo todos los codigos RQ generados. Refresca y verifica el listado antes de continuar.")
       }
-      console.info("RQs creados desde proforma", {
+      console.info("RQs creados desde cotización", {
         proyecto_id: proyectoId,
         cotizacion_id: cotizacionId,
         total_creados: rqsCreados?.length || 0,
@@ -438,7 +438,7 @@ if (idsAEliminar.length > 0) {
       const centro = centrosCostos.find((centro: any) => centro.id === item.centro_costo_id)
       return {
         descripcion: item.descripcion,
-        categoria: item.categoria || "Proforma",
+        categoria: item.categoria || "Cotización",
         notas: item.notas || null,
         centro_costos: centro?.nombre || item.centro_costos || null,
         margen_pct: Number(item.margen_pct) || 0,
@@ -508,8 +508,8 @@ if (idsAEliminar.length > 0) {
       .single()
 
     if (versionError) {
-      console.error("No se pudo verificar la versión de la proforma:", versionError)
-      if (!silencioso) alert("No se pudo verificar si la proforma fue modificada por otro usuario.")
+      console.error("No se pudo verificar la versión de la cotización:", versionError)
+      if (!silencioso) alert("No se pudo verificar si la cotización fue modificada por otro usuario.")
       return false
     }
 
@@ -614,7 +614,7 @@ if (idsAEliminar.length > 0) {
       return true
     } catch (error: any) {
       console.error("Error guardando cotizacion:", error)
-      alert("No se pudo guardar la proforma: " + (error?.message || "Error desconocido"))
+      alert("No se pudo guardar la cotización: " + (error?.message || "Error desconocido"))
       return false
     } finally {
       savingRef.current = false
@@ -662,7 +662,7 @@ if (idsAEliminar.length > 0) {
       alert("No tienes permisos para marcar aprobado por cliente")
       return
     }
-    if (!confirm("¿Confirmas que el cliente aprobó formalmente esta proforma?")) return
+    if (!confirm("¿Confirmas que el cliente aprobó formalmente esta cotización?")) return
     const guardado = await guardar(true, true)
     if (!guardado) return
     setSaving(true)
@@ -683,21 +683,21 @@ if (idsAEliminar.length > 0) {
     try {
       const resultadoGestor = await cargarItemsAprobadosAlGestor(supabase, String(id), String(cotId))
       if (resultadoGestor.creados > 0) {
-        console.info("Items cargados al Gestor desde proforma aprobada", resultadoGestor)
+        console.info("Items cargados al Gestor desde cotización aprobada", resultadoGestor)
       }
     } catch (gestorError) {
       console.error("No se pudieron cargar items aprobados al Gestor:", gestorError)
-      alert("La proforma fue aprobada, pero no se pudieron cargar los items al Gestor. Revisa consola.")
+      alert("La cotización fue aprobada, pero no se pudieron cargar los items al Gestor. Revisa consola.")
     }
     await registrarHistorial({
       cotizacion_id: cotId,
       accion: "aprobada_cliente",
       estado_anterior: estadoAnterior,
       estado_nuevo: "aprobada_cliente",
-      descripcion: "Cliente aprobo formalmente la proforma. Total: " + fmt(totalFinal),
+      descripcion: "Cliente aprobo formalmente la cotización. Total: " + fmt(totalFinal),
       datos: { aprobado_por: perfilActual?.id || null, aprobado_at: aprobadoAt },
     })
-    await registrarAccion({ accion: "aprobar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Proforma marcada como aprobada por cliente", datos_nuevos: { aprobado_por: perfilActual?.id || null, aprobado_at: aprobadoAt } })
+    await registrarAccion({ accion: "aprobar", modulo: "cotizaciones", entidad_id: cotId, entidad_tipo: "cotizacion", descripcion: "Cotización marcada como aprobada por cliente", datos_nuevos: { aprobado_por: perfilActual?.id || null, aprobado_at: aprobadoAt } })
     await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, codigo: proyecto?.codigo, version: cotizacion?.version, total: totalFinal, proyecto_id: id })
     setCotizacion((prev: any) => ({ ...prev, estado: "aprobada_cliente", bloqueada: true, bloqueada_por: perfilActual?.id }))
     setBloqueada(true)
@@ -705,10 +705,10 @@ if (idsAEliminar.length > 0) {
       accion: "aprobada_cliente",
       usuario_nombre: perfilActual ? `${perfilActual.nombre || ""} ${perfilActual.apellido || ""}`.trim() : "Usuario actual",
       created_at: aprobadoAt,
-      descripcion: "Cliente aprobo formalmente la proforma. Total: " + fmt(totalFinal),
+      descripcion: "Cliente aprobo formalmente la cotización. Total: " + fmt(totalFinal),
     }, ...prev])
     setSaving(false)
-    alert("Proforma marcada como aprobada por cliente")
+    alert("Cotización marcada como aprobada por cliente")
     router.push("/proyectos/" + id)
   }
 
@@ -722,7 +722,7 @@ if (idsAEliminar.length > 0) {
 
   // Autosave destructivo desactivado temporalmente.
   // Motivo: el autosave estaba guardando items desde un snapshot local y podía sobrescribir montos sin intervención de otro usuario.
-  // Los items de proforma ahora deben persistirse únicamente con acciones explícitas: Guardar borrador, Descargar PDF o Aprobar.
+  // Los items de cotización ahora deben persistirse únicamente con acciones explícitas: Guardar borrador, Descargar PDF o Aprobar.
   useEffect(() => {
     if (autoSaveRef.current) clearInterval(autoSaveRef.current)
     return () => {
@@ -772,7 +772,7 @@ useEffect(() => { itemsRef.current = items }, [items])
         <div style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
           <div style={{ fontWeight: 800, color: "#991B1B", fontSize: 13 }}>Autoguardado pausado</div>
           <div style={{ color: "#7F1D1D", fontSize: 12, marginTop: 4 }}>
-            Esta proforma tiene una versión guardada más reciente que la versión cargada en esta pantalla. Puedes seguir editando y guardar manualmente tu versión actual si corresponde.
+            Esta cotización tiene una versión guardada más reciente que la versión cargada en esta pantalla. Puedes seguir editando y guardar manualmente tu versión actual si corresponde.
           </div>
         </div>
       )}
@@ -829,7 +829,7 @@ useEffect(() => { itemsRef.current = items }, [items])
             <span style={{ color: "#d1d5db" }}>/</span>
             <a href={"/proyectos/" + id} style={{ color: "#9ca3af", fontSize: 12 }}>{proyecto?.codigo}</a>
             <span style={{ color: "#d1d5db" }}>/</span>
-            <span style={{ fontSize: 12, color: "#4b5563" }}>Proforma V{cotizacion?.version}</span>
+            <span style={{ fontSize: 12, color: "#4b5563" }}>Cotización V{cotizacion?.version}</span>
           </div>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#111827" }}>{proyecto?.nombre}</h1>
           <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>

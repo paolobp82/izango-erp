@@ -785,8 +785,8 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const origenRQDetalle = (rq: any) => rq?.es_adicional
     ? "Fuera del presupuesto aprobado."
     : rq?.cotizacion_item_id
-      ? "Vinculado a un ítem de la proforma aprobada."
-      : "RQ de proyecto sin vínculo histórico a ítem de proforma."
+      ? "Vinculado a un ítem de la cotización aprobada."
+      : "RQ de proyecto sin vínculo histórico a ítem de cotización."
 
   const rqsVistaActiva = incluirProyectosEliminados ? rqs : rqs.filter(r => r.estado !== "cancelado" && !rqPerteneceAProyectoEliminado(r))
   const rqsProyectosEliminados = rqs.filter(r => rqPerteneceAProyectoEliminado(r))

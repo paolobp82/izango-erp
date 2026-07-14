@@ -14,6 +14,24 @@ const TIPOS: Record<string, { icon: string, color: string }> = {
   lead:        { icon: "🎯", color: "#d97706" },
 }
 
+function normalizarTextoBusqueda(value: string) {
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+}
+
+function aliasesBusquedaCotizacion(query: string) {
+  const normalized = normalizarTextoBusqueda(query)
+  const aliases = new Set([query])
+  if (normalized.includes("proforma")) {
+    aliases.add(query.replace(/proforma/gi, "cotizacion"))
+    aliases.add(query.replace(/proformas/gi, "cotizaciones"))
+  }
+  if (normalized.includes("cotizacion")) {
+    aliases.add(query.replace(/cotizaci[oó]n/gi, "proforma"))
+    aliases.add(query.replace(/cotizaciones/gi, "proformas"))
+  }
+  return Array.from(aliases).filter(Boolean)
+}
+
 export default function BusquedaGlobal() {
   const supabase = createClient()
   const router = useRouter()
@@ -54,7 +72,10 @@ export default function BusquedaGlobal() {
       supabase.from("facturas").select("id, numero_factura, estado").ilike("numero_factura", like).limit(3),
       supabase.from("crm_leads").select("id, razon_social, estado").ilike("razon_social", like).limit(3),
     ])
-    const { data: itemsCotizacion } = await buscarItemsCotizados(supabase, { query: q, limit: 6 })
+    const itemsCotizacionResults = await Promise.all(aliasesBusquedaCotizacion(q).map(alias => buscarItemsCotizados(supabase, { query: alias, limit: 6 })))
+    const itemsCotizacion = Array.from(
+      new Map(itemsCotizacionResults.flatMap(result => result.data || []).map((item: any) => [item.id, item])).values()
+    )
 
     const res: any[] = [
       ...(proyectos || []).map(p => ({ tipo: "proyecto", titulo: p.nombre, subtitulo: p.codigo + " · " + p.estado, href: "/proyectos/" + p.id })),
@@ -68,7 +89,7 @@ export default function BusquedaGlobal() {
         return {
           tipo: "item_cotizacion",
           titulo: item.descripcion,
-          subtitulo: `${proy?.codigo || "Proyecto"} · ${proy?.nombre || "Sin proyecto"} · Proforma V${cot?.version || "?"}`,
+          subtitulo: `${proy?.codigo || "Proyecto"} · ${proy?.nombre || "Sin proyecto"} · Cotización V${cot?.version || "?"}`,
           href: cot?.proyecto_id && cot?.id ? `/proyectos/${cot.proyecto_id}/cotizaciones/${cot.id}` : "/buscar-items",
         }
       }),
