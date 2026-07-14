@@ -31,7 +31,6 @@ const ESTADO_COLOR: Record<string, any> = {
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
 const COTIZACION_APROBADA_ESTADOS = ["aprobada_cliente", "aprobado_cliente"]
 const PROYECTO_PENDIENTE_ESTADOS = ["pendiente_aprobacion"]
-const PROYECTO_EN_CURSO_ESTADOS = ["aprobado_cliente", "en_curso", "terminado", "liquidado", "pendiente_facturacion", "facturado", "cerrado_financiero"]
 const FACTURA_ANULADA_ESTADOS = ["anulada", "cancelada"]
 const FACTURA_COBRADA_ESTADOS = ["cobrada", "pagada"]
 const FACTURA_POR_COBRAR_ESTADOS = ["emitida", "pendiente", "pendiente_cobro"]
@@ -202,7 +201,7 @@ export default function DashboardPage() {
 
     // Métricas base
     const activos = allProv.filter(p => p.estado === "en_curso")
-    const pendientes = allProv.filter(p => p.estado === "pendiente_aprobacion")
+    const pendientes = allProv.filter(p => PROYECTO_PENDIENTE_ESTADOS.includes(p.estado))
     const terminadosSinLiquidar = allProv.filter(p => p.estado === "terminado")
     const fechaFactura = (factura: any) => new Date(factura.fecha_emision || factura.created_at)
     const totalFacturado = facturasActivas.filter(f => !FACTURA_ANULADA_ESTADOS.includes(f.estado)).reduce((s, f) => s + num(f.subtotal) + num(f.igv), 0)
@@ -231,16 +230,11 @@ export default function DashboardPage() {
       totalFacturado, totalCobrado, porCobrar, margenPromedio,
       cotMes: cotMesActivas.length, leadsCalientes, pipelineCRM, factMesAct, varFacturacion,
       canSeePrecioCliente, canSeeFacturas, canSeeCobranza, canSeeCostos, canSeeMargen,
-      presupuestosPendientes: canSeePrecioCliente ? allProv.filter((p: any) => {
-        const creado = p.created_at ? new Date(p.created_at) : null
-        return PROYECTO_PENDIENTE_ESTADOS.includes(p.estado) && creado && creado >= inicioMes && creado <= hoy
-      }).reduce((s: number, p: any) => s + totalMejorCotizacionProyecto(p.id), 0) : 0,
-      pendientesMes: allProv.filter((p: any) => {
-        const creado = p.created_at ? new Date(p.created_at) : null
-        return PROYECTO_PENDIENTE_ESTADOS.includes(p.estado) && creado && creado >= inicioMes && creado <= hoy
-      }).length,
+      presupuestosPendientes: canSeePrecioCliente ? pendientes
+        .reduce((s: number, p: any) => s + totalMejorCotizacionProyecto(p.id), 0) : 0,
+      pendientesMes: pendientes.length,
       presupuestosAprobados: canSeePrecioCliente ? allProv
-        .filter((p: any) => PROYECTO_EN_CURSO_ESTADOS.includes(p.estado))
+        .filter((p: any) => p.estado === "en_curso")
         .reduce((s: number, p: any) => s + totalMejorCotizacionProyecto(p.id), 0) : 0,
     })
 
@@ -351,13 +345,13 @@ export default function DashboardPage() {
             {
               label: "Presupuestos Pendientes",
               value: metricas.canSeePrecioCliente ? fmt(metricas.presupuestosPendientes || 0) : FINANCIAL_LOCK_LABEL,
-              subtitle: (metricas.pendientesMes || 0) + " oportunidades abiertas este mes",
+              subtitle: (metricas.pendientesMes || 0) + " proyectos activos pendientes de aprobación",
               tone: "success",
             },
             {
               label: "Presupuestos en Curso",
               value: metricas.canSeePrecioCliente ? fmt(metricas.presupuestosAprobados || 0) : FINANCIAL_LOCK_LABEL,
-              subtitle: `${metricas.activos || 0} proyectos en ejecución`,
+              subtitle: "Proyectos actualmente en ejecución",
               tone: "info",
             },
             {
