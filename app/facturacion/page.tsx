@@ -12,6 +12,7 @@ import { puedeAccederRuta } from "@/lib/permissions"
 import {
   esFacturaAnulada,
   montoCobradoFactura,
+  montoNetoEsperadoFactura,
   saldoPendienteFactura,
   totalFactura,
 } from "@/lib/finance"
@@ -208,7 +209,7 @@ export default function FacturacionPage() {
       pronto_pago_entidad: form.pronto_pago_entidad || null,
       pronto_pago_pct: Number(form.pronto_pago_pct),
       pronto_pago_monto: m.prontoPagoMonto,
-      monto_final_abonado: ["cobrada", "pagada"].includes(form.estado) ? m.total : 0,
+      monto_final_abonado: form.estado === "cobrada" ? m.montoFinal : 0,
       banco_receptor: form.banco_receptor || null,
       fecha_emision: form.fecha_emision || null,
       dias_credito: Number(form.dias_credito) || 30,
@@ -266,6 +267,11 @@ export default function FacturacionPage() {
     const costoFactoring = Number(selected.costo_factoring || 0)
     const otrosDescuentos = Number(selected.otros_descuentos || 0)
     const montoFinal = Number(selected.monto_final_abonado || 0)
+    const montoNetoEsperado = montoNetoEsperadoFactura({
+      ...selected,
+      costo_factoring: costoFactoring,
+      otros_descuentos: otrosDescuentos,
+    })
 
     if (["cobrada", "pagada"].includes(selected.estado)) {
       if (!["controller", "superadmin", "gerente_general"].includes(perfil?.perfil)) {
@@ -281,11 +287,14 @@ export default function FacturacionPage() {
         return
       }
       if (montoFinal > total) {
-        alert("El monto abonado no puede exceder el total de la factura.")
+        alert("El monto abonado no puede exceder el total bruto de la factura.")
         return
       }
-      if (Math.abs(montoFinal - total) > 0.01) {
-        alert("Aún no hay pagos parciales. Para marcarla como cobrada, el monto abonado debe cerrar el total de la factura.")
+
+      if (Math.abs(montoFinal - montoNetoEsperado) > 0.01) {
+        alert(
+          `El monto cobrado debe ser S/ ${montoNetoEsperado.toFixed(2)} después de detracción, retención, pronto pago, factoring y otros descuentos.`
+        )
         return
       }
     }
@@ -773,34 +782,3 @@ export default function FacturacionPage() {
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

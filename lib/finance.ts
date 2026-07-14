@@ -7,6 +7,11 @@ export type FacturaLike = {
   estado?: string | null
   subtotal?: number | string | null
   igv?: number | string | null
+  detraccion_monto?: number | string | null
+  retencion_monto?: number | string | null
+  pronto_pago_monto?: number | string | null
+  costo_factoring?: number | string | null
+  otros_descuentos?: number | string | null
   monto_final_abonado?: number | string | null
 }
 
@@ -29,6 +34,18 @@ export function esFacturaAnulada(factura: FacturaLike) {
   return FACTURAS_ANULADAS.includes(String(factura?.estado || ""))
 }
 
+export function montoNetoEsperadoFactura(factura: FacturaLike) {
+  const bruto = totalFactura(factura)
+
+  const descuentos =
+    financeNumber(factura?.detraccion_monto) +
+    financeNumber(factura?.retencion_monto) +
+    financeNumber(factura?.pronto_pago_monto) +
+    financeNumber(factura?.costo_factoring) +
+    financeNumber(factura?.otros_descuentos)
+
+  return Math.max(bruto - descuentos, 0)
+}
 export function montoCobradoFactura(factura: FacturaLike) {
   if (!FACTURAS_COBRADAS.includes(String(factura?.estado || ""))) return 0
   return financeNumber(factura?.monto_final_abonado)
@@ -36,7 +53,13 @@ export function montoCobradoFactura(factura: FacturaLike) {
 
 export function saldoPendienteFactura(factura: FacturaLike) {
   if (esFacturaAnulada(factura)) return 0
-  return Math.max(totalFactura(factura) - montoCobradoFactura(factura), 0)
+
+  // El efectivo recibido puede ser menor que el total bruto por
+  // detracción, retención, pronto pago, factoring u otros descuentos.
+  // Una factura cobrada no mantiene saldo comercial pendiente.
+  if (FACTURAS_COBRADAS.includes(String(factura?.estado || ""))) return 0
+
+  return totalFactura(factura)
 }
 
 export function financeShort(value: unknown) {
