@@ -11,6 +11,7 @@ import SectionCard from "@/components/ui/SectionCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { puedeAccederRuta } from "@/lib/permissions"
+import { esFacturaAnulada, montoCobradoFactura, saldoPendienteFactura, totalFactura } from "@/lib/finance"
 
 export default function LiquidacionesPage() {
   const supabase = createClient()
@@ -158,7 +159,6 @@ export default function LiquidacionesPage() {
       .from("facturas")
       .select("id, estado, subtotal, igv, monto_final_abonado")
       .eq("proyecto_id", liq.proyecto_id)
-      .not("estado", "eq", "anulada")
 
     const { data: cajaChicaProyecto, error: cajaChicaError } = await supabase
       .from("caja_chica")
@@ -174,10 +174,11 @@ export default function LiquidacionesPage() {
     const detailErrors = [itemsError?.message, cotizacionItemsError?.message, rqsError?.message, facturasError?.message, cajaChicaError?.message, trasladosError?.message].filter(Boolean)
     if (detailErrors.length) setDetailError(detailErrors.join(" · "))
 
-    const facturado = (facturasProyecto || []).reduce((s: number, f: any) => s + Number(f.subtotal || 0) + Number(f.igv || 0), 0)
-    const cobrado = (facturasProyecto || []).filter((f: any) => f.estado === "cobrada").reduce((s: number, f: any) => s + Number(f.monto_final_abonado || 0), 0)
-    const pendiente = (facturasProyecto || []).filter((f: any) => ["pendiente", "emitida", "pendiente_cobro"].includes(f.estado)).reduce((s: number, f: any) => s + Number(f.monto_final_abonado || 0), 0)
-    setFacturacionResumen({ facturado, cobrado, pendiente, facturas: (facturasProyecto || []).length })
+    const facturasActivasProyecto = (facturasProyecto || []).filter((f: any) => !esFacturaAnulada(f))
+    const facturado = facturasActivasProyecto.reduce((s: number, f: any) => s + totalFactura(f), 0)
+    const cobrado = facturasActivasProyecto.reduce((s: number, f: any) => s + montoCobradoFactura(f), 0)
+    const pendiente = facturasActivasProyecto.reduce((s: number, f: any) => s + saldoPendienteFactura(f), 0)
+    setFacturacionResumen({ facturado, cobrado, pendiente, facturas: facturasActivasProyecto.length })
 
     const cotItemMap = new Map((cotItems || []).map((c: any) => [c.id, c]))
     const rqByCotizacionItemId = new Map(

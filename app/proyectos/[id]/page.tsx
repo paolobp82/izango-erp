@@ -12,6 +12,7 @@ import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 import { filtrarPorAlcance, puedeEjecutarAccion, puedeVerInformacionSensible, puedeVerModulo, type AccionPermiso } from "@/lib/permisos"
 import { lifecycleEngine } from "@/lib/core/lifecycle"
 import { businessRuleEngine } from "@/lib/core/business-rules"
+import { esFacturaAnulada, totalFactura } from "@/lib/finance"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
@@ -761,6 +762,33 @@ export default function ProyectoDetallePage() {
     }
 
     setCambiando(true)
+
+    if (nuevoEstado === "facturado") {
+      const { data: facturasProyecto, error: facturasError } = await supabase
+        .from("facturas")
+        .select("id, numero_factura, fecha_emision, estado, subtotal, igv, proyecto_id")
+        .eq("proyecto_id", id)
+
+      if (facturasError) {
+        alert("No se pudo validar la factura del proyecto: " + facturasError.message)
+        setCambiando(false)
+        return
+      }
+
+      const facturaValida = (facturasProyecto || []).some((factura: any) =>
+        factura.proyecto_id === id &&
+        !esFacturaAnulada(factura) &&
+        Boolean(factura.numero_factura) &&
+        Boolean(factura.fecha_emision) &&
+        totalFactura(factura) > 0
+      )
+
+      if (!facturaValida) {
+        alert("Este proyecto aún no tiene una factura emitida. Registra la factura antes de marcarlo como facturado.")
+        setCambiando(false)
+        return
+      }
+    }
 
     if (nuevoEstado === "aprobado_gerencia" && versionAprobar) {
       await supabase.from("cotizaciones").update({ bloqueada: true }).eq("id", versionAprobar)
@@ -1876,6 +1904,12 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando}
                     style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: cambiando ? 0.7 : 1 }}>
                     {cambiando ? "..." : estadoInfo.accion}
+                  </button>
+                )}
+                {proyecto?.estado === "pendiente_facturacion" && (
+                  <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)}
+                    style={{ padding: "8px 16px", border: "1px solid #bbf7d0", borderRadius: 8, background: "#fff", color: "#0F6E56", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                    Ir a Facturación
                   </button>
                 )}
                 {puedeRechazar && (

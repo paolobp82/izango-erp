@@ -3,18 +3,43 @@ export const FACTURAS_PENDIENTES = ["pendiente", "emitida", "pendiente_cobro"]
 export const FACTURAS_ANULADAS = ["anulada", "cancelada"]
 export const RQS_POR_PAGAR = ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "programado"]
 
-export function financeNumber(value: any) {
+export type FacturaLike = {
+  estado?: string | null
+  subtotal?: number | string | null
+  igv?: number | string | null
+  monto_final_abonado?: number | string | null
+}
+
+export function financeNumber(value: unknown) {
   return Number(value) || 0
 }
 
-export function financeMoney(value: any) {
+export function financeMoney(value: unknown) {
   return "S/ " + financeNumber(value).toLocaleString("es-PE", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
 }
 
-export function financeShort(value: any) {
+export function totalFactura(factura: FacturaLike) {
+  return financeNumber(factura?.subtotal) + financeNumber(factura?.igv)
+}
+
+export function esFacturaAnulada(factura: FacturaLike) {
+  return FACTURAS_ANULADAS.includes(String(factura?.estado || ""))
+}
+
+export function montoCobradoFactura(factura: FacturaLike) {
+  if (!FACTURAS_COBRADAS.includes(String(factura?.estado || ""))) return 0
+  return financeNumber(factura?.monto_final_abonado)
+}
+
+export function saldoPendienteFactura(factura: FacturaLike) {
+  if (esFacturaAnulada(factura)) return 0
+  return Math.max(totalFactura(factura) - montoCobradoFactura(factura), 0)
+}
+
+export function financeShort(value: unknown) {
   const amount = financeNumber(value)
   if (Math.abs(amount) >= 1_000_000) return "S/ " + (amount / 1_000_000).toFixed(1) + "M"
   if (Math.abs(amount) >= 1_000) return "S/ " + (amount / 1_000).toFixed(0) + "K"

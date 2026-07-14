@@ -15,6 +15,12 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend
 } from "recharts"
+import {
+  esFacturaAnulada,
+  montoCobradoFactura,
+  saldoPendienteFactura,
+  totalFactura,
+} from "@/lib/finance"
 
 const ESTADO_COLOR: Record<string, any> = {
   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e", label: "Pendiente" },
@@ -31,9 +37,6 @@ const ESTADO_COLOR: Record<string, any> = {
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
 const COTIZACION_APROBADA_ESTADOS = ["aprobada_cliente", "aprobado_cliente"]
 const PROYECTO_PENDIENTE_ESTADOS = ["pendiente_aprobacion"]
-const FACTURA_ANULADA_ESTADOS = ["anulada", "cancelada"]
-const FACTURA_COBRADA_ESTADOS = ["cobrada", "pagada"]
-const FACTURA_POR_COBRAR_ESTADOS = ["emitida", "pendiente", "pendiente_cobro"]
 const num = (value: any) => Number(value) || 0
 const COTIZACION_SELECT = "id, proyecto_id, version, estado, created_at, updated_at, total_cliente, subtotal_precio_cliente, subtotal_con_fee, igv_monto, fee_agencia_pct, fee_activo, igv_pct, descuento_pct, items:cotizacion_items(precio_cliente, incluir_en_total)"
 const FINANCIAL_LOCK_LABEL = "Restringido"
@@ -204,9 +207,10 @@ export default function DashboardPage() {
     const pendientes = allProv.filter(p => PROYECTO_PENDIENTE_ESTADOS.includes(p.estado))
     const terminadosSinLiquidar = allProv.filter(p => p.estado === "terminado")
     const fechaFactura = (factura: any) => new Date(factura.fecha_emision || factura.created_at)
-    const totalFacturado = facturasActivas.filter(f => !FACTURA_ANULADA_ESTADOS.includes(f.estado)).reduce((s, f) => s + num(f.subtotal) + num(f.igv), 0)
-    const totalCobrado = canSeeCobranza ? facturasActivas.filter(f => FACTURA_COBRADA_ESTADOS.includes(f.estado)).reduce((s, f) => s + num(f.monto_final_abonado), 0) : 0
-    const porCobrar = canSeeCobranza ? facturasActivas.filter(f => FACTURA_POR_COBRAR_ESTADOS.includes(f.estado)).reduce((s, f) => s + num(f.monto_final_abonado), 0) : 0
+    const facturasActivasNoAnuladas = facturasActivas.filter(f => !esFacturaAnulada(f))
+    const totalFacturado = facturasActivasNoAnuladas.reduce((s, f) => s + totalFactura(f), 0)
+    const totalCobrado = canSeeCobranza ? facturasActivasNoAnuladas.reduce((s, f) => s + montoCobradoFactura(f), 0) : 0
+    const porCobrar = canSeeCobranza ? facturasActivasNoAnuladas.reduce((s, f) => s + saldoPendienteFactura(f), 0) : 0
     const liqCerradas = liquidacionesActivas.filter(l => l.cerrada && Number.isFinite(Number(l.margen_real_pct)))
     const margenPromedio = liqCerradas.length > 0 ? liqCerradas.reduce((s, l) => s + num(l.margen_real_pct), 0) / liqCerradas.length : 0
     const rqsPendientes = rqsActivos.filter(r => !["pagado","rechazado","cancelado","cerrado"].includes(r.estado))
@@ -219,8 +223,8 @@ export default function DashboardPage() {
     const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
     const inicioMesAnt = new Date(hoy.getFullYear(), hoy.getMonth()-1, 1)
     const finMesAnt = new Date(hoy.getFullYear(), hoy.getMonth(), 0)
-    const factMesAct = facturasActivas.filter(f => fechaFactura(f) >= inicioMes && !FACTURA_ANULADA_ESTADOS.includes(f.estado)).reduce((s,f) => s + num(f.subtotal) + num(f.igv),0)
-    const factMesAnt = facturasActivas.filter(f => { const d = fechaFactura(f); return d >= inicioMesAnt && d <= finMesAnt && !FACTURA_ANULADA_ESTADOS.includes(f.estado) }).reduce((s,f) => s + num(f.subtotal) + num(f.igv),0)
+    const factMesAct = facturasActivasNoAnuladas.filter(f => fechaFactura(f) >= inicioMes).reduce((s,f) => s + totalFactura(f),0)
+    const factMesAnt = facturasActivasNoAnuladas.filter(f => { const d = fechaFactura(f); return d >= inicioMesAnt && d <= finMesAnt }).reduce((s,f) => s + totalFactura(f),0)
     const varFacturacion = factMesAnt > 0 ? ((factMesAct - factMesAnt) / factMesAnt) * 100 : 0
 
     setMetricas({
@@ -243,8 +247,8 @@ export default function DashboardPage() {
     for (let i = 5; i >= 0; i--) {
       const d = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1)
       const fin = new Date(hoy.getFullYear(), hoy.getMonth()-i+1, 0)
-      const facturado = canSeeFacturas ? facturasActivas.filter(f => { const fd = fechaFactura(f); return fd >= d && fd <= fin && !FACTURA_ANULADA_ESTADOS.includes(f.estado) }).reduce((s,f) => s + num(f.subtotal) + num(f.igv),0) : 0
-      const cobrado = canSeeCobranza ? facturasActivas.filter(f => { const fd = fechaFactura(f); return fd >= d && fd <= fin && FACTURA_COBRADA_ESTADOS.includes(f.estado) }).reduce((s,f) => s + num(f.monto_final_abonado),0) : 0
+      const facturado = canSeeFacturas ? facturasActivasNoAnuladas.filter(f => { const fd = fechaFactura(f); return fd >= d && fd <= fin }).reduce((s,f) => s + totalFactura(f),0) : 0
+      const cobrado = canSeeCobranza ? facturasActivasNoAnuladas.filter(f => { const fd = fechaFactura(f); return fd >= d && fd <= fin }).reduce((s,f) => s + montoCobradoFactura(f),0) : 0
       chartFact.push({ mes: MESES[d.getMonth()], facturado: Math.round(facturado), cobrado: Math.round(cobrado) })
     }
     setChartFacturacion(chartFact)

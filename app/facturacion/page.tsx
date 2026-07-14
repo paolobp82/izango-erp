@@ -9,7 +9,12 @@ import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { puedeAccederRuta } from "@/lib/permissions"
-import { businessRuleEngine } from "@/lib/core/business-rules"
+import {
+  esFacturaAnulada,
+  montoCobradoFactura,
+  saldoPendienteFactura,
+  totalFactura,
+} from "@/lib/finance"
 
 const ESTADOS: Record<string, any> = {
   pendiente:  { bg: "#fef9c3", color: "#92400e",  label: "Pendiente" },
@@ -137,10 +142,49 @@ export default function FacturacionPage() {
     return { subtotal, igvMonto, total, detraccionMonto, retencionMonto, prontoPagoMonto, montoFinal }
   }
 
+  async function intentarCerrarFinancieramente(factura: any) {
+    if (factura?.estado !== "cobrada" || factura?.tipo_factura !== "final" || !factura?.proyecto_id) return
+
+    const { data: liquidacion, error: liquidacionError } = await supabase
+      .from("liquidaciones")
+      .select("id, cerrada, aprobado_controller")
+      .eq("proyecto_id", factura.proyecto_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (liquidacionError) {
+      alert("Factura marcada como cobrada, pero no se pudo validar la liquidación: " + liquidacionError.message)
+      return
+    }
+
+    if (liquidacion?.cerrada && liquidacion?.aprobado_controller) {
+      await supabase
+        .from("proyectos")
+        .update({ estado: "cerrado_financiero" })
+        .eq("id", factura.proyecto_id)
+
+      await registrarAccion({
+        accion: "cambiar_estado",
+        modulo: "proyectos",
+        entidad_id: factura.proyecto_id,
+        entidad_tipo: "proyecto",
+        descripcion: "Proyecto marcado como cerrado financiero por factura final cobrada y liquidación aprobada por Controller",
+        datos_nuevos: { estado: "cerrado_financiero", liquidacion_id: liquidacion.id }
+      })
+    } else {
+      alert("Factura marcada como cobrada. El proyecto aún no se cierra financieramente porque la liquidación no está aprobada por Controller.")
+    }
+  }
+
   async function guardar() {
     if (!autorizado) return
     if (!form.proyecto_id || !form.numero_factura || !form.subtotal) {
       alert("Proyecto, número de factura y subtotal son obligatorios")
+      return
+    }
+    if (["cobrada", "pagada"].includes(form.estado) && !form.fecha_abono) {
+      alert("Para crear una factura cobrada debes registrar fecha de abono.")
       return
     }
     const proyecto = proyectos.find((p: any) => p.id === form.proyecto_id)
@@ -164,7 +208,7 @@ export default function FacturacionPage() {
       pronto_pago_entidad: form.pronto_pago_entidad || null,
       pronto_pago_pct: Number(form.pronto_pago_pct),
       pronto_pago_monto: m.prontoPagoMonto,
-      monto_final_abonado: m.montoFinal,
+      monto_final_abonado: ["cobrada", "pagada"].includes(form.estado) ? m.total : 0,
       banco_receptor: form.banco_receptor || null,
       fecha_emision: form.fecha_emision || null,
       dias_credito: Number(form.dias_credito) || 30,
@@ -195,6 +239,12 @@ export default function FacturacionPage() {
       return
     }
 
+    if (estado === "cobrada") {
+      setSelected({ ...facturaActual, estado })
+      alert("Para marcar una factura como cobrada debes registrar fecha de abono y monto real desde el panel de cobranza.")
+      return
+    }
+
     const { error: facturaError } = await supabase
       .from("facturas")
       .update({ estado })
@@ -205,36 +255,6 @@ export default function FacturacionPage() {
       return
     }
 
-    if (estado === "cobrada" && facturaActual?.tipo_factura === "final" && facturaActual?.proyecto_id) {
-      const { data: liquidacion, error: liquidacionError } = await supabase
-        .from("liquidaciones")
-        .select("id, cerrada, aprobado_controller")
-        .eq("proyecto_id", facturaActual.proyecto_id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (liquidacionError) {
-        alert("Factura marcada como cobrada, pero no se pudo validar la liquidación: " + liquidacionError.message)
-      } else if (liquidacion?.cerrada && liquidacion?.aprobado_controller) {
-        await supabase
-          .from("proyectos")
-          .update({ estado: "cerrado_financiero" })
-          .eq("id", facturaActual.proyecto_id)
-
-        await registrarAccion({
-          accion: "cambiar_estado",
-          modulo: "proyectos",
-          entidad_id: facturaActual.proyecto_id,
-          entidad_tipo: "proyecto",
-          descripcion: "Proyecto marcado como cerrado financiero por factura final cobrada y liquidación aprobada por Controller",
-          datos_nuevos: { estado: "cerrado_financiero", liquidacion_id: liquidacion.id }
-        })
-      } else {
-        alert("Factura marcada como cobrada. El proyecto aún no se cierra financieramente porque la liquidación no está aprobada por Controller.")
-      }
-    }
-
     load()
     if (selected?.id === id) setSelected({ ...selected, estado })
   }
@@ -242,18 +262,32 @@ export default function FacturacionPage() {
   async function guardarFacturaSeleccionada() {
     if (!selected) return
 
-    const total = Number(selected.subtotal || 0) + Number(selected.igv || 0)
+    const total = totalFactura(selected)
     const costoFactoring = Number(selected.costo_factoring || 0)
     const otrosDescuentos = Number(selected.otros_descuentos || 0)
-    const detraccion = Number(selected.detraccion_monto || 0)
-    const retencion = Number(selected.retencion_monto || 0)
-    const montoFinal = Number(selected.monto_final_abonado || 0) > 0
-      ? Number(selected.monto_final_abonado || 0)
-      : Math.max(0, total - detraccion - retencion - costoFactoring - otrosDescuentos)
+    const montoFinal = Number(selected.monto_final_abonado || 0)
 
-    if (selected.estado === "cobrada" && !selected.fecha_abono) {
-      alert("Para marcar como cobrada debes registrar fecha de abono.")
-      return
+    if (["cobrada", "pagada"].includes(selected.estado)) {
+      if (!["controller", "superadmin", "gerente_general"].includes(perfil?.perfil)) {
+        alert("Solo Controller, Superadmin o Gerencia General pueden marcar una factura como cobrada.")
+        return
+      }
+      if (!selected.fecha_abono) {
+        alert("Para marcar como cobrada debes registrar fecha de abono.")
+        return
+      }
+      if (montoFinal <= 0) {
+        alert("Para marcar como cobrada debes registrar un monto abonado mayor a cero.")
+        return
+      }
+      if (montoFinal > total) {
+        alert("El monto abonado no puede exceder el total de la factura.")
+        return
+      }
+      if (Math.abs(montoFinal - total) > 0.01) {
+        alert("Aún no hay pagos parciales. Para marcarla como cobrada, el monto abonado debe cerrar el total de la factura.")
+        return
+      }
     }
 
     const updates = {
@@ -275,7 +309,9 @@ export default function FacturacionPage() {
       return
     }
 
+    const facturaActualizada = { ...selected, ...updates }
     setSelected((prev:any) => prev ? { ...prev, ...updates } : prev)
+    await intentarCerrarFinancieramente(facturaActualizada)
     load()
   }
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -291,15 +327,17 @@ export default function FacturacionPage() {
   )
 
   // Totales globales (sin filtro)
-  const totalEmitido = facturas.filter(f => f.estado !== "anulada").reduce((s, f) => s + ((f.subtotal || 0) + (f.igv || 0)), 0)
-  const totalCobrado = facturas.filter(f => f.estado === "cobrada").reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
-  const totalPendiente = facturas.filter(f => f.estado === "emitida").reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
-  const totalDetracciones = facturas.filter(f => f.estado !== "anulada").reduce((s, f) => s + (f.detraccion_monto || 0), 0)
+  const facturasActivas = facturas.filter(f => !esFacturaAnulada(f))
+  const totalEmitido = facturasActivas.reduce((s, f) => s + totalFactura(f), 0)
+  const totalCobrado = facturasActivas.reduce((s, f) => s + montoCobradoFactura(f), 0)
+  const totalPendiente = facturasActivas.reduce((s, f) => s + saldoPendienteFactura(f), 0)
+  const totalDetracciones = facturasActivas.reduce((s, f) => s + (f.detraccion_monto || 0), 0)
 
   // Totales filtrados
-  const totalFiltradoFactura = facturasFiltradas.filter(f => f.estado !== "anulada").reduce((s, f) => s + ((f.subtotal || 0) + (f.igv || 0)), 0)
-  const totalFiltradoAbonado = facturasFiltradas.filter(f => f.estado !== "anulada").reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
-  const totalFiltradoDetraccion = facturasFiltradas.filter(f => f.estado !== "anulada").reduce((s, f) => s + (f.detraccion_monto || 0), 0)
+  const facturasFiltradasActivas = facturasFiltradas.filter(f => !esFacturaAnulada(f))
+  const totalFiltradoFactura = facturasFiltradasActivas.reduce((s, f) => s + totalFactura(f), 0)
+  const totalFiltradoAbonado = facturasFiltradasActivas.reduce((s, f) => s + montoCobradoFactura(f), 0)
+  const totalFiltradoDetraccion = facturasFiltradasActivas.reduce((s, f) => s + (f.detraccion_monto || 0), 0)
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -312,7 +350,7 @@ export default function FacturacionPage() {
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Facturación</h1>
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{facturas.length} facturas registradas</p>
         </div>
-        <ImportExport modulo="facturas" campos={[{key:"numero_factura",label:"N factura",requerido:true},{key:"subtotal",label:"Subtotal"},{key:"detraccion_pct",label:"Detraccion %"},{key:"retencion_pct",label:"Retencion %"},{key:"banco_receptor",label:"Banco"},{key:"fecha_emision",label:"Fecha emision"},{key:"dias_credito",label:"Dias credito"},{key:"fecha_vencimiento",label:"Fecha vencimiento"},{key:"fecha_abono",label:"Fecha abono"}]} datos={facturas} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const diasCredito=Number(r.dias_credito)||30; const fechaVencimiento=r.fecha_vencimiento||(r.fecha_emision?calcularFechaVencimiento(r.fecha_emision,String(diasCredito)):null); const{error}=await supabase.from("facturas").insert({...r,dias_credito:diasCredito,fecha_vencimiento:fechaVencimiento,estado:"pendiente",igv:(Number(r.subtotal)||0)*0.18,monto_final_abonado:Number(r.subtotal)||0}); if(error)errores.push(r.numero_factura+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
+        <ImportExport modulo="facturas" campos={[{key:"numero_factura",label:"N factura",requerido:true},{key:"subtotal",label:"Subtotal"},{key:"detraccion_pct",label:"Detraccion %"},{key:"retencion_pct",label:"Retencion %"},{key:"banco_receptor",label:"Banco"},{key:"fecha_emision",label:"Fecha emision"},{key:"dias_credito",label:"Dias credito"},{key:"fecha_vencimiento",label:"Fecha vencimiento"},{key:"fecha_abono",label:"Fecha abono"}]} datos={facturas} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const diasCredito=Number(r.dias_credito)||30; const fechaVencimiento=r.fecha_vencimiento||(r.fecha_emision?calcularFechaVencimiento(r.fecha_emision,String(diasCredito)):null); const{error}=await supabase.from("facturas").insert({...r,dias_credito:diasCredito,fecha_vencimiento:fechaVencimiento,estado:"pendiente",igv:(Number(r.subtotal)||0)*0.18,monto_final_abonado:0}); if(error)errores.push(r.numero_factura+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
         <button onClick={() => { setVencimientoManual(false); setShowForm(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva factura</button>
       </div>
       <FinanceDataError detail={error} />
@@ -439,7 +477,7 @@ export default function FacturacionPage() {
         </button>
 
         <span style={{ fontSize: 12, color: "#6b7280" }}>
-          {facturasFiltradas.length} facturas · Total: <strong>{fmt(totalFiltradoFactura)}</strong> · A abonar: <strong>{fmt(totalFiltradoAbonado)}</strong> · Detracciones: <strong style={{ color: "#6d28d9" }}>{fmt(totalFiltradoDetraccion)}</strong>
+          {facturasFiltradas.length} facturas · Total: <strong>{fmt(totalFiltradoFactura)}</strong> · Cobrado: <strong>{fmt(totalFiltradoAbonado)}</strong> · Detracciones: <strong style={{ color: "#6d28d9" }}>{fmt(totalFiltradoDetraccion)}</strong>
         </span>
       </div>
 
@@ -579,7 +617,7 @@ export default function FacturacionPage() {
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TOTAL</th>
                 <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6d28d9" }}>DETRACCIÓN</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>A ABONAR</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>COBRADO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>EMISIÓN</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>VENCIMIENTO</th>
@@ -591,7 +629,7 @@ export default function FacturacionPage() {
             <tbody>
               {facturasFiltradas.map((f, idx) => {
                 const ec = ESTADOS[f.estado] || { bg: "#f3f4f6", color: "#6b7280", label: f.estado }
-                const total = (f.subtotal || 0) + (f.igv || 0)
+                const total = totalFactura(f)
                 return (
                   <tr key={f.id} onClick={() => setSelected(f)} style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === f.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}>
                     <td style={{ padding: "12px 20px", fontSize: 13, fontWeight: 700, color: "#111827" }}>{f.numero_factura}</td>
@@ -611,7 +649,7 @@ export default function FacturacionPage() {
                         <span style={{ fontSize: 12, color: "#d1d5db" }}>—</span>
                       )}
                     </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{fmt(f.monto_final_abonado)}</td>
+                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{fmt(montoCobradoFactura(f))}</td>
                     <td style={{ padding: "12px" }}>
                       <StatusBadge label={ec.label} type={f.estado} />
                     </td>

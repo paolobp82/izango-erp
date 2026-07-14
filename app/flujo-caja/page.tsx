@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from "recharts"
 import { rqCodigo } from "@/lib/rq-code"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
-import { FACTURAS_COBRADAS, FACTURAS_PENDIENTES, dueDateValue } from "@/lib/finance"
+import { FACTURAS_COBRADAS, FACTURAS_PENDIENTES, dueDateValue, montoCobradoFactura, saldoPendienteFactura } from "@/lib/finance"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceDataError from "@/components/finanzas/FinanceDataError"
@@ -83,7 +83,7 @@ export default function FlujoCajaPage() {
       const d = f.fecha_abono || f.fecha_emision
       if (!d) return false
       return d.startsWith(key)
-    }).reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
+    }).reduce((s, f) => s + montoCobradoFactura(f), 0)
 
     // Ingresos proyectados: facturas pendientes según vencimiento real
     const ingresosProyectados = facturas.filter(f => {
@@ -91,7 +91,7 @@ export default function FlujoCajaPage() {
       const d = dueDateValue(f)
       if (!d) return false
       return d.startsWith(key)
-    }).reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
+    }).reduce((s, f) => s + saldoPendienteFactura(f), 0)
     // Egresos: RQs programados o pagados en ese mes
     const egresos = rqs.filter(r => {
       if (r.estado !== "pagado") return false
@@ -136,7 +136,7 @@ export default function FlujoCajaPage() {
   const rqsPendientes = rqs.filter(r => ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "programado"].includes(r.estado))
   const totalPendiente = rqsPendientes.reduce((s, r) => s + (r.monto_solicitado || 0), 0)
   const facturasPorCobrar = facturas.filter(f => FACTURAS_PENDIENTES.includes(f.estado))
-  const totalPorCobrar = facturasPorCobrar.reduce((s, f) => s + (f.monto_final_abonado || 0), 0)
+  const totalPorCobrar = facturasPorCobrar.reduce((s, f) => s + saldoPendienteFactura(f), 0)
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -277,7 +277,7 @@ export default function FlujoCajaPage() {
                       <tr key={f.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                         <td style={{ padding: "8px 16px", fontSize: 12, fontWeight: 600, color: "#111827" }}>{f.numero_factura}</td>
                         <td style={{ padding: "8px 8px", fontSize: 11, color: "#6b7280" }}>{f.proyecto?.codigo || "—"}</td>
-                        <td style={{ padding: "8px 16px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#059669" }}>{fmtFull(f.monto_final_abonado || 0)}</td>
+                        <td style={{ padding: "8px 16px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#059669" }}>{fmtFull(saldoPendienteFactura(f))}</td>
                         <td style={{ padding: "8px 8px" }}>
                           <StatusBadge label={f.estado} type={f.estado} />
                         </td>
