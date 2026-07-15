@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { createClient } from "@/lib/supabase"
 import { useParams } from "next/navigation"
 import { pdf, Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
+import { buildPresupuestoPdfFilename } from "@/lib/pdf-filename"
 
 const AGENCIA: any = {
   peru: {
@@ -75,8 +76,8 @@ const ProformaPDF = ({ ag, proyecto, cotizacion, items, fmt, today, feePct, feeM
         <View style={s.header} fixed>
           <Image src={LOGO_URL} style={s.logo} />
           <View style={s.headerRight}>
-            <Text style={s.proformaTitle}>COTIZACIÓN</Text>
-            <Text style={s.headerSub}>Cotización N° {proyecto?.codigo}-V{cotizacion?.version}</Text>
+            <Text style={s.proformaTitle}>PRESUPUESTO</Text>
+            <Text style={s.headerSub}>Presupuesto N° {proyecto?.codigo}-V{cotizacion?.version}</Text>
             <Text style={s.headerSub}>Fecha: {today}</Text>
             <Text style={s.headerSub}>Validez: {cotizacion?.validez_dias || 10} dias</Text>
           </View>
@@ -258,8 +259,12 @@ export default function PreviewCotizacionPage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      const codigoProyecto = String(proyecto?.codigo || "SIN-CODIGO").replace(/[^a-zA-Z0-9-]/g, "")
-      a.download = `Cotizacion_${codigoProyecto}_V${cotizacion?.version || "1"}.pdf`
+      a.download = buildPresupuestoPdfFilename({
+        numeroPresupuesto: proyecto?.codigo,
+        cliente: proyecto?.cliente?.razon_social,
+        nombreProyecto: proyecto?.nombre,
+        version: cotizacion?.version,
+      })
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
@@ -298,8 +303,8 @@ export default function PreviewCotizacionPage() {
         <div style={{ background: COLOR_PRIMARY, padding: "28px 40px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <img src={LOGO_URL_WEB} alt="Izango" style={{ height: 100, objectFit: "contain" }} />
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: COLOR_DARK, letterSpacing: "-0.5px" }}>COTIZACIÓN</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: COLOR_DARK, marginTop: 2 }}>Cotización N° {proyecto?.codigo}-V{cotizacion?.version}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: COLOR_DARK, letterSpacing: "-0.5px" }}>PRESUPUESTO</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: COLOR_DARK, marginTop: 2 }}>Presupuesto N° {proyecto?.codigo}-V{cotizacion?.version}</div>
             <div style={{ fontSize: 12, color: COLOR_DARK, opacity: 0.7, marginTop: 2 }}>Fecha: {today}</div>
             <div style={{ fontSize: 12, color: COLOR_DARK, opacity: 0.7 }}>Validez: {cotizacion?.validez_dias || 10} días</div>
           </div>
