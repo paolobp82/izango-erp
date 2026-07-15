@@ -9,8 +9,6 @@ import {
   puedeVerInformacionSensible,
 } from "@/lib/permisos"
 import ExecutiveSummary from "@/components/design-system/ExecutiveSummary"
-import MasterPage from "@/components/design-system/MasterPage"
-import StatusBadge from "@/components/ui/StatusBadge"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend
@@ -131,7 +129,7 @@ export default function DashboardPage() {
 
     const dashboardResults = await Promise.all([
       supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(total_cliente)").is("deleted_at", null).order("created_at", { ascending: false }).limit(10),
-      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at, fecha_inicio, productor_id, comercial_id, created_by, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
+      supabase.from("proyectos").select("id, estado, codigo, nombre, created_at, fecha_inicio, productor_id, comercial_id, created_by, cotizacion_aprobada_id, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null),
       supabase.from("facturas").select("subtotal, igv, monto_final_abonado, estado, created_at, fecha_emision, proyecto_id"),
       supabase.from("liquidaciones").select("margen_real_pct, cerrada, proyecto_id, created_by"),
       supabase.from("requerimientos_pago").select("id, estado, monto_solicitado, proyecto_id, solicitado_por, created_by"),
@@ -194,13 +192,22 @@ export default function DashboardPage() {
     const leadsVisibles = filtrarPorAlcance((leads || []), p, "crm", contextoPermisos)
     setCotsProyState(cotsProyActivas)
     const cotizacionesPorProyecto = new Map<string, any[]>()
+    const cotizacionPorId = new Map<string, any>()
     cotsProyActivas.forEach((cotizacion: any) => {
+      if (cotizacion?.id) cotizacionPorId.set(String(cotizacion.id), cotizacion)
       if (!cotizacion?.proyecto_id) return
       const proyectoId = String(cotizacion.proyecto_id)
       cotizacionesPorProyecto.set(proyectoId, [...(cotizacionesPorProyecto.get(proyectoId) || []), cotizacion])
     })
     const mejorCotizacionProyecto = (proyectoId: string) => mejorCotizacion(cotizacionesPorProyecto.get(String(proyectoId)) || [])
     const totalMejorCotizacionProyecto = (proyectoId: string) => totalCotizacion(mejorCotizacionProyecto(proyectoId))
+    const cotizacionAprobadaOficial = (proyecto: any) => {
+      const cotizacionId = String(proyecto?.cotizacion_aprobada_id || "")
+      if (!cotizacionId) return null
+      const cotizacion = cotizacionPorId.get(cotizacionId)
+      if (!cotizacion || String(cotizacion.proyecto_id) !== String(proyecto.id)) return null
+      return cotizacion
+    }
 
     // Métricas base
     const activos = allProv.filter(p => p.estado === "en_curso")
@@ -213,7 +220,7 @@ export default function DashboardPage() {
     const porCobrar = canSeeCobranza ? facturasActivasNoAnuladas.reduce((s, f) => s + saldoPendienteFactura(f), 0) : 0
     const liqCerradas = liquidacionesActivas.filter(l => l.cerrada && Number.isFinite(Number(l.margen_real_pct)))
     const margenPromedio = liqCerradas.length > 0 ? liqCerradas.reduce((s, l) => s + num(l.margen_real_pct), 0) / liqCerradas.length : 0
-    const rqsPendientes = rqsActivos.filter(r => !["pagado","rechazado","cancelado","cerrado"].includes(r.estado))
+    const rqsPendientes = rqsActivos.filter(r => !["pagado","rechazado","cancelado"].includes(r.estado))
     const rqsPendientesMonto = rqsPendientes.reduce((s, r) => s + num(r.monto_solicitado), 0)
     const leadsCalientes = leadsVisibles.filter(l => l.temperatura === "caliente").length
     const pipelineCRM = leadsVisibles.filter(l => !["ganado","perdido"].includes(l.estado)).length
@@ -273,10 +280,10 @@ export default function DashboardPage() {
     ].filter(d => d.value > 0)
     setChartRQs(rqsData)
 
-    // Top proyectos por valor
+    // Top proyectos por valor: solo cotizacion oficial aprobada por cliente.
     const top = canSeePrecioCliente ? allProv
       .map((proyecto: any) => {
-        const cotizacion = mejorCotizacionProyecto(proyecto.id)
+        const cotizacion = cotizacionAprobadaOficial(proyecto)
         return {
           nombre: projectById.get(proyecto.id)?.codigo || "—",
           valor: Math.round(totalCotizacion(cotizacion)),

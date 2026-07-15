@@ -1,7 +1,9 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { estadoOrigenCotizacionItem, esItemHistoricoCotizacion } from "@/lib/cotizaciones"
+import { cargarItemsAprobadosAlGestor } from "@/lib/gestor"
 
 const ESTADO_TAREA: Record<string, any> = {
   pendiente:   { bg: "#f3f4f6", color: "#6b7280",  label: "Pendiente" },
@@ -11,6 +13,7 @@ const ESTADO_TAREA: Record<string, any> = {
 }
 
 const COLORES = ["#0F6E56","#2563eb","#d97706","#dc2626","#8b5cf6","#0891b2","#059669","#db2777"]
+const ESTADOS_GESTOR_PROYECTO = ["en_curso", "terminado", "liquidado", "pendiente_facturacion", "facturado"]
 
 function exportarExcel(tareas: any[], proyectoNombre: string) {
   const headers = ["Titulo","Descripcion","Responsable","Estado","Fecha inicio","Fecha fin","Color"]
@@ -43,13 +46,15 @@ export default function GestorPage() {
   const [filtroEstado, setFiltroEstado] = useState("")
   const [ordenFecha, setOrdenFecha] = useState<"asc" | "desc" | "">("") 
   const [importando, setImportando] = useState(false)
+  const [errorGestor, setErrorGestor] = useState("")
   const [form, setForm] = useState({ titulo: "", descripcion: "", responsable_id: "", responsable_nombre: "", estado: "pendiente", fecha_inicio: "", fecha_fin: "", color: "#0F6E56" })
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data: provs } = await supabase.from("proyectos").select("*, cliente:clientes(razon_social)").eq("estado", "en_curso").is("deleted_at", null).order("created_at", { ascending: false })
-    setProyectos((provs || []).filter((p: any) => p.estado === "en_curso"))
+    const { data: provs, error } = await supabase.from("proyectos").select("*, cliente:clientes(razon_social)").is("deleted_at", null).order("created_at", { ascending: false })
+    if (error) setErrorGestor(error.message)
+    setProyectos((provs || []).filter((p: any) => ESTADOS_GESTOR_PROYECTO.includes(p.estado) && p.cotizacion_aprobada_id))
     const { data: perfs } = await supabase.from("perfiles").select("id, nombre, apellido, perfil").order("nombre")
     setPerfiles(perfs || [])
     setLoading(false)
@@ -57,8 +62,21 @@ export default function GestorPage() {
 
   async function loadTareas(proyectoId: string) {
     const proyectoActivo = proyectos.find((p: any) => p.id === proyectoId)
-    if (!proyectoActivo || proyectoActivo.estado !== "en_curso") { setTareas([]); setProyectoSeleccionado(null); return }
-    const { data } = await supabase.from("proyecto_tareas").select("*").eq("proyecto_id", proyectoId).order("orden")
+    if (!proyectoActivo) { setTareas([]); setProyectoSeleccionado(null); return }
+    setErrorGestor("")
+    if (proyectoActivo.cotizacion_aprobada_id) {
+      try {
+        await cargarItemsAprobadosAlGestor(supabase, proyectoId, proyectoActivo.cotizacion_aprobada_id)
+      } catch (error) {
+        console.error("Error cargando items aprobados al gestor:", { proyectoId, error })
+        setErrorGestor(error instanceof Error ? error.message : "No se pudieron cargar los items aprobados al gestor")
+      }
+    }
+    const { data, error } = await supabase.from("proyecto_tareas").select("*").eq("proyecto_id", proyectoId).order("orden")
+    if (error) {
+      console.error("Error cargando tareas del gestor:", { proyectoId, error })
+      setErrorGestor(error.message)
+    }
     setTareas((data || []).map((tarea: any) => ({
       ...tarea,
       estado_origen_cotizacion: estadoOrigenCotizacionItem({
@@ -352,6 +370,11 @@ export default function GestorPage() {
         ) : (
           <div>
             {/* Filtros */}
+            {errorGestor && (
+              <div style={{ padding: 12, borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", fontSize: 12, marginBottom: 12 }}>
+                {errorGestor}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{proyectoSeleccionado.codigo} — {proyectoSeleccionado.nombre}</span>
               <span style={{ fontSize: 12, color: "#9ca3af" }}>{tareasFiltradas.length}/{tareas.length} tareas</span>

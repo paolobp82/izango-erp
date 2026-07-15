@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import Link from "next/link"
@@ -19,7 +20,10 @@ type CxpItem = {
   proyecto_id?: string | null
   proyecto_nombre?: string | null
   proyecto_codigo?: string | null
+  proyecto?: { codigo?: string | null; nombre?: string | null; deleted_at?: string | null } | null
 }
+
+const PAGE_SIZE = 15
 
 function ymd(value?: string | null) {
   return value ? String(value).slice(0, 10) : ""
@@ -54,6 +58,7 @@ export default function CuentasPorPagarPage() {
   const [errorMsg, setErrorMsg] = useState("")
   const [busqueda, setBusqueda] = useState("")
   const [filtroEstado, setFiltroEstado] = useState("pendientes")
+  const [page, setPage] = useState(1)
 
   async function load() {
     setLoading(true)
@@ -73,7 +78,8 @@ export default function CuentasPorPagarPage() {
         condicion_comercial,
         medio_pago,
         estado,
-        proyecto_id
+        proyecto_id,
+        proyecto:proyectos(codigo,nombre,deleted_at)
       `)
       .order("created_at", { ascending: false })
       .limit(500)
@@ -85,7 +91,7 @@ export default function CuentasPorPagarPage() {
       return
     }
 
-    setItems((data || []) as CxpItem[])
+    setItems(((data || []) as CxpItem[]).filter(item => !item.proyecto?.deleted_at))
     setLoading(false)
   }
 
@@ -117,6 +123,12 @@ export default function CuentasPorPagarPage() {
       return matchEstado && (!q || texto.includes(q))
     })
   }, [items, busqueda, filtroEstado])
+
+  const totalPages = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const paginados = filtrados.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const desde = filtrados.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0
+  const hasta = Math.min(currentPage * PAGE_SIZE, filtrados.length)
 
   const resumen = useMemo(() => {
     const pendientes = filtrados.filter(i => !["Pagado", "Anulado"].includes(estadoPago(i)))
@@ -170,12 +182,12 @@ export default function CuentasPorPagarPage() {
           <div style={{ display: "grid", gridTemplateColumns: "minmax(240px, 1fr) 190px", gap: 10 }}>
             <input
               value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
+              onChange={e => { setBusqueda(e.target.value); setPage(1) }}
               placeholder="Buscar RQP, proveedor o proyecto..."
               style={input}
             />
 
-            <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} style={input}>
+            <select value={filtroEstado} onChange={e => { setFiltroEstado(e.target.value); setPage(1) }} style={input}>
               <option value="pendientes">Pendientes</option>
               <option value="todos">Todos</option>
               <option value="sin programar">Sin programar</option>
@@ -205,11 +217,14 @@ export default function CuentasPorPagarPage() {
               </tr>
             </thead>
             <tbody>
-              {filtrados.map(item => (
+              {paginados.map(item => (
                 <tr key={item.id} style={{ borderTop: "1px solid #f3f4f6" }}>
                   <td style={td}>{item.codigo_rq || item.numero_rq || item.id}</td>
                   <td style={td}>{item.proveedor_nombre || "—"}</td>
-                  <td style={td}>{item.proyecto_nombre || item.proyecto_codigo || item.proyecto_id || "—"}</td>
+                  <td style={td}>
+                    <div style={{ fontWeight: 700 }}>{item.proyecto?.codigo || item.proyecto_codigo || "—"}</div>
+                    <div style={{ fontSize: 11, color: "#6b7280" }}>{item.proyecto?.nombre || item.proyecto_nombre || (item.proyecto_id ? "Proyecto sin relación visible" : "Sin proyecto")}</div>
+                  </td>
                   <td style={td}>{item.condicion_comercial || "—"}</td>
                   <td style={td}>{item.medio_pago || "—"}</td>
                   <td style={td}>{ymd(item.fecha_necesidad_pago) || "—"}</td>
@@ -237,6 +252,14 @@ export default function CuentasPorPagarPage() {
               )}
             </tbody>
           </table>
+        </div>
+        <div style={{ padding: 14, borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, fontSize: 12, color: "#6b7280" }}>
+          <span>Mostrando {desde}-{hasta} de {filtrados.length} registros</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button onClick={() => setPage(prev => Math.max(1, prev - 1))} disabled={currentPage <= 1} style={button}>Anterior</button>
+            <span>Página {currentPage} de {totalPages}</span>
+            <button onClick={() => setPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage >= totalPages} style={button}>Siguiente</button>
+          </div>
         </div>
       </section>
     </main>

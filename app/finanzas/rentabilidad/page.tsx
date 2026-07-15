@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 
 import { useEffect, useMemo, useState } from "react"
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
@@ -59,7 +60,7 @@ export default function RentabilidadPage() {
 
       supabase
         .from("liquidacion_items")
-        .select("id,liquidacion_id,cotizacion_item_id,descripcion,costo_presupuestado,costo_real,proveedor_nombre"),
+        .select("id,liquidacion_id,cotizacion_item_id,descripcion,costo_presupuestado,costo_real"),
 
       supabase
         .from("requerimientos_pago")

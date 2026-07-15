@@ -4,7 +4,7 @@ export function rolNormalizadoPerfil(perfil: any) {
 }
 
 export function rqEstadoFinal(estado: string) {
-  return ["pagado", "cerrado", "cancelado", "rechazado"].includes(String(estado || ""))
+  return ["pagado", "cancelado", "rechazado"].includes(String(estado || ""))
 }
 
 export function rolesEditoresRQPorEstado(estado: string) {

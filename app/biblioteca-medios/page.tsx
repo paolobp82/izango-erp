@@ -17,6 +17,17 @@ const TIPOS = [
   { value: "otro", label: "Otro" },
 ]
 
+const MEDIA_BUCKET = "assets"
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
+const MIME_PERMITIDOS = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "video/mp4",
+  "video/quicktime",
+])
+
 const emptyForm = {
   titulo: "",
   tipo: "presentacion_comercial",
@@ -55,6 +66,7 @@ type RecursoMedio = {
 }
 
 type FormState = typeof emptyForm
+type ArchivoSubido = { url: string | null; path: string | null }
 
 export default function BibliotecaMediosPage() {
   const supabase = useMemo(() => createClient(), [])
@@ -83,7 +95,7 @@ export default function BibliotecaMediosPage() {
       supabase.from("proyectos").select("id, nombre, codigo, cliente_id").is("deleted_at", null).order("created_at", { ascending: false }).limit(300),
       supabase.from("perfiles").select("id, nombre, apellido, perfil").eq("activo", true).order("nombre"),
     ])
-    setRecursos((recursosRes.data || []).filter((recurso: any) => !rowBelongsToDeletedProject(recurso)) as RecursoMedio[])
+    setRecursos(((recursosRes.data || []) as RecursoMedio[]).filter((recurso) => !rowBelongsToDeletedProject(recurso)))
     setClientes(clientesRes.data || [])
     setProyectos(proyectosRes.data || [])
     setResponsables(responsablesRes.data || [])
@@ -121,23 +133,38 @@ export default function BibliotecaMediosPage() {
     setShowForm(true)
   }
 
-  async function subirArchivo() {
-    if (!archivo) return form.archivo_url || null
-    const nombreSeguro = archivo.name.replace(/[^a-zA-Z0-9._-]/g, "-")
-    const path = `biblioteca-medios/${Date.now()}-${nombreSeguro}`
-    const { error } = await supabase.storage.from("assets").upload(path, archivo, { upsert: true })
-    if (error) throw error
-    const { data } = supabase.storage.from("assets").getPublicUrl(path)
-    return data.publicUrl
+  async function subirArchivo(): Promise<ArchivoSubido> {
+    if (!archivo) return { url: form.archivo_url || null, path: null }
+    if (archivo.size > MAX_FILE_SIZE_BYTES) {
+      throw new Error("El archivo supera el limite permitido de 50 MB.")
+    }
+    if (archivo.type && !MIME_PERMITIDOS.has(archivo.type)) {
+      throw new Error(`Formato no permitido: ${archivo.type}`)
+    }
+    const nombreSeguro = archivo.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "-")
+    const extension = nombreSeguro.includes(".") ? nombreSeguro.split(".").pop() : "bin"
+    const nombreBase = nombreSeguro.replace(/\.[^.]+$/, "").slice(0, 80) || "archivo"
+    const path = `biblioteca-medios/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${nombreBase}.${extension}`
+    const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, archivo, {
+      contentType: archivo.type || undefined,
+      upsert: false,
+    })
+    if (error) {
+      console.error("Error subiendo archivo de biblioteca de medios:", { bucket: MEDIA_BUCKET, path, error })
+      throw error
+    }
+    const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path)
+    return { url: data.publicUrl, path }
   }
 
   async function guardar() {
     if (!form.titulo.trim()) { alert("El titulo es obligatorio"); return }
     if (!form.link_url.trim() && !form.archivo_url && !archivo) { alert("Agrega un link o un archivo"); return }
     setSaving(true)
+    let archivoSubido: ArchivoSubido = { url: null, path: null }
     try {
       const { data: userData } = await supabase.auth.getUser()
-      const archivoUrl = await subirArchivo()
+      archivoSubido = await subirArchivo()
       const tags = form.tags
         .split(",")
         .map((tag: string) => tag.trim())
@@ -151,7 +178,7 @@ export default function BibliotecaMediosPage() {
         proyecto_id: form.proyecto_id || null,
         descripcion: form.descripcion.trim() || null,
         link_url: form.link_url.trim() || null,
-        archivo_url: archivoUrl,
+        archivo_url: archivoSubido.url,
         fecha: form.fecha || null,
         responsable_id: form.responsable_id || null,
         tags,
@@ -176,6 +203,11 @@ export default function BibliotecaMediosPage() {
       setShowForm(false)
       await load()
     } catch (error: unknown) {
+      if (archivoSubido.path) {
+        const { error: removeError } = await supabase.storage.from(MEDIA_BUCKET).remove([archivoSubido.path])
+        if (removeError) console.error("No se pudo limpiar archivo huerfano de biblioteca de medios:", removeError)
+      }
+      console.error("No se pudo guardar biblioteca de medios:", error)
       alert("No se pudo guardar el recurso: " + (error instanceof Error ? error.message : "Error desconocido"))
     } finally {
       setSaving(false)
