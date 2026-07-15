@@ -12,6 +12,7 @@ import { filtrarPorAlcance, puedeEjecutarAccion, puedeVerModulo, type AccionPerm
 import { getRQEstadosVisuales } from "@/lib/core/configuration"
 import { lifecycleEngine } from "@/lib/core/lifecycle"
 import { businessRuleEngine } from "@/lib/core/business-rules"
+import { estadoMigracionRQ, motivoEstadoMigracion } from "@/lib/rq-migracion"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import { SYSTEM_COLUMNS } from "@/lib/core/configuration"
@@ -73,6 +74,7 @@ export default function RQPage() {
   const [incluirProyectosEliminados, setIncluirProyectosEliminados] = useState(false)
   const [proveedores, setProveedores] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
+  const [migrationLogs, setMigrationLogs] = useState<any[]>([])
   const [perfil, setPerfil] = useState<any>(null)
   const [toastMsg, setToastMsg] = useState("")
   const [toastType, setToastType] = useState<"success" | "error">("success")
@@ -139,6 +141,21 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     }
     const loadedRqs = filtrarPorAlcance(data || [], p, "rq", { usuarioId: user.id })
     setRqs(loadedRqs)
+    const rqIds = loadedRqs.map((rq: any) => rq.id).filter(Boolean)
+    if (rqIds.length > 0) {
+      const { data: logs, error: logsError } = await supabase
+        .from("rq_version_migration_log")
+        .select("rq_id,rq_diferencia_id,accion,metadata,created_at")
+        .or(`rq_id.in.(${rqIds.join(",")}),rq_diferencia_id.in.(${rqIds.join(",")})`)
+      if (logsError) {
+        console.error("No se pudo cargar rq_version_migration_log:", logsError)
+        setMigrationLogs([])
+      } else {
+        setMigrationLogs(logs || [])
+      }
+    } else {
+      setMigrationLogs([])
+    }
     const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo")
     setProyectos(filtrarPorAlcance(projs || [], p, "proyectos", { usuarioId: user.id }))
     const { data: provsTodos } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
@@ -1027,6 +1044,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("fecha_pago", "F. PAGO REAL")}</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO PAGO</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("estado", "ESTADO RQ")}</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MIGRACIÓN</th>
                 <th style={{ padding: "10px 20px", width: 140 }}></th>
               </tr>
             </thead>
@@ -1037,6 +1055,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
                 const igv = detalleIgv(rq)
                 const proyectoEliminado = rqPerteneceAProyectoEliminado(rq)
                 const pago = estadoPagoRQ(rq)
+                const migracion = estadoMigracionRQ(rq, migrationLogs)
                 return (
                   <tr key={rq.id}
                     style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === rq.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}
@@ -1142,6 +1161,11 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
                         <div style={{ fontSize: 10, color: "#991b1b", marginTop: 3, fontWeight: 700 }}>Proyecto eliminado</div>
                       )}
                     </td>
+                    <td style={{ padding: "12px" }}>
+                      <span title={motivoEstadoMigracion(rq, migrationLogs)} style={{ display: "inline-flex", background: migracion.bg, color: migracion.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                        {migracion.label}
+                      </span>
+                    </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
                       {puedeEditarRQ(rq) && (
@@ -1168,7 +1192,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
                 )
               })}
               {filtrados.length === 0 && (
-                <tr><td colSpan={15} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay requerimientos de pago</td></tr>
+                <tr><td colSpan={16} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay requerimientos de pago</td></tr>
               )}
             </tbody>
           </table>

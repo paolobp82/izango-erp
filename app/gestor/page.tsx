@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { estadoOrigenCotizacionItem, esItemHistoricoCotizacion } from "@/lib/cotizaciones"
 
 const ESTADO_TAREA: Record<string, any> = {
   pendiente:   { bg: "#f3f4f6", color: "#6b7280",  label: "Pendiente" },
@@ -58,7 +59,14 @@ export default function GestorPage() {
     const proyectoActivo = proyectos.find((p: any) => p.id === proyectoId)
     if (!proyectoActivo || proyectoActivo.estado !== "en_curso") { setTareas([]); setProyectoSeleccionado(null); return }
     const { data } = await supabase.from("proyecto_tareas").select("*").eq("proyecto_id", proyectoId).order("orden")
-    setTareas(data || [])
+    setTareas((data || []).map((tarea: any) => ({
+      ...tarea,
+      estado_origen_cotizacion: estadoOrigenCotizacionItem({
+        proyecto: proyectoActivo,
+        cotizacionId: tarea.cotizacion_id,
+        cotizacionItemId: tarea.cotizacion_item_id,
+      }),
+    })))
   }
 
   function seleccionarProyecto(p: any) {
@@ -71,6 +79,10 @@ export default function GestorPage() {
 
   async function guardarTarea() {
     if (!form.titulo || !proyectoSeleccionado) return
+    if (editandoTarea && esTareaHistorica(editandoTarea)) {
+      alert("Este ítem pertenece a una cotización que ya no es la vigente.")
+      return
+    }
     setSaving(true)
     const perf = perfiles.find(p => p.id === form.responsable_id)
     const payload = {
@@ -94,20 +106,60 @@ export default function GestorPage() {
   }
 
   async function cambiarEstadoTarea(tareaId: string, estado: string) {
+    const tarea = tareas.find((t: any) => t.id === tareaId)
+    if (tarea && esTareaHistorica(tarea)) {
+      alert("No se puede cambiar el estado operativo de un ítem de una versión anterior.")
+      return
+    }
     await supabase.from("proyecto_tareas").update({ estado }).eq("id", tareaId)
     setTareas(prev => prev.map(t => t.id === tareaId ? { ...t, estado } : t))
   }
 
   async function eliminarTarea(tareaId: string) {
+    const tarea = tareas.find((t: any) => t.id === tareaId)
+    if (tarea && esTareaHistorica(tarea)) {
+      alert("No se eliminan ítems históricos de versiones anteriores.")
+      return
+    }
     if (!confirm("Eliminar esta tarea?")) return
     await supabase.from("proyecto_tareas").delete().eq("id", tareaId)
     setTareas(prev => prev.filter(t => t.id !== tareaId))
   }
 
   function abrirEditar(tarea: any) {
+    if (esTareaHistorica(tarea)) {
+      alert("Este ítem pertenece a una cotización que ya no es la vigente.")
+      return
+    }
     setEditandoTarea(tarea)
     setForm({ titulo: tarea.titulo, descripcion: tarea.descripcion || "", responsable_id: tarea.responsable_id || "", responsable_nombre: tarea.responsable_nombre || "", estado: tarea.estado, fecha_inicio: tarea.fecha_inicio || "", fecha_fin: tarea.fecha_fin || "", color: tarea.color || "#0F6E56" })
     setShowForm(true)
+  }
+
+  function esTareaHistorica(tarea: any) {
+    return esItemHistoricoCotizacion({
+      proyecto: proyectoSeleccionado,
+      cotizacionId: tarea?.cotizacion_id,
+      cotizacionItemId: tarea?.cotizacion_item_id,
+    })
+  }
+
+  function BadgeOrigenCotizacion({ tarea }: { tarea: any }) {
+    if (tarea.estado_origen_cotizacion === "historico") {
+      return (
+        <span title="Este ítem pertenece a una cotización que ya no es la vigente." style={{ display: "inline-block", marginTop: 4, background: "#fef3c7", color: "#92400e", borderRadius: 99, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>
+          Versión anterior
+        </span>
+      )
+    }
+    if (tarea.estado_origen_cotizacion === "sin_origen") {
+      return (
+        <span title="Este ítem no tiene vínculo identificable a cotización." style={{ display: "inline-block", marginTop: 4, background: "#f3f4f6", color: "#6b7280", borderRadius: 99, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>
+          Sin origen
+        </span>
+      )
+    }
+    return null
   }
 
   async function importarCSV(e: React.ChangeEvent<HTMLInputElement>) {
@@ -346,6 +398,7 @@ export default function GestorPage() {
                         {tareasEstado.map(t => (
                           <div key={t.id} style={{ background: "#fff", borderRadius: 8, padding: "10px 12px", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", borderLeft: "3px solid " + (t.color || "#0F6E56") }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 4 }}>{t.titulo}</div>
+                            <BadgeOrigenCotizacion tarea={t} />
                             {t.descripcion && <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>{t.descripcion}</div>}
                             {t.responsable_nombre && <div style={{ fontSize: 11, color: "#374151", marginBottom: 4 }}>👤 {t.responsable_nombre}</div>}
                             {t.fecha_fin && (
@@ -354,14 +407,14 @@ export default function GestorPage() {
                               </div>
                             )}
                             <div style={{ display: "flex", gap: 4, marginTop: 8, flexWrap: "wrap" }}>
-                              {Object.entries(ESTADO_TAREA).filter(([k]) => k !== estado).map(([k, v]) => (
+                              {!esTareaHistorica(t) && Object.entries(ESTADO_TAREA).filter(([k]) => k !== estado).map(([k, v]) => (
                                 <button key={k} onClick={() => cambiarEstadoTarea(t.id, k)}
                                   style={{ fontSize: 10, padding: "2px 6px", border: "1px solid " + v.color, borderRadius: 4, background: v.bg, color: v.color, cursor: "pointer", fontFamily: "inherit" }}>
                                   {v.label}
                                 </button>
                               ))}
-                              <button onClick={() => abrirEditar(t)} style={{ fontSize: 10, padding: "2px 6px", border: "1px solid #e5e7eb", borderRadius: 4, background: "#fff", color: "#6b7280", cursor: "pointer", fontFamily: "inherit" }}>Editar</button>
-                              <button onClick={() => eliminarTarea(t.id)} style={{ fontSize: 10, padding: "2px 6px", border: "1px solid #fee2e2", borderRadius: 4, background: "#fff", color: "#dc2626", cursor: "pointer", fontFamily: "inherit" }}>x</button>
+                              {!esTareaHistorica(t) && <button onClick={() => abrirEditar(t)} style={{ fontSize: 10, padding: "2px 6px", border: "1px solid #e5e7eb", borderRadius: 4, background: "#fff", color: "#6b7280", cursor: "pointer", fontFamily: "inherit" }}>Editar</button>}
+                              {!esTareaHistorica(t) && <button onClick={() => eliminarTarea(t.id)} style={{ fontSize: 10, padding: "2px 6px", border: "1px solid #fee2e2", borderRadius: 4, background: "#fff", color: "#dc2626", cursor: "pointer", fontFamily: "inherit" }}>x</button>}
                             </div>
                           </div>
                         ))}
@@ -401,6 +454,7 @@ export default function GestorPage() {
                               <div style={{ width: 4, height: 32, borderRadius: 2, background: t.color || "#0F6E56", flexShrink: 0 }} />
                               <div>
                                 <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{t.titulo}</div>
+                                <BadgeOrigenCotizacion tarea={t} />
                                 {t.descripcion && <div style={{ fontSize: 11, color: "#9ca3af" }}>{t.descripcion}</div>}
                               </div>
                             </div>
@@ -408,20 +462,26 @@ export default function GestorPage() {
                           <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{t.responsable_nombre || "—"}</td>
                           <td style={{ padding: "12px" }}>
                             {/* Selector de estado inline */}
-                            <select
-                              value={t.estado}
-                              onChange={e => cambiarEstadoTarea(t.id, e.target.value)}
-                              style={{ padding: "3px 8px", border: "1px solid " + ec.color, borderRadius: 6, fontSize: 11, fontWeight: 600, background: ec.bg, color: ec.color, cursor: "pointer", fontFamily: "inherit", outline: "none" }}>
-                              {Object.entries(ESTADO_TAREA).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                            </select>
+                            {esTareaHistorica(t) ? (
+                              <span style={{ padding: "3px 8px", border: "1px solid " + ec.color, borderRadius: 6, fontSize: 11, fontWeight: 600, background: ec.bg, color: ec.color }}>
+                                {ec.label}
+                              </span>
+                            ) : (
+                              <select
+                                value={t.estado}
+                                onChange={e => cambiarEstadoTarea(t.id, e.target.value)}
+                                style={{ padding: "3px 8px", border: "1px solid " + ec.color, borderRadius: 6, fontSize: 11, fontWeight: 600, background: ec.bg, color: ec.color, cursor: "pointer", fontFamily: "inherit", outline: "none" }}>
+                                {Object.entries(ESTADO_TAREA).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                              </select>
+                            )}
                           </td>
                           <td style={{ padding: "12px", fontSize: 12, color: vencida ? "#dc2626" : "#6b7280", fontWeight: vencida ? 600 : 400 }}>
                             {t.fecha_fin ? (vencida ? "⚠ " : "") + t.fecha_fin : "—"}
                           </td>
                           <td style={{ padding: "12px 16px", textAlign: "right" }}>
                             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              <button onClick={() => abrirEditar(t)} className="btn-secondary" style={{ fontSize: 11 }}>Editar</button>
-                              <button onClick={() => eliminarTarea(t.id)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 5, background: "#fff", color: "#dc2626", cursor: "pointer" }}>x</button>
+                              {!esTareaHistorica(t) && <button onClick={() => abrirEditar(t)} className="btn-secondary" style={{ fontSize: 11 }}>Editar</button>}
+                              {!esTareaHistorica(t) && <button onClick={() => eliminarTarea(t.id)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 5, background: "#fff", color: "#dc2626", cursor: "pointer" }}>x</button>}
                             </div>
                           </td>
                         </tr>

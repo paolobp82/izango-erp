@@ -14,6 +14,7 @@ import { lifecycleEngine } from "@/lib/core/lifecycle"
 import { businessRuleEngine } from "@/lib/core/business-rules"
 import { esFacturaAnulada, totalFactura } from "@/lib/finance"
 import { puedeCerrarFinancieramenteProyecto } from "@/lib/proyecto-cierre-financiero"
+import { RQ_MIGRATION_SUCCESS_ACTIONS } from "@/lib/rq-migracion"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
@@ -408,6 +409,9 @@ export default function ProyectoDetallePage() {
       return
     }
     const aprobadoAt = new Date().toISOString()
+    const cotizacionAnterior = cotizaciones.find((c: any) => c.id === proyecto?.cotizacion_aprobada_id) ||
+      cotizaciones.find((c: any) => c.id !== cot.id && c.estado === "aprobada_cliente") ||
+      null
     for (const otra of cotizaciones) {
       if (otra.id !== cot.id && otra.estado === "aprobada_cliente") {
         const { error: otraError } = await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", otra.id)
@@ -448,7 +452,23 @@ export default function ProyectoDetallePage() {
       descripcion: "Cliente aprobo formalmente la cotización. Total: " + fmt(cot.total_cliente || 0),
       datos: { aprobado_por: perfil?.id || null, aprobado_at: aprobadoAt },
     })
-    await registrarAccion({ accion: "aprobar", modulo: "cotizaciones", entidad_id: cot.id, entidad_tipo: "cotizacion", descripcion: "Cotización marcada como aprobada por cliente", datos_nuevos: { aprobado_por: perfil?.id || null, aprobado_at: aprobadoAt } })
+    await registrarAccion({
+      accion: "aprobar",
+      modulo: "cotizaciones",
+      entidad_id: cot.id,
+      entidad_tipo: "cotizacion",
+      descripcion: "Cotización marcada como aprobada por cliente y definida como vigente del proyecto",
+      datos_anteriores: {
+        cotizacion_aprobada_id: cotizacionAnterior?.id || null,
+        version: cotizacionAnterior?.version || null,
+      },
+      datos_nuevos: {
+        aprobado_por: perfil?.id || null,
+        aprobado_at: aprobadoAt,
+        cotizacion_aprobada_id: cot.id,
+        version: cot.version || null,
+      }
+    })
     setVersionAprobar(cot.id)
     setProyecto((prev: any) => prev ? { ...prev, cotizacion_aprobada_id: cot.id, estado: "aprobado_cliente" } : prev)
     await enviarAlerta("cotizacion_aprobada", { nombre: proyecto?.nombre, codigo: proyecto?.codigo, version: cot.version, total: cot.total_cliente || 0, proyecto_id: id })
@@ -479,22 +499,15 @@ export default function ProyectoDetallePage() {
 
     const activosDestino = (itemsDestino || []).filter((i: any) => i.tipo !== "celda_extra")
     const destinoPorKey = new Map(activosDestino.map((item: any) => [claveItemMigracion(item), item]))
+    const destinoPorOrigen = new Map(activosDestino.map((item: any) => [String(item.origen_item_id || item.id), item]))
 
     const rqsYaProcesados = new Set(
       logsMigracionRQ
         .filter((log: any) =>
           log.rq_id &&
           [
-            "MANTENER_HISTORICO_ITEM_ELIMINADO",
-            "CANCELAR_ITEM_ELIMINADO",
-            "MIGRAR",
-            "MIGRAR_REFERENCIA_PAGADO",
-            "MIGRAR_GENERAR_DIFERENCIA",
-            "MIGRAR_AJUSTAR_MONTO_MENOR",
-            "MANTENER_PAGADO_GENERAR_DIFERENCIA",
-            "MANTENER_PAGADO_REGISTRAR_REEMBOLSO",
-            "GENERAR_RQ_DIFERENCIA",
-          ].includes(log.accion)
+            ...RQ_MIGRATION_SUCCESS_ACTIONS,
+          ].includes(String(log.accion || "").toUpperCase())
         )
         .map((log: any) => log.rq_id)
     )
@@ -535,7 +548,8 @@ export default function ProyectoDetallePage() {
 
     const rqsAfectados = rqsPorMigrar.map((rq: any) => {
       const itemAnterior = origenPorId.get(rq.cotizacion_item_id)
-      const itemNuevo = itemAnterior ? destinoPorKey.get(claveItemMigracion(itemAnterior)) : null
+      const origenEstable = String(itemAnterior?.origen_item_id || itemAnterior?.id || "")
+      const itemNuevo = itemAnterior ? (destinoPorOrigen.get(origenEstable) || destinoPorKey.get(claveItemMigracion(itemAnterior))) : null
       const montoV1 = Number(itemAnterior?.costo_total || rq.monto_presupuestado || rq.monto_solicitado || 0)
       const montoV2 = itemNuevo ? Number(itemNuevo.costo_total || 0) : 0
       const diferencia = montoV2 - montoV1
@@ -994,6 +1008,11 @@ export default function ProyectoDetallePage() {
 
     if (!esAdicional) {
       const cotSeleccionada = cotizaciones.find(cot => cot.id === versionAprobar)
+      if (String(proyecto?.cotizacion_aprobada_id || "") !== String(versionAprobar || "")) {
+        alert("Solo se pueden generar RQs desde la cotización vigente del proyecto.")
+        setGuardandoPreCuadre(false)
+        return
+      }
       if (cotSeleccionada?.estado !== "aprobada_cliente") {
         alert("La cotización debe estar aprobada por cliente antes de iniciar el proyecto")
         setGuardandoPreCuadre(false)
@@ -1028,6 +1047,37 @@ export default function ProyectoDetallePage() {
       })
     }
     if (rqsAInsertar.length > 0) {
+      const cotizacionItemIds = rqsAInsertar
+        .filter((rq: any) => !rq.es_adicional && rq.cotizacion_item_id)
+        .map((rq: any) => rq.cotizacion_item_id)
+
+      if (cotizacionItemIds.length > 0) {
+        const { data: rqsExistentes, error: duplicadosError } = await supabase
+          .from("requerimientos_pago")
+          .select("id,codigo_rq,numero_rq,estado,cotizacion_item_id,descripcion")
+          .eq("proyecto_id", id)
+          .in("cotizacion_item_id", cotizacionItemIds)
+
+        if (duplicadosError) {
+          alert("No se pudo validar duplicados de RQ: " + duplicadosError.message)
+          setGuardandoPreCuadre(false)
+          return
+        }
+
+        const duplicadosActivos = (rqsExistentes || []).filter((rq: any) => !["cancelado", "rechazado"].includes(String(rq.estado || "")))
+        if (duplicadosActivos.length > 0) {
+          alert("Ya existen RQ activos o pagados para estos ítems:\n" + duplicadosActivos.map((rq: any) => "• " + (rq.codigo_rq || rq.numero_rq || rq.descripcion || rq.id)).join("\n"))
+          setGuardandoPreCuadre(false)
+          return
+        }
+
+        const duplicadosHistoricos = (rqsExistentes || []).filter((rq: any) => ["cancelado", "rechazado"].includes(String(rq.estado || "")))
+        if (duplicadosHistoricos.length > 0 && !confirm("Existen RQ cancelados/rechazados para algunos ítems. Se conservarán como historial. ¿Deseas continuar?")) {
+          setGuardandoPreCuadre(false)
+          return
+        }
+      }
+
       console.info("Generando RQs desde Proyecto 360", {
         proyecto_id: id,
         proyecto_codigo: proyecto?.codigo,
@@ -1375,23 +1425,11 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
   const filasEjecucionRqs = [...filasRqsProyecto, ...filasRqsNoRepresentados]
 
-  const accionesMigracionCerrada = [
-    "MANTENER_HISTORICO_ITEM_ELIMINADO",
-    "CANCELAR_ITEM_ELIMINADO",
-    "MIGRAR",
-    "MIGRAR_REFERENCIA_PAGADO",
-    "MIGRAR_GENERAR_DIFERENCIA",
-    "MIGRAR_AJUSTAR_MONTO_MENOR",
-    "MANTENER_PAGADO_GENERAR_DIFERENCIA",
-    "MANTENER_PAGADO_REGISTRAR_REEMBOLSO",
-    "GENERAR_RQ_DIFERENCIA",
-  ]
-
   const rqsProcesadosPorMigracion = new Set(
     logsMigracionRQ
       .filter((log: any) =>
         log.rq_id &&
-        accionesMigracionCerrada.includes(String(log.accion || ""))
+        RQ_MIGRATION_SUCCESS_ACTIONS.includes(String(log.accion || "").toUpperCase())
       )
       .map((log: any) => String(log.rq_id))
   )

@@ -66,7 +66,7 @@ export default function LiquidacionesPage() {
 
     const { data: provs, error: proyectosError } = await supabase
       .from("proyectos")
-      .select("id, nombre, codigo")
+      .select("id, nombre, codigo, cotizacion_aprobada_id")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
 
@@ -83,15 +83,18 @@ export default function LiquidacionesPage() {
       return
     }
     setCreando(true)
-    const { data: cots } = await supabase
+    if (!proyectoActivo.cotizacion_aprobada_id) {
+      alert("No hay cotización vigente aprobada para este proyecto")
+      setCreando(false)
+      return
+    }
+
+    const { data: cotAprobada } = await supabase
       .from("cotizaciones")
       .select("*, cotizacion_items(*)")
-      .eq("proyecto_id", proyectoId)
-      .eq("estado", "aprobada_cliente")
-      .order("version", { ascending: false })
-      .limit(1)
+      .eq("id", proyectoActivo.cotizacion_aprobada_id)
+      .maybeSingle()
 
-    const cotAprobada = cots?.[0]
     if (!cotAprobada) { alert("No hay cotización aprobada para este proyecto"); setCreando(false); return }
 
     const totalCostoPresup = cotAprobada.subtotal_costo || 0
@@ -174,6 +177,14 @@ export default function LiquidacionesPage() {
     const detailErrors = [itemsError?.message, cotizacionItemsError?.message, rqsError?.message, facturasError?.message, cajaChicaError?.message, trasladosError?.message].filter(Boolean)
     if (detailErrors.length) setDetailError(detailErrors.join(" · "))
 
+    const rqsValidos = Array.from(
+      new Map(
+        (rqs || [])
+          .filter((rq: any) => !["cancelado", "rechazado"].includes(String(rq.estado || "")))
+          .map((rq: any) => [rq.id, rq])
+      ).values()
+    )
+
     const facturasActivasProyecto = (facturasProyecto || []).filter((f: any) => !esFacturaAnulada(f))
     const facturado = facturasActivasProyecto.reduce((s: number, f: any) => s + totalFactura(f), 0)
     const cobrado = facturasActivasProyecto.reduce((s: number, f: any) => s + montoCobradoFactura(f), 0)
@@ -182,7 +193,7 @@ export default function LiquidacionesPage() {
 
     const cotItemMap = new Map((cotItems || []).map((c: any) => [c.id, c]))
     const rqByCotizacionItemId = new Map(
-      (rqs || [])
+      rqsValidos
         .filter((rq: any) => rq.cotizacion_item_id)
         .map((rq: any) => [rq.cotizacion_item_id, rq])
     )
@@ -202,7 +213,7 @@ export default function LiquidacionesPage() {
 
       const rqExacto = rqByCotizacionItemId.get(item.cotizacion_item_id)
 
-      const rqMatch = rqExacto || (rqs || []).find((rq: any) => {
+      const rqMatch = rqExacto || rqsValidos.find((rq: any) => {
         const mismoProveedor =
           proveedorId && rq.proveedor_id
             ? rq.proveedor_id === proveedorId
@@ -287,7 +298,7 @@ export default function LiquidacionesPage() {
         }
       })
 
-    const adicionales = (rqs || [])
+    const adicionales = rqsValidos
       .filter((rq: any) =>
         !rq.cotizacion_item_id &&
         !idsRqYaMostrados.has(rq.id) &&
