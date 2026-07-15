@@ -1,10 +1,12 @@
 "use client"
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase"
 import { calculateTreasuryKpis, loadTreasuryPaymentItems } from "@/lib/services/treasury"
 import type { TreasuryPaymentItem } from "@/lib/domain/treasury"
+import { nextSortState, sortIndicator, sortRows, type SortState } from "@/lib/table-sort"
 
 const estadoLabel: Record<string, string> = {
   todos: "Todos",
@@ -73,6 +75,16 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   )
 }
 
+function SortTh({ label, sortKey, sort, onSort, right }: { label: string; sortKey: string; sort: SortState; onSort: (key: string) => void; right?: boolean }) {
+  return (
+    <th style={right ? thRight : th}>
+      <button onClick={() => onSort(sortKey)} style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer", color: "inherit", font: "inherit", fontWeight: 700 }}>
+        {label} <span style={{ color: sort.key === sortKey ? "#0F6E56" : "#9ca3af" }}>{sortIndicator(sort, sortKey)}</span>
+      </button>
+    </th>
+  )
+}
+
 export default function TesoreriaPage() {
   const supabase = useMemo(() => createClient(), [])
   const [items, setItems] = useState<TreasuryPaymentItem[]>([])
@@ -86,6 +98,9 @@ export default function TesoreriaPage() {
   const [fechaHasta, setFechaHasta] = useState("")
   const [busqueda, setBusqueda] = useState("")
   const [selected, setSelected] = useState<TreasuryPaymentItem | null>(null)
+  const [pagina, setPagina] = useState(1)
+  const [sort, setSort] = useState<SortState>({ key: "fecha", direction: "asc" })
+  const pageSize = 25
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -138,6 +153,21 @@ export default function TesoreriaPage() {
   }, [items])
 
   const resumen = useMemo(() => calculateTreasuryKpis(itemsFiltrados), [itemsFiltrados])
+  const itemsOrdenados = useMemo(() => sortRows(itemsFiltrados, sort, (item, key) => {
+    if (key === "prioridad") return paymentPriority(item).label
+    if (key === "fecha") return fechaFiltro(item)
+    return (item as unknown as Record<string, unknown>)[key]
+  }), [itemsFiltrados, sort])
+  const totalPaginas = Math.max(1, Math.ceil(itemsOrdenados.length / pageSize))
+  const paginaSegura = Math.min(pagina, totalPaginas)
+  const inicio = (paginaSegura - 1) * pageSize
+  const itemsPaginados = itemsOrdenados.slice(inicio, inicio + pageSize)
+  const desde = itemsOrdenados.length === 0 ? 0 : inicio + 1
+  const hasta = Math.min(inicio + pageSize, itemsOrdenados.length)
+
+  useEffect(() => {
+    setPagina(1)
+  }, [filtroEstado, filtroOrigen, filtroEmpresa, filtroExcepcion, fechaDesde, fechaHasta, busqueda, sort])
 
   return (
     <main style={{ padding: 24, display: "grid", gap: 18 }}>
@@ -220,24 +250,24 @@ export default function TesoreriaPage() {
           <table style={{ width: "100%", minWidth: 1320, borderCollapse: "collapse", fontSize: 13 }}>
             <thead style={{ background: "#f9fafb", color: "#6b7280" }}>
               <tr>
-                <th style={th}>Prioridad</th>
-                <th style={th}>Origen</th>
-                <th style={th}>Documento</th>
-                <th style={th}>Empresa</th>
-                <th style={th}>Proyecto</th>
-                <th style={th}>Beneficiario</th>
-                <th style={th}>F. Necesidad</th>
-                <th style={th}>F. Programada</th>
-                <th style={th}>F. Pago</th>
-                <th style={th}>Condición</th>
-                <th style={th}>Excepción</th>
-                <th style={th}>Medio</th>
-                <th style={th}>Estado</th>
-                <th style={thRight}>Monto</th>
+                <SortTh label="Prioridad" sortKey="prioridad" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="Origen" sortKey="origen" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="Documento" sortKey="documento" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="Empresa" sortKey="empresa" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="Proyecto" sortKey="proyecto" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="Beneficiario" sortKey="beneficiario" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="F. Necesidad" sortKey="fecha_necesidad_pago" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="F. Programada" sortKey="fecha_programada_pago" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="F. Pago" sortKey="fecha_pago" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="Condición" sortKey="condicion_comercial" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="Excepción" sortKey="es_excepcion" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="Medio" sortKey="medio_pago" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="Estado" sortKey="estado_pago" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} />
+                <SortTh label="Monto" sortKey="monto" sort={sort} onSort={(key) => setSort(prev => nextSortState(prev, key))} right />
               </tr>
             </thead>
             <tbody>
-              {itemsFiltrados.map(item => {
+              {itemsPaginados.map(item => {
                 const priority = paymentPriority(item)
                 return (
                 <tr key={`${item.origen}-${item.id}`} onClick={() => setSelected(item)} style={{ borderTop: "1px solid #f3f4f6", cursor: "pointer", background: selected?.id === item.id && selected?.origen === item.origen ? "#f0fdf4" : "#fff" }}>
@@ -262,7 +292,7 @@ export default function TesoreriaPage() {
                 </tr>
               )})}
 
-              {!loading && itemsFiltrados.length === 0 && (
+              {!loading && itemsOrdenados.length === 0 && (
                 <tr>
                   <td colSpan={14} style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
                     No hay pagos para mostrar.
@@ -279,6 +309,18 @@ export default function TesoreriaPage() {
               )}
             </tbody>
           </table>
+          {!loading && itemsOrdenados.length > 0 && (
+            <div style={{ padding: "12px 16px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, color: "#6b7280" }}>
+                Mostrando <strong>{desde}</strong> a <strong>{hasta}</strong> de <strong>{itemsOrdenados.length}</strong> pagos
+              </span>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button className="btn-secondary" style={{ fontSize: 12 }} disabled={paginaSegura <= 1} onClick={() => setPagina(prev => Math.max(1, prev - 1))}>← Anterior</button>
+                <span style={{ fontSize: 13, color: "#374151", fontWeight: 700 }}>Página {paginaSegura} de {totalPaginas}</span>
+                <button className="btn-secondary" style={{ fontSize: 12 }} disabled={paginaSegura >= totalPaginas} onClick={() => setPagina(prev => Math.min(totalPaginas, prev + 1))}>Siguiente →</button>
+              </div>
+            </div>
+          )}
           </div>
 
           {selected && (

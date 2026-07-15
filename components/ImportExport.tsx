@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useRef } from "react"
 import * as XLSX from "xlsx"
 
@@ -13,6 +14,7 @@ export default function ImportExport({ modulo, campos, datos, onImportar }: Impo
   const [showMenu, setShowMenu] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [preview, setPreview] = useState<any[]>([])
+  const [registrosImportar, setRegistrosImportar] = useState<any[]>([])
   const [errores, setErrores] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
   const [resultado, setResultado] = useState<any>(null)
@@ -127,17 +129,19 @@ export default function ImportExport({ modulo, campos, datos, onImportar }: Impo
       })
     })
     setErrores(errs)
+    setRegistrosImportar(registros)
     setPreview(registros.slice(0, 5))
     if (fileRef.current) fileRef.current.value = ""
   }
 
   async function confirmarImportacion() {
-    if (preview.length === 0) return
+    if (registrosImportar.length === 0) return
     setImporting(true)
-    const result = await onImportar(preview)
+    const result = await onImportar(registrosImportar)
     setResultado(result)
     setImporting(false)
     setPreview([])
+    setRegistrosImportar([])
   }
 
   return (
@@ -174,7 +178,7 @@ export default function ImportExport({ modulo, campos, datos, onImportar }: Impo
           <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 640, maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>Importar {modulo}</h2>
-              <button onClick={() => { setShowImport(false); setPreview([]); setErrores([]); setResultado(null) }}
+              <button onClick={() => { setShowImport(false); setPreview([]); setRegistrosImportar([]); setErrores([]); setResultado(null) }}
                 style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
             </div>
 
@@ -224,7 +228,7 @@ export default function ImportExport({ modulo, campos, datos, onImportar }: Impo
                 {preview.length > 0 && (
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 }}>
-                      Vista previa — {preview.length} registro(s) listos para importar
+                      Vista previa — {preview.length} de {registrosImportar.length} registro(s) listos para importar
                     </div>
                     <div style={{ overflowX: "auto", border: "1px solid #e5e7eb", borderRadius: 8 }}>
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -247,9 +251,9 @@ export default function ImportExport({ modulo, campos, datos, onImportar }: Impo
                       </table>
                     </div>
                     <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-                      <button onClick={() => { setPreview([]); setErrores([]) }} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
+                      <button onClick={() => { setPreview([]); setRegistrosImportar([]); setErrores([]) }} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
                       <button onClick={confirmarImportacion} disabled={importing || errores.length > 0} className="btn-primary" style={{ fontSize: 13 }}>
-                        {importing ? "Importando..." : "Confirmar importacion"}
+                        {importing ? "Importando..." : `Confirmar importacion (${registrosImportar.length})`}
                       </button>
                     </div>
                   </div>
