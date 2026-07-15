@@ -1,8 +1,11 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { buscarItemsCotizados } from "@/lib/quote-item-search"
 
 const COSTOS_INTERNOS = [
   { key: "costo_almacenaje", label: "Almacenaje" },
@@ -41,7 +44,10 @@ const emptyForm = {
 
 export default function BibliotecaPage() {
   const supabase = createClient()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [items, setItems] = useState<any[]>([])
+  const [itemsCotizados, setItemsCotizados] = useState<any[]>([])
   const [proveedores, setProveedores] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -49,6 +55,7 @@ export default function BibliotecaPage() {
   const [saving, setSaving] = useState(false)
   const [busqueda, setBusqueda] = useState("")
   const [filtroCategoria, setFiltroCategoria] = useState("")
+  const [vista, setVista] = useState<"biblioteca" | "cotizados">(searchParams.get("tab") === "cotizados" ? "cotizados" : "biblioteca")
   const [form, setForm] = useState<any>(emptyForm)
   const [categorias, setCategorias] = useState<string[]>([])
   const [nuevaCategoria, setNuevaCategoria] = useState("")
@@ -76,6 +83,9 @@ export default function BibliotecaPage() {
     setCategorias(cats)
     const { data: provs } = await supabase.from("proveedores").select("id, nombre").order("nombre")
     setProveedores(provs || [])
+    const cotizados = await buscarItemsCotizados(supabase, { limit: 1000 })
+    if (cotizados.error) console.error("Error cargando items cotizados en Biblioteca:", cotizados.error)
+    setItemsCotizados(cotizados.data || [])
     setLoading(false)
   }
 
@@ -148,7 +158,6 @@ export default function BibliotecaPage() {
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
 
-  const todasCategorias = Array.from(new Set([...CENTROS_COSTOS_DEFAULT, ...categorias])).sort()
   const filtrados = items.filter(i => {
     if (filtroCategoria && i.categoria !== filtroCategoria) return false
     if (busqueda) {
@@ -167,6 +176,19 @@ export default function BibliotecaPage() {
     }
     return true
   })
+  const cotizadosFiltrados = itemsCotizados.filter(item => {
+    if (busqueda) {
+      const q = busqueda.toLowerCase()
+      const cot = item.cotizacion
+      const proy = cot?.proyecto
+      const cliente = proy?.cliente
+      const coincide = [item.descripcion, proy?.codigo, proy?.nombre, cliente?.razon_social, cot?.version ? `v${cot.version}` : ""]
+        .some(valor => String(valor || "").toLowerCase().includes(q))
+      if (!coincide) return false
+    }
+    if (filtroCategoria && item.categoria !== filtroCategoria) return false
+    return true
+  })
   const categoriasItems = Array.from(new Set(items.map(i => i.categoria).filter(Boolean))) as string[]
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
@@ -175,8 +197,10 @@ export default function BibliotecaPage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Biblioteca de items</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{items.length} items guardados</p>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Biblioteca de Ítems</h1>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+            {items.length} ítems guardados · {itemsCotizados.length} ítems cotizados disponibles para consulta
+          </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <ImportExport modulo="biblioteca" campos={[{key:"descripcion",label:"Descripcion",requerido:true},{key:"categoria",label:"Categoria"},{key:"centro_costos",label:"Centro costos"},{key:"costo_almacenaje",label:"Costo almacenaje"},{key:"costo_impresion",label:"Costo impresion"},{key:"costo_alquiler",label:"Costo alquiler"},{key:"margen_pct",label:"Margen %"},{key:"proveedor_nombre",label:"Proveedor"}]} datos={items} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const costoTotal=(Number(r.costo_almacenaje)||0)+(Number(r.costo_impresion)||0)+(Number(r.costo_alquiler)||0); const margen=Number(r.margen_pct)||40; const precioCliente=margen<100?costoTotal/(1-margen/100):costoTotal; const{error}=await supabase.from("items_biblioteca").insert({...r,costo_total:costoTotal,precio_cliente:precioCliente,activo:true}); if(error)errores.push(r.descripcion+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
@@ -189,6 +213,12 @@ export default function BibliotecaPage() {
           No se pudo cargar la Biblioteca de items: {loadError}
         </div>
       )}
+
+      <div className="card" style={{ marginBottom: 14, padding: "10px 14px", display: "flex", gap: 8, alignItems: "center" }}>
+        <button className={vista === "biblioteca" ? "btn-primary" : "btn-secondary"} style={{ fontSize: 12 }} onClick={() => { setVista("biblioteca"); router.replace("/biblioteca") }}>Biblioteca</button>
+        <button className={vista === "cotizados" ? "btn-primary" : "btn-secondary"} style={{ fontSize: 12 }} onClick={() => { setVista("cotizados"); router.replace("/biblioteca?tab=cotizados") }}>Buscador de ítems cotizados</button>
+        <span style={{ fontSize: 12, color: "#6b7280", marginLeft: "auto" }}>El buscador queda integrado en esta pantalla.</span>
+      </div>
 
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -346,7 +376,40 @@ export default function BibliotecaPage() {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {filtrados.length === 0 ? (
+        {vista === "cotizados" ? (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#f9fafb" }}>
+                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ÍTEM COTIZADO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>COTIZACIÓN</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRECIO</th>
+                <th style={{ padding: "10px 20px", width: 100 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {cotizadosFiltrados.length === 0 ? (
+                <tr><td colSpan={6} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No se encontraron ítems cotizados</td></tr>
+              ) : cotizadosFiltrados.map(item => {
+                const cot = item.cotizacion
+                const proy = cot?.proyecto
+                const cliente = proy?.cliente
+                const href = cot?.proyecto_id && cot?.id ? `/proyectos/${cot.proyecto_id}/cotizaciones/${cot.id}` : ""
+                return (
+                  <tr key={item.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "12px 20px", fontSize: 13, color: "#111827", fontWeight: 600 }}>{item.descripcion || "Sin descripción"}</td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}><strong>{proy?.codigo || "—"}</strong><div style={{ color: "#6b7280" }}>{proy?.nombre || "Sin proyecto"}</div></td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>{cliente?.razon_social || "—"}</td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#6d28d9", fontWeight: 700 }}>V{cot?.version || "?"} · {cot?.estado || "sin estado"}</td>
+                    <td style={{ padding: "12px", textAlign: "right", fontSize: 13, color: "#0F6E56", fontWeight: 700 }}>{fmt(item.precio_cliente)}</td>
+                    <td style={{ padding: "12px 20px", textAlign: "right" }}>{href && <a className="btn-secondary" style={{ fontSize: 12, textDecoration: "none" }} href={href}>Abrir</a>}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        ) : filtrados.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay items. Crea el primero.</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>

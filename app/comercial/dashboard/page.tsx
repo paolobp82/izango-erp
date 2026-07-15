@@ -318,26 +318,6 @@ export default function DashboardComercialPage() {
     { label: "Facturas cobradas", value: facturasCobradasPeriodo.length, amount: cobrado },
   ]
 
-  const clienteRows = useMemo(() => clientes.map(cliente => {
-    const clienteLeads = filteredLeads.filter(lead => lead.cliente_id === cliente.id)
-    const clienteProjects = filteredProjects.filter(proyecto => proyecto.cliente_id === cliente.id)
-    const clienteQuotes = filteredQuotes.filter(cot => cot.proyecto?.cliente_id === cliente.id)
-    const clienteProjectIds = new Set(clienteProjects.map(proyecto => proyecto.id))
-    const clienteFacturas = facturasVinculadas.filter(factura => clienteProjectIds.has(factura.proyecto_id))
-    const lastDates = [...clienteLeads.map(l => l.updated_at || l.created_at), ...clienteQuotes.map(c => c.updated_at || c.created_at), ...clienteProjects.map(p => p.updated_at || p.created_at), ...clienteFacturas.map(f => f.fecha_abono || f.fecha_emision || f.updated_at || f.created_at)].filter(Boolean).sort().reverse()
-    return {
-      cliente,
-      active: clienteLeads.filter(lead => !ESTADOS_CERRADOS.includes(lead.estado)).length,
-      pipeline: clienteLeads.filter(lead => !ESTADOS_CERRADOS.includes(lead.estado)).reduce((s, l) => s + l.presupuesto_estimado, 0),
-      quotes: clienteQuotes.length,
-      projects: clienteProjects.length,
-      won: clienteLeads.filter(lead => lead.estado === "ganado").reduce((s, l) => s + l.presupuesto_estimado, 0),
-      facturado: clienteFacturas.reduce((sum, factura) => sum + totalFacturaComercial(factura), 0),
-      cobrado: clienteFacturas.reduce((sum, factura) => sum + montoCobradoFacturaComercial(factura), 0),
-      last: lastDates[0] || "",
-    }
-  }).filter(row => row.active || row.quotes || row.projects || row.won || row.facturado || row.cobrado).sort((a, b) => (b.pipeline + b.won + b.facturado + b.cobrado) - (a.pipeline + a.won + a.facturado + a.cobrado)).slice(0, 8), [clientes, filteredLeads, filteredProjects, filteredQuotes, facturasVinculadas])
-
   const alerts = useMemo(() => {
     const list: any[] = []
     activeLeads.forEach(lead => {
@@ -566,26 +546,6 @@ export default function DashboardComercialPage() {
                 </div>
               ))}
             </div>
-          </SectionCard>
-        </div>
-
-        <div style={{ gridColumn: "span 6" }}>
-          <SectionCard title="Clientes con mayor actividad comercial">
-            {clienteRows.length === 0 ? <EmptyState title="No hay actividad comercial en este periodo." /> : (
-              <div style={{ display: "grid", gap: 10 }}>
-                {clienteRows.map(row => (
-                  <div key={row.cliente.id} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                      <strong style={{ fontSize: 13 }}>{row.cliente.razon_social}</strong>
-                      <span style={{ fontSize: 12, color: "#64748b" }}>{money(row.pipeline)}</span>
-                    </div>
-                    <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
-                      {row.active} oportunidades · {row.quotes} cotizaciones · {row.projects} proyectos · Facturado {money(row.facturado)} · Cobrado {money(row.cobrado)} · Última: {row.last ? String(row.last).slice(0, 10) : "sin fecha"}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </SectionCard>
         </div>
 

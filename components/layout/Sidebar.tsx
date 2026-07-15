@@ -34,8 +34,7 @@ const ALL_NAV = [
     { label: "Dashboard Comercial", href: "/comercial/dashboard", icon: "◌" },
     { label: "CRM", href: "/crm", icon: "◎" },
     { label: "Clientes", href: "/clientes", icon: "◉" },
-    { label: "Buscar ítems cotizados", href: "/buscar-items", icon: "⌕" },
-    { label: "Biblioteca", href: "/biblioteca", icon: "▱" },
+    { label: "Biblioteca de Ítems", href: "/biblioteca", icon: "▱" },
     { label: "Biblioteca de Medios", href: "/biblioteca-medios", icon: "▧" },
   ]},
   { section: "Operación", items: [
