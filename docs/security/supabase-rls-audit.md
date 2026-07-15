@@ -1,4 +1,10 @@
-# Auditoria RLS Supabase - Izango ERP
+# Auditoria RLS Supabase - Izango ERP (Histórico)
+
+> [!WARNING]
+> **DOCUMENTO HISTÓRICO:** Este reporte describe el estado de la seguridad de la base de datos en **junio de 2026**.
+> A partir de **julio de 2026**, se implementaron migraciones y políticas activas de Row Level Security (RLS).
+> Las fuentes vigentes y oficiales de RLS son los archivos en [supabase/migrations/](../../supabase/migrations/) y el archivo [AGENTS.md](../../AGENTS.md).
+> Este documento se conserva únicamente para fines de trazabilidad histórica.
 
 Fecha: 2026-06-07
 
