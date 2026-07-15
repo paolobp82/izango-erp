@@ -6,11 +6,23 @@ import { registrarAccion } from "@/lib/trazabilidad"
 import StarRating from "@/components/StarRating"
 
 const CATEGORIAS = ["produccion", "almacenaje", "impresion", "permisos", "instalacion", "performer", "alquiler", "supervision", "movilidad", "otros"]
-const TIPOS_PAGO = ["contado", "credito_30", "credito_60", "credito_90"]
+const TIPOS_PAGO = [
+  { value: "contado", label: "Contado" },
+  { value: "credito_7", label: "Crédito 7 días" },
+  { value: "credito_15", label: "Crédito 15 días" },
+  { value: "credito_30", label: "Crédito 30 días" },
+  { value: "credito_45", label: "Crédito 45 días" },
+  { value: "credito_60", label: "Crédito 60 días" },
+  { value: "credito_90", label: "Crédito 90 días" },
+]
 const BANCOS = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
 const TIPOS_CUENTA = ["Ahorros", "Corriente"]
 const TIPOS_TRANSFERENCIA = ["Transferencia bancaria", "Yape", "Plin", "Efectivo", "Cheque"]
 const POR_PAGINA = 50
+
+function tipoPagoLabel(value?: string | null) {
+  return TIPOS_PAGO.find(t => t.value === value)?.label || value || "—"
+}
 
 async function consultarRUC(ruc: string) {
   try {
@@ -225,7 +237,7 @@ export default function ProveedoresPage() {
         </select>
         <select style={{ ...inp, width: "auto" }} value={filtroTipoPago} onChange={e => { setFiltroTipoPago(e.target.value); setPagina(1) }}>
           <option value="">Todos los tipos de pago</option>
-          {TIPOS_PAGO.map(t => <option key={t} value={t}>{t}</option>)}
+          {TIPOS_PAGO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
         <select style={{ ...inp, width: "auto" }} value={filtroRating} onChange={e => { setFiltroRating(e.target.value); setPagina(1) }}>
           <option value="">Todos los ratings</option>
@@ -292,7 +304,7 @@ export default function ProveedoresPage() {
                   <div>
                     <label style={lbl}>TIPO DE PAGO</label>
                     <select style={inp} value={form.tipo_pago} onChange={e => setForm({ ...form, tipo_pago: e.target.value })}>
-                      {TIPOS_PAGO.map(t => <option key={t}>{t}</option>)}
+                      {TIPOS_PAGO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                   </div>
                 </div>
@@ -437,7 +449,7 @@ export default function ProveedoresPage() {
                     <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
                       {p.nombre_contacto ? `${p.nombre_contacto}${p.apellido_contacto ? " " + p.apellido_contacto : ""}` : "—"}
                     </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{p.tipo_pago || "—"}</td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{tipoPagoLabel(p.tipo_pago)}</td>
                     <td style={{ padding: "12px" }}>
                       {ratings[p.id] ? (
                         <StarRating rating={ratings[p.id].promedio} totalVotos={ratings[p.id].total} size="sm" showCount={true} />
