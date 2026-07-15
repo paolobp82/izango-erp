@@ -141,7 +141,7 @@ export default function DashboardComercialPage() {
 
     const [leadsRes, cotRes, proyRes, tareasRes, clientesRes, perfilesRes, facturasRes] = await Promise.all([
       supabase.from("crm_leads").select("id, razon_social, estado, temperatura, presupuesto_estimado, probabilidad_cierre, fecha_proxima_accion, fecha_proximo_contacto, responsable_id, cliente_id, proyecto_id, referencias_cotizacion, periodo_pipeline, archivado, created_at, updated_at, cliente:clientes(id,razon_social,ruc), proyecto:proyectos(id,nombre,codigo,estado,cliente_id,deleted_at,cliente:clientes(id,razon_social))"),
-      supabase.from("cotizaciones").select("id,proyecto_id,version,estado,created_at,updated_at,total_cliente,subtotal_precio_cliente,subtotal_con_fee,igv_monto,fee_agencia_pct,fee_activo,igv_pct,descuento_pct,items:cotizacion_items(precio_cliente,incluir_en_total),proyecto:proyectos(id,nombre,codigo,estado,cliente_id,deleted_at,cliente:clientes(id,razon_social),comercial_id,productor_id)"),
+      supabase.from("cotizaciones").select("id,proyecto_id,version,estado,created_at,updated_at,total_cliente,subtotal_precio_cliente,subtotal_con_fee,igv_monto,fee_agencia_pct,fee_activo,igv_pct,descuento_pct,items:cotizacion_items(precio_cliente,incluir_en_total),proyecto:proyectos!cotizaciones_proyecto_id_fkey(id,nombre,codigo,estado,cliente_id,deleted_at,cliente:clientes(id,razon_social),comercial_id,productor_id)"),
       supabase.from("proyectos").select("id,nombre,codigo,estado,cliente_id,created_at,updated_at,deleted_at,cotizacion_aprobada_id,comercial_id,productor_id,cliente:clientes(id,razon_social)").is("deleted_at", null),
       supabase.from("tareas").select("id,titulo,estado,prioridad,fecha_limite,cliente_id,proyecto_id,asignado_a,creado_por,created_at,updated_at,cliente:clientes(id,razon_social),proyecto:proyectos(id,nombre,codigo,deleted_at),asignado:perfiles!asignado_a(id,nombre,apellido,perfil),creador:perfiles!creado_por(id,nombre,apellido,perfil)").order("created_at", { ascending: false }).limit(500),
       supabase.from("clientes").select("id,razon_social,created_at").order("razon_social"),
@@ -165,20 +165,22 @@ export default function DashboardComercialPage() {
       }
     })
 
-    setLeads((leadsRes.data || []).map((lead: any) => ({
-      ...lead,
-      fecha_proxima_accion: lead.fecha_proxima_accion || lead.fecha_proximo_contacto || "",
-      presupuesto_estimado: num(lead.presupuesto_estimado),
-      probabilidad_cierre: num(lead.probabilidad_cierre),
-      proyecto_id: lead.proyecto_id || null,
-      archivado: Boolean(lead.archivado),
-    })))
-    setCotizaciones((cotRes.data || []).filter((cot: any) => !cot.proyecto?.deleted_at))
-    setProyectos(proyRes.data || [])
-    setTareas((tareasRes.data || []).filter((tarea: any) => tarea.creador?.perfil === "comercial" && !tarea.proyecto?.deleted_at))
-    setClientes(clientesRes.data || [])
-    setPerfiles(perfilesRes.data || [])
-    setFacturas(facturasRes.data || [])
+    if (!leadsRes.error) {
+      setLeads((leadsRes.data || []).map((lead: any) => ({
+        ...lead,
+        fecha_proxima_accion: lead.fecha_proxima_accion || lead.fecha_proximo_contacto || "",
+        presupuesto_estimado: num(lead.presupuesto_estimado),
+        probabilidad_cierre: num(lead.probabilidad_cierre),
+        proyecto_id: lead.proyecto_id || null,
+        archivado: Boolean(lead.archivado),
+      })))
+    }
+    if (!cotRes.error) setCotizaciones((cotRes.data || []).filter((cot: any) => !cot.proyecto?.deleted_at))
+    if (!proyRes.error) setProyectos(proyRes.data || [])
+    if (!tareasRes.error) setTareas((tareasRes.data || []).filter((tarea: any) => tarea.creador?.perfil === "comercial" && !tarea.proyecto?.deleted_at))
+    if (!clientesRes.error) setClientes(clientesRes.data || [])
+    if (!perfilesRes.error) setPerfiles(perfilesRes.data || [])
+    if (!facturasRes.error) setFacturas(facturasRes.data || [])
     setErrors(nextErrors)
     setLoading(false)
   }

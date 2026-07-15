@@ -92,7 +92,7 @@ export default function CentroCostosPage() {
     if (!autorizado) return
     const { data } = await supabase
       .from("cotizacion_items")
-      .select("*, cotizacion:cotizaciones(version, estado, proyecto_id, proyecto:proyectos(nombre, codigo, deleted_at))")
+      .select("*, cotizacion:cotizaciones(version, estado, proyecto_id, proyecto:proyectos!cotizaciones_proyecto_id_fkey(nombre, codigo, deleted_at))")
       .eq("centro_costo_id", centroId)
       .not("cotizacion.estado", "is", null)
       .order("created_at", { ascending: false })
