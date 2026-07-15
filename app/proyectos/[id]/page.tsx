@@ -60,6 +60,7 @@ export default function ProyectoDetallePage() {
   const [cotizacionesEliminadas, setCotizacionesEliminadas] = useState<any[]>([])
   const [historial, setHistorial] = useState<Record<string, any[]>>({})
   const [rqsProyecto, setRqsProyecto] = useState<any[]>([])
+  const [liquidacionProyecto, setLiquidacionProyecto] = useState<any>(null)
   const [perfil, setPerfil] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [creando, setCreando] = useState(false)
@@ -178,6 +179,17 @@ export default function ProyectoDetallePage() {
       }
     }
     setRqsProyecto(filtrarPorAlcance(rqsVinculados.map((rq: any) => ({ ...rq, proyecto: proy })), perfilActual, "rq", { usuarioId: user?.id, proyecto: proy }))
+
+    const { data: liqProyecto, error: liqProyectoError } = await supabase
+      .from("liquidaciones")
+      .select("id,costo_presupuestado,precio_cliente_presupuestado,costo_real,precio_cliente_real,margen_real_pct,desvio_costo,cerrada,aprobado_produccion,aprobado_controller,aprobado_controller_at,fecha_cierre")
+      .eq("proyecto_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (liqProyectoError) console.error("Error cargando liquidación del proyecto:", liqProyectoError.message)
+    setLiquidacionProyecto(liqProyecto || null)
 
     const { data: logsRQ, error: logsRQError } = await supabase
       .from("rq_version_migration_log")
@@ -2576,9 +2588,43 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           <button onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver liquidación</button>
         </div>
         <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: placeholder para liquidacion, costos reales, margen real, desvios y aprobaciones de cierre.
-          </div>
+          {!liquidacionProyecto ? (
+            <div style={placeholderStyle}>
+              Aún no existe liquidación registrada para este proyecto.
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12 }}>
+                {[
+                  { label: "Presupuesto aprobado", value: fmt(liquidacionProyecto.precio_cliente_presupuestado || 0) },
+                  { label: "Costo real", value: fmt(liquidacionProyecto.costo_real || 0) },
+                  { label: "Adicionales", value: "Ver liquidación" },
+                  { label: "Caja chica", value: "Ver liquidación" },
+                  { label: "Traslados", value: "Ver liquidación" },
+                  { label: "Margen", value: `${Number(liquidacionProyecto.margen_real_pct || 0).toFixed(1)}%` },
+                  { label: "Rentabilidad", value: `${Number(liquidacionProyecto.margen_real_pct || 0).toFixed(1)}%` },
+                  { label: "Estado", value: liquidacionProyecto.cerrada ? "Cerrada" : "Abierta" },
+                  { label: "Controller", value: liquidacionProyecto.aprobado_controller ? "Aprobado" : "Pendiente" },
+                ].map((item: any) => (
+                  <div key={item.label} style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: 12, background: "#FFFFFF" }}>
+                    <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 800, textTransform: "uppercase" }}>{item.label}</div>
+                    <div style={{ fontSize: 14, color: "#111827", fontWeight: 800, marginTop: 4 }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {!liquidacionProyecto.aprobado_controller && (
+                  <span style={{ fontSize: 12, color: "#92400E", background: "#FEF3C7", borderRadius: 999, padding: "5px 10px", fontWeight: 700 }}>Pendiente aprobación Controller</span>
+                )}
+                {Number(liquidacionProyecto.costo_real || 0) <= 0 && (
+                  <span style={{ fontSize: 12, color: "#991B1B", background: "#FEE2E2", borderRadius: 999, padding: "5px 10px", fontWeight: 700 }}>Costo real pendiente de consolidar</span>
+                )}
+                {Number(liquidacionProyecto.margen_real_pct || 0) < 0 && (
+                  <span style={{ fontSize: 12, color: "#991B1B", background: "#FEE2E2", borderRadius: 999, padding: "5px 10px", fontWeight: 700 }}>Rentabilidad negativa</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

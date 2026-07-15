@@ -15,6 +15,10 @@ import {
   financeMoney,
   financeNumber,
 } from "@/lib/finance"
+import {
+  consolidarCostosProyecto,
+  costoRealDesdeConsolidacion,
+} from "@/lib/liquidaciones/consolidacion"
 
 type TrafficLight = "Verde" | "Amarillo" | "Rojo"
 
@@ -62,6 +66,8 @@ export default function CentroCostosFinancieroPage() {
   const [paymentRequests, setPaymentRequests] = useState<any[]>([])
   const [pettyCash, setPettyCash] = useState<any[]>([])
   const [transfers, setTransfers] = useState<any[]>([])
+  const [liquidations, setLiquidations] = useState<any[]>([])
+  const [liquidationItems, setLiquidationItems] = useState<any[]>([])
   const [clientFilter, setClientFilter] = useState("")
   const [trafficFilter, setTrafficFilter] = useState("")
   const [sortBy, setSortBy] = useState("mayor_facturacion")
@@ -88,13 +94,19 @@ export default function CentroCostosFinancieroPage() {
             .select("id,proyecto_id,subtotal,igv,monto_final_abonado,estado"),
           supabase
             .from("requerimientos_pago")
-            .select("id,proyecto_id,monto_solicitado,estado"),
+            .select("id,proyecto_id,cotizacion_item_id,codigo_rq,numero_rq,monto_solicitado,monto_rendido,monto_devolucion,estado,descripcion,proveedor_nombre,es_adicional,fecha_rendicion,observacion_rendicion,solicitado_por"),
           supabase
             .from("caja_chica")
-            .select("id,proyecto_id,monto_debe,estado"),
+            .select("id,proyecto_id,rq_id,monto_debe,estado,concepto,categoria,fecha,observaciones"),
           supabase
             .from("logistica_traslados")
-            .select("id,proyecto_id,costo_real,estado,afecta_rentabilidad"),
+            .select("id,proyecto_id,costo_real,estado,afecta_rentabilidad,codigo,titulo,punto_recojo,punto_entrega,fecha_entrega_real,fecha_entrega,fecha_salida"),
+          supabase
+            .from("liquidaciones")
+            .select("id,proyecto_id,costo_real,cerrada,aprobado_controller,precio_cliente_real"),
+          supabase
+            .from("liquidacion_items")
+            .select("id,liquidacion_id,cotizacion_item_id,descripcion,costo_presupuestado,costo_real,proveedor_nombre"),
         ])
 
         const errors = results.map(result => result.error?.message).filter(Boolean)
@@ -104,6 +116,8 @@ export default function CentroCostosFinancieroPage() {
         setPaymentRequests(results[2].data || [])
         setPettyCash(results[3].data || [])
         setTransfers(results[4].data || [])
+        setLiquidations(results[5].data || [])
+        setLiquidationItems(results[6].data || [])
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Error inesperado al cargar el centro de costos")
       } finally {
@@ -119,6 +133,8 @@ export default function CentroCostosFinancieroPage() {
     const requestsByProject = new Map<string, any[]>()
     const cashByProject = new Map<string, any[]>()
     const transfersByProject = new Map<string, any[]>()
+    const latestLiquidationByProject = new Map<string, any>()
+    const itemsByLiquidation = new Map<string, any[]>()
 
     invoices.forEach(invoice => {
       if (!invoice.proyecto_id) return
@@ -136,6 +152,14 @@ export default function CentroCostosFinancieroPage() {
       if (!transfer.proyecto_id) return
       transfersByProject.set(transfer.proyecto_id, [...(transfersByProject.get(transfer.proyecto_id) || []), transfer])
     })
+    liquidations.forEach(liquidation => {
+      if (!liquidation.proyecto_id) return
+      if (!latestLiquidationByProject.has(liquidation.proyecto_id)) latestLiquidationByProject.set(liquidation.proyecto_id, liquidation)
+    })
+    liquidationItems.forEach(item => {
+      if (!item.liquidacion_id) return
+      itemsByLiquidation.set(item.liquidacion_id, [...(itemsByLiquidation.get(item.liquidacion_id) || []), item])
+    })
 
     return projects.map(project => {
       const client = relationOne<any>(project.cliente)
@@ -143,6 +167,8 @@ export default function CentroCostosFinancieroPage() {
       const projectRequests = requestsByProject.get(project.id) || []
       const projectCash = cashByProject.get(project.id) || []
       const projectTransfers = transfersByProject.get(project.id) || []
+      const liquidation = latestLiquidationByProject.get(project.id)
+      const projectLiquidationItems = liquidation ? itemsByLiquidation.get(liquidation.id) || [] : []
 
       const totalFacturado = projectInvoices
         .filter(invoice => !FACTURAS_ANULADAS.includes(invoice.estado))
@@ -156,13 +182,18 @@ export default function CentroCostosFinancieroPage() {
       const rqPendiente = projectRequests
         .filter(request => RQS_POR_PAGAR.includes(request.estado))
         .reduce((sum, request) => sum + financeNumber(request.monto_solicitado), 0)
-      const cajaChica = projectCash
-        .filter(entry => entry.estado === "aprobado")
-        .reduce((sum, entry) => sum + financeNumber(entry.monto_debe), 0)
-      const traslados = projectTransfers
-        .filter(transfer => transfer.afecta_rentabilidad !== false && !["cancelado", "rechazado"].includes(transfer.estado))
-        .reduce((sum, transfer) => sum + financeNumber(transfer.costo_real), 0)
-      const costoReal = rqPagado + cajaChica + traslados
+      const consolidacion = consolidarCostosProyecto({
+        proyectoId: project.id,
+        precioBase: totalFacturado,
+        liquidacionItems: projectLiquidationItems,
+        rqs: projectRequests,
+        cajaChica: projectCash,
+        traslados: projectTransfers,
+        incluirRqsSinItemsComoPresupuestados: projectLiquidationItems.length === 0,
+      })
+      const cajaChica = consolidacion.totalCajaChica
+      const traslados = consolidacion.totalTraslados
+      const costoReal = costoRealDesdeConsolidacion(consolidacion, liquidation).costoReal
       const utilidad = totalFacturado - costoReal
       const margen = totalFacturado > 0 ? (utilidad / totalFacturado) * 100 : 0
 
@@ -183,7 +214,7 @@ export default function CentroCostosFinancieroPage() {
         semaforo: trafficLight(margen),
       }
     })
-  }, [invoices, paymentRequests, pettyCash, projects])
+  }, [invoices, liquidationItems, liquidations, paymentRequests, pettyCash, projects, transfers])
 
   const clients = useMemo(
     () => [...new Set(rows.map(row => row.cliente))].sort((a, b) => a.localeCompare(b, "es")),

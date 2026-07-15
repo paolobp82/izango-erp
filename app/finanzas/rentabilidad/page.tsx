@@ -10,6 +10,10 @@ import FinanceNav from "@/components/finanzas/FinanceNav"
 import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { useFinanceAccess } from "@/components/finanzas/useFinanceAccess"
 import { financeMoney, financeNumber } from "@/lib/finance"
+import {
+  consolidarCostosProyecto,
+  costoRealDesdeConsolidacion,
+} from "@/lib/liquidaciones/consolidacion"
 
 function relationOne<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] || null
@@ -39,24 +43,87 @@ export default function RentabilidadPage() {
 
     Promise.all([
       supabase
+        .from("proyectos")
+        .select("id,codigo,nombre,estado,deleted_at,cliente:clientes(razon_social)")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false }),
+
+      supabase
         .from("liquidaciones")
-        .select("id,proyecto_id,cerrada,aprobado_controller,costo_real,precio_cliente_real,margen_real_pct,desvio_costo,proyecto:proyectos(codigo,nombre,estado,deleted_at,cliente:clientes(razon_social))")
+        .select("id,proyecto_id,cerrada,aprobado_controller,costo_real,precio_cliente_real,margen_real_pct,desvio_costo,created_at")
         .order("created_at", { ascending: false }),
 
       supabase
         .from("facturas")
         .select("proyecto_id,subtotal,igv,estado,monto_final_abonado,detraccion_monto,retencion_monto,tipo_cobro,costo_factoring,otros_descuentos"),
-    ]).then(([liqResult, factResult]) => {
-      const errors = [liqResult.error?.message, factResult.error?.message].filter(Boolean)
+
+      supabase
+        .from("liquidacion_items")
+        .select("id,liquidacion_id,cotizacion_item_id,descripcion,costo_presupuestado,costo_real,proveedor_nombre"),
+
+      supabase
+        .from("requerimientos_pago")
+        .select("id,proyecto_id,cotizacion_item_id,codigo_rq,numero_rq,monto_solicitado,monto_rendido,monto_devolucion,estado,descripcion,proveedor_nombre,es_adicional,fecha_rendicion,observacion_rendicion,solicitado_por"),
+
+      supabase
+        .from("caja_chica")
+        .select("id,proyecto_id,rq_id,monto_debe,estado,concepto,categoria,fecha,observaciones"),
+
+      supabase
+        .from("logistica_traslados")
+        .select("id,proyecto_id,costo_real,estado,afecta_rentabilidad,codigo,titulo,punto_recojo,punto_entrega,fecha_entrega_real,fecha_entrega,fecha_salida"),
+    ]).then(([projectResult, liqResult, factResult, itemResult, rqResult, cashResult, transferResult]) => {
+      const errors = [
+        projectResult.error?.message,
+        liqResult.error?.message,
+        factResult.error?.message,
+        itemResult.error?.message,
+        rqResult.error?.message,
+        cashResult.error?.message,
+        transferResult.error?.message,
+      ].filter(Boolean)
       if (errors.length) setError(errors.join(" · "))
 
+      const projects = projectResult.data || []
       const facturas = factResult.data || []
+      const liquidaciones = liqResult.data || []
+      const liquidacionItems = itemResult.data || []
+      const rqs = rqResult.data || []
+      const cajaChica = cashResult.data || []
+      const traslados = transferResult.data || []
+      const liquidationByProject = new Map<string, any>()
+      const itemsByLiquidation = new Map<string, any[]>()
+      const rqsByProject = new Map<string, any[]>()
+      const cashByProject = new Map<string, any[]>()
+      const transfersByProject = new Map<string, any[]>()
 
-      const liquidaciones = (liqResult.data || [])
-        .filter((l: any) => !l.proyecto?.deleted_at)
-        .map((liq: any) => {
+      liquidaciones.forEach((liq: any) => {
+        if (!liq.proyecto_id) return
+        if (!liquidationByProject.has(liq.proyecto_id)) liquidationByProject.set(liq.proyecto_id, liq)
+      })
+      liquidacionItems.forEach((item: any) => {
+        if (!item.liquidacion_id) return
+        itemsByLiquidation.set(item.liquidacion_id, [...(itemsByLiquidation.get(item.liquidacion_id) || []), item])
+      })
+      rqs.forEach((rq: any) => {
+        if (!rq.proyecto_id) return
+        rqsByProject.set(rq.proyecto_id, [...(rqsByProject.get(rq.proyecto_id) || []), rq])
+      })
+      cajaChica.forEach((entry: any) => {
+        if (!entry.proyecto_id) return
+        cashByProject.set(entry.proyecto_id, [...(cashByProject.get(entry.proyecto_id) || []), entry])
+      })
+      traslados.forEach((transfer: any) => {
+        if (!transfer.proyecto_id) return
+        transfersByProject.set(transfer.proyecto_id, [...(transfersByProject.get(transfer.proyecto_id) || []), transfer])
+      })
+
+      const rentabilidad = projects
+        .filter((project: any) => !project.deleted_at)
+        .map((project: any) => {
+          const liq = liquidationByProject.get(project.id)
           const facturasProyecto = facturas.filter((f: any) =>
-            f.proyecto_id === liq.proyecto_id &&
+            f.proyecto_id === project.id &&
             !["anulada", "cancelada"].includes(f.estado)
           )
 
@@ -79,15 +146,27 @@ export default function RentabilidadPage() {
             0
           )
 
-          const ingreso = cobrado || facturado || financeNumber(liq.precio_cliente_real)
-          const costo = financeNumber(liq.costo_real)
+          const ingreso = cobrado || facturado || financeNumber(liq?.precio_cliente_real)
+          const itemsProyecto = liq ? itemsByLiquidation.get(liq.id) || [] : []
+          const consolidacion = consolidarCostosProyecto({
+            proyectoId: project.id,
+            precioBase: ingreso,
+            liquidacionItems: itemsProyecto,
+            rqs: rqsByProject.get(project.id) || [],
+            cajaChica: cashByProject.get(project.id) || [],
+            traslados: transfersByProject.get(project.id) || [],
+            incluirRqsSinItemsComoPresupuestados: itemsProyecto.length === 0,
+          })
+          const costo = costoRealDesdeConsolidacion(consolidacion, liq).costoReal
           const utilidad = ingreso - costo
-          const margen = ingreso > 0 ? (utilidad / ingreso) * 100 : financeNumber(liq.margen_real_pct)
+          const margen = ingreso > 0 ? (utilidad / ingreso) * 100 : financeNumber(liq?.margen_real_pct)
 
-          const aprobadaFinanzas = Boolean(liq.cerrada && liq.aprobado_controller)
+          const aprobadaFinanzas = Boolean(liq?.cerrada && liq?.aprobado_controller)
 
           return {
-            ...liq,
+            id: liq?.id || project.id,
+            proyecto_id: project.id,
+            proyecto: project,
             facturado,
             cobrado,
             descuentosFinancieros,
@@ -96,10 +175,11 @@ export default function RentabilidadPage() {
             utilidad,
             margen,
             aprobadaFinanzas,
+            consolidacion,
           }
         })
 
-      setRows(liquidaciones)
+      setRows(rentabilidad)
       setLoading(false)
     }).catch((loadError: unknown) => {
       setError(loadError instanceof Error ? loadError.message : "Error inesperado al cargar rentabilidad")

@@ -12,6 +12,13 @@ import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { puedeAccederRuta } from "@/lib/permissions"
 import { esFacturaAnulada, montoCobradoFactura, saldoPendienteFactura, totalFactura } from "@/lib/finance"
+import {
+  consolidarCostosProyecto,
+  resumenDesdeItemsConsolidados,
+  validarConsolidacionParaController,
+  type ConsolidacionCostos,
+  type RegistroCostoConsolidado,
+} from "@/lib/liquidaciones/consolidacion"
 
 export default function LiquidacionesPage() {
   const supabase = createClient()
@@ -28,8 +35,48 @@ export default function LiquidacionesPage() {
   const [autorizado, setAutorizado] = useState(false)
   const [error, setError] = useState("")
   const [detailError, setDetailError] = useState("")
+  const [consolidacion, setConsolidacion] = useState<ConsolidacionCostos | null>(null)
 
   useEffect(() => { load() }, [])
+
+  function itemDesdeRegistroCosto(record: RegistroCostoConsolidado, liquidacionId: string) {
+    const costoPresupuestado = Number(record.metadata.costo_presupuestado || 0)
+    const desvio = record.monto - costoPresupuestado
+    const sourceType = record.source_type
+    const liquidacionItemId = String(record.metadata.liquidacion_item_id || "")
+
+    return {
+      id: liquidacionItemId || `${sourceType}_${record.source_id}`,
+      liquidacion_item_id: liquidacionItemId || null,
+      source_type: sourceType,
+      source_id: record.source_id,
+      liquidacion_id: liquidacionId,
+      cotizacion_item_id: record.metadata.cotizacion_item_id || null,
+      descripcion: record.metadata.descripcion || record.referencia,
+      proveedor_id: record.metadata.proveedor_id || null,
+      proveedor_nombre: record.metadata.proveedor_nombre || null,
+      costo_presupuestado: costoPresupuestado,
+      costo_real: record.monto,
+      desvio,
+      desvio_pct: costoPresupuestado > 0 ? (desvio / costoPresupuestado) * 100 : record.monto > 0 ? 100 : 0,
+      es_adicional_rq: sourceType === "rq_adicional",
+      es_caja_chica: sourceType === "caja_chica",
+      es_traslado_logistica: sourceType === "traslado",
+      caja_chica_id: record.metadata.caja_chica_id || null,
+      traslado_logistica_id: record.metadata.traslado_logistica_id || null,
+      rq_id: record.metadata.rq_id || null,
+      rq_codigo: record.metadata.rq_codigo || null,
+      rq_estado: record.metadata.rq_estado || record.estado || null,
+      monto_solicitado: Number(record.metadata.monto_solicitado || 0),
+      monto_rendido: Number(record.metadata.monto_rendido || 0),
+      monto_devolucion: Number(record.metadata.monto_devolucion || 0),
+      fecha_rendicion: record.metadata.fecha_rendicion || null,
+      observacion_rendicion: record.metadata.observacion_rendicion || null,
+      fecha_traslado: record.metadata.fecha_traslado || null,
+      afecta_rentabilidad: record.afecta_rentabilidad,
+      estado: record.estado,
+    }
+  }
 
   async function load() {
     setError("")
@@ -155,7 +202,7 @@ export default function LiquidacionesPage() {
 
     const { data: rqs, error: rqsError } = await supabase
       .from("requerimientos_pago")
-      .select("id, codigo_rq, numero_rq, estado, proveedor_id, proveedor_nombre, descripcion, monto_solicitado, monto_rendido, monto_devolucion, fecha_rendicion, observacion_rendicion, cotizacion_item_id, es_adicional")
+      .select("id, codigo_rq, numero_rq, estado, proveedor_id, proveedor_nombre, descripcion, monto_solicitado, monto_rendido, monto_devolucion, fecha_rendicion, observacion_rendicion, cotizacion_item_id, es_adicional, solicitado_por")
       .eq("proyecto_id", liq.proyecto_id)
 
     const { data: facturasProyecto, error: facturasError } = await supabase
@@ -165,7 +212,7 @@ export default function LiquidacionesPage() {
 
     const { data: cajaChicaProyecto, error: cajaChicaError } = await supabase
       .from("caja_chica")
-      .select("id, concepto, categoria, monto_debe, monto_haber, estado, fecha, observaciones, proyecto_id")
+      .select("id, concepto, categoria, monto_debe, monto_haber, estado, fecha, observaciones, proyecto_id, rq_id")
       .eq("proyecto_id", liq.proyecto_id)
       .eq("estado", "aprobado")
 
@@ -177,14 +224,6 @@ export default function LiquidacionesPage() {
     const detailErrors = [itemsError?.message, cotizacionItemsError?.message, rqsError?.message, facturasError?.message, cajaChicaError?.message, trasladosError?.message].filter(Boolean)
     if (detailErrors.length) setDetailError(detailErrors.join(" · "))
 
-    const rqsValidos = Array.from(
-      new Map(
-        (rqs || [])
-          .filter((rq: any) => !["cancelado", "rechazado"].includes(String(rq.estado || "")))
-          .map((rq: any) => [rq.id, rq])
-      ).values()
-    )
-
     const facturasActivasProyecto = (facturasProyecto || []).filter((f: any) => !esFacturaAnulada(f))
     const facturado = facturasActivasProyecto.reduce((s: number, f: any) => s + totalFactura(f), 0)
     const cobrado = facturasActivasProyecto.reduce((s: number, f: any) => s + montoCobradoFactura(f), 0)
@@ -192,141 +231,26 @@ export default function LiquidacionesPage() {
     setFacturacionResumen({ facturado, cobrado, pendiente, facturas: facturasActivasProyecto.length })
 
     const cotItemMap = new Map((cotItems || []).map((c: any) => [c.id, c]))
-    const rqByCotizacionItemId = new Map(
-      rqsValidos
-        .filter((rq: any) => rq.cotizacion_item_id)
-        .map((rq: any) => [rq.cotizacion_item_id, rq])
-    )
-
-    const normalizar = (txt: string) =>
-      String(txt || "")
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .trim()
-
-    const enriched = (liqItems || []).map((item: any) => {
+    const liquidacionItemsConProveedor = (liqItems || []).map((item: any) => {
       const cotItem: any = cotItemMap.get(item.cotizacion_item_id)
-      const proveedorId = item.proveedor_id || cotItem?.proveedor_id || null
-      const proveedorNombre = item.proveedor_nombre || cotItem?.proveedor_nombre || null
-      const descItem = normalizar(item.descripcion)
-
-      const rqExacto = rqByCotizacionItemId.get(item.cotizacion_item_id)
-
-      const rqMatch = rqExacto || rqsValidos.find((rq: any) => {
-        const mismoProveedor =
-          proveedorId && rq.proveedor_id
-            ? rq.proveedor_id === proveedorId
-            : normalizar(rq.proveedor_nombre) && normalizar(proveedorNombre) && normalizar(rq.proveedor_nombre) === normalizar(proveedorNombre)
-
-        const descRq = normalizar(rq.descripcion)
-        const descripcionParecida =
-          descItem &&
-          descRq &&
-          (descRq.includes(descItem.slice(0, 24)) || descItem.includes(descRq.slice(0, 24)))
-
-        return mismoProveedor || descripcionParecida
-      })
-
-      const montoRq = Number(rqMatch?.monto_rendido || 0) > 0 ? Number(rqMatch?.monto_rendido || 0) : Number(rqMatch?.monto_solicitado || 0)
-      const costoRealActual = Number(item.costo_real || 0)
-      const costoRealCalculado = costoRealActual > 0 ? costoRealActual : montoRq
-      const costoPresupuestado = Number(item.costo_presupuestado || 0)
-      const desvioCalculado = costoRealCalculado - costoPresupuestado
-
       return {
         ...item,
-        proveedor_id: proveedorId,
-        proveedor_nombre: proveedorNombre,
-        costo_real: costoRealCalculado,
-        desvio: desvioCalculado,
-        desvio_pct: costoPresupuestado > 0 ? (desvioCalculado / costoPresupuestado) * 100 : 0,
-        rq_id: rqMatch?.id || null,
-        rq_codigo: rqMatch?.codigo_rq || (rqMatch?.numero_rq ? `RQ-${String(rqMatch.numero_rq).padStart(5, "0")}` : null),
-        rq_estado: rqMatch?.estado || null,
+        proveedor_id: item.proveedor_id || cotItem?.proveedor_id || null,
+        proveedor_nombre: item.proveedor_nombre || cotItem?.proveedor_nombre || null,
       }
     })
 
-    const idsRqYaMostrados = new Set(enriched.map((item: any) => item.rq_id).filter(Boolean))
+    const consolidado = consolidarCostosProyecto({
+      proyectoId: liq.proyecto_id,
+      precioBase: liq.precio_cliente_presupuestado || 0,
+      liquidacionItems: liquidacionItemsConProveedor,
+      rqs: rqs || [],
+      cajaChica: cajaChicaProyecto || [],
+      traslados: trasladosLogistica || [],
+    })
 
-    const cajaChicaItems = (cajaChicaProyecto || [])
-      .filter((c: any) => Number(c.monto_debe || 0) > 0)
-      .map((c: any) => ({
-        id: `caja_chica_${c.id}`,
-        liquidacion_id: liq.id,
-        cotizacion_item_id: null,
-        descripcion: c.concepto || c.categoria || "Caja chica",
-        proveedor_id: null,
-        proveedor_nombre: c.categoria || "Caja chica",
-        costo_presupuestado: 0,
-        costo_real: Number(c.monto_debe || 0),
-        desvio: Number(c.monto_debe || 0),
-        desvio_pct: 100,
-        es_caja_chica: true,
-        caja_chica_id: c.id,
-        rq_id: null,
-        rq_codigo: null,
-        rq_estado: c.estado || null,
-      }))
-
-    const trasladosItems = (trasladosLogistica || [])
-      .filter((t: any) =>
-        t.afecta_rentabilidad !== false &&
-        !["cancelado", "rechazado"].includes(t.estado) &&
-        Number(t.costo_real || 0) > 0
-      )
-      .map((t: any) => {
-        const costoReal = Number(t.costo_real || 0)
-
-        return {
-          id: `traslado_logistica_${t.id}`,
-          liquidacion_id: liq.id,
-          cotizacion_item_id: null,
-          descripcion: `Traslado/logística: ${t.codigo ? `${t.codigo} - ` : ""}${t.titulo || `${t.punto_recojo || "Origen"} → ${t.punto_entrega || "Destino"}`}`,
-          proveedor_id: null,
-          proveedor_nombre: "Logística",
-          costo_presupuestado: 0,
-          costo_real: costoReal,
-          desvio: costoReal,
-          desvio_pct: 100,
-          es_traslado_logistica: true,
-          traslado_logistica_id: t.id,
-          rq_id: null,
-          rq_codigo: null,
-          rq_estado: t.estado || null,
-          fecha_traslado: t.fecha_entrega_real || t.fecha_entrega || t.fecha_salida || null,
-        }
-      })
-
-    const adicionales = rqsValidos
-      .filter((rq: any) =>
-        !rq.cotizacion_item_id &&
-        !idsRqYaMostrados.has(rq.id) &&
-        !["cancelado", "rechazado"].includes(rq.estado)
-      )
-      .map((rq: any) => ({
-        id: `rq_extra_${rq.id}`,
-        liquidacion_id: liq.id,
-        cotizacion_item_id: null,
-        descripcion: rq.descripcion || "RQ adicional",
-        proveedor_id: rq.proveedor_id || null,
-        proveedor_nombre: rq.proveedor_nombre || null,
-        costo_presupuestado: 0,
-        costo_real: Number(rq.monto_rendido || 0) > 0 ? Number(rq.monto_rendido || 0) : Number(rq.monto_solicitado || 0),
-        desvio: Number(rq.monto_rendido || 0) > 0 ? Number(rq.monto_rendido || 0) : Number(rq.monto_solicitado || 0),
-        desvio_pct: 100,
-        es_adicional_rq: true,
-        rq_id: rq.id,
-        rq_codigo: rq.codigo_rq || (rq.numero_rq ? `RQ-${String(rq.numero_rq).padStart(5, "0")}` : "RQ"),
-        rq_estado: rq.estado || null,
-        monto_solicitado: Number(rq.monto_solicitado || 0),
-        monto_rendido: Number(rq.monto_rendido || 0),
-        monto_devolucion: Number(rq.monto_devolucion || 0),
-        fecha_rendicion: rq.fecha_rendicion || null,
-        observacion_rendicion: rq.observacion_rendicion || null,
-      }))
-
-    setItems([...enriched, ...adicionales, ...cajaChicaItems, ...trasladosItems])
+    setConsolidacion(consolidado)
+    setItems(consolidado.registrosIncluidos.map((record) => itemDesdeRegistroCosto(record, liq.id)))
     setLoadingItems(false)
   }
 
@@ -370,20 +294,21 @@ export default function LiquidacionesPage() {
     }
 
     for (const item of items) {
-      if (String(item.id).startsWith("rq_extra_") || String(item.id).startsWith("caja_chica_") || String(item.id).startsWith("traslado_logistica_")) continue
+      if (!item.liquidacion_item_id) continue
       const { error: itemError } = await supabase.from("liquidacion_items").update({
         costo_real: item.costo_real || 0,
         desvio: item.desvio || 0,
         desvio_pct: item.desvio_pct || 0,
-      }).eq("id", item.id)
+      }).eq("id", item.liquidacion_item_id)
       if (itemError) {
         alert("No se pudo guardar un ítem de liquidación: " + itemError.message)
         return
       }
     }
-    const costoReal = items.reduce((s, i) => s + (Number(i.costo_real) || 0), 0)
+    const resumen = resumenDesdeItemsConsolidados(items, selected.precio_cliente_presupuestado || 0)
+    const costoReal = resumen.totalReal
     const precioReal = selected.precio_cliente_presupuestado || 0
-    const margenReal = precioReal > 0 ? ((precioReal - costoReal) / precioReal) * 100 : 0
+    const margenReal = resumen.rentabilidadPct
     const desvioCosto = costoReal - (selected.costo_presupuestado || 0)
     const desvioMargen = margenReal - (selected.margen_presupuestado_pct || 0)
     const { error: liquidacionError } = await supabase.from("liquidaciones").update({
@@ -411,10 +336,27 @@ export default function LiquidacionesPage() {
       updates.aprobado_produccion_por = perfil.id
       updates.aprobado_produccion_at = new Date().toISOString()
     } else if (rol === "controller" && selected.aprobado_produccion && !selected.aprobado_controller) {
+      if (consolidacion) {
+        const validacion = validarConsolidacionParaController(consolidacion)
+        if (validacion.bloqueos.length > 0) {
+          alert("No se puede aprobar la liquidación:\n" + validacion.bloqueos.join("\n"))
+          return
+        }
+        if (validacion.advertencias.length > 0 && !confirm("Advertencias de consolidación:\n" + validacion.advertencias.join("\n") + "\n\n¿Confirmas que fueron revisadas?")) {
+          return
+        }
+      }
+      const resumen = resumenDesdeItemsConsolidados(items, selected.precio_cliente_presupuestado || 0)
+      const desvioCosto = resumen.totalReal - (selected.costo_presupuestado || 0)
       updates.aprobado_controller = true
       updates.aprobado_controller_por = perfil.id
       updates.aprobado_controller_at = new Date().toISOString()
       updates.cerrada = true
+      updates.costo_real = resumen.totalReal
+      updates.precio_cliente_real = selected.precio_cliente_presupuestado || 0
+      updates.margen_real_pct = resumen.rentabilidadPct
+      updates.desvio_costo = desvioCosto
+      updates.desvio_margen_pp = resumen.rentabilidadPct - (selected.margen_presupuestado_pct || 0)
       await enviarAlerta("proyecto_liquidado", { nombre: selected?.proyecto?.nombre || "Proyecto", codigo: selected?.proyecto?.codigo || "", margen: selected?.margen_real_pct?.toFixed(1) || "0" })
       updates.fecha_cierre = new Date().toISOString()
     }
@@ -439,6 +381,18 @@ export default function LiquidacionesPage() {
       alert("No se puede cerrar una liquidación sin aprobación de Controller.")
       return
     }
+    if (consolidacion) {
+      const validacion = validarConsolidacionParaController(consolidacion)
+      if (validacion.bloqueos.length > 0) {
+        alert("No se puede cerrar la liquidación:\n" + validacion.bloqueos.join("\n"))
+        return
+      }
+    }
+    const resumen = resumenDesdeItemsConsolidados(items, selected.precio_cliente_presupuestado || 0)
+    if (Math.abs(Number(selected.costo_real || 0) - resumen.totalReal) > 0.01) {
+      alert("El costo real guardado no coincide con la consolidación actual. Guarda la liquidación antes de cerrar.")
+      return
+    }
     if (!confirm("¿Cerrar esta liquidación? Ya no se podrá editar.")) return
     const { error: cerrarError } = await supabase.from("liquidaciones").update({ cerrada: true, aprobada_por: perfil?.id, fecha_cierre: new Date().toISOString() }).eq("id", selected.id)
     if (cerrarError) {
@@ -451,15 +405,16 @@ export default function LiquidacionesPage() {
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const fmtPct = (n: number) => Number(n || 0).toFixed(1) + "%"
-  const totalPresupuestadoLive = items.filter((i:any) => !i.es_adicional_rq).reduce((s:number, i:any) => s + (Number(i.costo_presupuestado) || 0), 0)
-  const totalRealPresupuestoLive = items.filter((i:any) => !i.es_adicional_rq).reduce((s:number, i:any) => s + (Number(i.costo_real) || 0), 0)
-  const totalRealAdicionalesLive = items.filter((i:any) => i.es_adicional_rq).reduce((s:number, i:any) => s + (Number(i.costo_real) || 0), 0)
-  const totalRealCajaChicaLive = items.filter((i:any) => i.es_caja_chica).reduce((s:number, i:any) => s + (Number(i.costo_real) || 0), 0)
-  const totalRealLive = totalRealPresupuestoLive + totalRealAdicionalesLive + totalRealCajaChicaLive
   const precioClientePresupuestadoLive = Number(selected?.precio_cliente_presupuestado || 0)
   const precioClienteRealLive = Number(selected?.precio_cliente_real || selected?.precio_cliente_presupuestado || 0)
+  const resumenLive = resumenDesdeItemsConsolidados(items, precioClienteRealLive)
+  const totalPresupuestadoLive = resumenLive.totalPresupuestado
+  const totalRealLive = resumenLive.totalReal
+  const totalRealAdicionalesLive = resumenLive.totalAdicionales
+  const totalRealCajaChicaLive = resumenLive.totalCajaChica
+  const totalRealTrasladosLive = resumenLive.totalTraslados
   const margenInicialLive = Number(selected?.margen_presupuestado_pct || 0)
-  const margenRealLive = precioClienteRealLive > 0 ? ((precioClienteRealLive - totalRealLive) / precioClienteRealLive) * 100 : 0
+  const margenRealLive = resumenLive.rentabilidadPct
   const desvioCostoLive = totalRealLive - totalPresupuestadoLive
   const desvioMargenLive = margenRealLive - margenInicialLive
   const utilidadProyectadaLive = precioClientePresupuestadoLive - totalPresupuestadoLive
@@ -488,7 +443,7 @@ export default function LiquidacionesPage() {
     return match ? Number(match[1]) : 999999999
   }
 
-  const itemsPresupuestados = itemsLiquidacionOrdenados.filter((i:any) => !i.es_adicional_rq)
+  const itemsPresupuestados = itemsLiquidacionOrdenados.filter((i:any) => !i.es_adicional_rq && !i.es_caja_chica && !i.es_traslado_logistica)
 
   const itemsAdicionales = itemsLiquidacionOrdenados
     .filter((i:any) => i.es_adicional_rq)
@@ -496,6 +451,9 @@ export default function LiquidacionesPage() {
 
   const itemsCajaChica = itemsLiquidacionOrdenados
     .filter((i:any) => i.es_caja_chica)
+
+  const itemsTraslados = itemsLiquidacionOrdenados
+    .filter((i:any) => i.es_traslado_logistica)
 
   const inp: any = { padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", width: "100%" }
 
@@ -665,6 +623,23 @@ export default function LiquidacionesPage() {
                   borderColor={margenRealLive >= 30 ? "#16A34A" : margenRealLive >= 15 ? "#D97706" : "#DC2626"}
                 />
               </div>
+
+              {consolidacion && (
+                <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: "#F8FAFC", border: "1px solid #E2E8F0", fontSize: 12, color: "#475569" }}>
+                  <strong style={{ color: "#0F172A" }}>Consolidación:</strong>{" "}
+                  Adicionales {fmt(totalRealAdicionalesLive)} · Caja chica {fmt(totalRealCajaChicaLive)} · Traslados {fmt(totalRealTrasladosLive)}
+                  {consolidacion.errores.length > 0 && (
+                    <div style={{ marginTop: 8, color: "#B91C1C", fontWeight: 700 }}>
+                      Bloqueos: {consolidacion.errores.join(" · ")}
+                    </div>
+                  )}
+                  {(consolidacion.advertencias.length > 0 || consolidacion.posiblesColisiones.length > 0) && (
+                    <div style={{ marginTop: 8, color: "#92400E" }}>
+                      Advertencias: {[...consolidacion.advertencias, ...consolidacion.posiblesColisiones].join(" · ")}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <SectionCard title="Facturación del proyecto" action={<span style={{ background: estadoFinancieroLive.bg, color: estadoFinancieroLive.color, border: `1px solid ${estadoFinancieroLive.color}`, borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 900 }}>Estado: {estadoFinancieroLive.label}</span>}>
@@ -845,7 +820,52 @@ export default function LiquidacionesPage() {
                   </tbody>
                 </table>
               )}
-            </div>          </div>
+            </div>
+
+            <div style={{ height: 16 }} />
+
+            <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>
+                  Caja chica y traslados <span style={{ background: "#F1F5F9", color: "#64748B", borderRadius: 999, padding: "2px 8px", fontSize: 11, marginLeft: 8 }}>{itemsCajaChica.length + itemsTraslados.length} costos</span>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: "#334155" }}>
+                  Total: {fmt(totalRealCajaChicaLive + totalRealTrasladosLive)}
+                </div>
+              </div>
+
+              {itemsCajaChica.length + itemsTraslados.length === 0 ? (
+                <div style={{ padding: 24, color: "#9ca3af", fontSize: 13, textAlign: "center" }}>
+                  No hay caja chica ni traslados que afecten rentabilidad
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+                      <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ORIGEN</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONCEPTO</th>
+                      <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
+                      <th style={{ textAlign: "right", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>COSTO REAL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...itemsCajaChica, ...itemsTraslados].map((item:any) => (
+                      <tr key={item.id} style={{ borderTop: "1px solid #F1F5F9" }}>
+                        <td style={{ padding: "10px 16px", fontSize: 12, fontWeight: 800, color: item.es_traslado_logistica ? "#1E40AF" : "#0F6E56" }}>
+                          {item.es_traslado_logistica ? "Traslado" : "Caja chica"}
+                        </td>
+                        <td style={{ padding: "10px 12px", fontSize: 13, color: "#374151" }}>{item.descripcion || "—"}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 11 }}>
+                          <StatusBadge label={item.rq_estado || item.estado || "Aprobado"} type={item.rq_estado || item.estado || "aprobado"} />
+                        </td>
+                        <td style={{ padding: "10px 16px", textAlign: "right", fontSize: 13, fontWeight: 800 }}>{fmt(item.costo_real)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
