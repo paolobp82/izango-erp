@@ -10,6 +10,7 @@ import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { puedeAccederRuta } from "@/lib/permissions"
 import { sincronizarLeadPorProyecto } from "@/lib/comercial/sincronizacion"
+import { puedeCerrarFinancieramenteProyecto } from "@/lib/proyecto-cierre-financiero"
 import {
   esFacturaAnulada,
   montoCobradoFactura,
@@ -147,24 +148,26 @@ export default function FacturacionPage() {
   async function intentarCerrarFinancieramente(factura: any) {
     if (factura?.estado !== "cobrada" || factura?.tipo_factura !== "final" || !factura?.proyecto_id) return
 
-    const { data: liquidacion, error: liquidacionError } = await supabase
-      .from("liquidaciones")
-      .select("id, cerrada, aprobado_controller")
-      .eq("proyecto_id", factura.proyecto_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (liquidacionError) {
-      alert("Factura marcada como cobrada, pero no se pudo validar la liquidación: " + liquidacionError.message)
+    let cierre
+    try {
+      cierre = await puedeCerrarFinancieramenteProyecto(supabase, factura.proyecto_id)
+    } catch (error: any) {
+      console.error("No se pudo validar el cierre financiero:", error)
+      alert("Factura marcada como cobrada, pero no se pudo validar el cierre financiero: " + (error?.message || "error desconocido"))
       return
     }
 
-    if (liquidacion?.cerrada && liquidacion?.aprobado_controller) {
-      await supabase
+    if (cierre.permitido) {
+      const { error: proyectoError } = await supabase
         .from("proyectos")
         .update({ estado: "cerrado_financiero" })
         .eq("id", factura.proyecto_id)
+
+      if (proyectoError) {
+        console.error("No se pudo cerrar financieramente el proyecto:", proyectoError)
+        alert("Factura marcada como cobrada, pero no se pudo cerrar financieramente el proyecto: " + proyectoError.message)
+        return
+      }
 
       await registrarAccion({
         accion: "cambiar_estado",
@@ -172,10 +175,10 @@ export default function FacturacionPage() {
         entidad_id: factura.proyecto_id,
         entidad_tipo: "proyecto",
         descripcion: "Proyecto marcado como cerrado financiero por factura final cobrada y liquidación aprobada por Controller",
-        datos_nuevos: { estado: "cerrado_financiero", liquidacion_id: liquidacion.id }
+        datos_nuevos: { estado: "cerrado_financiero", liquidacion_id: cierre.liquidacion?.id, factura_id: cierre.facturaFinal?.id }
       })
     } else {
-      alert("Factura marcada como cobrada. El proyecto aún no se cierra financieramente porque la liquidación no está aprobada por Controller.")
+      alert("Factura marcada como cobrada. El proyecto aún no se cierra financieramente: " + cierre.razonesPendientes.join(" "))
     }
   }
 

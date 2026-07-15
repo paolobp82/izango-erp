@@ -13,6 +13,7 @@ import { filtrarPorAlcance, puedeEjecutarAccion, puedeVerInformacionSensible, pu
 import { lifecycleEngine } from "@/lib/core/lifecycle"
 import { businessRuleEngine } from "@/lib/core/business-rules"
 import { esFacturaAnulada, totalFactura } from "@/lib/finance"
+import { puedeCerrarFinancieramenteProyecto } from "@/lib/proyecto-cierre-financiero"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
@@ -177,11 +178,14 @@ export default function ProyectoDetallePage() {
     }
     setRqsProyecto(filtrarPorAlcance(rqsVinculados.map((rq: any) => ({ ...rq, proyecto: proy })), perfilActual, "rq", { usuarioId: user?.id, proyecto: proy }))
 
-    const { data: logsRQ } = await supabase
+    const { data: logsRQ, error: logsRQError } = await supabase
       .from("rq_version_migration_log")
       .select("rq_id,rq_diferencia_id,accion,cotizacion_destino_id,metadata,created_at")
       .eq("proyecto_id", id)
 
+    if (logsRQError) {
+      console.error("No se pudo validar rq_version_migration_log. No asumir 0 migraciones:", logsRQError)
+    }
     setLogsMigracionRQ(logsRQ || [])
 
     const hace2dias = new Date()
@@ -402,7 +406,11 @@ export default function ProyectoDetallePage() {
     const aprobadoAt = new Date().toISOString()
     for (const otra of cotizaciones) {
       if (otra.id !== cot.id && otra.estado === "aprobada_cliente") {
-        await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", otra.id)
+        const { error: otraError } = await supabase.from("cotizaciones").update({ estado: "enviada_cliente" }).eq("id", otra.id)
+        if (otraError) {
+          alert("No se pudo desactivar la cotización aprobada anterior: " + otraError.message)
+          return
+        }
       }
     }
     const { error } = await supabase.from("cotizaciones").update({
@@ -414,7 +422,11 @@ export default function ProyectoDetallePage() {
       alert("Error al aprobar: " + error.message)
       return
     }
-    await supabase.from("proyectos").update({ cotizacion_aprobada_id: cot.id, estado: "aprobado_cliente" }).eq("id", id)
+    const { error: proyectoError } = await supabase.from("proyectos").update({ cotizacion_aprobada_id: cot.id, estado: "aprobado_cliente" }).eq("id", id)
+    if (proyectoError) {
+      alert("La cotización fue aprobada, pero no se pudo actualizar el proyecto: " + proyectoError.message)
+      return
+    }
     try {
       const resultadoGestor = await cargarItemsAprobadosAlGestor(supabase, String(id), String(cot.id))
       if (resultadoGestor.creados > 0) {
@@ -468,7 +480,6 @@ export default function ProyectoDetallePage() {
       logsMigracionRQ
         .filter((log: any) =>
           log.rq_id &&
-          log.cotizacion_destino_id === cotDestino.id &&
           [
             "MANTENER_HISTORICO_ITEM_ELIMINADO",
             "CANCELAR_ITEM_ELIMINADO",
@@ -813,50 +824,24 @@ export default function ProyectoDetallePage() {
     }
 
     if (nuevoEstado === "aprobado_cliente") {
-      const cotizacionActivaId =
-        proyecto?.cotizacion_aprobada_id ||
-        versionAprobar ||
-        cotizaciones.find((c: any) => c.estado === "aprobada_cliente")?.id ||
-        cotizaciones[cotizaciones.length - 1]?.id
-
-      if (!cotizacionActivaId) {
-        alert("No hay una cotización disponible para aprobar por cliente.")
-        setCambiando(false)
-        return
-      }
-
-      const cotActiva = cotizaciones.find((c: any) => c.id === cotizacionActivaId)
-
-      if (!confirm("¿Confirmas que el cliente aprobó la cotización " + (cotActiva?.version ? "V" + cotActiva.version : "seleccionada") + "?")) {
-        setCambiando(false)
-        return
-      }
-
-      await supabase.from("cotizaciones").update({
-        estado: "aprobada_cliente",
-        bloqueada: true,
-        bloqueada_por: perfil?.id || null,
-      }).eq("id", cotizacionActivaId)
-
-      await supabase.from("proyectos").update({
-        estado: "aprobado_cliente",
-        cotizacion_aprobada_id: cotizacionActivaId,
-      }).eq("id", id)
-
-      await registrarAccion({
-        accion: "aprobar_cliente",
-        modulo: "proyectos",
-        entidad_id: id,
-        entidad_tipo: "proyecto",
-        descripcion: "Proyecto aprobado por cliente desde flujo de estado",
-        datos_nuevos: { estado: "aprobado_cliente", cotizacion_aprobada_id: cotizacionActivaId },
-      })
-
-      setVersionAprobar(cotizacionActivaId)
-      setProyecto((prev: any) => prev ? { ...prev, estado: "aprobado_cliente", cotizacion_aprobada_id: cotizacionActivaId } : prev)
+      alert("La aprobación del cliente debe realizarse desde la proforma vigente.")
       setCambiando(false)
-      load()
       return
+    }
+
+    if (nuevoEstado === "cerrado_financiero") {
+      try {
+        const cierre = await puedeCerrarFinancieramenteProyecto(supabase, String(id))
+        if (!cierre.permitido) {
+          alert("No se puede cerrar financieramente el proyecto: " + cierre.razonesPendientes.join(" "))
+          setCambiando(false)
+          return
+        }
+      } catch (error: any) {
+        alert("No se pudo validar el cierre financiero: " + (error?.message || "error desconocido"))
+        setCambiando(false)
+        return
+      }
     }
 
     if (nuevoEstado === "en_curso") {
@@ -958,7 +943,12 @@ export default function ProyectoDetallePage() {
       }
     }
 
-    await supabase.from("proyectos").update({ estado: nuevoEstado }).eq("id", id)
+    const { error: proyectoEstadoError } = await supabase.from("proyectos").update({ estado: nuevoEstado }).eq("id", id)
+    if (proyectoEstadoError) {
+      alert("No se pudo cambiar el estado del proyecto: " + proyectoEstadoError.message)
+      setCambiando(false)
+      return
+    }
     await registrarAccion({ accion: "cambiar_estado", modulo: "proyectos", entidad_id: id, entidad_tipo: "proyecto", descripcion: "Estado cambiado a: " + nuevoEstado, datos_nuevos: { estado: nuevoEstado } })
 
     await notificarATodos({
@@ -1381,12 +1371,6 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
   const filasEjecucionRqs = [...filasRqsProyecto, ...filasRqsNoRepresentados]
 
-  const cotizacionDestinoActualMigracionId =
-    cotizacionDestinoMigracionId ||
-    proyecto?.cotizacion_aprobada_id ||
-    [...cotizaciones].sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0]?.id ||
-    ""
-
   const accionesMigracionCerrada = [
     "MANTENER_HISTORICO_ITEM_ELIMINADO",
     "CANCELAR_ITEM_ELIMINADO",
@@ -1403,12 +1387,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     logsMigracionRQ
       .filter((log: any) =>
         log.rq_id &&
-        accionesMigracionCerrada.includes(String(log.accion || "")) &&
-        (
-          !cotizacionDestinoActualMigracionId ||
-          String(log.cotizacion_destino_id || "") === String(cotizacionDestinoActualMigracionId || "") ||
-          String(log.accion || "") === "MANTENER_HISTORICO_ITEM_ELIMINADO"
-        )
+        accionesMigracionCerrada.includes(String(log.accion || ""))
       )
       .map((log: any) => String(log.rq_id))
   )
@@ -2096,7 +2075,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>
                           Preview
                         </button>
-                        {false && puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cot.estado !== "aprobada_cliente" && (
+                        {puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cot.estado !== "aprobada_cliente" && (
                           <button onClick={() => marcarCotizacionAprobadaCliente(cot)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#15803d", cursor: "pointer", fontWeight: 600 }}>
                             Marcar aprobado por cliente
                           </button>

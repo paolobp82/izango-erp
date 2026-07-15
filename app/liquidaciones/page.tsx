@@ -360,24 +360,32 @@ export default function LiquidacionesPage() {
 
     for (const item of items) {
       if (String(item.id).startsWith("rq_extra_") || String(item.id).startsWith("caja_chica_") || String(item.id).startsWith("traslado_logistica_")) continue
-      await supabase.from("liquidacion_items").update({
+      const { error: itemError } = await supabase.from("liquidacion_items").update({
         costo_real: item.costo_real || 0,
         desvio: item.desvio || 0,
         desvio_pct: item.desvio_pct || 0,
       }).eq("id", item.id)
+      if (itemError) {
+        alert("No se pudo guardar un ítem de liquidación: " + itemError.message)
+        return
+      }
     }
     const costoReal = items.reduce((s, i) => s + (Number(i.costo_real) || 0), 0)
     const precioReal = selected.precio_cliente_presupuestado || 0
     const margenReal = precioReal > 0 ? ((precioReal - costoReal) / precioReal) * 100 : 0
     const desvioCosto = costoReal - (selected.costo_presupuestado || 0)
     const desvioMargen = margenReal - (selected.margen_presupuestado_pct || 0)
-    await supabase.from("liquidaciones").update({
+    const { error: liquidacionError } = await supabase.from("liquidaciones").update({
       costo_real: costoReal,
       precio_cliente_real: precioReal,
       margen_real_pct: margenReal,
       desvio_costo: desvioCosto,
       desvio_margen_pp: desvioMargen,
     }).eq("id", selected.id)
+    if (liquidacionError) {
+      alert("No se pudo actualizar la liquidación: " + liquidacionError.message)
+      return
+    }
     setSelected({ ...selected, costo_real: costoReal, margen_real_pct: margenReal, desvio_costo: desvioCosto, desvio_margen_pp: desvioMargen })
     alert("Liquidación actualizada")
     load()
@@ -400,7 +408,11 @@ export default function LiquidacionesPage() {
       updates.fecha_cierre = new Date().toISOString()
     }
     if (Object.keys(updates).length > 0) {
-      await supabase.from("liquidaciones").update(updates).eq("id", selected.id)
+      const { error: aprobarError } = await supabase.from("liquidaciones").update(updates).eq("id", selected.id)
+      if (aprobarError) {
+        alert("No se pudo aprobar la liquidación: " + aprobarError.message)
+        return
+      }
       setSelected({ ...selected, ...updates })
       load()
     }
@@ -412,8 +424,16 @@ export default function LiquidacionesPage() {
       alert("Solo Controller o Superadmin pueden cerrar una liquidación.")
       return
     }
+    if (!selected?.aprobado_controller) {
+      alert("No se puede cerrar una liquidación sin aprobación de Controller.")
+      return
+    }
     if (!confirm("¿Cerrar esta liquidación? Ya no se podrá editar.")) return
-    await supabase.from("liquidaciones").update({ cerrada: true, aprobada_por: perfil?.id, fecha_cierre: new Date().toISOString() }).eq("id", selected.id)
+    const { error: cerrarError } = await supabase.from("liquidaciones").update({ cerrada: true, aprobada_por: perfil?.id, fecha_cierre: new Date().toISOString() }).eq("id", selected.id)
+    if (cerrarError) {
+      alert("No se pudo cerrar la liquidación: " + cerrarError.message)
+      return
+    }
     setSelected({ ...selected, cerrada: true })
     load()
   }
