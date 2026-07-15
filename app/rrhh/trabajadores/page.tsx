@@ -1,7 +1,9 @@
 ﻿"use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/exhaustive-deps, jsx-a11y/alt-text */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
+import { nextSortState, sortIndicator, sortRows, type SortState } from "@/lib/table-sort"
 
 const BANCOS = ["BCP","BBVA","Interbank","Scotiabank","BanBif","Pichincha","Banco de la Nacion","Otro"]
 const TIPOS_CUENTA = ["Ahorros","Corriente"]
@@ -14,6 +16,8 @@ export default function TrabajadoresPage() {
   const [trabajadores, setTrabajadores] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [pagina, setPagina] = useState(1)
+  const [vista, setVista] = useState<"activos" | "archivados">("activos")
+  const [sort, setSort] = useState<SortState>({ key: "apellido", direction: "asc" })
   const POR_PAGINA = 50
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
@@ -36,7 +40,7 @@ export default function TrabajadoresPage() {
     contacto_emergencia_relacion: "", cv_url: ""
   })
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [vista])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -47,9 +51,10 @@ export default function TrabajadoresPage() {
 
     const esAdminTotal = ["superadmin","gerente_general","controller","administrador"].includes(p?.perfil)
 
+    const activos = vista === "activos"
     if (esAdminTotal) {
-      // Admins ven todos
-      const { data } = await supabase.from("rrhh_trabajadores").select("*").eq("activo", true).order("apellido")
+      // Admins ven activos o archivados segun la vista.
+      const { data } = await supabase.from("rrhh_trabajadores").select("*").eq("activo", activos).order("apellido")
       setTrabajadores(data || [])
     } else {
       // El resto solo ve su propia ficha
@@ -155,7 +160,24 @@ export default function TrabajadoresPage() {
 
   async function eliminar(id: string) {
     if (!confirm("Desactivar este trabajador?")) return
-    await supabase.from("rrhh_trabajadores").update({ activo: false }).eq("id", id)
+    const trabajador = trabajadores.find(t => t.id === id)
+    const { error } = await supabase.from("rrhh_trabajadores").update({ activo: false }).eq("id", id)
+    if (error) { alert(error.message); return }
+    if (trabajador?.user_id) {
+      const { error: perfilError } = await supabase.from("perfiles").update({ activo: false }).eq("id", trabajador.user_id)
+      if (perfilError) console.error("No se pudo desactivar perfil del trabajador:", perfilError)
+    }
+    load()
+  }
+
+  async function restaurar(t: any) {
+    if (!confirm(`Restaurar a ${t.nombre} ${t.apellido} como trabajador activo?`)) return
+    const { error } = await supabase.from("rrhh_trabajadores").update({ activo: true }).eq("id", t.id)
+    if (error) { alert(error.message); return }
+    if (t.user_id) {
+      const { error: perfilError } = await supabase.from("perfiles").update({ activo: true }).eq("id", t.user_id)
+      if (perfilError) console.error("No se pudo reactivar perfil del trabajador:", perfilError)
+    }
     load()
   }
 
@@ -166,6 +188,14 @@ export default function TrabajadoresPage() {
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
   const tabStyle = (active: boolean) => ({ padding: "6px 16px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: active ? "#1D2040" : "#f3f4f6", color: active ? "#fff" : "#6b7280" })
+  const trabajadoresOrdenados = sortRows(trabajadores, sort, (t, key) => key === "trabajador" ? `${t.apellido || ""} ${t.nombre || ""}` : t[key])
+  const trabajadoresPaginados = trabajadoresOrdenados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+  const totalPaginas = Math.max(1, Math.ceil(trabajadoresOrdenados.length / POR_PAGINA))
+  const sortHeader = (label: string, key: string, align: "left" | "right" | "center" = "left") => (
+    <button onClick={() => { setSort(prev => nextSortState(prev, key)); setPagina(1) }} style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer", color: "inherit", font: "inherit", fontWeight: 600, textAlign: align }}>
+      {label} <span style={{ color: sort.key === key ? "#0F6E56" : "#9ca3af" }}>{sortIndicator(sort, key)}</span>
+    </button>
+  )
 
   if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
@@ -175,7 +205,7 @@ export default function TrabajadoresPage() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Trabajadores</h1>
           <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-            {esAdminTotal ? `${trabajadores.length} trabajadores activos` : "Mi ficha de trabajador"}
+            {esAdminTotal ? `${trabajadores.length} trabajadores ${vista === "activos" ? "activos" : "archivados"}` : "Mi ficha de trabajador"}
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -202,6 +232,14 @@ export default function TrabajadoresPage() {
         </div>
       </div>
 
+      {esAdminTotal && (
+        <div className="card" style={{ marginBottom: 14, padding: "10px 14px", display: "flex", gap: 8, alignItems: "center" }}>
+          <button className={vista === "activos" ? "btn-primary" : "btn-secondary"} style={{ fontSize: 12 }} onClick={() => { setVista("activos"); setPagina(1) }}>Activos</button>
+          <button className={vista === "archivados" ? "btn-primary" : "btn-secondary"} style={{ fontSize: 12 }} onClick={() => { setVista("archivados"); setPagina(1) }}>Archivados</button>
+          <span style={{ fontSize: 12, color: "#6b7280", marginLeft: "auto" }}>Los archivados conservan historial, pero no aparecen para nuevas asignaciones.</span>
+        </div>
+      )}
+
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {trabajadores.length === 0 ? (
           <div style={{ padding: "40px", textAlign: "center", color: "#9ca3af" }}>
@@ -216,16 +254,16 @@ export default function TrabajadoresPage() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TRABAJADOR</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CARGO / AREA</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO</th>
-                {puedeVerSueldo && <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>SUELDO BASE</th>}
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FICHA</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{sortHeader("TRABAJADOR", "trabajador")}</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{sortHeader("CARGO / AREA", "cargo")}</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{sortHeader("TIPO", "tipo")}</th>
+                {puedeVerSueldo && <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{sortHeader("SUELDO BASE", "sueldo_base", "right")}</th>}
+                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{sortHeader("FICHA", "ficha_aprobada", "center")}</th>
                 <th style={{ padding: "10px 20px", width: 200 }}></th>
               </tr>
             </thead>
             <tbody>
-              {trabajadores.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map((t, idx) => (
+              {trabajadoresPaginados.map((t, idx) => (
                 <tr key={t.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                   <td style={{ padding: "12px 20px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -266,7 +304,11 @@ export default function TrabajadoresPage() {
                         <>
                           {!t.ficha_aprobada && <button onClick={() => aprobarFicha(t.id)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Aprobar</button>}
                           {t.ficha_aprobada && t.ficha_bloqueada && <button onClick={() => desbloquearFicha(t.id)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", color: "#1e40af", cursor: "pointer" }}>Desbloquear</button>}
-                          <button onClick={() => eliminar(t.id)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>x</button>
+                          {vista === "activos" ? (
+                            <button onClick={() => eliminar(t.id)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>Archivar</button>
+                          ) : (
+                            <button onClick={() => restaurar(t)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Restaurar</button>
+                          )}
                         </>
                       )}
                     </div>
@@ -275,6 +317,18 @@ export default function TrabajadoresPage() {
               ))}
             </tbody>
           </table>
+        )}
+        {trabajadoresOrdenados.length > 0 && (
+          <div style={{ padding: "12px 20px", borderTop: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>
+              Mostrando {((pagina - 1) * POR_PAGINA) + 1}-{Math.min(pagina * POR_PAGINA, trabajadoresOrdenados.length)} de {trabajadoresOrdenados.length}
+            </span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button className="btn-secondary" style={{ fontSize: 12 }} disabled={pagina <= 1} onClick={() => setPagina(p => Math.max(1, p - 1))}>← Anterior</button>
+              <span style={{ fontSize: 13, color: "#374151", fontWeight: 700 }}>Página {pagina} de {totalPaginas}</span>
+              <button className="btn-secondary" style={{ fontSize: 12 }} disabled={pagina >= totalPaginas} onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}>Siguiente →</button>
+            </div>
+          </div>
         )}
       </div>
 
