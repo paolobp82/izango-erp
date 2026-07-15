@@ -250,7 +250,7 @@ export default function ProyectoDetallePage() {
     const productorNuevoId = formEditar.productor_id || null
     const productorAnterior = productores.find((prod: any) => prod.id === productorAnteriorId)
     const productorNuevo = productores.find((prod: any) => prod.id === productorNuevoId)
-    await supabase.from("proyectos").update({
+    const { error: updateError } = await supabase.from("proyectos").update({
       nombre: formEditar.nombre,
       cliente_id: formEditar.cliente_id || null,
       productor_id: formEditar.productor_id || null,
@@ -258,6 +258,10 @@ export default function ProyectoDetallePage() {
       fecha_fin_estimada: formEditar.fecha_fin_estimada || null,
       presupuesto_referencial: formEditar.presupuesto_referencial ? Number(formEditar.presupuesto_referencial) : null,
     }).eq("id", id)
+    if (updateError) {
+      alert("No se pudo actualizar el proyecto: " + updateError.message)
+      return
+    }
     if (productorAnteriorId !== productorNuevoId) {
       const nombreAnterior = productorAnterior ? `${productorAnterior.nombre || ""} ${productorAnterior.apellido || ""}`.trim() : "Sin productor"
       const nombreNuevo = productorNuevo ? `${productorNuevo.nombre || ""} ${productorNuevo.apellido || ""}`.trim() : "Sin productor"

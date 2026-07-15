@@ -46,7 +46,13 @@ export default function NuevoProyectoPage() {
   async function loadEntidadData(entidad: string, perfilActual = perfil) {
     const { data: cls } = await supabase.from("clientes").select("*").eq("activo", true).order("razon_social")
     setClientes(cls || [])
-    const { data: prods } = await supabase.from("perfiles").select("*").in("perfil", ["productor", "gerente_produccion"]).eq("activo", true)
+    const { data: prods } = await supabase
+      .from("perfiles")
+      .select("*")
+      .in("perfil", ["productor", "gerente_produccion", "gerente_general"])
+      .eq("activo", true)
+      .order("apellido", { ascending: true })
+      .order("nombre", { ascending: true })
     const puedeCambiarProductor = puedeEjecutarAccion(perfilActual, "proyectos", "cambiar_productor", { usuarioId: perfilActual?.id, registro: { productor_id: perfilActual?.id } })
     setProductores(puedeCambiarProductor ? prods || [] : (prods || []).filter((p: any) => p.id === perfilActual?.id))
   }
