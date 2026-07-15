@@ -23,7 +23,7 @@ function label(value: unknown, fallback = "") {
 
 function subjectWithContext(title: string, data: AlertData, contextKeys: string[]) {
   const context = contextKeys.map((key) => label(data[key])).find(Boolean)
-  return context ? `${title} [${context}] - Izango ERP` : `${title} - Izango ERP`
+  return context ? `${title} [${context}] - Izango SIG` : `${title} - Izango SIG`
 }
 
 function card(title: string, body: string, color = "#03E373") {
@@ -32,7 +32,7 @@ function card(title: string, body: string, color = "#03E373") {
       <h1 style="color:#1D2040;margin:0;font-size:20px">${h(title)}</h1>
     </div>
     <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 8px 8px">${body}</div>
-    <p style="color:#9ca3af;font-size:12px;margin-top:16px;text-align:center">Izango 360 ERP - notificacion automatica</p>
+    <p style="color:#9ca3af;font-size:12px;margin-top:16px;text-align:center">Izango SIG - notificacion automatica</p>
   </div>`
 }
 
@@ -40,7 +40,7 @@ const templates: Record<string, AlertTemplate> = {
   proyecto_creado: {
     subject: (d) => subjectWithContext("Nuevo proyecto creado", d, ["codigo", "nombre"]),
     html: (d) => card("Nuevo proyecto creado", `
-      <p style="color:#374151;font-size:14px">Se ha creado un nuevo proyecto en Izango ERP:</p>
+      <p style="color:#374151;font-size:14px">Se ha creado un nuevo proyecto en Izango SIG:</p>
       <div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">
         <p><strong>Proyecto:</strong> ${h(d.nombre)}</p>
         <p><strong>Codigo:</strong> ${h(d.codigo)}</p>
@@ -92,7 +92,7 @@ const templates: Record<string, AlertTemplate> = {
       const codigo = label(d.codigo || d.nombre)
       const version = label(d.version)
       const context = [codigo, version ? `V${version}` : ""].filter(Boolean).join(" ")
-      return context ? `Cotizacion aprobada por cliente [${context}] - Izango ERP` : "Cotizacion aprobada por cliente - Izango ERP"
+      return context ? `Cotizacion aprobada por cliente [${context}] - Izango SIG` : "Cotizacion aprobada por cliente - Izango SIG"
     },
     html: (d) => card("Cotizacion aprobada", `
       <p style="color:#374151;font-size:14px">Una cotizacion ha sido aprobada por el cliente:</p>

@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const config = getEmailConfigStatus()
     const subject = body.subject?.trim() || `Prueba de correo ERP - ${new Date().toISOString()}`
     const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:20px">
-      <h1 style="font-size:20px;color:#1D2040">Prueba de correo Izango ERP</h1>
+      <h1 style="font-size:20px;color:#1D2040">Prueba de correo Izango SIG</h1>
       <p>Este correo confirma que Resend esta respondiendo desde el ERP.</p>
       <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin:16px 0">
         <p><strong>Solicitado por:</strong> ${h(`${auth.profile.nombre || ""} ${auth.profile.apellido || ""}`.trim() || auth.user.email)}</p>

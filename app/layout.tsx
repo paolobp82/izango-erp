@@ -5,8 +5,8 @@ import AppLayout from "@/components/layout/AppLayout"
 const LOGO_URL = "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
 
 export const metadata: Metadata = {
-  title: "Izango ERP",
-  description: "Sistema de gestion Izango 360",
+  title: "Izango SIG",
+  description: "Sistema integrado de gestion Izango 360",
   icons: { icon: LOGO_URL, apple: LOGO_URL }
 }
 

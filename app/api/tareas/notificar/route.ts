@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getAuthenticatedProfile, getErrorMessage } from "@/lib/auth-server"
 import { sendEmailBatch } from "@/lib/email"
@@ -47,7 +48,7 @@ function card(title: string, body: string, tareaId: string) {
         <a href="${escapeAttribute(tareaUrl(tareaId))}" style="background:#03E373;color:#1D2040;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Ver tarea</a>
       </div>
     </div>
-    <p style="color:#9ca3af;font-size:12px;margin-top:16px;text-align:center">Izango 360 ERP - notificacion automatica</p>
+    <p style="color:#9ca3af;font-size:12px;margin-top:16px;text-align:center">Izango SIG - notificacion automatica</p>
   </div>`
 }
 

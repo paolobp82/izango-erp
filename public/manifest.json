@@ -1,7 +1,7 @@
 {
-  "name": "Izango 360 ERP",
-  "short_name": "Izango ERP",
-  "description": "Sistema ERP para Izango 360 SAC",
+  "name": "Izango SIG",
+  "short_name": "Izango SIG",
+  "description": "Sistema integrado de gestion para Izango 360 SAC",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",

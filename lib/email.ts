@@ -1,6 +1,6 @@
 import { Resend } from "resend"
 
-const DEFAULT_FROM = "Izango ERP <noreply@izango.com.pe>"
+const DEFAULT_FROM = "Izango SIG <noreply@izango.com.pe>"
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function getFromEmail() {
