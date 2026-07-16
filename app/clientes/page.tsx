@@ -1,20 +1,44 @@
-﻿"use client"
+"use client"
 import { useEffect, useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
-import { useRouter } from "next/navigation"
+import {
+  Badge,
+  Button,
+  DataTable,
+  ListPageTemplate,
+  ModuleLoadingState,
+  ModuleToolbar,
+  PageHeader,
+  SummaryStrip,
+  type DataTableColumn,
+} from "@/components/design-system"
 
 const POR_PAGINA = 50
+
+type Cliente = {
+  id: string
+  razon_social?: string
+  ruc?: string
+  nombre_contacto?: string
+  email_contacto?: string
+  activo?: boolean
+}
 
 export default function ClientesPage() {
   const supabase = createClient()
   const router = useRouter()
-  const [clientes, setClientes] = useState<any[]>([])
+  const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
   const [pagina, setPagina] = useState(1)
   const [eliminando, setEliminando] = useState<string | null>(null)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function load() {
     const { data } = await supabase.from("clientes").select("*").order("razon_social")
@@ -37,7 +61,7 @@ export default function ClientesPage() {
     { key: "cci_1", label: "CCI 1" },
   ]
 
-  async function importarClientes(registros: any[]) {
+  async function importarClientes(registros: Array<Record<string, unknown>>) {
     let exitosos = 0
     const errores: string[] = []
     for (const r of registros) {
@@ -45,8 +69,8 @@ export default function ClientesPage() {
         const { error } = await supabase.from("clientes").insert({ ...r, entidad: "peru" })
         if (error) errores.push(r.razon_social + ": " + error.message)
         else exitosos++
-      } catch (e: any) {
-        errores.push(r.razon_social + ": " + e.message)
+      } catch (e: unknown) {
+        errores.push(String(r.razon_social || "Cliente") + ": " + (e instanceof Error ? e.message : "Error desconocido"))
       }
     }
     load()
@@ -67,88 +91,65 @@ export default function ClientesPage() {
 
   const totalPaginas = Math.ceil(clientes.length / POR_PAGINA)
   const paginados = clientes.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+  const activos = clientes.filter((cliente) => cliente.activo !== false).length
+  const inactivos = clientes.length - activos
 
-  if (loading) return <div style={{ color: "#6b7280", fontSize: 13 }}>Cargando...</div>
+  const columns: DataTableColumn<Cliente>[] = [
+    {
+      key: "razon_social",
+      header: "Razón social",
+      render: (cliente) => <strong>{cliente.razon_social || "—"}</strong>,
+    },
+    { key: "ruc", header: "RUC", render: (cliente) => <span className="iz-mono">{cliente.ruc || "—"}</span> },
+    { key: "nombre_contacto", header: "Contacto", render: (cliente) => cliente.nombre_contacto || "—" },
+    { key: "email_contacto", header: "Email", render: (cliente) => cliente.email_contacto || "—" },
+    {
+      key: "activo",
+      header: "Estado",
+      render: (cliente) => <Badge tone={cliente.activo !== false ? "success" : "neutral"}>{cliente.activo !== false ? "Activo" : "Inactivo"}</Badge>,
+    },
+    {
+      key: "acciones",
+      header: "Acciones",
+      align: "right",
+      width: 360,
+      render: (cliente) => (
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <Button type="button" size="sm" variant="secondary" onClick={() => router.push(`/clientes/${cliente.id}`)}>Ver / Editar</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => router.push(`/proyectos?cliente_id=${cliente.id}`)}>Proyectos</Button>
+          <Button type="button" size="sm" onClick={() => router.push(`/proyectos/nuevo?cliente_id=${cliente.id}`)}>+ Proyecto</Button>
+          <Button type="button" size="sm" variant="danger" onClick={() => eliminar(cliente.id, cliente.razon_social || "cliente")} disabled={eliminando === cliente.id}>
+            {eliminando === cliente.id ? "..." : "Eliminar"}
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
+  if (loading) return <ModuleLoadingState label="Cargando clientes..." />
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Clientes</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>{clientes.length} clientes registrados</p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <ImportExport modulo="clientes" campos={CAMPOS} datos={clientes} onImportar={importarClientes} />
-          <a href="/clientes/nuevo" className="btn-primary">+ Nuevo cliente</a>
-        </div>
-      </div>
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#f9fafb" }}>
-              <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RAZON SOCIAL</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RUC</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONTACTO</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>EMAIL</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-              <th style={{ padding: "10px 20px", width: 300 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {clientes.length > 0 ? paginados.map((c: any, idx: number) => (
-              <tr key={c.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                <td style={{ padding: "12px 20px" }}>
-                  <div style={{ fontWeight: 500, color: "#111827" }}>{c.razon_social}</div>
-                </td>
-                <td style={{ padding: "12px", color: "#9ca3af", fontFamily: "monospace", fontSize: 12 }}>{c.ruc || "—"}</td>
-                <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{c.nombre_contacto || "—"}</td>
-                <td style={{ padding: "12px", color: "#9ca3af", fontSize: 12 }}>{c.email_contacto || "—"}</td>
-                <td style={{ padding: "12px" }}>
-                  <span style={{ background: c.activo ? "#dcfce7" : "#f3f4f6", color: c.activo ? "#15803d" : "#6b7280", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
-                    {c.activo !== false ? "Activo" : "Inactivo"}
-                  </span>
-                </td>
-                <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                    <button onClick={() => router.push(`/clientes/${c.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver / Editar</button>
-                    <button onClick={() => router.push(`/proyectos?cliente_id=${c.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Proyectos</button>
-                    <button onClick={() => router.push(`/proyectos/nuevo?cliente_id=${c.id}`)} className="btn-primary" style={{ fontSize: 12 }}>+ Proyecto</button>
-                    <button onClick={() => eliminar(c.id, c.razon_social)} disabled={eliminando === c.id}
-                      style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
-                      {eliminando === c.id ? "..." : "Eliminar"}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            )) : (
-              <tr>
-                <td colSpan={6} style={{ textAlign: "center", color: "#9ca3af", padding: "40px 20px", fontSize: 14 }}>
-                  No hay clientes. <a href="/clientes/nuevo" style={{ color: "#0F6E56" }}>Agrega el primero</a>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        {totalPaginas > 1 && (
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "16px 20px", borderTop: "1px solid #f3f4f6" }}>
-            <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
-              style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === 1 ? "not-allowed" : "pointer", color: pagina === 1 ? "#d1d5db" : "#374151", fontSize: 13 }}>
-              Anterior
-            </button>
-            {Array.from({ length: totalPaginas }, (_, i) => i + 1).map(n => (
-              <button key={n} onClick={() => setPagina(n)}
-                style={{ padding: "5px 10px", border: "1px solid " + (n === pagina ? "#0F6E56" : "#e5e7eb"), borderRadius: 6, background: n === pagina ? "#0F6E56" : "#fff", color: n === pagina ? "#fff" : "#374151", cursor: "pointer", fontSize: 13, fontWeight: n === pagina ? 700 : 400 }}>
-                {n}
-              </button>
-            ))}
-            <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
-              style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 13 }}>
-              Siguiente
-            </button>
-            <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>{clientes.length} clientes · Pág. {pagina}/{totalPaginas}</span>
-          </div>
-        )}
-      </div>
-    </div>
+    <ListPageTemplate
+      header={
+        <PageHeader title="Clientes" description={`${clientes.length} clientes registrados`} actions={[{ label: "+ Nuevo cliente", href: "/clientes/nuevo" }]} />
+      }
+      summary={<SummaryStrip metrics={[{ label: "Total clientes", value: clientes.length }, { label: "Activos", value: activos }, { label: "Inactivos", value: inactivos }]} />}
+      toolbar={<ModuleToolbar actions={<ImportExport modulo="clientes" campos={CAMPOS} datos={clientes} onImportar={importarClientes} />} />}
+      table={
+        <>
+          <DataTable columns={columns} rows={paginados} rowKey="id" empty={<span>No hay clientes. <Link href="/clientes/nuevo" style={{ color: "var(--iz-color-brand-700)" }}>Agrega el primero</Link></span>} />
+          {totalPaginas > 1 && (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "16px 20px", color: "var(--iz-color-text-muted)" }}>
+              <Button type="button" size="sm" variant="secondary" onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pagina === 1}>Anterior</Button>
+              {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((n) => (
+                <Button key={n} type="button" size="sm" variant={n === pagina ? "primary" : "secondary"} onClick={() => setPagina(n)}>{n}</Button>
+              ))}
+              <Button type="button" size="sm" variant="secondary" onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}>Siguiente</Button>
+              <span className="iz-caption">{clientes.length} clientes · Pág. {pagina}/{totalPaginas}</span>
+            </div>
+          )}
+        </>
+      }
+    />
   )
 }

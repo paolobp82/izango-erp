@@ -2,209 +2,195 @@
 
 import { useMemo, useState } from "react"
 import {
-  Alert,
-  ArchiveTabs,
-  Avatar,
   Badge,
   Button,
   Card,
   Checkbox,
+  ContextTabs,
   DataTable,
-  Divider,
-  DrawerForm,
-  EmptyState,
-  ErrorState,
-  FiltersBar,
+  Detail360Template,
+  DetailPanel,
+  EntityHeader,
+  FinancialTableTemplate,
+  FilterBar,
+  FilterChip,
   FormField,
+  FullFormTemplate,
   Input,
-  KpiCard,
-  LoadingState,
-  ModalForm,
-  PermissionState,
-  ReadonlyField,
-  SectionCard,
+  KanbanPageTemplate,
+  ListPageTemplate,
+  ModuleDashboardTemplate,
+  ModuleEmptyState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModuleToolbar,
+  PageHeader,
+  ProgressSummary,
+  SearchInput,
+  SectionNavigator,
   Select,
-  SimpleForm,
-  Skeleton,
-  StatusBadge,
-  StickyActions,
-  Tabs,
+  SettingsPageTemplate,
+  StickyActionBar,
+  SummaryStrip,
   Textarea,
   Toggle,
-  Toolbar,
-  ValidationMessage,
+  ViewSwitcher,
   WidgetContainer,
+  WorkCenterTemplate,
   useTheme,
   type DataTableColumn,
 } from "@/components/design-system"
 
-type DemoRow = {
-  id: string
-  proyecto: string
-  estado: string
-  responsable: string
-  monto: string
-}
+type ClienteDemo = { id: string; cliente: string; ruc: string; contacto: string; proyecto: string; estado: string; venta: string }
+type RqDemo = { codigo: string; proveedor: string; categoria: string; estado: string; monto: string; vencimiento: string }
 
-const rows: DemoRow[] = [
-  { id: "IZ-001", proyecto: "Lanzamiento comercial", estado: "En curso", responsable: "Paolo Bastianelli", monto: "S/ 18,450" },
-  { id: "IZ-002", proyecto: "Campaña Selva", estado: "Pendiente", responsable: "Angélica Estupiñán", monto: "S/ 7,920" },
-  { id: "IZ-003", proyecto: "Producción audiovisual", estado: "Completado", responsable: "Pedro Campos", monto: "S/ 12,300" },
+const clientes: ClienteDemo[] = [
+  { id: "CLI-001", cliente: "Honda del Perú", ruc: "20100130204", contacto: "María Calderón", proyecto: "BTL lanzamiento motos", estado: "Activo", venta: "S/ 84,500" },
+  { id: "CLI-002", cliente: "Ripley", ruc: "20337564373", contacto: "Carlos Mendoza", proyecto: "Campaña retail verano", estado: "Activo", venta: "S/ 56,200" },
+  { id: "CLI-003", cliente: "Mall Aventura", ruc: "20552443210", contacto: "Andrea Ruiz", proyecto: "Activación familiar", estado: "En revisión", venta: "S/ 41,900" },
+]
+
+const rqs: RqDemo[] = [
+  { codigo: "RQ-2026-00128", proveedor: "Producciones Selva", categoria: "Producción", estado: "programado", monto: "S/ 12,800", vencimiento: "Hoy" },
+  { codigo: "RQ-2026-00142", proveedor: "Logística Norte", categoria: "Traslado", estado: "aprobado", monto: "S/ 4,650", vencimiento: "7 días" },
+  { codigo: "RQ-2026-00157", proveedor: "Visual Pro", categoria: "Audiovisual", estado: "pendiente", monto: "S/ 8,200", vencimiento: "Vencido" },
+]
+
+const clienteColumns: DataTableColumn<ClienteDemo>[] = [
+  { key: "cliente", header: "Cliente", render: (row) => <strong>{row.cliente}</strong> },
+  { key: "ruc", header: "RUC" },
+  { key: "contacto", header: "Contacto" },
+  { key: "proyecto", header: "Proyecto BTL" },
+  { key: "estado", header: "Estado", render: (row) => <Badge tone={row.estado === "Activo" ? "success" : "warning"}>{row.estado}</Badge> },
+  { key: "venta", header: "Venta", align: "right" },
+]
+
+const rqColumns: DataTableColumn<RqDemo>[] = [
+  { key: "codigo", header: "RQ" },
+  { key: "proveedor", header: "Proveedor" },
+  { key: "categoria", header: "Categoría" },
+  { key: "estado", header: "Estado", render: (row) => <Badge tone={row.estado === "programado" ? "info" : row.estado === "aprobado" ? "success" : "warning"}>{row.estado}</Badge> },
+  { key: "vencimiento", header: "Vencimiento" },
+  { key: "monto", header: "Monto", align: "right" },
 ]
 
 export default function DesignSystemPage() {
   const { theme, toggleTheme } = useTheme()
-  const [tab, setTab] = useState("componentes")
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [enabled, setEnabled] = useState(true)
-  const [selectedRows, setSelectedRows] = useState<Array<string | number>>([])
+  const [tab, setTab] = useState("listado")
   const [search, setSearch] = useState("")
+  const [view, setView] = useState("tabla")
+  const [enabled, setEnabled] = useState(true)
 
-  const filteredRows = useMemo(
-    () => rows.filter((row) => row.proyecto.toLowerCase().includes(search.toLowerCase()) || row.responsable.toLowerCase().includes(search.toLowerCase())),
+  const filteredClientes = useMemo(
+    () => clientes.filter((cliente) => [cliente.cliente, cliente.ruc, cliente.proyecto].join(" ").toLowerCase().includes(search.toLowerCase())),
     [search]
   )
 
-  const columns: DataTableColumn<DemoRow>[] = [
-    { key: "id", header: "Código", sortable: true, width: 110 },
-    { key: "proyecto", header: "Proyecto", sortable: true },
-    { key: "estado", header: "Estado", render: (row) => <Badge tone={row.estado === "Completado" ? "success" : row.estado === "Pendiente" ? "warning" : "info"}>{row.estado}</Badge> },
-    { key: "responsable", header: "Responsable" },
-    { key: "monto", header: "Monto", align: "right" },
-  ]
+  const header = (
+    <PageHeader
+      eyebrow="Design System"
+      title="Module Template System v1.0"
+      description="Plantillas visuales reutilizables para módulos operativos, comerciales y financieros del ERP."
+      actions={[{ label: theme === "light" ? "Modo oscuro" : "Modo claro", onClick: toggleTheme, variant: "secondary" }]}
+    />
+  )
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
-      <Toolbar>
-        <div>
-          <h1 className="iz-display" style={{ margin: 0 }}>Design System v1.0</h1>
-          <p className="iz-body" style={{ margin: "6px 0 0", color: "var(--iz-color-text-muted)" }}>
-            Infraestructura visual reusable para SIG Izango 360.
-          </p>
-        </div>
-        <div style={{ display: "inline-flex", gap: 8 }}>
-          <Button variant="secondary" onClick={toggleTheme}>{theme === "light" ? "Modo oscuro" : "Modo claro"}</Button>
-          <Button onClick={() => setDrawerOpen(true)}>Abrir drawer</Button>
-        </div>
-      </Toolbar>
-
-      <Tabs
+      {header}
+      <ContextTabs
         value={tab}
         onChange={setTab}
-        items={[
-          { value: "componentes", label: "Componentes" },
-          { value: "datos", label: "Datos" },
-          { value: "estados", label: "Estados" },
-        ]}
-      />
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
-        <KpiCard label="Pipeline" value="S/ 124,800" sub="Mes actual" borderColor="var(--iz-color-brand-400)" icon="chart" />
-        <KpiCard label="Pendientes" value="18" sub="Operativos" borderColor="var(--iz-color-warning)" icon="file" />
-        <KpiCard label="Caja" value="S/ 42,100" sub="Disponible" borderColor="var(--iz-color-success)" icon="wallet" />
-      </div>
-
-      <SectionCard title="Fundamentos">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-          <Card><div className="iz-label">Color</div><div className="iz-heading">Tokens semánticos</div><p className="iz-caption">Brand, superficie, texto, borde y estados.</p></Card>
-          <Card><div className="iz-label">Tipografía</div><div className="iz-heading">Hanken Grotesk</div><p className="iz-caption">Display, Heading, Body, Caption, Label, KPI, Table y Mono.</p></Card>
-          <Card><div className="iz-label">Layout</div><div className="iz-heading">Espaciado estable</div><p className="iz-caption">Escala común para cards, tablas, formularios y widgets.</p></Card>
-        </div>
-      </SectionCard>
-
-      {tab === "componentes" && (
-        <SectionCard title="Componentes base">
-          <div style={{ display: "grid", gap: 18 }}>
-            <Toolbar>
-              <div style={{ display: "inline-flex", gap: 8, flexWrap: "wrap" }}>
-                <Button>Primario</Button>
-                <Button variant="secondary">Secundario</Button>
-                <Button variant="ghost">Fantasma</Button>
-                <Button variant="danger">Peligro</Button>
-              </div>
-              <Toggle checked={enabled} onChange={setEnabled} label="Activo" />
-            </Toolbar>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Badge tone="brand">Marca</Badge>
-              <Badge tone="success">Aprobado</Badge>
-              <Badge tone="warning">Pendiente</Badge>
-              <Badge tone="danger">Crítico</Badge>
-              <StatusBadge label="Completado" type="success" />
-              <Avatar name="Paolo Bastianelli" />
-            </div>
-            <SimpleForm
-              actions={
-                <>
-                  <Button type="button" variant="secondary">Cancelar</Button>
-                  <Button type="submit">Guardar</Button>
-                </>
-              }
-            >
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-                <FormField label="Nombre" required><Input placeholder="Nombre del registro" /></FormField>
-                <FormField label="Estado"><Select defaultValue="activo"><option value="activo">Activo</option><option value="pausado">Pausado</option></Select></FormField>
-                <FormField label="Notas" help="Texto de ayuda contextual."><Textarea placeholder="Observaciones" /></FormField>
-              </div>
-              <Checkbox label="Notificar a participantes" defaultChecked />
-              <ValidationMessage>Ejemplo de validación visible.</ValidationMessage>
-            </SimpleForm>
-          </div>
-        </SectionCard>
-      )}
-
-      {tab === "datos" && (
-        <WidgetContainer title="Tabla base" period="Demo local" actions={<Button size="sm" onClick={() => setModalOpen(true)}>Nueva acción</Button>}>
-          <DataTable
-            columns={columns}
-            rows={filteredRows}
-            rowKey="id"
-            search={search}
-            onSearchChange={setSearch}
-            pageSize={2}
-            selectedKeys={selectedRows}
-            onSelectedKeysChange={setSelectedRows}
-            bulkActions={[{ label: "Acción masiva", onClick: () => undefined }]}
-          />
-        </WidgetContainer>
-      )}
-
-      {tab === "estados" && (
-        <SectionCard title="Estados reutilizables">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-            <LoadingState />
-            <ErrorState detail="Detalle funcional del error para soporte." />
-            <PermissionState />
-            <EmptyState title="Sin datos" description="Estado vacío con acción opcional." action={<Button size="sm">Crear registro</Button>} />
-            <Card><ReadonlyField label="Solo lectura" value="Valor protegido" /><Divider /><Skeleton height={20} /><StickyActions><Button size="sm">Acción fija</Button></StickyActions></Card>
-            <Alert tone="info">Alerta informativa con tono semántico.</Alert>
-          </div>
-        </SectionCard>
-      )}
-
-      <ArchiveTabs
-        value="activos"
-        onChange={() => undefined}
         tabs={[
-          { value: "activos", label: "Activos", count: 12 },
-          { value: "archivados", label: "Archivados", count: 4 },
-          { value: "todos", label: "Todos", count: 16 },
+          { value: "listado", label: "Clientes", count: 3 },
+          { value: "360", label: "Cliente 360" },
+          { value: "dashboard", label: "Dashboard" },
+          { value: "kanban", label: "Kanban" },
+          { value: "work", label: "Work Center" },
+          { value: "form", label: "Formulario" },
+          { value: "finance", label: "Tabla financiera" },
+          { value: "settings", label: "Settings" },
+          { value: "states", label: "Estados" },
         ]}
       />
 
-      <FiltersBar actions={<Button variant="secondary" size="sm">Limpiar</Button>}>
-        <Input placeholder="Buscar en filtros" style={{ maxWidth: 260 }} />
-        <Select defaultValue=""><option value="">Todos los estados</option><option value="activo">Activo</option></Select>
-      </FiltersBar>
+      {tab === "listado" && (
+        <ListPageTemplate
+          header={<PageHeader title="Listado de Clientes" description="Vista estándar para módulos con búsqueda, filtros y acciones." actions={[{ label: "Nuevo cliente", href: "/clientes/nuevo" }]} />}
+          summary={<SummaryStrip metrics={[{ label: "Clientes", value: "3" }, { label: "Pipeline", value: "S/ 182,600" }, { label: "Activos", value: "2" }, { label: "En revisión", value: "1" }]} />}
+          toolbar={<FilterBar actions={<ViewSwitcher value={view} onChange={setView} views={[{ value: "tabla", label: "Tabla" }, { value: "cards", label: "Cards" }]} />}><SearchInput value={search} onChange={setSearch} placeholder="Buscar cliente, RUC o proyecto" /><FilterChip label="Activos" active /><FilterChip label="Retail" /></FilterBar>}
+          table={<DataTable columns={clienteColumns} rows={filteredClientes} rowKey="id" />}
+        />
+      )}
 
-      <DrawerForm open={drawerOpen} title="Drawer Form" subtitle="Formulario lateral reusable" onClose={() => setDrawerOpen(false)} actions={<Button onClick={() => setDrawerOpen(false)}>Guardar</Button>}>
-        <FormField label="Campo lateral"><Input placeholder="Dato editable" /></FormField>
-        <ReadonlyField label="Responsable" value="Controller" />
-      </DrawerForm>
+      {tab === "360" && (
+        <Detail360Template
+          header={<EntityHeader title="Honda del Perú" subtitle="Cliente estratégico · RUC 20100130204" status={<Badge tone="success">Activo</Badge>} actions={[{ label: "Crear proyecto", href: "/proyectos/nuevo" }, { label: "Editar", variant: "secondary" }]} />}
+          tabs={<ContextTabs value="resumen" onChange={() => undefined} tabs={[{ value: "resumen", label: "Resumen" }, { value: "proyectos", label: "Proyectos", count: 4 }, { value: "finanzas", label: "Finanzas" }]} />}
+        >
+          <DetailPanel
+            title="Resumen comercial"
+            aside={<><div className="iz-label">Próxima acción</div><p className="iz-body">Enviar propuesta de activación BTL para campaña de motos.</p><ProgressSummary steps={["CRM", "Propuesta", "Proyecto", "Cierre"]} current={2} /></>}
+          >
+            <SummaryStrip metrics={[{ label: "Facturado", value: "S/ 84,500" }, { label: "Cobrado", value: "S/ 42,000" }, { label: "Pendiente", value: "S/ 42,500" }]} />
+          </DetailPanel>
+        </Detail360Template>
+      )}
 
-      <ModalForm open={modalOpen} title="Modal Form" onClose={() => setModalOpen(false)} actions={<Button onClick={() => setModalOpen(false)}>Confirmar</Button>}>
-        <Alert tone="brand">Modal base preparado para formularios simples.</Alert>
-      </ModalForm>
+      {tab === "dashboard" && (
+        <ModuleDashboardTemplate
+          header={<PageHeader title="Dashboard Financiero" description="Composición para KPIs, alertas y widgets ejecutivos." />}
+          summary={<SummaryStrip metrics={[{ label: "Caja disponible", value: "S/ 126,400" }, { label: "Por cobrar", value: "S/ 58,100" }, { label: "Pagos hoy", value: "S/ 18,750" }, { label: "Liquidez", value: "Estable" }]} />}
+          widgets={<><WidgetContainer title="Ingresos vs egresos" period="Julio 2026"><div style={{ height: 160, display: "grid", placeItems: "center", color: "var(--iz-color-text-muted)" }}>Área reservada para gráfico real</div></WidgetContainer><WidgetContainer title="Alertas"><ModuleErrorState message="2 pagos vencidos requieren revisión." /></WidgetContainer></>}
+        />
+      )}
+
+      {tab === "kanban" && (
+        <KanbanPageTemplate
+          header={<PageHeader title="CRM Kanban" description="Columnas consistentes para oportunidades comerciales." />}
+          toolbar={<ModuleToolbar><SearchInput value={search} onChange={setSearch} placeholder="Buscar oportunidad" /></ModuleToolbar>}
+          columns={<div style={{ display: "grid", gridTemplateColumns: "repeat(7, 238px)", gap: 12 }}>{["Nuevo", "Contactado", "Reunión", "Propuesta", "Negociación", "Ganado", "Perdido"].map((stage, index) => <Card key={stage} style={{ minHeight: 220 }}><div className="iz-label">{stage}</div><p className="iz-body">{index < 3 ? "Ripley · S/ 56,200" : "Sin oportunidades"}</p></Card>)}</div>}
+        />
+      )}
+
+      {tab === "work" && (
+        <WorkCenterTemplate
+          header={<PageHeader title="Centro de aprobación de RQ" description="Bandeja de trabajo con detalle lateral." />}
+          summary={<SummaryStrip metrics={[{ label: "Pendientes", value: "18" }, { label: "Vencidos", value: "3" }, { label: "Hoy", value: "5" }]} />}
+          queue={<DataTable columns={rqColumns} rows={rqs} rowKey="codigo" />}
+          detail={<Card><div className="iz-label">Detalle RQ</div><p className="iz-body">Validar proveedor, monto, fecha de necesidad y evidencia adjunta.</p><Button>Revisar</Button></Card>}
+        />
+      )}
+
+      {tab === "form" && (
+        <FullFormTemplate
+          header={<PageHeader title="Formulario de Proveedor" description="Estructura para formularios completos con navegación y acciones fijas." />}
+          navigator={<SectionNavigator sections={[{ id: "empresa", label: "Empresa" }, { id: "contacto", label: "Contacto" }, { id: "bancos", label: "Bancos" }]} />}
+          actions={<StickyActionBar><Button variant="secondary">Cancelar</Button><Button>Guardar proveedor</Button></StickyActionBar>}
+        >
+          <Card id="empresa"><FormField label="Razón social"><Input defaultValue="Producciones Selva SAC" /></FormField><FormField label="RUC"><Input defaultValue="20604578121" /></FormField></Card>
+          <Card id="contacto"><FormField label="Contacto"><Input defaultValue="José Manuel" /></FormField><FormField label="Correo"><Input defaultValue="operaciones@proveedor.pe" /></FormField></Card>
+          <Card id="bancos"><FormField label="Banco"><Select defaultValue="BCP"><option>BCP</option><option>BBVA</option></Select></FormField><FormField label="Observaciones"><Textarea defaultValue="Proveedor frecuente para proyectos BTL." /></FormField></Card>
+        </FullFormTemplate>
+      )}
+
+      {tab === "finance" && (
+        <FinancialTableTemplate header={<PageHeader title="Tabla financiera de RQ" description="Tabla con columnas financieras y estados." />} summary={<SummaryStrip metrics={[{ label: "Total", value: "S/ 25,650" }, { label: "Programado", value: "S/ 12,800" }, { label: "Pendiente", value: "S/ 8,200" }]} />} columns={rqColumns} rows={rqs} rowKey="codigo" />
+      )}
+
+      {tab === "settings" && (
+        <SettingsPageTemplate header={<PageHeader title="Configuración de usuario" description="Plantilla para preferencias y parámetros." />} tabs={<ContextTabs value="perfil" onChange={() => undefined} tabs={[{ value: "perfil", label: "Perfil" }, { value: "seguridad", label: "Seguridad" }]} />}>
+          <div style={{ display: "grid", gap: 14 }}><Toggle checked={enabled} onChange={setEnabled} label="Notificaciones activas" /><Checkbox label="Recibir correos automáticos" defaultChecked /></div>
+        </SettingsPageTemplate>
+      )}
+
+      {tab === "states" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+          <Card><ModuleLoadingState label="Cargando clientes..." /></Card>
+          <ModuleEmptyState title="Sin registros" description="No hay resultados para los filtros seleccionados." action={<Button size="sm">Crear registro</Button>} />
+          <Card><ModuleErrorState message="No se pudieron cargar los datos del módulo." /></Card>
+        </div>
+      )}
     </div>
   )
 }
