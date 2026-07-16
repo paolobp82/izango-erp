@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import "./globals.css"
 import AppLayout from "@/components/layout/AppLayout"
+import { ThemeProvider } from "@/components/design-system"
 
 const LOGO_URL = "https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
 
@@ -12,12 +13,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <head>
         <link rel="icon" href={LOGO_URL} />
       </head>
       <body>
-        <AppLayout>{children}</AppLayout>
+        <ThemeProvider>
+          <AppLayout>{children}</AppLayout>
+        </ThemeProvider>
       </body>
     </html>
   )
