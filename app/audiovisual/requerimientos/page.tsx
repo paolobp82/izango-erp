@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
-import { filtrarPorAlcance } from "@/lib/permisos"
+import { filtrarPorAlcance, filtrarRequerimientosAudiovisualesPorAlcance } from "@/lib/permisos"
 import { esProductorAsignadoProyecto } from "@/lib/permisos/proyectos"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
@@ -105,7 +105,7 @@ export default function AudiovisualRequerimientosPage() {
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
     const reqsActivos = (reqs || []).filter((req: any) => !rowBelongsToDeletedProject(req))
-    setRequerimientos(filtrarPorAlcance(reqsActivos, perfilActual, "proyectos", { usuarioId: user?.id }))
+    setRequerimientos(filtrarRequerimientosAudiovisualesPorAlcance(reqsActivos, perfilActual, { usuarioId: user?.id }))
 
     const { data: proys } = await supabase
       .from("proyectos")
