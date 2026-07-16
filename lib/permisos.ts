@@ -176,6 +176,40 @@ export function filtrarPorAlcance<T extends RegistroConPropiedad>(
   })
 }
 
+const ROLES_AUDIOVISUAL_ACCESO_TOTAL: PerfilUsuario[] = [
+  "superadmin",
+  "gerente_general",
+  "gerente_produccion",
+  "controller",
+]
+
+const ROLES_AUDIOVISUAL_CREADOR: PerfilUsuario[] = [
+  ...ROLES_AUDIOVISUAL_ACCESO_TOTAL,
+  "productor",
+  "audiovisual",
+]
+
+export function filtrarRequerimientosAudiovisualesPorAlcance<T extends RegistroConPropiedad>(
+  rows: T[],
+  perfil: PerfilEntrada,
+  contexto?: ContextoPermiso
+) {
+  const rol = normalizarPerfil(perfil)
+  const usuarioId = contexto?.usuarioId
+  if (!rol || !usuarioId) return []
+  if (ROLES_AUDIOVISUAL_ACCESO_TOTAL.includes(rol)) return rows
+
+  return rows.filter(row => {
+    if (row.responsable_audiovisual_id === usuarioId) return true
+    if (row.productor_id === usuarioId) return true
+    if (ROLES_AUDIOVISUAL_CREADOR.includes(rol) && row.creado_por === usuarioId) return true
+    if (rol === "productor") {
+      return esProductorAsignadoProyecto({ id: usuarioId, perfil: rol }, row.proyecto || row, usuarioId)
+    }
+    return false
+  })
+}
+
 function esPropioPorModulo(
   rol: PerfilUsuario | null,
   modulo: ModuloPermiso,
