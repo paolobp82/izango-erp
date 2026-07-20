@@ -1852,3 +1852,197 @@
   color: var(--v2-subtle);
   margin-top: 2px;
 }
+
+/* SPRINT 5.2 DATA COMPONENTS ISOLATED STYLES */
+.tableStateWrapper {
+  padding: var(--v2-space-4);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface);
+}
+
+.tableCaption {
+  caption-side: top;
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--v2-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tableCompact td,
+.tableCompact th {
+  padding: 6px 10px;
+}
+
+.tableStickyHeader thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--v2-surface-container-low);
+}
+
+.tableClickable tbody tr {
+  cursor: pointer;
+}
+
+.tableClickable tbody tr:hover {
+  background: var(--v2-surface-container-high);
+}
+
+.kpiToneNeutral { border-left: 3px solid var(--v2-outline); }
+.kpiTonePrimary { border-left: 3px solid var(--v2-primary); }
+.kpiToneSuccess { border-left: 3px solid var(--v2-success); }
+.kpiToneWarning { border-left: 3px solid var(--v2-warning); }
+.kpiToneError { border-left: 3px solid var(--v2-danger); }
+
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v2-space-3);
+  padding: var(--v2-space-3);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface-container-low);
+}
+
+.filterBarControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--v2-space-2);
+}
+
+.filterBarActions {
+  display: flex;
+  align-items: center;
+  gap: var(--v2-space-2);
+}
+
+.filterBarClearBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  background: transparent;
+  color: var(--v2-muted);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease;
+}
+
+.filterBarClearBtn:hover {
+  color: var(--v2-text);
+  border-color: var(--v2-outline);
+}
+
+.filterBarBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--v2-primary);
+  color: var(--v2-on-primary);
+  font-size: 9.5px;
+  font-weight: 900;
+  padding: 0 4px;
+}
+
+.paginationSummary {
+  font-size: 11.5px;
+  font-weight: 750;
+  color: var(--v2-muted);
+}
+
+.loadingStateCard {
+  padding: var(--v2-space-4);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface);
+}
+
+.loadingStateInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+}
+
+.loadingStateHeader {
+  display: flex;
+  flex-direction: column;
+}
+
+.emptyStateCompact {
+  padding: var(--v2-space-3);
+  gap: var(--v2-space-2);
+}
+
+.emptyContent {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.emptyActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.errorState {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--v2-space-3);
+  padding: var(--v2-space-4);
+  border: 1px solid rgba(255, 180, 171, 0.3);
+  border-radius: var(--v2-radius);
+  background: rgba(147, 0, 10, 0.12);
+  color: var(--v2-text);
+}
+
+.errorStateCompact {
+  padding: var(--v2-space-3);
+  gap: var(--v2-space-2);
+}
+
+.errorIcon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.errorContent {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+}
+
+.errorHeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.errorCodeBadge {
+  font-size: 9.5px;
+  font-weight: 900;
+  color: var(--v2-danger);
+  background: rgba(255, 180, 171, 0.15);
+  border: 1px solid rgba(255, 180, 171, 0.3);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.errorAction {
+  margin-top: 8px;
+}
