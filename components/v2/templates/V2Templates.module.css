@@ -210,6 +210,54 @@
   margin-top: var(--v2-space-4, 16px);
 }
 
+/* -------------------------------------------------------------
+   V2DashboardPageTemplate Layout Styles
+------------------------------------------------------------- */
+.dashboardRoot {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dashboardHeaderWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.dashboardLayoutGrid {
+  display: grid;
+  width: 100%;
+  gap: var(--v2-space-5, 20px);
+}
+
+.dashboardMainContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v2-space-4, 16px);
+  min-width: 0;
+}
+
+.dashboardSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v2-space-4, 16px);
+  min-width: 0;
+}
+
+.dashboardFooterArea {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v2-space-3, 12px);
+  width: 100%;
+  padding-top: var(--v2-space-4, 16px);
+  border-top: 1px solid var(--v2-border);
+  margin-top: var(--v2-space-4, 16px);
+}
+
 @media (max-width: 1024px) {
   .sidebarRight,
   .sidebarLeft,
@@ -228,7 +276,8 @@
     justify-content: center;
   }
 
-  .formFooterArea {
+  .formFooterArea,
+  .dashboardFooterArea {
     flex-direction: column-reverse;
     align-items: stretch;
   }

@@ -24,6 +24,14 @@ export {
 } from "./V2FormPageTemplate"
 
 export {
+  V2DashboardPageTemplate,
+  type V2DashboardPageTemplateProps,
+  type V2DashboardPageState,
+  type V2DashboardPageDensity,
+  type V2DashboardPageContentWidth,
+} from "./V2DashboardPageTemplate"
+
+export {
   V2Detail360Template,
   V2ModuleDashboardTemplate,
   V2KanbanPageTemplate,

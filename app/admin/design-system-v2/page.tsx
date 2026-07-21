@@ -54,7 +54,7 @@ import {
   V2ToastViewport,
   V2DataTable,
 } from "@/components/v2/system"
-import { V2ListPageTemplate, V2DetailPageTemplate, V2FormPageTemplate } from "@/components/v2/templates"
+import { V2ListPageTemplate, V2DetailPageTemplate, V2FormPageTemplate, V2DashboardPageTemplate } from "@/components/v2/templates"
 import styles from "@/components/v2/system/V2System.module.css"
 
 type DemoRow = {
@@ -186,6 +186,7 @@ export default function DesignSystemV2Page() {
             { id: "templates", label: "Template Listado V2" },
             { id: "detail-templates", label: "Template Detalle V2" },
             { id: "form-templates", label: "Template Formulario V2" },
+            { id: "dashboard-templates", label: "Template Dashboard V2" },
             { id: "patterns", label: "Patrones V2" },
           ]}
           onChange={setActiveTab}
@@ -1118,6 +1119,201 @@ export default function DesignSystemV2Page() {
                     state="error"
                     title="Error al Cargar Formulario"
                   />
+                </div>
+              </div>
+            </V2SectionCard>
+          </>
+        )}
+
+        {/* TAB DASHBOARD TEMPLATES: TEMPLATE DE DASHBOARD V2 (SPRINT 6.4) */}
+        {activeTab === "dashboard-templates" && (
+          <>
+            <V2SectionCard
+              description="Demostración composicional de V2DashboardPageTemplate para los 8 escenarios normativos de dashboard."
+              title="V2DashboardPageTemplate — Escenarios de Presentación"
+            >
+              <div style={{ display: "grid", gap: "32px" }}>
+                {/* CASO A: DASHBOARD EJECUTIVO */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Caso A — Dashboard Ejecutivo (Filtro Temporal, 4 KPIs, Gráficos y Panel Secundario)</p>
+                  <V2DashboardPageTemplate
+                    actions={
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <V2Button size="sm" variant="secondary">Filtrar por Fecha</V2Button>
+                        <V2Button size="sm" variant="primary">Exportar Reporte</V2Button>
+                      </div>
+                    }
+                    breadcrumb={<span>Inicio / Finanzas / Dashboard</span>}
+                    eyebrow="RESUMEN FINANCIERO"
+                    filters={
+                      <div style={{ display: "flex", gap: "12px", alignItems: "center", padding: "8px 12px", background: "var(--v2-muted-bg, #f8fafc)", borderRadius: "6px" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 600 }}>Periodo:</span>
+                        <V2Select options={[{ value: "2026-q3", label: "Q3 2026 (Jul - Sep)" }, { value: "2026-q2", label: "Q2 2026 (Abr - Jun)" }]} />
+                        <span style={{ fontSize: "12px", fontWeight: 600, marginLeft: "auto" }}>Unidad: S/ Soles</span>
+                      </div>
+                    }
+                    kpis={
+                      <>
+                        <V2KpiCard label="Facturación Mes" tone="success" value="S/ 145,000.00" />
+                        <V2KpiCard label="Por Cobrar" tone="warning" value="S/ 38,200.00" />
+                        <V2KpiCard label="Margen Promedio" tone="neutral" value="34.8%" />
+                        <V2KpiCard label="Proyectos Activos" tone="neutral" value="12" />
+                      </>
+                    }
+                    sidebar={
+                      <V2SectionCard title="Notificaciones de Tesorería">
+                        <div style={{ fontSize: "12px", color: "var(--v2-muted)", display: "grid", gap: "10px" }}>
+                          <p style={{ margin: 0 }}>• 3 facturas vencen en los próximos 5 días.</p>
+                          <p style={{ margin: 0 }}>• Conciliación bancaria BCP al 98%.</p>
+                          <p style={{ margin: 0 }}>• 2 RQs pendientes de aprobación por Gerencia.</p>
+                        </div>
+                      </V2SectionCard>
+                    }
+                    subtitle="Visión ejecutiva de ingresos, cuentas por cobrar y rentabilidad operativa."
+                    title="Dashboard Ejecutivo de Finanzas"
+                  >
+                    <V2SectionCard title="Evolución de Ingresos y Cobranzas">
+                      <div style={{ padding: "32px", textAlign: "center", border: "1px dashed var(--v2-border)", borderRadius: "6px", color: "var(--v2-muted)" }}>
+                        [Área de Visualización / Gráfico de Barras Composicional]
+                      </div>
+                    </V2SectionCard>
+                  </V2DashboardPageTemplate>
+                </div>
+
+                {/* CASO B: DASHBOARD OPERATIVO */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Caso B — Dashboard Operativo (Múltiples Secciones, KPIs y Actividad Lateral)</p>
+                  <V2DashboardPageTemplate
+                    eyebrow="OPERACIONES"
+                    kpis={
+                      <>
+                        <V2KpiCard label="Proyectos en Curso" tone="neutral" value="8" />
+                        <V2KpiCard label="RQs Pendientes" tone="warning" value="5" />
+                        <V2KpiCard label="Entregables Semanales" tone="neutral" value="14" />
+                      </>
+                    }
+                    sidebar={
+                      <V2SectionCard title="Bitácora de Operaciones">
+                        <div style={{ fontSize: "12px", color: "var(--v2-muted)", display: "grid", gap: "8px" }}>
+                          <p style={{ margin: 0 }}>10:15 — Proyecto IZ-2601 en rodaje.</p>
+                          <p style={{ margin: 0 }}>09:30 — RQ-104 aprobado por Producción.</p>
+                        </div>
+                      </V2SectionCard>
+                    }
+                    subtitle="Seguimiento en tiempo real de rodajes, entregables y asignación de RQs."
+                    title="Control Operativo de Producción"
+                  >
+                    <div style={{ display: "grid", gap: "16px" }}>
+                      <V2SectionCard title="Proyectos con Rodaje en Transcurso">
+                        <div style={{ padding: "16px", background: "var(--v2-surface-alt, #fafafa)", borderRadius: "6px", fontSize: "13px" }}>
+                          Proyecto IZ-2601 — Comercial Primavera 2026 (En Rodaje - Locación 1)
+                        </div>
+                      </V2SectionCard>
+                      <V2SectionCard title="Requerimientos de Pago del Día">
+                        <div style={{ padding: "16px", background: "var(--v2-surface-alt, #fafafa)", borderRadius: "6px", fontSize: "13px" }}>
+                          RQ-105: S/ 1,200.00 — Alquiler de Cámaras (Pendiente aprobación)
+                        </div>
+                      </V2SectionCard>
+                    </div>
+                  </V2DashboardPageTemplate>
+                </div>
+
+                {/* CASO C: SIN SIDEBAR */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Caso C — Sin Sidebar (Ancho Total Disponible para Gráficos)</p>
+                  <V2DashboardPageTemplate
+                    eyebrow="ANALÍTICA COMERCIAL"
+                    kpis={
+                      <>
+                        <V2KpiCard label="Pipeline Total" tone="neutral" value="S/ 320,000.00" />
+                        <V2KpiCard label="Leads Ganados" tone="success" value="18" />
+                        <V2KpiCard label="Tasa Conversión" tone="neutral" value="42%" />
+                      </>
+                    }
+                    subtitle="Panel analítico de conversión de proformas y clientes corporativos."
+                    title="Analítica de CRM Comercial"
+                  >
+                    <V2SectionCard title="Distribución de Oportunidades por Etapa">
+                      <div style={{ padding: "24px", textAlign: "center", border: "1px dashed var(--v2-border)", borderRadius: "6px", color: "var(--v2-muted)" }}>
+                        [Gráfico Horizontal Ancho Completo sin Sidebar]
+                      </div>
+                    </V2SectionCard>
+                  </V2DashboardPageTemplate>
+                </div>
+
+                {/* CASO D: CONTENIDO FULL WIDTH */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Caso D — Contenido Full Width (contentWidth=&quot;full&quot;)</p>
+                  <V2DashboardPageTemplate
+                    contentWidth="full"
+                    eyebrow="PANEL EXTENDIDO"
+                    kpis={
+                      <>
+                        <V2KpiCard label="Uso Servidor" tone="neutral" value="45%" />
+                        <V2KpiCard label="Latencia Promedio" tone="success" value="120ms" />
+                      </>
+                    }
+                    subtitle="Vista extendida sin restricción de ancho máximo de contenedor."
+                    title="Métricas de Infraestructura"
+                  >
+                    <V2SectionCard title="Monitoreo en Tiempo Real">
+                      <div style={{ padding: "16px", fontSize: "13px" }}>
+                        Visualización extendida a lo largo de toda la pantalla.
+                      </div>
+                    </V2SectionCard>
+                  </V2DashboardPageTemplate>
+                </div>
+
+                {/* CASO E: LOADING STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Caso E — Estado de Carga (state=&quot;loading&quot;)</p>
+                  <V2DashboardPageTemplate
+                    state="loading"
+                    title="Cargando Dashboard..."
+                  />
+                </div>
+
+                {/* CASO F: EMPTY STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Caso F — Estado Vacío (state=&quot;empty&quot;)</p>
+                  <V2DashboardPageTemplate
+                    emptyState={<V2EmptyState description="No existen datos registrados para mostrar métricas." title="Sin Información Disponible" />}
+                    state="empty"
+                    title="Dashboard de Módulo Vacío"
+                  />
+                </div>
+
+                {/* CASO G: ERROR STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Caso G — Estado de Error (state=&quot;error&quot;)</p>
+                  <V2DashboardPageTemplate
+                    errorState={<V2ErrorState errorCode="500-DASH-ERROR" title="Error de comunicación con el motor de métricas" />}
+                    state="error"
+                    title="Error al Cargar Dashboard"
+                  />
+                </div>
+
+                {/* CASO H: HEADER Y ACCIONES */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Caso H — Header y Acciones (Demostración de statusBadge y Botones de Acción)</p>
+                  <V2DashboardPageTemplate
+                    actions={
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <V2Button size="sm" variant="secondary">Actualizar Datos</V2Button>
+                        <V2Button size="sm" variant="primary">Configurar Alertas</V2Button>
+                      </div>
+                    }
+                    eyebrow="ESTADO DEL SISTEMA"
+                    statusBadge={<span style={{ padding: "2px 8px", background: "#dcfce7", color: "#15803d", borderRadius: "12px", fontSize: "11px", fontWeight: 700 }}>OPERATIVO</span>}
+                    subtitle="Monitor de salud de servicios web e integraciones Supabase."
+                    title="Salud General del SIG 360"
+                  >
+                    <V2SectionCard title="Servicios Activos">
+                      <div style={{ padding: "16px", fontSize: "13px" }}>
+                        Todos los servicios respondiendo dentro de los umbrales normativos.
+                      </div>
+                    </V2SectionCard>
+                  </V2DashboardPageTemplate>
                 </div>
               </div>
             </V2SectionCard>
