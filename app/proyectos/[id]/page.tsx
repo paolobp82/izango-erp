@@ -19,7 +19,7 @@ import { RQ_MIGRATION_SUCCESS_ACTIONS } from "@/lib/rq-migracion"
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
   aprobado_produccion:  { label: "Aprobado Producción",  bg: "#fed7aa", color: "#9a3412", siguiente: "aprobado_gerencia",   accion: "Aprobar (Gerencia)",      roles: ["gerente_general", "superadmin"] },
-  aprobado_gerencia:    { label: "Aprobado Gerencia",    bg: "#e0e7ff", color: "#3730a3", siguiente: "aprobado_cliente",    accion: "Aprobar cliente",    roles: ["gerente_general", "superadmin"] },
+  aprobado_gerencia:    { label: "Aprobado Gerencia",    bg: "#e0e7ff", color: "#3730a3", siguiente: "aprobado_cliente",    accion: "Aprobar cliente",    roles: ["gerente_general", "superadmin", "comercial"] },
   aprobado_cliente:     { label: "Aprobado Cliente",     bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Preparar pre-cuadre / generar RQs", roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   aprobado:             { label: "Aprobado",              bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Iniciar proyecto",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   en_curso:             { label: "En curso",              bg: "#dcfce7", color: "#15803d", siguiente: "terminado",           accion: "Marcar terminado",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
