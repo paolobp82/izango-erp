@@ -1,9 +1,21 @@
-﻿"use client"
-import { useEffect, useState } from "react"
+"use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
+import { useEffect, useState, useMemo } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { registrarAccion } from "@/lib/trazabilidad"
 import StarRating from "@/components/StarRating"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2PageHeader,
+  V2Pagination,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
+import styles from "./Proveedores.module.css"
 
 const CATEGORIAS = ["produccion", "almacenaje", "impresion", "permisos", "instalacion", "performer", "alquiler", "supervision", "movilidad", "otros"]
 const TIPOS_PAGO = [
@@ -68,14 +80,14 @@ export default function ProveedoresPage() {
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
   const section: any = { fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 14, marginTop: 0, paddingBottom: 8, borderBottom: "1px solid #f3f4f6" }
 
-  useEffect(() => { load() }, [])
-
   async function load() {
     const { data } = await supabase.from("proveedores").select("*").order("nombre")
     setProveedores(data || [])
     await loadRatings(data || [])
     setLoading(false)
   }
+
+  useEffect(() => { load() }, [])
 
   async function loadRatings(provs: any[]) {
     if (!provs.length) return
@@ -197,61 +209,347 @@ export default function ProveedoresPage() {
     load()
   }
 
-  const proveedoresFiltrados = proveedores.filter(p => {
-    if (filtroCategoria && p.categoria !== filtroCategoria) return false
-    if (filtroTipoPago && p.tipo_pago !== filtroTipoPago) return false
-    if (filtroRating) {
-      const r = ratings[p.id]?.promedio || 0
-      if (filtroRating === "4+" && r < 4) return false
-      if (filtroRating === "3+" && r < 3) return false
-      if (filtroRating === "sin" && r > 0) return false
-    }
-    if (busqueda) {
-      const q = busqueda.toLowerCase()
-      if (!p.nombre?.toLowerCase().includes(q) && !p.ruc?.includes(q)) return false
-    }
-    return true
-  })
+  const proveedoresFiltrados = useMemo(() => {
+    return proveedores.filter(p => {
+      if (filtroCategoria && p.categoria !== filtroCategoria) return false
+      if (filtroTipoPago && p.tipo_pago !== filtroTipoPago) return false
+      if (filtroRating) {
+        const r = ratings[p.id]?.promedio || 0
+        if (filtroRating === "4+" && r < 4) return false
+        if (filtroRating === "3+" && r < 3) return false
+        if (filtroRating === "sin" && r > 0) return false
+      }
+      if (busqueda) {
+        const q = busqueda.toLowerCase()
+        if (!p.nombre?.toLowerCase().includes(q) && !p.ruc?.includes(q)) return false
+      }
+      return true
+    })
+  }, [proveedores, filtroCategoria, filtroTipoPago, filtroRating, busqueda, ratings])
 
   const totalPaginas = Math.ceil(proveedoresFiltrados.length / POR_PAGINA)
-  const paginados = proveedoresFiltrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+  const paginados = useMemo(() => {
+    return proveedoresFiltrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+  }, [proveedoresFiltrados, pagina])
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  const columns: V2TableColumn<any>[] = [
+    {
+      key: "nombre",
+      header: "Proveedor",
+      render: (p) => (
+        <div>
+          <strong style={{ color: "var(--v2-text)", fontWeight: 800 }}>{p.nombre}</strong>
+          {p.es_cliente && (
+            <span style={{ fontSize: 10, color: "#1e40af", background: "#dbeafe", padding: "1px 6px", borderRadius: 99, fontWeight: 600, marginLeft: 8 }}>
+              Tb. cliente
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "ruc",
+      header: "RUC",
+      render: (p) => <span className="iz-mono" style={{ color: "var(--v2-muted)" }}>{p.ruc || "—"}</span>,
+    },
+    {
+      key: "categoria",
+      header: "Categoría",
+      render: (p) => (
+        <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+          {p.categoria || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "banco",
+      header: "Banco",
+      render: (p) => <span style={{ color: "var(--v2-text)" }}>{p.banco || "—"}</span>,
+    },
+    {
+      key: "contacto",
+      header: "Contacto",
+      render: (p) => (
+        <span style={{ color: "var(--v2-muted)", fontSize: 12 }}>
+          {p.nombre_contacto ? `${p.nombre_contacto}${p.apellido_contacto ? " " + p.apellido_contacto : ""}` : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "tipo_pago",
+      header: "Tipo Pago",
+      render: (p) => <span style={{ color: "var(--v2-muted)", fontSize: 12 }}>{tipoPagoLabel(p.tipo_pago)}</span>,
+    },
+    {
+      key: "rating",
+      header: "Rating",
+      render: (p) => (
+        ratings[p.id] ? (
+          <StarRating rating={ratings[p.id].promedio} totalVotos={ratings[p.id].total} size="sm" showCount={true} />
+        ) : (
+          <span style={{ fontSize: 11, color: "#d1d5db" }}>Sin rating</span>
+        )
+      ),
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (p) => (
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          <V2Button
+            type="button"
+            size="compact"
+            variant="secondary"
+            onClick={() => abrirEditar(p)}
+          >
+            Editar
+          </V2Button>
+          <V2Button
+            type="button"
+            size="compact"
+            variant="secondary"
+            onClick={() => eliminar(p.id, p.nombre)}
+            style={{ color: "#dc2626" }}
+          >
+            Eliminar
+          </V2Button>
+        </div>
+      ),
+    },
+  ]
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Proveedores</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{proveedoresFiltrados.length} de {proveedores.length} proveedores</p>
-        </div>
-        <ImportExport modulo="proveedores" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"ruc",label:"RUC"},{key:"categoria",label:"Categoria"},{key:"banco",label:"Banco"},{key:"numero_cuenta",label:"N cuenta"},{key:"cuenta_interbancaria",label:"CCI"},{key:"tipo_pago",label:"Tipo pago"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"apellido_contacto",label:"Apellido contacto"},{key:"email_contacto",label:"Email contacto"},{key:"telefono_contacto",label:"Telefono"}]} datos={proveedores} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proveedores").insert({...r,entidad:"peru",tipo_pago:r.tipo_pago||"contado",categoria:r.categoria||"otros"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
-        <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proveedor</button>
-      </div>
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            title="Proveedores"
+            subtitle={`${proveedoresFiltrados.length} de ${proveedores.length} proveedores`}
+            actions={
+              <V2Button onClick={abrirNuevo} size="compact">
+                + Nuevo proveedor
+              </V2Button>
+            }
+          />
+        }
+        toolbar={
+          <V2FilterBar
+            searchValue={busqueda}
+            onSearchChange={(val) => {
+              setBusqueda(val)
+              setPagina(1)
+            }}
+            activeFiltersCount={
+              (filtroCategoria !== "" ? 1 : 0) +
+              (filtroTipoPago !== "" ? 1 : 0) +
+              (filtroRating !== "" ? 1 : 0)
+            }
+            hideDrawerButton={true}
+            onToggleDrawer={() => {}}
+            quickFilters={
+              <>
+                <div style={{ width: "160px", flexShrink: 0 }}>
+                  <V2Select
+                    options={[
+                      { label: "Todas las categorías", value: "" },
+                      ...CATEGORIAS.map((c) => ({ label: c, value: c })),
+                    ]}
+                    value={filtroCategoria}
+                    onChange={(e) => {
+                      setFiltroCategoria(e.target.value)
+                      setPagina(1)
+                    }}
+                    compact
+                  />
+                </div>
+                <div style={{ width: "180px", flexShrink: 0 }}>
+                  <V2Select
+                    options={[
+                      { label: "Todos los tipos de pago", value: "" },
+                      ...TIPOS_PAGO.map((t) => ({ label: t.label, value: t.value })),
+                    ]}
+                    value={filtroTipoPago}
+                    onChange={(e) => {
+                      setFiltroTipoPago(e.target.value)
+                      setPagina(1)
+                    }}
+                    compact
+                  />
+                </div>
+                <div style={{ width: "160px", flexShrink: 0 }}>
+                  <V2Select
+                    options={[
+                      { label: "Todos los ratings", value: "" },
+                      { label: "4+ estrellas", value: "4+" },
+                      { label: "3+ estrellas", value: "3+" },
+                      { label: "Sin calificar", value: "sin" },
+                    ]}
+                    value={filtroRating}
+                    onChange={(e) => {
+                      setFiltroRating(e.target.value)
+                      setPagina(1)
+                    }}
+                    compact
+                  />
+                </div>
+              </>
+            }
+            showClearButton={filtroCategoria !== "" || filtroTipoPago !== "" || filtroRating !== "" || busqueda !== ""}
+            onClearFilters={() => {
+              setBusqueda("")
+              setFiltroCategoria("")
+              setFiltroTipoPago("")
+              setFiltroRating("")
+              setPagina(1)
+            }}
+          />
+        }
+        table={
+          loading ? (
+            <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+              Cargando proveedores...
+            </div>
+          ) : (
+            <>
+              {/* Desktop Table View */}
+              <div className={styles.tableContainer}>
+                <V2DataTable
+                  columns={columns}
+                  rows={paginados}
+                  getRowKey={(p) => p.id}
+                  empty={
+                    <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+                      No hay proveedores con estos filtros.
+                    </div>
+                  }
+                />
+              </div>
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-        <input style={{ ...inp, width: 200 }} placeholder="Buscar por nombre o RUC..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-        <select style={{ ...inp, width: "auto" }} value={filtroCategoria} onChange={e => { setFiltroCategoria(e.target.value); setPagina(1) }}>
-          <option value="">Todas las categorias</option>
-          {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select style={{ ...inp, width: "auto" }} value={filtroTipoPago} onChange={e => { setFiltroTipoPago(e.target.value); setPagina(1) }}>
-          <option value="">Todos los tipos de pago</option>
-          {TIPOS_PAGO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
-        <select style={{ ...inp, width: "auto" }} value={filtroRating} onChange={e => { setFiltroRating(e.target.value); setPagina(1) }}>
-          <option value="">Todos los ratings</option>
-          <option value="4+">4+ estrellas</option>
-          <option value="3+">3+ estrellas</option>
-          <option value="sin">Sin calificar</option>
-        </select>
-        {(filtroCategoria || filtroTipoPago || filtroRating || busqueda) && (
-          <button onClick={() => { setFiltroCategoria(""); setFiltroTipoPago(""); setFiltroRating(""); setBusqueda(""); setPagina(1) }}
-            style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
-            Limpiar filtros
-          </button>
-        )}
-      </div>
+              {/* Mobile Card View */}
+              <div className={styles.cardsContainer}>
+                {paginados.length === 0 ? (
+                  <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+                    No hay proveedores con estos filtros.
+                  </div>
+                ) : (
+                  paginados.map((p) => (
+                    <div key={p.id} className={styles.card}>
+                      <div className={styles.cardHeader}>
+                        <h4 className={styles.cardTitle}>
+                          {p.nombre}
+                          {p.es_cliente && (
+                            <span style={{ fontSize: 10, color: "#1e40af", background: "#dbeafe", padding: "1px 6px", borderRadius: 99, fontWeight: 600, marginLeft: 8 }}>
+                              Tb. cliente
+                            </span>
+                          )}
+                        </h4>
+                        <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 600 }}>
+                          {p.categoria || "—"}
+                        </span>
+                      </div>
+
+                      <div className={styles.cardContent}>
+                        <div>
+                          <span className={styles.cardLabel}>RUC:</span>
+                          {p.ruc || "—"}
+                        </div>
+                        <div>
+                          <span className={styles.cardLabel}>Banco:</span>
+                          {p.banco || "—"}
+                        </div>
+                        <div>
+                          <span className={styles.cardLabel}>Contacto:</span>
+                          {p.nombre_contacto ? `${p.nombre_contacto}${p.apellido_contacto ? " " + p.apellido_contacto : ""}` : "—"}
+                        </div>
+                        <div>
+                          <span className={styles.cardLabel}>Tipo Pago:</span>
+                          {tipoPagoLabel(p.tipo_pago)}
+                        </div>
+                        <div>
+                          <span className={styles.cardLabel}>Rating:</span>
+                          {ratings[p.id] ? (
+                            <StarRating rating={ratings[p.id].promedio} totalVotos={ratings[p.id].total} size="sm" showCount={true} />
+                          ) : (
+                            <span style={{ fontSize: 11, color: "#d1d5db" }}>Sin rating</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className={styles.cardActions}>
+                        <V2Button
+                          type="button"
+                          size="compact"
+                          variant="secondary"
+                          onClick={() => abrirEditar(p)}
+                        >
+                          Editar
+                        </V2Button>
+                        <V2Button
+                          type="button"
+                          size="compact"
+                          variant="secondary"
+                          onClick={() => eliminar(p.id, p.nombre)}
+                          style={{ color: "#dc2626" }}
+                        >
+                          Eliminar
+                        </V2Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Toolbar and pagination */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", flexWrap: "wrap", gap: 12 }}>
+                <ImportExport
+                  modulo="proveedores"
+                  campos={[
+                    { key: "nombre", label: "Nombre", requerido: true },
+                    { key: "ruc", label: "RUC" },
+                    { key: "categoria", label: "Categoria" },
+                    { key: "banco", label: "Banco" },
+                    { key: "numero_cuenta", label: "N cuenta" },
+                    { key: "cuenta_interbancaria", label: "CCI" },
+                    { key: "tipo_pago", label: "Tipo pago" },
+                    { key: "nombre_contacto", label: "Nombre contacto" },
+                    { key: "apellido_contacto", label: "Apellido contacto" },
+                    { key: "email_contacto", label: "Email contacto" },
+                    { key: "telefono_contacto", label: "Telefono" },
+                  ]}
+                  datos={proveedores}
+                  onImportar={async (registros) => {
+                    let exitosos = 0
+                    const errores: string[] = []
+                    for (const r of registros) {
+                      const { error } = await supabase.from("proveedores").insert({
+                        ...r,
+                        entidad: "peru",
+                        tipo_pago: r.tipo_pago || "contado",
+                        categoria: r.categoria || "otros",
+                      })
+                      if (error) errores.push(r.nombre + ": " + error.message)
+                      else exitosos++
+                    }
+                    load()
+                    return { exitosos, errores }
+                  }}
+                  variant="v2"
+                />
+
+                {totalPaginas > 1 && (
+                  <V2Pagination
+                    page={pagina}
+                    pageCount={totalPaginas}
+                    onPageChange={setPagina}
+                    summary={`${proveedoresFiltrados.length} proveedores · Pág. ${pagina}/{totalPaginas}`}
+                  />
+                )}
+              </div>
+            </>
+          )
+        }
+      />
 
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -415,80 +713,6 @@ export default function ProveedoresPage() {
           </div>
         </div>
       )}
-
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {proveedoresFiltrados.length === 0 ? (
-          <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay proveedores con estos filtros.</div>
-        ) : (
-          <>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "#f9fafb" }}>
-                  <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RUC</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CATEGORIA</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>BANCO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONTACTO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO PAGO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RATING</th>
-                  <th style={{ padding: "10px 20px", width: 130 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginados.map((p, idx) => (
-                  <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                    <td style={{ padding: "12px 20px" }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{p.nombre}</div>
-                      {p.es_cliente && <span style={{ fontSize: 10, color: "#1e40af", background: "#dbeafe", padding: "1px 6px", borderRadius: 99, fontWeight: 600 }}>Tb. cliente</span>}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 13, color: "#6b7280" }}>{p.ruc || "—"}</td>
-                    <td style={{ padding: "12px" }}>
-                      <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{p.categoria || "—"}</span>
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{p.banco || "—"}</td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
-                      {p.nombre_contacto ? `${p.nombre_contacto}${p.apellido_contacto ? " " + p.apellido_contacto : ""}` : "—"}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{tipoPagoLabel(p.tipo_pago)}</td>
-                    <td style={{ padding: "12px" }}>
-                      {ratings[p.id] ? (
-                        <StarRating rating={ratings[p.id].promedio} totalVotos={ratings[p.id].total} size="sm" showCount={true} />
-                      ) : (
-                        <span style={{ fontSize: 11, color: "#d1d5db" }}>Sin rating</span>
-                      )}
-                    </td>
-                    <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                        <button onClick={() => abrirEditar(p)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
-                        <button onClick={() => eliminar(p.id, p.nombre)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>Eliminar</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {totalPaginas > 1 && (
-              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "16px 20px", borderTop: "1px solid #f3f4f6" }}>
-                <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
-                  style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === 1 ? "not-allowed" : "pointer", color: pagina === 1 ? "#d1d5db" : "#374151", fontSize: 13 }}>
-                  Anterior
-                </button>
-                {Array.from({ length: totalPaginas }, (_, i) => i + 1).map(n => (
-                  <button key={n} onClick={() => setPagina(n)}
-                    style={{ padding: "5px 10px", border: "1px solid " + (n === pagina ? "#0F6E56" : "#e5e7eb"), borderRadius: 6, background: n === pagina ? "#0F6E56" : "#fff", color: n === pagina ? "#fff" : "#374151", cursor: "pointer", fontSize: 13, fontWeight: n === pagina ? 700 : 400 }}>
-                    {n}
-                  </button>
-                ))}
-                <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
-                  style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 13 }}>
-                  Siguiente
-                </button>
-                <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>{proveedoresFiltrados.length} proveedores · Pág. {pagina}/{totalPaginas}</span>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+    </>
   )
 }
