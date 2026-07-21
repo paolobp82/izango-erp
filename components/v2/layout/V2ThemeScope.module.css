@@ -113,6 +113,14 @@
   color: var(--v2-text);
 }
 
+/* El colapso del sidebar se controla desde V2Sidebar.tsx mediante un atributo
+   en el contenedor raiz .izango-v2 (mismo div que .themeScope). Al cambiar
+   --v2-sidebar-width aqui, el sidebar, la topbar y el contenido (que ya
+   dependen de esta variable) se reajustan juntos sin tocar esos componentes. */
+:global(.izango-v2[data-sidebar-collapsed="true"]) {
+  --v2-sidebar-width: var(--v2-sidebar-collapsed);
+}
+
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
@@ -123,6 +131,7 @@
   flex-direction: column;
   border-right: 1px solid var(--v2-sidebar-border);
   background: var(--v2-sidebar-bg);
+  transition: width 0.2s ease;
 }
 
 .sidebarInner {
@@ -134,11 +143,29 @@
   min-height: 0;
 }
 
+.sidebarCollapsed .sidebarInner {
+  padding: 20px 10px;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+.sidebarCollapsed .brandRow {
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
 .brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 32px;
+  min-width: 0;
   text-decoration: none;
 }
 
@@ -146,6 +173,7 @@
   display: grid;
   width: 32px;
   height: 32px;
+  flex-shrink: 0;
   place-items: center;
   border-radius: var(--v2-radius);
   background: var(--v2-accent);
@@ -169,6 +197,29 @@
   font-weight: 700;
 }
 
+.collapseToggle {
+  display: grid;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--v2-sidebar-border);
+  border-radius: var(--v2-radius);
+  background: transparent;
+  color: var(--v2-sidebar-muted);
+  cursor: pointer;
+}
+
+.collapseToggle:hover {
+  background: var(--v2-sidebar-panel);
+  color: var(--v2-text);
+}
+
+.collapseToggle:focus-visible {
+  outline: 2px solid var(--v2-focus-ring);
+  outline-offset: 2px;
+}
+
 .primaryAction {
   display: flex;
   width: 100%;
@@ -186,9 +237,28 @@
   font-family: inherit;
   font-size: 12px;
   font-weight: 900;
+  text-decoration: none;
 }
 
 .primaryAction:hover {
+  background: var(--v2-accent-hover);
+}
+
+.primaryActionCollapsed {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  border: 0;
+  border-radius: var(--v2-radius);
+  background: var(--v2-accent);
+  color: var(--v2-accent-ink);
+  text-decoration: none;
+}
+
+.primaryActionCollapsed:hover {
   background: var(--v2-accent-hover);
 }
 
@@ -227,12 +297,49 @@
 }
 
 .navSectionTitle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
   margin: 12px 0 6px;
+  padding: 2px;
+  border: 0;
+  background: transparent;
   color: #64748b;
+  cursor: pointer;
+  font-family: inherit;
   font-size: 9px;
   font-weight: 900;
   letter-spacing: 0.08em;
+  text-align: left;
   text-transform: uppercase;
+}
+
+.navSectionTitle:hover {
+  color: var(--v2-subtle);
+}
+
+.navSectionTitle:focus-visible {
+  outline: 2px solid var(--v2-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--v2-radius-sm);
+}
+
+.navSectionChevron {
+  flex-shrink: 0;
+  color: inherit;
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+
+.navSectionChevronOpen {
+  transform: rotate(0deg);
+}
+
+.navDivider {
+  height: 1px;
+  margin: 10px 4px;
+  background: var(--v2-sidebar-border);
 }
 
 .navItem {
@@ -275,9 +382,25 @@
   place-items: center;
 }
 
+.sidebarCollapsed .navItem {
+  justify-content: center;
+  padding: 8px;
+}
+
+.sidebarCollapsed .navItem:hover {
+  transform: none;
+}
+
 .profileFooter {
   border-top: 1px solid var(--v2-sidebar-border);
   padding-top: 16px;
+}
+
+.sidebarCollapsed .profileFooter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 .profilePill {
@@ -301,6 +424,24 @@
   color: #cbd5e1;
   font-size: 11px;
   font-weight: 900;
+}
+
+.avatarCollapsed {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--v2-sidebar-panel);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.avatarCollapsed:hover {
+  background: var(--v2-accent);
+  color: var(--v2-accent-ink);
 }
 
 .profileName {
@@ -330,6 +471,7 @@
   margin-top: 8px;
   padding: 6px 12px;
   border: 0;
+  border-radius: var(--v2-radius);
   background: transparent;
   color: #64748b;
   cursor: pointer;
@@ -340,6 +482,22 @@
 
 .logoutButton:hover {
   color: #cbd5e1;
+}
+
+.logoutButton:focus-visible {
+  outline: 2px solid var(--v2-focus-ring);
+  outline-offset: 2px;
+}
+
+.sidebarCollapsed .logoutButton {
+  width: 32px;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebarCollapsed .logoutButton:hover {
+  background: var(--v2-sidebar-panel);
 }
 
 .topbar {
@@ -355,6 +513,7 @@
   border-bottom: 1px solid var(--v2-topbar-border);
   background: var(--v2-topbar);
   padding: 0 24px;
+  transition: left 0.2s ease;
 }
 
 .topbarLeft,
@@ -387,29 +546,182 @@
   font-weight: 600 !important;
 }
 
-.tabs {
-  height: 100%;
-  gap: 24px;
+.shortcutsBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
 }
 
-.tabLink {
+.shortcutsScroll {
   display: flex;
-  height: var(--v2-topbar-height);
   align-items: center;
-  border-bottom: 2px solid transparent;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.shortcutsScroll::-webkit-scrollbar {
+  display: none;
+}
+
+.shortcutAddWrap {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.shortcutChip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  border-radius: var(--v2-radius-pill);
+  background: var(--v2-surface-muted);
+}
+
+.shortcutChipLink {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 6px 0 10px;
   color: var(--v2-subtle);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
   text-decoration: none;
+  white-space: nowrap;
 }
 
-.tabLink:hover {
+.shortcutChip:hover .shortcutChipLink {
   color: var(--v2-text);
 }
 
-.tabLinkActive {
-  border-bottom-color: var(--v2-accent);
+.shortcutChipActive .shortcutChipLink {
   color: var(--v2-accent);
+}
+
+.shortcutChipRemove {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.shortcutChipRemove:hover {
+  opacity: 1;
+  background: var(--v2-surface-soft);
+}
+
+.shortcutPanel {
+  display: grid;
+  gap: var(--v2-space-2);
+  width: 340px;
+  max-width: calc(100vw - 48px);
+}
+
+.shortcutSearchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.shortcutSearchIcon {
+  position: absolute;
+  left: 9px;
+  color: var(--v2-subtle);
+  pointer-events: none;
+}
+
+.shortcutSearchInput {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px 0 30px;
+  border: 1px solid var(--v2-border-soft);
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface-muted);
+  color: var(--v2-text);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.shortcutSearchInput:focus {
+  outline: 2px solid var(--v2-focus-ring);
+  outline-offset: 1px;
+}
+
+.shortcutSectionList {
+  display: grid;
+  gap: var(--v2-space-3);
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.shortcutSectionGroup {
+  display: grid;
+  gap: 1px;
+}
+
+.shortcutSectionTitle {
+  margin: 0;
+  padding: 4px 6px 6px;
+  color: var(--v2-muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.shortcutOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--v2-radius);
+  background: transparent;
+  color: var(--v2-text);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shortcutOption:hover {
+  background: var(--v2-surface-muted);
+}
+
+.shortcutOptionActive {
+  color: var(--v2-accent);
+}
+
+.shortcutOptionLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.shortcutEmpty {
+  margin: 0;
+  padding: 8px 6px;
+  color: var(--v2-subtle);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .iconButton {
@@ -443,6 +755,7 @@
   min-height: 100vh;
   width: calc(100% - var(--v2-sidebar-width));
   background: var(--v2-canvas);
+  transition: margin-left 0.2s ease, width 0.2s ease;
 }
 
 .contentScroll {
@@ -758,7 +1071,7 @@
 }
 
 @media (max-width: 1180px) {
-  .tabs {
+  .shortcutsBar {
     display: none;
   }
 

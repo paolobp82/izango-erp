@@ -135,13 +135,7 @@
 }
 
 .executiveHeader::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 4px;
-  height: 100%;
-  background: linear-gradient(180deg, var(--v2-indigo), var(--v2-accent));
+  display: none;
 }
 
 .headerTop {
@@ -394,7 +388,7 @@
   flex-shrink: 0;
 }
 
-/* 3. Izango Intelligence */
+/* 3. ZIGI */
 .premiumIntelligenceCard {
   display: flex;
   flex-direction: column;
@@ -423,7 +417,7 @@
   background: linear-gradient(135deg, rgba(3, 227, 115, 0.05), rgba(79, 70, 229, 0.05));
   border-radius: var(--v2-radius);
   padding: var(--v2-space-3);
-  border-left: 3px solid var(--v2-accent);
+  border-left: 1px solid var(--v2-border);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
@@ -638,19 +632,7 @@
 }
 
 .alertBottomItem {
-  display: flex;
-  align-items: center;
-  gap: var(--v2-space-3);
-  padding: var(--v2-space-2) var(--v2-space-3);
-  border-radius: var(--v2-radius);
-  border: 1px solid var(--v2-border);
-  background: var(--v2-surface-muted);
-  transition: all 0.2s ease;
-}
-
-.alertBottomItem:hover {
-  background: var(--v2-surface-soft);
-  transform: translateX(2px);
+  display: contents;
 }
 
 .alertBottomIcon {
@@ -960,4 +942,122 @@
   .kpiGridPremium {
     grid-template-columns: 1fr;
   }
+}
+
+/* Overrides to remove decorative borders/accent lines and marcos perimetrales */
+.dashboardRoot [class*="executiveHeader"]::before {
+  display: none !important;
+}
+
+.dashboardRoot [class*="executiveHeader"],
+.dashboardRoot [class*="premiumKpiCard"],
+.dashboardRoot [class*="sectionCard"],
+.dashboardRoot [class*="alertCardCompact"],
+.dashboardRoot [class*="chartCardFrame"] {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.dashboardRoot [class*="intelligenceSummary"] {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* --- SPRINT 7.3: SEGUNDO MANTENIMIENTO CORRECTIVO VISUAL DASHBOARD V2 --- */
+
+/* 1. Registros de Línea de Actividad (eliminar marco completo) */
+.dashboardRoot [class*="timelineCard"] {
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+  background: var(--v2-surface-muted) !important;
+  border-radius: var(--v2-radius-sm) !important;
+  box-shadow: none !important;
+}
+
+.dashboardRoot [class*="timelineItem"]:hover [class*="timelineCard"] {
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--v2-surface) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* 2. Buscador y accesos (eliminar borde exterior de la barra) */
+.dashboardRoot [class*="toolbar"] {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: var(--v2-space-2) 0 !important;
+}
+
+/* 3. ZIGI (eliminar marco perimetral fuerte de las 3 tarjetas) */
+.dashboardRoot [class*="intelligenceItem"] {
+  border: none !important;
+  box-shadow: none !important;
+  background: var(--v2-surface-muted) !important;
+  padding: var(--v2-space-2) var(--v2-space-3) !important;
+}
+
+
+/* 4. Alertas del negocio (convertir a filas ligeras con acento tonal) */
+.alertsBottomList [class*="alertCardCompact"] {
+  border: none !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: var(--v2-space-3) 0 !important;
+  min-height: auto !important;
+}
+
+.alertsBottomList [class*="alertCardCompact"]:last-child {
+  border-bottom: none !important;
+}
+
+.alertsBottomList [class*="alertCardCompact"]:hover {
+  transform: none !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.alertsBottomList [class*="alertCardWarning"] {
+  background: rgba(217, 119, 6, 0.03) !important;
+  border-left: 3px solid var(--v2-warning) !important;
+  padding-left: var(--v2-space-3) !important;
+}
+
+.alertsBottomList [class*="alertCardInfo"] {
+  background: rgba(37, 99, 235, 0.03) !important;
+  border-left: 3px solid var(--v2-info) !important;
+  padding-left: var(--v2-space-3) !important;
+}
+
+.alertsBottomList [class*="alertCardHot"] {
+  background: rgba(220, 38, 38, 0.03) !important;
+  border-left: 3px solid var(--v2-danger) !important;
+  padding-left: var(--v2-space-3) !important;
+}
+
+/* 5. Accesos rápidos inferiores (bordes suavizados y fondos integrados) */
+.dashboardRoot [class*="quickActionsGrid"] button,
+.dashboardRoot [class*="quickActionsGrid"] a {
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--v2-surface-soft) !important;
+  border-radius: var(--v2-radius) !important;
+  transition: all 0.2s ease !important;
+}
+
+.dashboardRoot [class*="quickActionsGrid"] button:hover,
+.dashboardRoot [class*="quickActionsGrid"] a:hover {
+  background: var(--v2-surface) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 6. Estado del sistema y Sincronización (sin borde perimetral fuerte, fondo tonal suave) */
+.dashboardRoot [class*="metaCard"] {
+  border: none !important;
+  box-shadow: none !important;
+  background: var(--v2-surface-soft) !important;
+  border-radius: var(--v2-radius-sm) !important;
+  padding: var(--v2-space-1) var(--v2-space-3) !important;
+  min-height: auto !important;
 }

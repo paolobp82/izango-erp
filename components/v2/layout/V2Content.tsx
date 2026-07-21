@@ -35,21 +35,23 @@ const PAGE_LABELS: Record<string, { section: string; title: string; tag: string 
 
 export function V2Content({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const page = PAGE_LABELS[pathname] || PAGE_LABELS["/admin/ui-v2-shell"]
+  const page = PAGE_LABELS[pathname]
 
   return (
     <main className={styles.main}>
       <div className={styles.contentScroll}>
-        <div className={styles.breadcrumbBar}>
-          <nav className={styles.breadcrumb} aria-label="Breadcrumb">
-            <span>SIG</span>
-            <ChevronRight size={14} />
-            <span>{page.section}</span>
-            <ChevronRight size={14} />
-            <strong>{page.title}</strong>
-          </nav>
-          <span className={styles.demoTag}>{page.tag}</span>
-        </div>
+        {page ? (
+          <div className={styles.breadcrumbBar}>
+            <nav className={styles.breadcrumb} aria-label="Breadcrumb">
+              <span>SIG</span>
+              <ChevronRight size={14} />
+              <span>{page.section}</span>
+              <ChevronRight size={14} />
+              <strong>{page.title}</strong>
+            </nav>
+            <span className={styles.demoTag}>{page.tag}</span>
+          </div>
+        ) : null}
         <div className={styles.contentShell}>{children}</div>
       </div>
     </main>

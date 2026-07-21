@@ -1,32 +1,12 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import {
-  AlertTriangle,
-  BarChart3,
-  Bot,
-  BriefcaseBusiness,
-  CalendarDays,
-  CheckSquare,
-  CircleDollarSign,
-  FileText,
-  FolderKanban,
-  LayoutDashboard,
-  LogOut,
-  Package,
-  Palette,
-  Plus,
-  ReceiptText,
-  Settings,
-  Shield,
-  Sparkles,
-  Truck,
-  UserRound,
-  UsersRound,
-} from "lucide-react"
+import { ChevronDown, ChevronsLeft, ChevronsRight, LogOut, Plus } from "lucide-react"
 import { createClient } from "@/lib/supabase"
 import { puedeVerRuta } from "@/lib/permisos/rutas"
+import { V2_NAVIGATION, isV2Admin } from "./v2-navigation.config"
 import styles from "./V2ThemeScope.module.css"
 
 type V2Profile = {
@@ -35,18 +15,6 @@ type V2Profile = {
   apellido?: string | null
   perfil: string
   entidad?: string | null
-}
-
-type NavItem = {
-  label: string
-  href: string
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>
-  adminOnly?: boolean
-}
-
-type NavSection = {
-  section: string
-  items: NavItem[]
 }
 
 const PROFILE_LABELS: Record<string, string> = {
@@ -62,137 +30,213 @@ const PROFILE_LABELS: Record<string, string> = {
   practicante: "Practicante",
 }
 
-const NAV: NavSection[] = [
-  {
-    section: "Inicio",
-    items: [
-      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Mi Trabajo", href: "/tareas", icon: CheckSquare },
-      { label: "Calendario", href: "/calendario", icon: CalendarDays },
-      { label: "Alertas", href: "/alertas", icon: AlertTriangle },
-    ],
-  },
-  {
-    section: "Comercial",
-    items: [
-      { label: "CRM", href: "/crm", icon: BriefcaseBusiness },
-      { label: "Clientes", href: "/clientes", icon: UsersRound },
-      { label: "Biblioteca", href: "/biblioteca", icon: FolderKanban },
-      { label: "Biblioteca Medios", href: "/biblioteca-medios", icon: FileText },
-    ],
-  },
-  {
-    section: "Operacion",
-    items: [
-      { label: "Proyectos", href: "/proyectos", icon: FolderKanban },
-      { label: "Gestor", href: "/gestor", icon: BarChart3 },
-      { label: "Req. Audiovisuales", href: "/audiovisual/requerimientos", icon: Sparkles },
-    ],
-  },
-  {
-    section: "Finanzas",
-    items: [
-      { label: "Facturacion", href: "/facturacion", icon: ReceiptText },
-      { label: "Liquidaciones", href: "/liquidaciones", icon: CircleDollarSign },
-      { label: "RQ", href: "/rq", icon: FileText },
-      { label: "Inventario", href: "/inventario", icon: Package },
-      { label: "Logistica", href: "/logistica/traslados", icon: Truck },
-    ],
-  },
-  {
-    section: "Cuenta",
-    items: [
-      { label: "Mi Perfil", href: "/perfil", icon: UserRound },
-      { label: "Asistente IA", href: "/ia", icon: Bot },
-      { label: "Usuarios", href: "/admin/usuarios", icon: Shield },
-      { label: "UI V2 Shell", href: "/admin/ui-v2-shell", icon: Settings, adminOnly: true },
-      { label: "Design System V2", href: "/admin/design-system-v2", icon: Palette, adminOnly: true },
-      { label: "Dashboard V2", href: "/admin/dashboard-v2", icon: LayoutDashboard, adminOnly: true },
-    ],
-  },
-]
+const SIDEBAR_COLLAPSED_KEY = "izango-v2-sidebar-collapsed"
+const SIDEBAR_SECTIONS_KEY = "izango-v2-sidebar-sections"
+const DEFAULT_OPEN_SECTION = "Inicio"
 
 function initials(profile: V2Profile) {
   return `${profile.nombre?.[0] || ""}${profile.apellido?.[0] || ""}`.toUpperCase() || "IZ"
 }
 
-function isAdmin(profile: V2Profile) {
-  return ["superadmin", "gerente_general", "controller"].includes(profile.perfil)
+function loadCollapsed(): boolean {
+  if (typeof window === "undefined") return false
+  return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true"
+}
+
+function loadOpenSections(): Record<string, boolean> {
+  if (typeof window === "undefined") return {}
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_SECTIONS_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
 }
 
 export function V2Sidebar({ profile }: { profile: V2Profile }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const [collapsed, setCollapsed] = useState(loadCollapsed)
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(loadOpenSections)
 
   async function logout() {
     await supabase.auth.signOut()
     router.push("/login")
   }
 
-  const visibleSections = NAV.map((section) => ({
+  const visibleSections = V2_NAVIGATION.map((section) => ({
     ...section,
-    items: section.items.filter((item) => {
-      if (item.adminOnly) return isAdmin(profile)
-      return puedeVerRuta(profile.perfil, item.href)
-    }),
+    items: section.items.filter((item) => (item.adminOnly ? isV2Admin(profile.perfil) : puedeVerRuta(profile.perfil, item.href))),
   })).filter((section) => section.items.length > 0)
 
+  const isItemActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
+  const activeSection = visibleSections.find((section) => section.items.some((item) => isItemActive(item.href)))?.section
+
+  // Persistir el colapso general y reflejarlo en el contenedor raiz .izango-v2:
+  // V2ThemeScope.module.css reajusta --v2-sidebar-width desde ahi, asi que la
+  // topbar y el contenido se reacomodan sin que este componente los toque.
+  useEffect(() => {
+    const root = document.querySelector<HTMLElement>(".izango-v2")
+    root?.setAttribute("data-sidebar-collapsed", String(collapsed))
+    try {
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed))
+    } catch {
+      // no-op si localStorage no esta disponible
+    }
+  }, [collapsed])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SIDEBAR_SECTIONS_KEY, JSON.stringify(openSections))
+    } catch {
+      // no-op si localStorage no esta disponible
+    }
+  }, [openSections])
+
+  // Regla obligatoria: la seccion de la ruta activa debe quedar visible, tanto en el primer
+  // render (lastPathname arranca en null a proposito) como al navegar despues. Se ajusta
+  // durante el render (no en un efecto), siguiendo el patron de React para "adjusting state
+  // when a prop changes" -- asi el usuario puede volver a cerrarla despues sin que se reabra sola.
+  const [lastPathname, setLastPathname] = useState<string | null>(null)
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname)
+    if (activeSection && openSections[activeSection] !== true) {
+      setOpenSections((prev) => ({ ...prev, [activeSection]: true }))
+    }
+  }
+
+  function isSectionOpen(section: string) {
+    if (openSections[section] !== undefined) return openSections[section]
+    return section === DEFAULT_OPEN_SECTION || section === activeSection
+  }
+
+  function toggleSection(section: string) {
+    setOpenSections((prev) => ({ ...prev, [section]: !isSectionOpen(section) }))
+  }
+
   return (
-    <aside className={styles.sidebar}>
+    <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""}`}>
       <div className={styles.sidebarInner}>
         <div>
-          <Link className={styles.brand} href="/dashboard">
-            <div className={styles.brandMark}>
-              <Sparkles size={18} strokeWidth={3} />
-            </div>
-            <div>
-              <p className={styles.brandTitle}>Izango 360 SAC</p>
-              <p className={styles.brandSubtitle}>Izango Peru Portal</p>
-            </div>
-          </Link>
+          <div className={styles.brandRow}>
+            <Link className={styles.brand} href="/dashboard">
+              <div className={styles.brandMark}>
+                <img
+                  src="https://oernvcmmbkmscpfrmwja.supabase.co/storage/v1/object/public/assets/Mesa%20de%20trabajo%201.png"
+                  alt="Izango"
+                  style={{ height: "20px", objectFit: "contain", display: "block" }}
+                />
+              </div>
+              {!collapsed && (
+                <div>
+                  <p className={styles.brandTitle}>Izango 360 SAC</p>
+                  <p className={styles.brandSubtitle}>Izango Peru Portal</p>
+                </div>
+              )}
+            </Link>
 
-          <Link className={styles.primaryAction} href="/proyectos/nuevo">
-            <Plus size={16} strokeWidth={3} />
-            Nuevo Proyecto
-          </Link>
+            <button
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? "Expandir menu" : "Colapsar menu"}
+              className={styles.collapseToggle}
+              onClick={() => setCollapsed((value) => !value)}
+              title={collapsed ? "Expandir menu" : "Colapsar menu"}
+              type="button"
+            >
+              {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
+            </button>
+          </div>
+
+          {collapsed ? (
+            <Link className={styles.primaryActionCollapsed} href="/proyectos/nuevo" title="Nuevo Proyecto">
+              <Plus size={18} strokeWidth={3} />
+            </Link>
+          ) : (
+            <Link className={styles.primaryAction} href="/proyectos/nuevo">
+              <Plus size={16} strokeWidth={3} />
+              Nuevo Proyecto
+            </Link>
+          )}
 
           <nav className={styles.nav} aria-label="Navegacion V2">
-            {visibleSections.map((section) => (
-              <div className={styles.navSection} key={section.section}>
-                <div className={styles.navSectionTitle}>{section.section}</div>
-                {section.items.map((item) => {
-                  const Icon = item.icon
-                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
-                  return (
-                    <Link
-                      className={`${styles.navItem} ${active ? styles.navItemActive : ""}`}
-                      href={item.href}
-                      key={item.href}
+            {visibleSections.map((section) => {
+              const open = isSectionOpen(section.section)
+              const sectionId = `v2-nav-section-${section.section.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+              return (
+                <div className={styles.navSection} key={section.section}>
+                  {collapsed ? (
+                    <div className={styles.navDivider} role="separator" />
+                  ) : (
+                    <button
+                      aria-controls={sectionId}
+                      aria-expanded={open}
+                      className={styles.navSectionTitle}
+                      onClick={() => toggleSection(section.section)}
+                      type="button"
                     >
-                      <span className={styles.navIcon}>
-                        <Icon size={18} strokeWidth={2.4} />
-                      </span>
-                      <span>{item.label}</span>
-                    </Link>
-                  )
-                })}
-              </div>
-            ))}
+                      <span>{section.section}</span>
+                      <ChevronDown
+                        className={`${styles.navSectionChevron} ${open ? styles.navSectionChevronOpen : ""}`}
+                        size={13}
+                        strokeWidth={2.6}
+                      />
+                    </button>
+                  )}
+
+                  {(collapsed || open) && (
+                    <div id={sectionId}>
+                      {section.items.map((item) => {
+                        const Icon = item.icon
+                        const active = isItemActive(item.href)
+                        return (
+                          <Link
+                            className={`${styles.navItem} ${active ? styles.navItemActive : ""}`}
+                            href={item.href}
+                            key={item.href}
+                            title={collapsed ? item.label : undefined}
+                          >
+                            <span className={styles.navIcon}>
+                              <Icon size={18} strokeWidth={2.4} />
+                            </span>
+                            {!collapsed && <span>{item.label}</span>}
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </nav>
         </div>
 
         <div className={styles.profileFooter}>
-          <div className={styles.profilePill}>
-            <div className={styles.avatar}>{initials(profile)}</div>
-            <div style={{ minWidth: 0 }}>
-              <div className={styles.profileName}>{profile.nombre} {profile.apellido}</div>
-              <div className={styles.profileRole}>{PROFILE_LABELS[profile.perfil] || profile.perfil}</div>
+          {collapsed ? (
+            <Link
+              className={styles.avatarCollapsed}
+              href="/perfil"
+              title={`${profile.nombre || ""} ${profile.apellido || ""}`.trim() || "Mi perfil"}
+            >
+              {initials(profile)}
+            </Link>
+          ) : (
+            <div className={styles.profilePill}>
+              <div className={styles.avatar}>{initials(profile)}</div>
+              <div style={{ minWidth: 0 }}>
+                <div className={styles.profileName}>{profile.nombre} {profile.apellido}</div>
+                <div className={styles.profileRole}>{PROFILE_LABELS[profile.perfil] || profile.perfil}</div>
+              </div>
             </div>
-          </div>
-          <button className={styles.logoutButton} onClick={logout} type="button">
+          )}
+          <button
+            className={styles.logoutButton}
+            onClick={logout}
+            title={collapsed ? "Cerrar sesion" : undefined}
+            type="button"
+          >
             <LogOut size={16} />
-            Cerrar sesion
+            {!collapsed && "Cerrar sesion"}
           </button>
         </div>
       </div>

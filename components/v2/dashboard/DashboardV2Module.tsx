@@ -536,10 +536,42 @@ async function loadDashboardData(): Promise<DashboardData | null> {
     .slice(0, 5) : []
 
   const alertas: AlertItem[] = []
-  if (pendientes.length > 0) alertas.push({ tipo: "warning", msg: `${pendientes.length} proyecto(s) esperando aprobacion`, link: "/proyectos" })
-  if (terminadosSinLiquidar.length > 0) alertas.push({ tipo: "warning", msg: `${terminadosSinLiquidar.length} proyecto(s) terminado(s) sin liquidar`, link: "/liquidaciones" })
-  if (rqsPendientes.length > 0) alertas.push({ tipo: "info", msg: `${rqsPendientes.length} RQs pendientes${canSeeCostos ? ` - ${fmtCurrencyShort(rqsPendientesMonto)}` : ""}`, link: "/rq" })
-  if (leadsCalientes > 0) alertas.push({ tipo: "hot", msg: `${leadsCalientes} lead(s) caliente(s) requieren atencion`, link: "/crm" })
+  if (pendientes.length > 0) {
+    alertas.push({
+      tipo: "warning",
+      msg: pendientes.length === 1
+        ? "1 proyecto esperando aprobación"
+        : `${pendientes.length} proyectos esperando aprobación`,
+      link: "/proyectos",
+    })
+  }
+  if (terminadosSinLiquidar.length > 0) {
+    alertas.push({
+      tipo: "warning",
+      msg: terminadosSinLiquidar.length === 1
+        ? "1 proyecto terminado sin liquidar"
+        : `${terminadosSinLiquidar.length} proyectos terminados sin liquidar`,
+      link: "/liquidaciones",
+    })
+  }
+  if (rqsPendientes.length > 0) {
+    alertas.push({
+      tipo: "info",
+      msg: rqsPendientes.length === 1
+        ? `1 RQ pendiente${canSeeCostos ? ` - ${fmtCurrencyShort(rqsPendientesMonto)}` : ""}`
+        : `${rqsPendientes.length} RQ pendientes${canSeeCostos ? ` - ${fmtCurrencyShort(rqsPendientesMonto)}` : ""}`,
+      link: "/rq",
+    })
+  }
+  if (leadsCalientes > 0) {
+    alertas.push({
+      tipo: "hot",
+      msg: leadsCalientes === 1
+        ? "1 lead caliente requiere atención"
+        : `${leadsCalientes} leads calientes requieren atención`,
+      link: "/crm",
+    })
+  }
 
   return {
     alertas,
@@ -769,10 +801,10 @@ export function DashboardV2Module() {
       {/* 3. Tendencia de facturación (Main) & 4. Estados de proyectos (Side) */}
       <div className={styles.rowFacturacionEstados}>
         <V2ChartCard
-          title="Facturacion y cobranza"
-          description="Ultimos 6 meses con las mismas reglas financieras del Dashboard V1."
+          title="Facturación y cobranza"
+          description="Últimos 6 meses con las mismas reglas financieras del Dashboard V1."
           empty={!metrics.canSeeFacturas}
-          emptyText="Informacion financiera restringida"
+          emptyText="Información financiera restringida"
         >
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={data.chartFacturacion} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
@@ -801,7 +833,7 @@ export function DashboardV2Module() {
         </V2SectionCard>
       </div>
 
-      {/* 5. Proyectos recientes Activity Timeline (Main) & 6. Panel Izango Intelligence (Side) */}
+      {/* 5. Proyectos recientes Activity Timeline (Main) & 6. ZIGI (Side) */}
       <div className={styles.rowProyectosIntelligence}>
         <V2SectionCard
           action={
@@ -849,7 +881,7 @@ export function DashboardV2Module() {
           />
         </V2SectionCard>
 
-        <V2SectionCard description="Analitica estratégica consolidada de la cartera." title="Izango Intelligence">
+        <V2SectionCard description="Inteligencia estratégica de Izango" title="ZIGI">
           <V2IntelligencePanel
             summary={intel.resumen}
             items={[
@@ -882,7 +914,7 @@ export function DashboardV2Module() {
           )}
         </V2SectionCard>
 
-        <V2SectionCard description="Cobranza y flujos liquidados de facturacion." title="Resumen financiero comparativo">
+        <V2SectionCard description="Cobranza y flujos liquidados de facturación." title="Resumen financiero comparativo">
           <V2FinancialSummary
             items={[
               {
@@ -898,7 +930,7 @@ export function DashboardV2Module() {
                 type: "receivables",
               },
               {
-                label: "Facturacion total emitida",
+                label: "Facturación total emitida",
                 value: metrics.canSeeFacturas ? fmtCurrencyShort(metrics.totalFacturado) : FINANCIAL_LOCK_LABEL,
                 percentage: 100,
                 type: "total",

@@ -1,26 +1,18 @@
 "use client"
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
 import { HelpCircle, Moon, RefreshCw, Sun } from "lucide-react"
 import BusquedaGlobal from "@/components/BusquedaGlobal"
 import Notificaciones from "@/components/Notificaciones"
 import { useTheme } from "@/components/design-system"
+import { V2TopbarShortcuts } from "./V2TopbarShortcuts"
 import styles from "./V2ThemeScope.module.css"
 
 type TopbarProfile = {
   id: string
+  perfil?: string | null
 }
 
-const TABS = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "CRM Comercial", href: "/crm" },
-  { label: "Operaciones", href: "/proyectos" },
-  { label: "Finanzas", href: "/finanzas/dashboard" },
-]
-
 export function V2Topbar({ profile }: { profile: TopbarProfile }) {
-  const pathname = usePathname()
   const { theme, toggleTheme } = useTheme()
 
   return (
@@ -30,16 +22,7 @@ export function V2Topbar({ profile }: { profile: TopbarProfile }) {
           <BusquedaGlobal />
         </div>
 
-        <nav className={styles.tabs} aria-label="Secciones principales">
-          {TABS.map((tab) => {
-            const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`)
-            return (
-              <Link className={`${styles.tabLink} ${active ? styles.tabLinkActive : ""}`} href={tab.href} key={tab.href}>
-                {tab.label}
-              </Link>
-            )
-          })}
-        </nav>
+        <V2TopbarShortcuts perfil={profile.perfil} />
       </div>
 
       <div className={styles.topbarRight}>

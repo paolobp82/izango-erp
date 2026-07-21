@@ -1,10 +1,12 @@
 "use client"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { clearBrowserSupabaseSession, isInvalidRefreshTokenError } from "@/lib/supabase-session"
 import Sidebar from "./Sidebar"
 import BusquedaGlobal from "@/components/BusquedaGlobal"
 import Notificaciones from "@/components/Notificaciones"
 import { useRouter, usePathname } from "next/navigation"
+import { V2AppShell } from "@/components/v2/layout"
 
 type LayoutProfile = {
   id: string
@@ -20,23 +22,99 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const supabase = useMemo(() => createClient(), [])
+  const redirectingToLoginRef = useRef(false)
 
   const isAuthRoute = pathname === "/login" || pathname === "/reset-password" || pathname?.startsWith("/auth")
+  const v2Routes = [
+    "/proveedores",
+    "/biblioteca",
+    "/admin/usuarios",
+    "/crm",
+    "/clientes",
+    "/proyectos",
+    "/perfil",
+    "/rrhh/trabajadores",
+    "/rrhh/faltas-medicas",
+    "/rrhh/horas-extras",
+    "/rrhh/permisos",
+    "/rrhh/vacaciones",
+    "/logistica/traslados",
+    "/inventario/ubicaciones",
+    "/alertas",
+    "/biblioteca-medios",
+    "/envios-materiales",
+    "/envio-materiales",
+    "/inventario/ordenes",
+    "/logistica/mi-trabajo",
+    "/inventario",
+    "/calendario",
+    "/reporteria",
+    "/trazabilidad",
+    "/ia",
+    "/gestor",
+    "/dashboard",
+    "/rq",
+    "/facturacion",
+    "/liquidaciones",
+    "/caja-chica",
+    "/gastos-oficina",
+  ]
+  const isV2Route = v2Routes.some(
+    (route) => pathname === route || pathname?.startsWith(`${route}/`)
+  )
 
   useEffect(() => {
-    if (isAuthRoute) return
+    if (isAuthRoute || isV2Route) return
+    let cancelled = false
+
+    async function redirectToLogin(clearSession: boolean) {
+      if (redirectingToLoginRef.current) return
+      redirectingToLoginRef.current = true
+      if (clearSession) await clearBrowserSupabaseSession(supabase)
+      if (!cancelled) {
+        setPerfil(null)
+        setLoading(false)
+        router.replace("/login")
+      }
+    }
+
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push("/login"); return }
-      const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-      if (!p) { router.push("/login"); return }
-      setPerfil(p)
-      setLoading(false)
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser()
+        if (error && isInvalidRefreshTokenError(error)) {
+          await redirectToLogin(true)
+          return
+        }
+        if (error || !user) {
+          await redirectToLogin(false)
+          return
+        }
+        const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
+        if (!p) {
+          await redirectToLogin(false)
+          return
+        }
+        if (!cancelled) {
+          setPerfil(p)
+          setLoading(false)
+        }
+      } catch (error) {
+        await redirectToLogin(isInvalidRefreshTokenError(error))
+      }
     }
     load()
-  }, [isAuthRoute, router, supabase])
+    return () => { cancelled = true }
+  }, [isAuthRoute, isV2Route, router, supabase])
 
   if (isAuthRoute) return <>{children}</>
+
+  if (isV2Route) {
+    return (
+      <V2AppShell>
+        {children}
+      </V2AppShell>
+    )
+  }
 
   if (loading) return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f9fafb"}}>
@@ -64,5 +142,3 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </div>
   )
 }
-
-
