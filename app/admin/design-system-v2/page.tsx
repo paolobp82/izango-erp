@@ -27,12 +27,14 @@ import {
   V2KpiCard,
   V2LoadingState,
   V2Modal,
+  V2Drawer,
   V2PageHeader,
   V2Pagination,
   V2SectionCard,
   V2Select,
   V2Skeleton,
   V2StatusDot,
+  V2StatusBadge,
   V2Tabs,
   type V2TableColumn,
   // Nuevos V2 Design Language
@@ -44,10 +46,12 @@ import {
   V2ActivityTimeline,
   V2IntelligencePanel,
   V2FinancialSummary,
-  V2QuickActions,
-  V2Drawer,
+  V2ConfirmDialog,
   V2FormField,
-  V2StatusBadge,
+  V2Popover,
+  V2Tooltip,
+  V2Toast,
+  V2ToastViewport,
   V2DataTable,
 } from "@/components/v2/system"
 import styles from "@/components/v2/system/V2System.module.css"
@@ -128,7 +132,14 @@ const colorTokens = [
 export default function DesignSystemV2Page() {
   const [activeTab, setActiveTab] = useState("components")
   const [modalOpen, setModalOpen] = useState(false)
+  const [modalSize, setModalSize] = useState<"sm" | "md" | "lg" | "xl" | "full">("md")
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerSide, setDrawerSide] = useState<"right" | "left" | "bottom">("right")
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmTone, setConfirmTone] = useState<"neutral" | "warning" | "danger">("danger")
+  const [confirmLoading, setConfirmLoading] = useState(false)
+  const [toastOpen, setToastOpen] = useState(false)
+  const [toastTone, setToastTone] = useState<"info" | "success" | "warning" | "error">("info")
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState("todos")
 
@@ -572,6 +583,65 @@ export default function DesignSystemV2Page() {
                 </div>
               </div>
             </V2SectionCard>
+
+            <V2SectionCard description="Overlays V2: Modales, Drawers, Diálogos de confirmación, Popovers, Tooltips y Toasts." title="Overlays V2">
+              <div className={styles.sectionGrid}>
+                <div style={{ display: "grid", gap: "12px" }}>
+                  <p className={styles.label}>1. Modales y Paneles (V2Modal / V2Drawer)</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    <V2Button size="sm" onClick={() => { setModalSize("sm"); setModalOpen(true); }}>Modal Pequeño (sm)</V2Button>
+                    <V2Button size="sm" onClick={() => { setModalSize("md"); setModalOpen(true); }}>Modal Mediano (md)</V2Button>
+                    <V2Button size="sm" onClick={() => { setModalSize("lg"); setModalOpen(true); }}>Modal Grande (lg)</V2Button>
+                    <V2Button size="sm" variant="secondary" onClick={() => { setDrawerSide("right"); setDrawerOpen(true); }}>Drawer Derecha</V2Button>
+                    <V2Button size="sm" variant="secondary" onClick={() => { setDrawerSide("left"); setDrawerOpen(true); }}>Drawer Izquierda</V2Button>
+                    <V2Button size="sm" variant="secondary" onClick={() => { setDrawerSide("bottom"); setDrawerOpen(true); }}>Drawer Inferior</V2Button>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gap: "12px" }}>
+                  <p className={styles.label}>2. Diálogos de Confirmación (V2ConfirmDialog)</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    <V2Button size="sm" variant="secondary" onClick={() => { setConfirmTone("neutral"); setConfirmOpen(true); }}>Confirmar Neutral</V2Button>
+                    <V2Button size="sm" variant="secondary" onClick={() => { setConfirmTone("warning"); setConfirmOpen(true); }}>Confirmar Warning</V2Button>
+                    <V2Button size="sm" variant="danger" onClick={() => { setConfirmTone("danger"); setConfirmOpen(true); }}>Eliminar (Danger)</V2Button>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gap: "12px" }}>
+                  <p className={styles.label}>3. Popovers y Tooltips (V2Popover / V2Tooltip)</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                    <V2Popover
+                      placement="bottom"
+                      trigger={<V2Button size="sm" variant="secondary">Abrir Popover</V2Button>}
+                    >
+                      <div style={{ display: "grid", gap: "8px", width: "180px" }}>
+                        <p style={{ margin: 0, fontSize: "12px", fontWeight: "bold" }}>Opciones Rápidas</p>
+                        <V2Button size="sm" variant="ghost">Ver detalles</V2Button>
+                        <V2Button size="sm" variant="ghost">Exportar datos</V2Button>
+                      </div>
+                    </V2Popover>
+
+                    <V2Tooltip content="Tooltip de ayuda posicionado arriba" placement="top">
+                      <V2Button size="sm" variant="ghost">Hover me (Top)</V2Button>
+                    </V2Tooltip>
+
+                    <V2Tooltip content="Tooltip deshabilitado" disabled placement="bottom">
+                      <V2Button disabled size="sm" variant="ghost">Disabled Tooltip</V2Button>
+                    </V2Tooltip>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gap: "12px" }}>
+                  <p className={styles.label}>4. Notificaciones Toasts (V2Toast)</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    <V2Button size="sm" variant="secondary" onClick={() => { setToastTone("info"); setToastOpen(true); }}>Toast Info</V2Button>
+                    <V2Button size="sm" variant="secondary" onClick={() => { setToastTone("success"); setToastOpen(true); }}>Toast Success</V2Button>
+                    <V2Button size="sm" variant="secondary" onClick={() => { setToastTone("warning"); setToastOpen(true); }}>Toast Warning</V2Button>
+                    <V2Button size="sm" variant="danger" onClick={() => { setToastTone("error"); setToastOpen(true); }}>Toast Error</V2Button>
+                  </div>
+                </div>
+              </div>
+            </V2SectionCard>
           </>
         )}
 
@@ -707,40 +777,66 @@ export default function DesignSystemV2Page() {
       </div>
 
       {/* MODAL MUESTRA DESIGN SYSTEM */}
-      <V2Modal onClose={() => setModalOpen(false)} open={modalOpen} title="Modal V2 Showcase">
+      <V2Modal onClose={() => setModalOpen(false)} open={modalOpen} size={modalSize} title="Modal V2 Showcase">
         <div style={{ display: "grid", gap: 16 }}>
-          <p className={styles.bodyCompact}>Este modal es parte del Design System y no realiza modificaciones en el backend.</p>
-          <V2FormField label="Ingrese datos de muestra" required>
-            <V2Input placeholder="Ej. Patron" />
-          </V2FormField>
-          <V2QuickActions cols={2}>
-            <V2Button onClick={() => setModalOpen(false)}>Confirmar</V2Button>
-            <V2Button onClick={() => setModalOpen(false)} variant="ghost">Cancelar</V2Button>
-          </V2QuickActions>
+          <p className={styles.bodyCompact}>Este modal es parte del Design System V2 y no realiza modificaciones en el backend.</p>
+          <V2Input placeholder="Ejemplo de campo dentro de modal V2" />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <V2Button onClick={() => setModalOpen(false)} variant="secondary">Cancelar</V2Button>
+            <V2Button onClick={() => setModalOpen(false)}>Aceptar</V2Button>
+          </div>
         </div>
       </V2Modal>
 
       {/* DRAWER MUESTRA DESIGN SYSTEM */}
-      <V2Drawer onClose={() => setDrawerOpen(false)} open={drawerOpen} title="Filtros del Sistema V2">
+      <V2Drawer onClose={() => setDrawerOpen(false)} open={drawerOpen} side={drawerSide} title="Filtros del Sistema V2">
         <div style={{ display: "grid", gap: 16 }}>
-          <p className={styles.bodyCompact}>Este panel deslizable (420px) se utiliza para configurar filtros y formularios densos.</p>
-          <V2FormField label="Filtro por Razón Social">
-            <V2Input placeholder="Ej. Auna SAC" />
-          </V2FormField>
-          <V2FormField label="Filtro por Responsable">
-            <V2Select
-              options={[
-                { label: "Paolo Rossi", value: "paolo" },
-                { label: "Giancarlo Veliz", value: "giancarlo" },
-              ]}
-            />
-          </V2FormField>
-          <V2QuickActions cols={2}>
+          <p className={styles.bodyCompact}>Este panel deslizable ({drawerSide}) se utiliza para configurar filtros y formularios densos.</p>
+          <V2Input placeholder="Ej. Auna SAC" />
+          <V2Select
+            options={[
+              { label: "Paolo Rossi", value: "paolo" },
+              { label: "Giancarlo Veliz", value: "giancarlo" },
+            ]}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <V2Button onClick={() => setDrawerOpen(false)}>Aplicar filtros</V2Button>
-            <V2Button onClick={() => setDrawerOpen(false)} variant="ghost">Limpiar</V2Button>
-          </V2QuickActions>
+            <V2Button onClick={() => setDrawerOpen(false)} variant="secondary">Limpiar</V2Button>
+          </div>
         </div>
       </V2Drawer>
+
+      {/* CONFIRM DIALOG MUESTRA */}
+      <V2ConfirmDialog
+        confirmLabel="Confirmar acción"
+        description="Esta acción afectará los registros seleccionados en la demostración."
+        loading={confirmLoading}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmLoading(true)
+          setTimeout(() => {
+            setConfirmLoading(false)
+            setConfirmOpen(false)
+          }, 1000)
+        }}
+        open={confirmOpen}
+        title="¿Desea proceder con esta operación?"
+        tone={confirmTone}
+      />
+
+      {/* TOAST VIEWPORT MUESTRA */}
+      <V2ToastViewport position="bottom-right">
+        {toastOpen ? (
+          <V2Toast
+            action={{ label: "Deshacer", onClick: () => setToastOpen(false) }}
+            description="La operación solicitada se ejecutó en el entorno de demostración V2."
+            onDismiss={() => setToastOpen(false)}
+            open={toastOpen}
+            title="Notificación del Sistema"
+            tone={toastTone}
+          />
+        ) : null}
+      </V2ToastViewport>
     </V2AppShell>
   )
 }
