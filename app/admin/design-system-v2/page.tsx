@@ -54,6 +54,7 @@ import {
   V2ToastViewport,
   V2DataTable,
 } from "@/components/v2/system"
+import { V2ListPageTemplate } from "@/components/v2/templates"
 import styles from "@/components/v2/system/V2System.module.css"
 
 type DemoRow = {
@@ -182,6 +183,7 @@ export default function DesignSystemV2Page() {
           items={[
             { id: "fundamentals", label: "Fundamentos" },
             { id: "components", label: "Componentes base" },
+            { id: "templates", label: "Template Listado V2" },
             { id: "patterns", label: "Patrones V2" },
           ]}
           onChange={setActiveTab}
@@ -639,6 +641,133 @@ export default function DesignSystemV2Page() {
                     <V2Button size="sm" variant="secondary" onClick={() => { setToastTone("warning"); setToastOpen(true); }}>Toast Warning</V2Button>
                     <V2Button size="sm" variant="danger" onClick={() => { setToastTone("error"); setToastOpen(true); }}>Toast Error</V2Button>
                   </div>
+                </div>
+              </div>
+            </V2SectionCard>
+          </>
+        )}
+
+        {/* TAB TEMPLATES: TEMPLATE DE LISTADO V2 (SPRINT 6.1) */}
+        {activeTab === "templates" && (
+          <>
+            <V2SectionCard
+              description="Demostración composicional de V2ListPageTemplate demostrando los 6 escenarios normativos."
+              title="V2ListPageTemplate — Escenarios de Presentación"
+            >
+              <div style={{ display: "grid", gap: "32px" }}>
+                {/* ESCENARIO A: LISTADO COMPLETO */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario A — Listado Completo (Breadcrumb, 4 KPIs, Filtros, Tabla y Paginación)</p>
+                  <V2ListPageTemplate
+                    actions={
+                      <V2Button icon={<Plus size={14} />} size="sm" variant="primary">
+                        Nuevo Registro
+                      </V2Button>
+                    }
+                    breadcrumb={<span>Inicio / Administración / Clientes</span>}
+                    description="Gestión integral de clientes corporativos del ERP."
+                    eyebrow="MÓDULO DE CLIENTES"
+                    filters={
+                      <V2FilterBar activeCount={1}>
+                        <V2Input compact placeholder="Buscar cliente..." value={query} onChange={(e) => setQuery(e.target.value)} />
+                        <V2Select compact value={status} onChange={(e) => setStatus(e.target.value)} options={[{ label: "Todos", value: "todos" }, { label: "Activo", value: "Activo" }]} />
+                      </V2FilterBar>
+                    }
+                    kpis={
+                      <>
+                        <V2KpiCard label="Total Clientes" tone="neutral" value="128" />
+                        <V2KpiCard label="Clientes Activos" tone="success" value="94" />
+                        <V2KpiCard label="En Revisión" tone="warning" value="22" />
+                        <V2KpiCard label="En Riesgo" tone="error" value="12" />
+                      </>
+                    }
+                    pagination={
+                      <V2Pagination page={1} pageCount={4} pageSize={10} totalItems={38} onPageChange={() => undefined} />
+                    }
+                    secondaryActions={
+                      <V2Button icon={<Download size={14} />} size="sm" variant="secondary">
+                        Exportar
+                      </V2Button>
+                    }
+                    title="Listado de Clientes"
+                  >
+                    <V2DataTable columns={columns} getRowId={(row) => row.id} rows={filteredRows} />
+                  </V2ListPageTemplate>
+                </div>
+
+                {/* ESCENARIO B: LISTADO COMPACTO SIN KPIS */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario B — Listado Compacto sin KPIs (density=&quot;compact&quot;, contentWidth=&quot;contained&quot;)</p>
+                  <V2ListPageTemplate
+                    actions={<V2Button size="sm">Crear Item</V2Button>}
+                    contentWidth="contained"
+                    density="compact"
+                    description="Vista densa para administración rápida."
+                    filters={
+                      <V2FilterBar>
+                        <V2Input compact placeholder="Filtrar..." />
+                      </V2FilterBar>
+                    }
+                    pagination={<V2Pagination page={1} pageCount={2} onPageChange={() => undefined} />}
+                    title="Listado Compacto"
+                  >
+                    <V2DataTable columns={columns} density="compact" getRowId={(row) => row.id} rows={filteredRows.slice(0, 2)} />
+                  </V2ListPageTemplate>
+                </div>
+
+                {/* ESCENARIO C: LOADING STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario C — Estado de Carga (state=&quot;loading&quot;)</p>
+                  <V2ListPageTemplate
+                    description="Cargando información del servidor..."
+                    state="loading"
+                    title="Cargando Registros"
+                  >
+                    <div />
+                  </V2ListPageTemplate>
+                </div>
+
+                {/* ESCENARIO D: EMPTY STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario D — Estado Vacío (state=&quot;empty&quot;)</p>
+                  <V2ListPageTemplate
+                    description="No se encontraron datos coincidentes."
+                    emptyState={<V2EmptyState description="Intente ajustando los filtros." title="Sin Registros" />}
+                    state="empty"
+                    title="Consulta Sin Resultados"
+                  >
+                    <div />
+                  </V2ListPageTemplate>
+                </div>
+
+                {/* ESCENARIO E: ERROR STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario E — Estado de Error (state=&quot;error&quot;)</p>
+                  <V2ListPageTemplate
+                    errorState={<V2ErrorState errorCode="500-SRV" title="Fallo en la comunicación con el servidor" />}
+                    state="error"
+                    title="Error de Carga"
+                  >
+                    <div />
+                  </V2ListPageTemplate>
+                </div>
+
+                {/* ESCENARIO F: COLECCIÓN SIN TABLA */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario F — Colección sin Tabla (Grid de Tarjetas)</p>
+                  <V2ListPageTemplate
+                    description="Colección visual en cuadrícula de tarjetas."
+                    title="Galería de Medios"
+                  >
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px" }}>
+                      {[1, 2, 3, 4].map((item) => (
+                        <div key={item} style={{ padding: "12px", border: "1px solid var(--v2-border)", borderRadius: "6px", background: "var(--v2-surface-container-low)" }}>
+                          <p style={{ margin: 0, fontSize: "12px", fontWeight: "bold" }}>Recurso #{item}</p>
+                          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--v2-muted)" }}>Imagen HD (1920x1080)</p>
+                        </div>
+                      ))}
+                    </div>
+                  </V2ListPageTemplate>
                 </div>
               </div>
             </V2SectionCard>
