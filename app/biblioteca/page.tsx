@@ -1,11 +1,22 @@
 "use client"
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { buscarItemsCotizados } from "@/lib/quote-item-search"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2PageHeader,
+  V2Tabs,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
+import styles from "./Biblioteca.module.css"
 
 const COSTOS_INTERNOS = [
   { key: "costo_almacenaje", label: "Almacenaje" },
@@ -158,67 +169,477 @@ export default function BibliotecaPage() {
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
 
-  const filtrados = items.filter(i => {
-    if (filtroCategoria && i.categoria !== filtroCategoria) return false
-    if (busqueda) {
-      const q = busqueda.toLowerCase()
-      const coincide = [
-        i.descripcion,
-        i.categoria,
-        i.origen_proyecto_nombre,
-        i.origen_proyecto_codigo,
-        i.origen_cotizacion_version ? `cotización v${i.origen_cotizacion_version}` : "",
-        i.origen_fecha ? new Date(i.origen_fecha).toLocaleDateString("es-PE") : "",
-        i.proveedor?.nombre,
-        i.proveedor_nombre,
-      ].some(valor => String(valor || "").toLowerCase().includes(q))
-      if (!coincide) return false
-    }
-    return true
-  })
-  const cotizadosFiltrados = itemsCotizados.filter(item => {
-    if (busqueda) {
-      const q = busqueda.toLowerCase()
-      const cot = item.cotizacion
-      const proy = cot?.proyecto
-      const cliente = proy?.cliente
-      const coincide = [item.descripcion, proy?.codigo, proy?.nombre, cliente?.razon_social, cot?.version ? `v${cot.version}` : ""]
-        .some(valor => String(valor || "").toLowerCase().includes(q))
-      if (!coincide) return false
-    }
-    if (filtroCategoria && item.categoria !== filtroCategoria) return false
-    return true
-  })
-  const categoriasItems = Array.from(new Set(items.map(i => i.categoria).filter(Boolean))) as string[]
+  const filtrados = useMemo(() => {
+    return items.filter(i => {
+      if (filtroCategoria && i.categoria !== filtroCategoria) return false
+      if (busqueda) {
+        const q = busqueda.toLowerCase()
+        const coincide = [
+          i.descripcion,
+          i.categoria,
+          i.origen_proyecto_nombre,
+          i.origen_proyecto_codigo,
+          i.origen_cotizacion_version ? `cotización v${i.origen_cotizacion_version}` : "",
+          i.origen_fecha ? new Date(i.origen_fecha).toLocaleDateString("es-PE") : "",
+          i.proveedor?.nombre,
+          i.proveedor_nombre,
+        ].some(valor => String(valor || "").toLowerCase().includes(q))
+        if (!coincide) return false
+      }
+      return true
+    })
+  }, [items, filtroCategoria, busqueda])
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  const cotizadosFiltrados = useMemo(() => {
+    return itemsCotizados.filter(item => {
+      if (busqueda) {
+        const q = busqueda.toLowerCase()
+        const cot = item.cotizacion
+        const proy = cot?.proyecto
+        const cliente = proy?.cliente
+        const coincide = [item.descripcion, proy?.codigo, proy?.nombre, cliente?.razon_social, cot?.version ? `v${cot.version}` : ""]
+          .some(valor => String(valor || "").toLowerCase().includes(q))
+        if (!coincide) return false
+      }
+      if (filtroCategoria && item.categoria !== filtroCategoria) return false
+      return true
+    })
+  }, [itemsCotizados, busqueda, filtroCategoria])
+
+  const categoriasItems = useMemo(() => {
+    return Array.from(new Set(items.map(i => i.categoria).filter(Boolean))) as string[]
+  }, [items])
+
+  const columnsBiblioteca: V2TableColumn<any>[] = [
+    {
+      key: "descripcion",
+      header: "Descripción",
+      render: (item) => (
+        <div>
+          <strong style={{ color: "var(--v2-text)", fontWeight: 800 }}>{item.descripcion}</strong>
+          {item.notas && <div style={{ fontSize: 11, color: "var(--v2-muted)", marginTop: 2 }}>{item.notas}</div>}
+          {item.origen_cotizacion_id && (
+            <div style={{ fontSize: 11, color: "var(--v2-muted)", marginTop: 4 }}>
+              Origen: {item.origen_proyecto_codigo ? item.origen_proyecto_codigo + " - " : ""}{item.origen_proyecto_nombre || "Proyecto"}
+              {item.origen_cotizacion_version ? ` · Cotización v${item.origen_cotizacion_version}` : ""}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "categoria",
+      header: "Categoría",
+      render: (item) => (
+        item.categoria ? (
+          <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+            {item.categoria}
+          </span>
+        ) : "—"
+      ),
+    },
+    {
+      key: "centro_costos",
+      header: "Centro Costos",
+      render: (item) => item.centro_costos || "—",
+    },
+    {
+      key: "proveedor",
+      header: "Proveedor",
+      render: (item) => item.proveedor?.nombre || item.proveedor_nombre || "—",
+    },
+    {
+      key: "costo",
+      header: "Costo",
+      align: "right",
+      render: (item) => <span style={{ fontWeight: 600, color: "#dc2626" }}>{fmt(item.costo_total)}</span>,
+    },
+    {
+      key: "margen",
+      header: "Margen",
+      align: "center",
+      render: (item) => (
+        <span style={{ fontWeight: 600, color: item.margen_pct >= 35 ? "#0F6E56" : "#ca8a04" }}>
+          {item.margen_pct}%
+        </span>
+      ),
+    },
+    {
+      key: "precio_cliente",
+      header: "Precio Cli.",
+      align: "right",
+      render: (item) => (
+        <div>
+          <span style={{ fontWeight: 700, color: "#0F6E56" }}>{fmt(item.precio_cliente)}</span>
+          {item.precio_cliente_manual && <div style={{ fontSize: 10, color: "var(--v2-muted)" }}>precio manual</div>}
+        </div>
+      ),
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (item) => (
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          <V2Button
+            type="button"
+            size="compact"
+            variant="secondary"
+            onClick={() => abrirEditar(item)}
+          >
+            Editar
+          </V2Button>
+          <V2Button
+            type="button"
+            size="compact"
+            variant="secondary"
+            onClick={() => eliminar(item.id, item.descripcion)}
+            style={{ color: "#dc2626" }}
+          >
+            Eliminar
+          </V2Button>
+        </div>
+      ),
+    },
+  ]
+
+  const columnsCotizados: V2TableColumn<any>[] = [
+    {
+      key: "descripcion",
+      header: "Ítem Cotizado",
+      render: (item) => <strong style={{ color: "var(--v2-text)", fontWeight: 800 }}>{item.descripcion || "Sin descripción"}</strong>,
+    },
+    {
+      key: "proyecto",
+      header: "Proyecto",
+      render: (item) => {
+        const proy = item.cotizacion?.proyecto
+        return (
+          <div>
+            <strong>{proy?.codigo || "—"}</strong>
+            <div style={{ color: "var(--v2-muted)", fontSize: 11 }}>{proy?.nombre || "Sin proyecto"}</div>
+          </div>
+        )
+      },
+    },
+    {
+      key: "cliente",
+      header: "Cliente",
+      render: (item) => item.cotizacion?.proyecto?.cliente?.razon_social || "—",
+    },
+    {
+      key: "cotizacion",
+      header: "Cotización",
+      render: (item) => {
+        const cot = item.cotizacion
+        return (
+          <span style={{ color: "#6d28d9", fontWeight: 700 }}>
+            V{cot?.version || "?"} · {cot?.estado || "sin estado"}
+          </span>
+        )
+      },
+    },
+    {
+      key: "precio",
+      header: "Precio",
+      align: "right",
+      render: (item) => <span style={{ fontWeight: 700, color: "#0F6E56" }}>{fmt(item.precio_cliente)}</span>,
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (item) => {
+        const cot = item.cotizacion
+        const href = cot?.proyecto_id && cot?.id ? `/proyectos/${cot.proyecto_id}/cotizaciones/${cot.id}` : ""
+        return (
+          href ? (
+            <V2Button
+              type="button"
+              size="compact"
+              variant="secondary"
+              onClick={() => router.push(href)}
+            >
+              Abrir
+            </V2Button>
+          ) : null
+        )
+      },
+    },
+  ]
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Biblioteca de Ítems</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-            {items.length} ítems guardados · {itemsCotizados.length} ítems cotizados disponibles para consulta
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <ImportExport modulo="biblioteca" campos={[{key:"descripcion",label:"Descripcion",requerido:true},{key:"categoria",label:"Categoria"},{key:"centro_costos",label:"Centro costos"},{key:"costo_almacenaje",label:"Costo almacenaje"},{key:"costo_impresion",label:"Costo impresion"},{key:"costo_alquiler",label:"Costo alquiler"},{key:"margen_pct",label:"Margen %"},{key:"proveedor_nombre",label:"Proveedor"}]} datos={items} onImportar={async (registros) => { let exitosos=0; const errores:string[]=[]; for(const r of registros){const costoTotal=(Number(r.costo_almacenaje)||0)+(Number(r.costo_impresion)||0)+(Number(r.costo_alquiler)||0); const margen=Number(r.margen_pct)||40; const precioCliente=margen<100?costoTotal/(1-margen/100):costoTotal; const{error}=await supabase.from("items_biblioteca").insert({...r,costo_total:costoTotal,precio_cliente:precioCliente,activo:true}); if(error)errores.push(r.descripcion+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
-          <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo item</button>
-        </div>
-      </div>
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            title="Biblioteca de Ítems"
+            subtitle={`${items.length} ítems guardados · ${itemsCotizados.length} ítems cotizados`}
+            actions={
+              <V2Button onClick={abrirNuevo} size="compact">
+                + Nuevo item
+              </V2Button>
+            }
+          />
+        }
+        summary={
+          <div style={{ marginBottom: "16px" }}>
+            <V2Tabs
+              activeId={vista}
+              items={[
+                { id: "biblioteca", label: "Biblioteca" },
+                { id: "cotizados", label: "Buscador de ítems cotizados" },
+              ]}
+              onChange={(id: any) => {
+                setVista(id)
+                router.replace(`/biblioteca${id === "cotizados" ? "?tab=cotizados" : ""}`)
+              }}
+            />
+          </div>
+        }
+        toolbar={
+          <V2FilterBar
+            searchValue={busqueda}
+            onSearchChange={(val) => {
+              setBusqueda(val)
+            }}
+            activeFiltersCount={filtroCategoria !== "" ? 1 : 0}
+            hideDrawerButton={true}
+            onToggleDrawer={() => {}}
+            quickFilters={
+              <div style={{ width: "200px", flexShrink: 0 }}>
+                <V2Select
+                  options={[
+                    { label: "Todas las categorías", value: "" },
+                    ...categoriasItems.map((c) => ({ label: c, value: c })),
+                  ]}
+                  value={filtroCategoria}
+                  onChange={(e) => setFiltroCategoria(e.target.value)}
+                  compact
+                />
+              </div>
+            }
+            showClearButton={busqueda !== "" || filtroCategoria !== ""}
+            onClearFilters={() => {
+              setBusqueda("")
+              setFiltroCategoria("")
+            }}
+          />
+        }
+        table={
+          loading ? (
+            <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+              Cargando Biblioteca de ítems...
+            </div>
+          ) : (
+            <>
+              {loadError && (
+                <div style={{ padding: 12, border: "1px solid #fecaca", background: "#fef2f2", color: "#991b1b", borderRadius: 8, fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
+                  No se pudo cargar la Biblioteca de items: {loadError}
+                </div>
+              )}
 
-      {loadError && (
-        <div style={{ padding: 12, border: "1px solid #fecaca", background: "#fef2f2", color: "#991b1b", borderRadius: 8, fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
-          No se pudo cargar la Biblioteca de items: {loadError}
-        </div>
-      )}
+              {vista === "cotizados" ? (
+                <>
+                  {/* Desktop Table View */}
+                  <div className={styles.tableContainer}>
+                    <V2DataTable
+                      columns={columnsCotizados}
+                      rows={cotizadosFiltrados}
+                      getRowKey={(item) => item.id}
+                      empty={
+                        <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+                          No se encontraron ítems cotizados.
+                        </div>
+                      }
+                    />
+                  </div>
 
-      <div className="card" style={{ marginBottom: 14, padding: "10px 14px", display: "flex", gap: 8, alignItems: "center" }}>
-        <button className={vista === "biblioteca" ? "btn-primary" : "btn-secondary"} style={{ fontSize: 12 }} onClick={() => { setVista("biblioteca"); router.replace("/biblioteca") }}>Biblioteca</button>
-        <button className={vista === "cotizados" ? "btn-primary" : "btn-secondary"} style={{ fontSize: 12 }} onClick={() => { setVista("cotizados"); router.replace("/biblioteca?tab=cotizados") }}>Buscador de ítems cotizados</button>
-        <span style={{ fontSize: 12, color: "#6b7280", marginLeft: "auto" }}>El buscador queda integrado en esta pantalla.</span>
-      </div>
+                  {/* Mobile Card View */}
+                  <div className={styles.cardsContainer}>
+                    {cotizadosFiltrados.length === 0 ? (
+                      <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+                        No se encontraron ítems cotizados.
+                      </div>
+                    ) : (
+                      cotizadosFiltrados.map((item) => {
+                        const cot = item.cotizacion
+                        const proy = cot?.proyecto
+                        const cliente = proy?.cliente
+                        const href = cot?.proyecto_id && cot?.id ? `/proyectos/${cot.proyecto_id}/cotizaciones/${cot.id}` : ""
+                        return (
+                          <div key={item.id} className={styles.card}>
+                            <div className={styles.cardHeader}>
+                              <h4 className={styles.cardTitle}>{item.descripcion || "Sin descripción"}</h4>
+                              <span style={{ color: "#6d28d9", fontWeight: 700, fontSize: 10 }}>
+                                V{cot?.version || "?"}
+                              </span>
+                            </div>
+
+                            <div className={styles.cardContent}>
+                              <div>
+                                <span className={styles.cardLabel}>Proyecto:</span>
+                                {proy?.codigo || "—"} ({proy?.nombre || "Sin proyecto"})
+                              </div>
+                              <div>
+                                <span className={styles.cardLabel}>Cliente:</span>
+                                {cliente?.razon_social || "—"}
+                              </div>
+                              <div>
+                                <span className={styles.cardLabel}>Cotización Estado:</span>
+                                {cot?.estado || "sin estado"}
+                              </div>
+                              <div>
+                                <span className={styles.cardLabel}>Precio:</span>
+                                <span style={{ color: "#0F6E56", fontWeight: "bold" }}>{fmt(item.precio_cliente)}</span>
+                              </div>
+                            </div>
+
+                            <div className={styles.cardActions}>
+                              {href && (
+                                <V2Button
+                                  type="button"
+                                  size="compact"
+                                  variant="secondary"
+                                  onClick={() => router.push(href)}
+                                >
+                                  Abrir
+                                </V2Button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Desktop Table View */}
+                  <div className={styles.tableContainer}>
+                    <V2DataTable
+                      columns={columnsBiblioteca}
+                      rows={filtrados}
+                      getRowKey={(item) => item.id}
+                      empty={
+                        <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+                          No hay items. Crea el primero.
+                        </div>
+                      }
+                    />
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className={styles.cardsContainer}>
+                    {filtrados.length === 0 ? (
+                      <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+                        No hay items. Crea el primero.
+                      </div>
+                    ) : (
+                      filtrados.map((item) => (
+                        <div key={item.id} className={styles.card}>
+                          <div className={styles.cardHeader}>
+                            <h4 className={styles.cardTitle}>
+                              {item.descripcion}
+                              {item.notas && <div style={{ fontSize: 11, color: "var(--v2-muted)", fontWeight: "normal", marginTop: 2 }}>{item.notes}</div>}
+                            </h4>
+                            {item.categoria && (
+                              <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 600 }}>
+                                {item.categoria}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className={styles.cardContent}>
+                            <div>
+                              <span className={styles.cardLabel}>Centro Costos:</span>
+                              {item.centro_costos || "—"}
+                            </div>
+                            <div>
+                              <span className={styles.cardLabel}>Proveedor:</span>
+                              {item.proveedor?.nombre || item.proveedor_nombre || "—"}
+                            </div>
+                            <div>
+                              <span className={styles.cardLabel}>Costo:</span>
+                              <span style={{ color: "#dc2626", fontWeight: "bold" }}>{fmt(item.costo_total)}</span>
+                            </div>
+                            <div>
+                              <span className={styles.cardLabel}>Margen:</span>
+                              {item.margen_pct}%
+                            </div>
+                            <div>
+                              <span className={styles.cardLabel}>Precio Cliente:</span>
+                              <span style={{ color: "#0F6E56", fontWeight: "bold" }}>{fmt(item.precio_cliente)}</span>
+                            </div>
+                          </div>
+
+                          <div className={styles.cardActions}>
+                            <V2Button
+                              type="button"
+                              size="compact"
+                              variant="secondary"
+                              onClick={() => abrirEditar(item)}
+                            >
+                              Editar
+                            </V2Button>
+                            <V2Button
+                              type="button"
+                              size="compact"
+                              variant="secondary"
+                              onClick={() => eliminar(item.id, item.descripcion)}
+                              style={{ color: "#dc2626" }}
+                            >
+                              Eliminar
+                            </V2Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Import/Export toolbar */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", flexWrap: "wrap", gap: 12 }}>
+                <ImportExport
+                  modulo="biblioteca"
+                  campos={[
+                    { key: "descripcion", label: "Descripcion", requerido: true },
+                    { key: "categoria", label: "Categoria" },
+                    { key: "centro_costos", label: "Centro costos" },
+                    { key: "costo_almacenaje", label: "Costo almacenaje" },
+                    { key: "costo_impresion", label: "Costo impresion" },
+                    { key: "costo_alquiler", label: "Costo alquiler" },
+                    { key: "margen_pct", label: "Margen %" },
+                    { key: "proveedor_nombre", label: "Proveedor" },
+                  ]}
+                  datos={items}
+                  onImportar={async (registros) => {
+                    let exitosos = 0
+                    const errores: string[] = []
+                    for (const r of registros) {
+                      const costoTotal = (Number(r.costo_almacenaje) || 0) + (Number(r.costo_impresion) || 0) + (Number(r.costo_alquiler) || 0)
+                      const margen = Number(r.margen_pct) || 40
+                      const precioCliente = margen < 100 ? costoTotal / (1 - margen / 100) : costoTotal
+                      const { error } = await supabase.from("items_biblioteca").insert({
+                        ...r,
+                        costo_total: costoTotal,
+                        precio_cliente: precioCliente,
+                        activo: true,
+                      })
+                      if (error) errores.push(r.descripcion + ": " + error.message)
+                      else exitosos++
+                    }
+                    load()
+                    return { exitosos, errores }
+                  }}
+                  variant="v2"
+                />
+              </div>
+            </>
+          )
+        }
+      />
 
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -353,117 +774,6 @@ export default function BibliotecaPage() {
           </div>
         </div>
       )}
-
-      {/* Filtros */}
-      <div className="card" style={{ marginBottom: 16, padding: "12px 16px" }}>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <input style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", minWidth: 200 }}
-            placeholder="Buscar item..."
-            value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
-            value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}>
-            <option value="">Todas las categorias</option>
-            {categoriasItems.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          {(busqueda || filtroCategoria) && (
-            <button onClick={() => { setBusqueda(""); setFiltroCategoria("") }}
-              style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
-              Limpiar
-            </button>
-          )}
-          <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: "auto" }}>{filtrados.length} items</span>
-        </div>
-      </div>
-
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {vista === "cotizados" ? (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ÍTEM COTIZADO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>COTIZACIÓN</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRECIO</th>
-                <th style={{ padding: "10px 20px", width: 100 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {cotizadosFiltrados.length === 0 ? (
-                <tr><td colSpan={6} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No se encontraron ítems cotizados</td></tr>
-              ) : cotizadosFiltrados.map(item => {
-                const cot = item.cotizacion
-                const proy = cot?.proyecto
-                const cliente = proy?.cliente
-                const href = cot?.proyecto_id && cot?.id ? `/proyectos/${cot.proyecto_id}/cotizaciones/${cot.id}` : ""
-                return (
-                  <tr key={item.id} style={{ borderTop: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "12px 20px", fontSize: 13, color: "#111827", fontWeight: 600 }}>{item.descripcion || "Sin descripción"}</td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}><strong>{proy?.codigo || "—"}</strong><div style={{ color: "#6b7280" }}>{proy?.nombre || "Sin proyecto"}</div></td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>{cliente?.razon_social || "—"}</td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6d28d9", fontWeight: 700 }}>V{cot?.version || "?"} · {cot?.estado || "sin estado"}</td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 13, color: "#0F6E56", fontWeight: 700 }}>{fmt(item.precio_cliente)}</td>
-                    <td style={{ padding: "12px 20px", textAlign: "right" }}>{href && <a className="btn-secondary" style={{ fontSize: 12, textDecoration: "none" }} href={href}>Abrir</a>}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        ) : filtrados.length === 0 ? (
-          <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay items. Crea el primero.</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESCRIPCION</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CATEGORIA</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CENTRO COSTOS</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROVEEDOR</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>COSTO</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MARGEN</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRECIO CLI.</th>
-                <th style={{ padding: "10px 20px", width: 130 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtrados.map((item, idx) => (
-                <tr key={item.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                  <td style={{ padding: "12px 20px" }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{item.descripcion}</div>
-                    {item.notas && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{item.notas}</div>}
-                    {item.origen_cotizacion_id && (
-                      <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-                        Origen: {item.origen_proyecto_codigo ? item.origen_proyecto_codigo + " - " : ""}{item.origen_proyecto_nombre || "Proyecto"}
-                        {item.origen_cotizacion_version ? ` · Cotización v${item.origen_cotizacion_version}` : ""}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ padding: "12px" }}>
-                    {item.categoria && <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{item.categoria}</span>}
-                  </td>
-                  <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{item.centro_costos || "—"}</td>
-                  <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{item.proveedor?.nombre || item.proveedor_nombre || "—"}</td>
-                  <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: "#dc2626" }}>{fmt(item.costo_total)}</td>
-                  <td style={{ padding: "12px", textAlign: "center", fontSize: 13, fontWeight: 600, color: item.margen_pct >= 35 ? "#0F6E56" : "#ca8a04" }}>{item.margen_pct}%</td>
-                  <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>
-                    {fmt(item.precio_cliente)}
-                    {item.precio_cliente_manual && <div style={{ fontSize: 10, color: "#6b7280" }}>precio manual</div>}
-                  </td>
-                  <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <button onClick={() => abrirEditar(item)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
-                      <button onClick={() => eliminar(item.id, item.descripcion)}
-                        style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
+    </>
   )
 }
