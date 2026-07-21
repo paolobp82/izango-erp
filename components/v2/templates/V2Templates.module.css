@@ -154,9 +154,66 @@
   margin-top: var(--v2-space-4, 16px);
 }
 
+/* -------------------------------------------------------------
+   V2FormPageTemplate Layout Styles
+------------------------------------------------------------- */
+.formRoot {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.formHeaderWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.formLayoutGrid {
+  display: grid;
+  width: 100%;
+  gap: var(--v2-space-5, 20px);
+}
+
+.hasSidebar {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.noSidebar {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.formMainContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v2-space-4, 16px);
+  min-width: 0;
+}
+
+.formSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v2-space-4, 16px);
+  min-width: 0;
+}
+
+.formFooterArea {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--v2-space-3, 12px);
+  width: 100%;
+  padding-top: var(--v2-space-4, 16px);
+  border-top: 1px solid var(--v2-border);
+  margin-top: var(--v2-space-4, 16px);
+}
+
 @media (max-width: 1024px) {
   .sidebarRight,
-  .sidebarLeft {
+  .sidebarLeft,
+  .hasSidebar {
     grid-template-columns: 1fr;
   }
 }
@@ -169,5 +226,10 @@
 
   .paginationArea {
     justify-content: center;
+  }
+
+  .formFooterArea {
+    flex-direction: column-reverse;
+    align-items: stretch;
   }
 }

@@ -54,7 +54,7 @@ import {
   V2ToastViewport,
   V2DataTable,
 } from "@/components/v2/system"
-import { V2ListPageTemplate, V2DetailPageTemplate } from "@/components/v2/templates"
+import { V2ListPageTemplate, V2DetailPageTemplate, V2FormPageTemplate } from "@/components/v2/templates"
 import styles from "@/components/v2/system/V2System.module.css"
 
 type DemoRow = {
@@ -185,6 +185,7 @@ export default function DesignSystemV2Page() {
             { id: "components", label: "Componentes base" },
             { id: "templates", label: "Template Listado V2" },
             { id: "detail-templates", label: "Template Detalle V2" },
+            { id: "form-templates", label: "Template Formulario V2" },
             { id: "patterns", label: "Patrones V2" },
           ]}
           onChange={setActiveTab}
@@ -942,6 +943,180 @@ export default function DesignSystemV2Page() {
                     errorState={<V2ErrorState errorCode="404-NOT-FOUND" title="No se pudo cargar la información del servidor" />}
                     state="error"
                     title="Fallo de Conexión"
+                  />
+                </div>
+              </div>
+            </V2SectionCard>
+          </>
+        )}
+
+        {/* TAB FORM TEMPLATES: TEMPLATE DE FORMULARIO V2 (SPRINT 6.3) */}
+        {activeTab === "form-templates" && (
+          <>
+            <V2SectionCard
+              description="Demostración composicional de V2FormPageTemplate para los 7 escenarios normativos de formulario."
+              title="V2FormPageTemplate — Escenarios de Presentación"
+            >
+              <div style={{ display: "grid", gap: "32px" }}>
+                {/* ESCENARIO A: FORMULARIO SIMPLE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario A — Formulario Simple (1 Columna, Header, Footer de Acciones)</p>
+                  <V2FormPageTemplate
+                    breadcrumb={<span>Inicio / Usuarios / Nuevo</span>}
+                    eyebrow="CREACIÓN DE CUENTA"
+                    footer={
+                      <>
+                        <V2Button size="sm" variant="secondary">Cancelar</V2Button>
+                        <V2Button size="sm" variant="primary">Guardar Usuario</V2Button>
+                      </>
+                    }
+                    subtitle="Registre los datos requeridos para la nueva cuenta del sistema."
+                    title="Nuevo Usuario de Sistema"
+                  >
+                    <V2SectionCard title="Información Básica">
+                      <div style={{ display: "grid", gap: "16px" }}>
+                        <V2FormField label="Nombre Completo" required>
+                          <V2Input placeholder="Ej. Juan Pérez" />
+                        </V2FormField>
+                        <V2FormField label="Correo Electrónico" required>
+                          <V2Input placeholder="usuario@izango.pe" type="email" />
+                        </V2FormField>
+                        <V2FormField label="Rol Asignado" required>
+                          <V2Select options={[{ value: "admin", label: "Administrador" }, { value: "productor", label: "Productor" }]} />
+                        </V2FormField>
+                      </div>
+                    </V2SectionCard>
+                  </V2FormPageTemplate>
+                </div>
+
+                {/* ESCENARIO B: FORMULARIO LARGO (MULTI-SECCIÓN) */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario B — Formulario Largo (Multi-sección de registro completo)</p>
+                  <V2FormPageTemplate
+                    breadcrumb={<span>CRM / Clientes / Nuevo</span>}
+                    eyebrow="REGISTRO CORPORATIVO"
+                    footer={
+                      <>
+                        <V2Button size="sm" variant="secondary">Guardar Borrador</V2Button>
+                        <V2Button size="sm" variant="primary">Registrar Cliente</V2Button>
+                      </>
+                    }
+                    subtitle="Complete todos los bloques corporativos y fiscales del nuevo cliente."
+                    title="Registro de Cliente Corporativo"
+                  >
+                    <div style={{ display: "grid", gap: "20px" }}>
+                      <V2SectionCard title="1. Datos de Identificación">
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                          <V2FormField label="Razón Social" required><V2Input placeholder="Razón Social S.A.C." /></V2FormField>
+                          <V2FormField label="RUC" required><V2Input placeholder="20600000000" /></V2FormField>
+                        </div>
+                      </V2SectionCard>
+
+                      <V2SectionCard title="2. Ubicación Fiscal">
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                          <V2FormField label="Dirección Fiscal" required><V2Input placeholder="Av. Javier Prado 100" /></V2FormField>
+                          <V2FormField label="Departamento"><V2Select options={[{ value: "lima", label: "Lima" }]} /></V2FormField>
+                        </div>
+                      </V2SectionCard>
+
+                      <V2SectionCard title="3. Contacto Principal">
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                          <V2FormField label="Nombre de Contacto"><V2Input placeholder="Carlos Ruiz" /></V2FormField>
+                          <V2FormField label="Teléfono"><V2Input placeholder="+51 900000000" /></V2FormField>
+                        </div>
+                      </V2SectionCard>
+                    </div>
+                  </V2FormPageTemplate>
+                </div>
+
+                {/* ESCENARIO C: FORMULARIO CON SIDEBAR */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario C — Formulario con Sidebar (Instrucciones y Ayuda)</p>
+                  <V2FormPageTemplate
+                    breadcrumb={<span>Proyectos / Nuevo</span>}
+                    eyebrow="NUEVO PROYECTO"
+                    footer={
+                      <>
+                        <V2Button size="sm" variant="secondary">Cancelar</V2Button>
+                        <V2Button size="sm" variant="primary">Crear Proyecto</V2Button>
+                      </>
+                    }
+                    sidebar={
+                      <V2SectionCard title="Guía de Llenado">
+                        <div style={{ fontSize: "12px", color: "var(--v2-muted)", display: "grid", gap: "8px" }}>
+                          <p style={{ margin: 0 }}>• El código de proyecto se genera de forma autoincremental.</p>
+                          <p style={{ margin: 0 }}>• Asigne obligatoriamente un Productor responsable titular.</p>
+                          <p style={{ margin: 0 }}>• Las fechas de inicio y fin estimadas delimitan la asignación de RQs.</p>
+                        </div>
+                      </V2SectionCard>
+                    }
+                    subtitle="Defina los parámetros base del proyecto de producción."
+                    title="Alta de Proyecto Audiovisual"
+                  >
+                    <V2SectionCard title="Parámetros del Proyecto">
+                      <div style={{ display: "grid", gap: "16px" }}>
+                        <V2FormField label="Nombre del Proyecto" required><V2Input placeholder="Campaña Verano 2026" /></V2FormField>
+                        <V2FormField label="Presupuesto Referencial (S/)"><V2Input placeholder="50000.00" type="number" /></V2FormField>
+                      </div>
+                    </V2SectionCard>
+                  </V2FormPageTemplate>
+                </div>
+
+                {/* ESCENARIO D: FORMULARIO CON RESUMEN */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario D — Formulario con Resumen (Indicadores superiores previa emisión)</p>
+                  <V2FormPageTemplate
+                    breadcrumb={<span>Finanzas / Facturación / Emitir</span>}
+                    eyebrow="EMISIÓN DE COMPROBANTE"
+                    footer={
+                      <>
+                        <V2Button size="sm" variant="secondary">Vista Previa</V2Button>
+                        <V2Button size="sm" variant="primary">Emitir Factura</V2Button>
+                      </>
+                    }
+                    summary={
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
+                        <V2KpiCard label="Subtotal" tone="neutral" value="S/ 10,000.00" />
+                        <V2KpiCard label="IGV (18%)" tone="warning" value="S/ 1,800.00" />
+                        <V2KpiCard label="Total Factura" tone="success" value="S/ 11,800.00" />
+                      </div>
+                    }
+                    title="Emisión de Factura de Venta"
+                  >
+                    <V2SectionCard title="Detalle Tributario">
+                      <V2FormField label="Moneda de Facturación">
+                        <V2Select options={[{ value: "PEN", label: "Soles (S/)" }, { value: "USD", label: "Dólares ($)" }]} />
+                      </V2FormField>
+                    </V2SectionCard>
+                  </V2FormPageTemplate>
+                </div>
+
+                {/* ESCENARIO E: LOADING STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario E — Estado de Carga (state=&quot;loading&quot;)</p>
+                  <V2FormPageTemplate
+                    state="loading"
+                    title="Cargando Formulario..."
+                  />
+                </div>
+
+                {/* ESCENARIO F: EMPTY STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario F — Estado Vacío (state=&quot;empty&quot;)</p>
+                  <V2FormPageTemplate
+                    emptyState={<V2EmptyState description="El formulario no se encuentra disponible." title="Formulario No Disponible" />}
+                    state="empty"
+                    title="Formulario Inexistente"
+                  />
+                </div>
+
+                {/* ESCENARIO G: ERROR STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario G — Estado de Error (state=&quot;error&quot;)</p>
+                  <V2FormPageTemplate
+                    errorState={<V2ErrorState errorCode="500-FORM-ERROR" title="Ocurrió un problema al renderizar los campos" />}
+                    state="error"
+                    title="Error al Cargar Formulario"
                   />
                 </div>
               </div>
