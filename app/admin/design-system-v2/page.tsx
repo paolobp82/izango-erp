@@ -54,7 +54,7 @@ import {
   V2ToastViewport,
   V2DataTable,
 } from "@/components/v2/system"
-import { V2ListPageTemplate } from "@/components/v2/templates"
+import { V2ListPageTemplate, V2DetailPageTemplate } from "@/components/v2/templates"
 import styles from "@/components/v2/system/V2System.module.css"
 
 type DemoRow = {
@@ -184,6 +184,7 @@ export default function DesignSystemV2Page() {
             { id: "fundamentals", label: "Fundamentos" },
             { id: "components", label: "Componentes base" },
             { id: "templates", label: "Template Listado V2" },
+            { id: "detail-templates", label: "Template Detalle V2" },
             { id: "patterns", label: "Patrones V2" },
           ]}
           onChange={setActiveTab}
@@ -768,6 +769,180 @@ export default function DesignSystemV2Page() {
                       ))}
                     </div>
                   </V2ListPageTemplate>
+                </div>
+              </div>
+            </V2SectionCard>
+          </>
+        )}
+
+        {/* TAB DETAIL TEMPLATES: TEMPLATE DE DETALLE V2 (SPRINT 6.2) */}
+        {activeTab === "detail-templates" && (
+          <>
+            <V2SectionCard
+              description="Demostración composicional de V2DetailPageTemplate para los 8 escenarios normativos."
+              title="V2DetailPageTemplate — Escenarios de Presentación"
+            >
+              <div style={{ display: "grid", gap: "32px" }}>
+                {/* ESCENARIO A: DETALLE SIMPLE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario A — Detalle Simple (Header, StatusBadge, Summary y Footer)</p>
+                  <V2DetailPageTemplate
+                    actions={
+                      <V2Button size="sm" variant="primary">
+                        Editar Cliente
+                      </V2Button>
+                    }
+                    breadcrumb={<span>Inicio / Clientes / CLI-2026-001</span>}
+                    eyebrow="INFORMACIÓN GENERAL"
+                    footer={
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                        <span style={{ fontSize: "11px", color: "var(--v2-muted)" }}>Última actualización: hace 2 horas por Admin</span>
+                        <V2Button size="sm" variant="secondary">Cerrar Ficha</V2Button>
+                      </div>
+                    }
+                    statusBadge={<V2StatusBadge tone="success">Cliente Activo</V2StatusBadge>}
+                    subtitle="Empresa dedicada al desarrollo audiovisual y producción corporativa."
+                    summary={
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+                        <V2KpiCard label="Facturación Anual" tone="success" value="S/ 450,000" />
+                        <V2KpiCard label="Proyectos Totales" tone="neutral" value="18" />
+                        <V2KpiCard label="Calificación" tone="warning" value="A+" />
+                      </div>
+                    }
+                    title="Corporación Audiovisual Izango S.A.C."
+                  >
+                    <V2SectionCard title="Datos de Registro">
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", fontSize: "13px" }}>
+                        <div><strong>RUC:</strong> 20601234567</div>
+                        <div><strong>Teléfono:</strong> +51 987 654 321</div>
+                        <div><strong>Dirección:</strong> Av. Javier Prado Este 1234, San Isidro</div>
+                        <div><strong>Contacto Principal:</strong> Juan Pérez (Gerente General)</div>
+                      </div>
+                    </V2SectionCard>
+                  </V2DetailPageTemplate>
+                </div>
+
+                {/* ESCENARIO B: DETALLE CON SIDEBAR DERECHO */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario B — Detalle con Sidebar Derecho (Layout 2 Columnas)</p>
+                  <V2DetailPageTemplate
+                    breadcrumb={<span>Proyectos / PROY-2026-088</span>}
+                    eyebrow="PROYECTO ACTIVO"
+                    sidebar={
+                      <V2SectionCard title="Información Clave">
+                        <div style={{ display: "grid", gap: "8px", fontSize: "12px" }}>
+                          <div><strong>Productor:</strong> Maria Gómez</div>
+                          <div><strong>Fecha Inicio:</strong> 01/07/2026</div>
+                          <div><strong>Fecha Fin:</strong> 15/08/2026</div>
+                          <div><strong>Estado:</strong> En producción</div>
+                        </div>
+                      </V2SectionCard>
+                    }
+                    sidebarPosition="right"
+                    title="Campaña Audiovisual Verano 2026"
+                  >
+                    <V2SectionCard title="Alcance del Proyecto">
+                      <p style={{ fontSize: "13px", color: "var(--v2-text-base)", margin: 0 }}>
+                        Producción de 3 spots de televisión de 30 segundos y material publicitario para redes sociales.
+                      </p>
+                    </V2SectionCard>
+                  </V2DetailPageTemplate>
+                </div>
+
+                {/* ESCENARIO C: DETALLE CON SIDEBAR IZQUIERDO */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario C — Detalle con Sidebar Izquierdo (sidebarPosition=&quot;left&quot;)</p>
+                  <V2DetailPageTemplate
+                    breadcrumb={<span>RRHH / Trabajadores / EMP-042</span>}
+                    eyebrow="FICHA TÉCNICA"
+                    sidebar={
+                      <div style={{ padding: "12px", border: "1px solid var(--v2-border)", borderRadius: "6px", background: "var(--v2-surface-container-low)" }}>
+                        <p style={{ fontWeight: "bold", margin: "0 0 8px" }}>Navegación de Ficha</p>
+                        <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px" }}>
+                          <li>Datos Personales</li>
+                          <li>Contrato y Sueldo</li>
+                          <li>Permisos y Faltas</li>
+                        </ul>
+                      </div>
+                    }
+                    sidebarPosition="left"
+                    title="Carlos Mendoza — Director Fotográfico"
+                  >
+                    <V2SectionCard title="Resumen Profesional">
+                      <p style={{ fontSize: "13px", margin: 0 }}>Especialista en iluminación y cámara cinemática con 8 años de experiencia.</p>
+                    </V2SectionCard>
+                  </V2DetailPageTemplate>
+                </div>
+
+                {/* ESCENARIO D: DETALLE CON TABS */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario D — Detalle con Pestañas (tabs)</p>
+                  <V2DetailPageTemplate
+                    tabs={
+                      <V2Tabs
+                        activeId="resumen"
+                        items={[
+                          { id: "resumen", label: "Resumen General" },
+                          { id: "presupuesto", label: "Presupuesto y RQs" },
+                          { id: "equipo", label: "Equipo Técnico" },
+                        ]}
+                      />
+                    }
+                    title="Ficha con Pestañas Interactivas"
+                  >
+                    <V2SectionCard title="Contenido de la Pestaña Activa">
+                      <p style={{ fontSize: "13px", margin: 0 }}>Contenido dinámico basado en la pestaña elegida.</p>
+                    </V2SectionCard>
+                  </V2DetailPageTemplate>
+                </div>
+
+                {/* ESCENARIO E: DETALLE CON TIMELINE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario E — Detalle con Cronograma (timeline)</p>
+                  <V2DetailPageTemplate
+                    timeline={
+                      <V2SectionCard title="Cronograma de Actividad">
+                        <div style={{ fontSize: "12px", color: "var(--v2-muted)" }}>
+                          <p style={{ margin: "0 0 4px" }}>• 10/07/2026 10:00 AM — RQ-088 aprobado por Gerencia</p>
+                          <p style={{ margin: 0 }}>• 05/07/2026 03:30 PM — Cotización V2 creada por Producción</p>
+                        </div>
+                      </V2SectionCard>
+                    }
+                    title="Proyecto con Línea de Tiempo"
+                  >
+                    <V2SectionCard title="Vista Principal">
+                      <p style={{ fontSize: "13px", margin: 0 }}>Sección superior de detalles.</p>
+                    </V2SectionCard>
+                  </V2DetailPageTemplate>
+                </div>
+
+                {/* ESCENARIO F: LOADING STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario F — Estado de Carga (state=&quot;loading&quot;)</p>
+                  <V2DetailPageTemplate
+                    state="loading"
+                    title="Cargando Ficha..."
+                  />
+                </div>
+
+                {/* ESCENARIO G: EMPTY STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario G — Estado Vacío (state=&quot;empty&quot;)</p>
+                  <V2DetailPageTemplate
+                    emptyState={<V2EmptyState description="No existe el registro solicitado." title="Ficha Inexistente" />}
+                    state="empty"
+                    title="Registro No Encontrado"
+                  />
+                </div>
+
+                {/* ESCENARIO H: ERROR STATE */}
+                <div style={{ padding: "16px", border: "1px solid var(--v2-border)", borderRadius: "8px", background: "var(--v2-surface)" }}>
+                  <p className={styles.label} style={{ marginBottom: "12px" }}>Escenario H — Estado de Error (state=&quot;error&quot;)</p>
+                  <V2DetailPageTemplate
+                    errorState={<V2ErrorState errorCode="404-NOT-FOUND" title="No se pudo cargar la información del servidor" />}
+                    state="error"
+                    title="Fallo de Conexión"
+                  />
                 </div>
               </div>
             </V2SectionCard>

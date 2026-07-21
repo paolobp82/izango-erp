@@ -79,6 +79,88 @@
   margin-top: var(--v2-space-2, 8px);
 }
 
+/* -------------------------------------------------------------
+   V2DetailPageTemplate Layout Styles
+------------------------------------------------------------- */
+.detailRoot {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.detailHeaderWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.headerBadgeSlot {
+  display: flex;
+  align-items: center;
+  margin-top: -4px;
+}
+
+.summaryArea {
+  width: 100%;
+}
+
+.tabsArea {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.detailLayoutGrid {
+  display: grid;
+  width: 100%;
+  gap: var(--v2-space-5, 20px);
+}
+
+.sidebarRight {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.sidebarLeft {
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+
+.detailMainContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v2-space-4, 16px);
+  min-width: 0;
+}
+
+.detailSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v2-space-4, 16px);
+  min-width: 0;
+}
+
+.detailTimelineSection {
+  width: 100%;
+}
+
+.detailAttachmentsSection {
+  width: 100%;
+}
+
+.detailFooterArea {
+  width: 100%;
+  padding-top: var(--v2-space-4, 16px);
+  border-top: 1px solid var(--v2-border);
+  margin-top: var(--v2-space-4, 16px);
+}
+
+@media (max-width: 1024px) {
+  .sidebarRight,
+  .sidebarLeft {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .headerActionsGroup {
     width: 100%;

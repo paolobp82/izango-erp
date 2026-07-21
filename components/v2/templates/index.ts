@@ -7,6 +7,15 @@ export {
 } from "./V2ListPageTemplate"
 
 export {
+  V2DetailPageTemplate,
+  type V2DetailPageTemplateProps,
+  type V2DetailPageState,
+  type V2DetailPageDensity,
+  type V2DetailPageContentWidth,
+  type V2DetailPageSidebarPosition,
+} from "./V2DetailPageTemplate"
+
+export {
   V2Detail360Template,
   V2ModuleDashboardTemplate,
   V2KanbanPageTemplate,
