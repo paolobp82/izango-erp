@@ -1,0 +1,232 @@
+.filterBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--v2-surface);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-lg);
+  margin-bottom: 12px;
+  min-height: 44px;
+}
+
+.filterBarLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.btnFiltrosWrapper {
+  flex-shrink: 0;
+}
+
+.filterBadge {
+  margin-left: 6px;
+  background: var(--v2-success);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 1px 5px;
+  border-radius: 999px;
+}
+
+.searchWrapper {
+  width: 220px;
+  flex-shrink: 0;
+}
+
+.filterBarRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.responsableWrapper {
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.clienteWrapper {
+  flex: 2;
+  min-width: 180px;
+  max-width: 320px;
+}
+
+.estadoWrapper {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.origenWrapper {
+  width: 110px;
+  flex-shrink: 0;
+}
+
+.periodoWrapper {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.clearBtnWrapper {
+  flex-shrink: 0;
+}
+
+.filterBar :global(.field) {
+  margin: 0;
+  gap: 0;
+}
+
+.filterBar :global(.selectCompact) {
+  height: 32px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.filterBar :global(.inputCompact) {
+  height: 32px;
+  font-size: 12px;
+}
+
+@media (max-width: 1200px) {
+  .filterBar {
+    flex-direction: column;
+    align-items: stretch;
+    height: auto;
+    gap: 8px;
+    padding: 8px;
+  }
+  .filterBarLeft, .filterBarRight {
+    flex: none;
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .searchWrapper {
+    width: 100%;
+    max-width: none;
+  }
+  .clienteWrapper {
+    max-width: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .filterBarRight {
+    flex-wrap: wrap;
+  }
+  .responsableWrapper, .clienteWrapper, .estadoWrapper, .origenWrapper, .periodoWrapper {
+    flex: 1 1 45%;
+    width: auto;
+    min-width: 0;
+  }
+}
+
+.activeChipsContainer {
+  margin-bottom: var(--v2-space-4);
+}
+
+.activeChipsHeader {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--v2-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: var(--v2-space-2);
+}
+
+.chipsList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v2-space-2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--v2-surface-soft);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--v2-text);
+  transition: all 0.15s ease;
+}
+
+.chipLabel {
+  color: var(--v2-muted);
+}
+
+.chipValue {
+  font-weight: 800;
+  color: var(--v2-text);
+}
+
+.chipCloseBtn {
+  background: none;
+  border: none;
+  color: var(--v2-muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 99px;
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.chipCloseBtn:hover {
+  background-color: var(--v2-border);
+  color: var(--v2-text);
+}
+
+.drawerSection {
+  display: grid;
+  gap: var(--v2-space-4);
+  padding-bottom: var(--v2-space-4);
+}
+
+.filterFieldGroup {
+  display: grid;
+  gap: 6px;
+}
+
+.filterFieldLabel {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--v2-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.doubleFieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--v2-space-3);
+}
+
+.drawerFooterActions {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: var(--v2-space-3);
+  width: 100%;
+}
+
+.saveViewLink {
+  grid-column: span 2;
+  text-align: center;
+  margin-top: var(--v2-space-2);
+}

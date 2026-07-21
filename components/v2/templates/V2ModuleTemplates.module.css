@@ -1,0 +1,53 @@
+/* V2ModuleTemplates.module.css */
+
+.pageLayout {
+  display: grid;
+  gap: var(--v2-space-5);
+  width: 100%;
+}
+
+.widgetsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--v2-space-4);
+}
+
+.kanbanScroll {
+  overflow-x: auto;
+  padding-bottom: var(--v2-space-2);
+}
+
+.workCenterGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  gap: var(--v2-space-4);
+}
+
+.fullFormGrid {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--v2-space-4);
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .workCenterGrid {
+    grid-template-columns: 1fr;
+  }
+  .fullFormGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detailPanelGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: var(--v2-space-4);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .detailPanelGrid {
+    grid-template-columns: 1fr;
+  }
+}
