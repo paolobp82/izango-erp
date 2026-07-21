@@ -12,9 +12,14 @@ import {
   V2PageHeader,
   V2Pagination,
   V2Select,
+  V2StatusBadge,
+  V2KpiCard,
+  V2Dropdown,
+  V2IconButton,
   type V2TableColumn,
 } from "@/components/v2/system"
 import { V2FilterBar } from "@/components/v2/filters"
+import { MoreVertical, Edit, Trash2 } from "lucide-react"
 import styles from "./Proveedores.module.css"
 
 const CATEGORIAS = ["produccion", "almacenaje", "impresion", "permisos", "instalacion", "performer", "alquiler", "supervision", "movilidad", "otros"]
@@ -227,6 +232,25 @@ export default function ProveedoresPage() {
     })
   }, [proveedores, filtroCategoria, filtroTipoPago, filtroRating, busqueda, ratings])
 
+  const kpis = useMemo(() => {
+    const total = proveedores.length
+    const categoriasUnicas = new Set(proveedores.map(p => p.categoria).filter(Boolean))
+    const totalCategorias = categoriasUnicas.size
+
+    const ratingsArray = proveedores
+      .map(p => ratings[p.id]?.promedio)
+      .filter(r => typeof r === "number" && !isNaN(r))
+    const avgRating = ratingsArray.length > 0
+      ? ratingsArray.reduce((acc, curr) => acc + curr, 0) / ratingsArray.length
+      : 0
+
+    return {
+      total,
+      totalCategorias,
+      avgRating,
+    }
+  }, [proveedores, ratings])
+
   const totalPaginas = Math.ceil(proveedoresFiltrados.length / POR_PAGINA)
   const paginados = useMemo(() => {
     return proveedoresFiltrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
@@ -235,7 +259,8 @@ export default function ProveedoresPage() {
   const columns: V2TableColumn<any>[] = [
     {
       key: "nombre",
-      header: "Proveedor",
+      header: "PROVEEDOR",
+      minWidth: "220px",
       render: (p) => (
         <div>
           <strong style={{ color: "var(--v2-text)", fontWeight: 800 }}>{p.nombre}</strong>
@@ -250,74 +275,109 @@ export default function ProveedoresPage() {
     {
       key: "ruc",
       header: "RUC",
-      render: (p) => <span className="iz-mono" style={{ color: "var(--v2-muted)" }}>{p.ruc || "—"}</span>,
+      width: "120px",
+      minWidth: "120px",
+      render: (p) => <span className="iz-mono" style={{ color: "var(--v2-muted)" }}>{p.ruc || "Sin dato"}</span>,
     },
     {
       key: "categoria",
-      header: "Categoría",
+      header: "CATEGORÍA",
+      width: "130px",
+      minWidth: "130px",
       render: (p) => (
-        <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
-          {p.categoria || "—"}
-        </span>
+        <V2StatusBadge tone="primary">
+          {p.categoria || "Sin dato"}
+        </V2StatusBadge>
       ),
     },
     {
       key: "banco",
-      header: "Banco",
-      render: (p) => <span style={{ color: "var(--v2-text)" }}>{p.banco || "—"}</span>,
+      header: "BANCO",
+      width: "140px",
+      minWidth: "140px",
+      render: (p) => <span style={{ color: "var(--v2-text)" }}>{p.banco || "Sin dato"}</span>,
     },
     {
       key: "contacto",
-      header: "Contacto",
-      render: (p) => (
-        <span style={{ color: "var(--v2-muted)", fontSize: 12 }}>
-          {p.nombre_contacto ? `${p.nombre_contacto}${p.apellido_contacto ? " " + p.apellido_contacto : ""}` : "—"}
-        </span>
-      ),
+      header: "CONTACTO",
+      width: "200px",
+      minWidth: "200px",
+      render: (p) => {
+        const nombre = p.nombre_contacto ? `${p.nombre_contacto}${p.apellido_contacto ? " " + p.apellido_contacto : ""}`.trim() : ""
+        if (!nombre) {
+          return <span style={{ fontSize: 11, color: "var(--v2-subtle)", fontStyle: "italic" }}>No registrado</span>
+        }
+        const iniciales = nombre.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+        const subtext = p.email_contacto || p.telefono_contacto || ""
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--v2-surface-muted)", border: "1px solid var(--v2-border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 900, color: "var(--v2-text)", flexShrink: 0 }}>
+              {iniciales}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <span style={{ fontWeight: 800, color: "var(--v2-text)", fontSize: "12.5px" }} title={nombre}>{nombre}</span>
+              {subtext && (
+                <span style={{ fontSize: 10.5, color: "var(--v2-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={subtext}>
+                  {subtext}
+                </span>
+              )}
+            </div>
+          </div>
+        )
+      },
     },
     {
       key: "tipo_pago",
-      header: "Tipo Pago",
-      render: (p) => <span style={{ color: "var(--v2-muted)", fontSize: 12 }}>{tipoPagoLabel(p.tipo_pago)}</span>,
+      header: "TIPO PAGO",
+      width: "140px",
+      minWidth: "140px",
+      render: (p) => <span style={{ color: "var(--v2-muted)", fontSize: 12 }}>{tipoPagoLabel(p.tipo_pago) || "Sin dato"}</span>,
     },
     {
       key: "rating",
-      header: "Rating",
-      render: (p) => (
-        ratings[p.id] ? (
-          <StarRating rating={ratings[p.id].promedio} totalVotos={ratings[p.id].total} size="sm" showCount={true} />
+      header: "CALIFICACIÓN",
+      width: "120px",
+      minWidth: "120px",
+      render: (p) => {
+        const rating = ratings[p.id]?.promedio
+        return rating && rating > 0 ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "var(--v2-surface-muted)", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius-sm)", padding: "2px 6px", fontSize: "11.5px", color: "var(--v2-text)", fontWeight: 800 }}>
+            {rating.toFixed(1)} <span style={{ color: "var(--v2-accent)", fontSize: "11px" }}>★</span>
+          </span>
         ) : (
-          <span style={{ fontSize: 11, color: "#d1d5db" }}>Sin rating</span>
+          <span style={{ fontSize: 11, color: "var(--v2-subtle)", fontStyle: "italic" }}>Sin calificar</span>
         )
-      ),
+      },
     },
     {
       key: "acciones",
-      header: "",
+      header: "ACCIONES",
+      width: "60px",
+      minWidth: "60px",
       align: "right",
       render: (p) => (
-        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-          <V2Button
-            type="button"
-            size="compact"
-            variant="secondary"
-            onClick={() => abrirEditar(p)}
-          >
-            Editar
-          </V2Button>
-          <V2Button
-            type="button"
-            size="compact"
-            variant="secondary"
-            onClick={() => eliminar(p.id, p.nombre)}
-            style={{ color: "#dc2626" }}
-          >
-            Eliminar
-          </V2Button>
-        </div>
+        <V2Dropdown
+          trigger={
+            <V2IconButton variant="ghost" size="sm" label="Acciones">
+              <MoreVertical size={16} />
+            </V2IconButton>
+          }
+          items={[
+            { icon: <Edit size={14} />, label: "Editar", onSelect: () => abrirEditar(p) },
+            { icon: <Trash2 size={14} style={{ color: "var(--v2-danger)" }} />, label: "Eliminar", onSelect: () => eliminar(p.id, p.nombre) },
+          ]}
+        />
       ),
     },
   ]
+
+  const kpiSection = (
+    <>
+      <V2KpiCard label="Total proveedores" value={loading ? "..." : String(kpis.total)} tone="neutral" density="normal" />
+      <V2KpiCard label="Categorías activas" value={loading ? "..." : String(kpis.totalCategorias)} tone="primary" density="normal" />
+      <V2KpiCard label="Calificación promedio" value={loading ? "..." : kpis.avgRating > 0 ? `${kpis.avgRating.toFixed(1)} ★` : "Sin calificaciones"} tone="success" density="normal" />
+    </>
+  )
 
   return (
     <>
@@ -327,12 +387,49 @@ export default function ProveedoresPage() {
             title="Proveedores"
             subtitle={`${proveedoresFiltrados.length} de ${proveedores.length} proveedores`}
             actions={
-              <V2Button onClick={abrirNuevo} size="compact">
-                + Nuevo proveedor
-              </V2Button>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <ImportExport
+                  modulo="proveedores"
+                  campos={[
+                    { key: "nombre", label: "Nombre", requerido: true },
+                    { key: "ruc", label: "RUC" },
+                    { key: "categoria", label: "Categoria" },
+                    { key: "banco", label: "Banco" },
+                    { key: "numero_cuenta", label: "N cuenta" },
+                    { key: "cuenta_interbancaria", label: "CCI" },
+                    { key: "tipo_pago", label: "Tipo pago" },
+                    { key: "nombre_contacto", label: "Nombre contacto" },
+                    { key: "apellido_contacto", label: "Apellido contacto" },
+                    { key: "email_contacto", label: "Email contacto" },
+                    { key: "telefono_contacto", label: "Telefono" },
+                  ]}
+                  datos={proveedores}
+                  onImportar={async (registros) => {
+                    let exitosos = 0
+                    const errores: string[] = []
+                    for (const r of registros) {
+                      const { error } = await supabase.from("proveedores").insert({
+                        ...r,
+                        entidad: "peru",
+                        tipo_pago: r.tipo_pago || "contado",
+                        categoria: r.categoria || "otros",
+                      })
+                      if (error) errores.push(r.nombre + ": " + error.message)
+                      else exitosos++
+                    }
+                    load()
+                    return { exitosos, errores }
+                  }}
+                  variant="v2"
+                />
+                <V2Button onClick={abrirNuevo} size="compact">
+                  + Nuevo proveedor
+                </V2Button>
+              </div>
             }
           />
         }
+        summary={kpiSection}
         toolbar={
           <V2FilterBar
             searchValue={busqueda}
@@ -347,6 +444,7 @@ export default function ProveedoresPage() {
             }
             hideDrawerButton={true}
             onToggleDrawer={() => {}}
+            searchPlaceholder="Buscar proveedores..."
             quickFilters={
               <>
                 <div style={{ width: "160px", flexShrink: 0 }}>
@@ -377,10 +475,10 @@ export default function ProveedoresPage() {
                     compact
                   />
                 </div>
-                <div style={{ width: "160px", flexShrink: 0 }}>
+                <div style={{ width: "180px", flexShrink: 0 }}>
                   <V2Select
                     options={[
-                      { label: "Todos los ratings", value: "" },
+                      { label: "Todas las calificaciones", value: "" },
                       { label: "4+ estrellas", value: "4+" },
                       { label: "3+ estrellas", value: "3+" },
                       { label: "Sin calificar", value: "sin" },
@@ -433,121 +531,78 @@ export default function ProveedoresPage() {
                     No hay proveedores con estos filtros.
                   </div>
                 ) : (
-                  paginados.map((p) => (
-                    <div key={p.id} className={styles.card}>
-                      <div className={styles.cardHeader}>
-                        <h4 className={styles.cardTitle}>
-                          {p.nombre}
-                          {p.es_cliente && (
-                            <span style={{ fontSize: 10, color: "#1e40af", background: "#dbeafe", padding: "1px 6px", borderRadius: 99, fontWeight: 600, marginLeft: 8 }}>
-                              Tb. cliente
-                            </span>
-                          )}
-                        </h4>
-                        <span style={{ background: "#f0fdf4", color: "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 600 }}>
-                          {p.categoria || "—"}
-                        </span>
+                  paginados.map((p) => {
+                    const nombreContacto = p.nombre_contacto ? `${p.nombre_contacto}${p.apellido_contacto ? " " + p.apellido_contacto : ""}`.trim() : ""
+                    const rating = ratings[p.id]?.promedio
+                    return (
+                      <div key={p.id} className={styles.card}>
+                        <div className={styles.cardHeader}>
+                          <h4 className={styles.cardTitle}>
+                            {p.nombre}
+                            {p.es_cliente && (
+                              <span style={{ fontSize: 10, color: "#1e40af", background: "#dbeafe", padding: "1px 6px", borderRadius: 99, fontWeight: 600, marginLeft: 8 }}>
+                                Tb. cliente
+                              </span>
+                            )}
+                          </h4>
+                          <V2StatusBadge tone="primary">
+                            {p.categoria || "Sin dato"}
+                          </V2StatusBadge>
+                        </div>
+
+                        <div className={styles.cardContent}>
+                          <div>
+                            <span className={styles.cardLabel}>RUC:</span>
+                            {p.ruc || "Sin dato"}
+                          </div>
+                          <div>
+                            <span className={styles.cardLabel}>Banco:</span>
+                            {p.banco || "Sin dato"}
+                          </div>
+                          <div>
+                            <span className={styles.cardLabel}>Contacto:</span>
+                            {nombreContacto || "No registrado"}
+                          </div>
+                          <div>
+                            <span className={styles.cardLabel}>Tipo Pago:</span>
+                            {tipoPagoLabel(p.tipo_pago) || "Sin dato"}
+                          </div>
+                          <div>
+                            <span className={styles.cardLabel}>Calificación:</span>
+                            {rating && rating > 0 ? `${rating.toFixed(1)} ★` : "Sin calificar"}
+                          </div>
+                        </div>
+
+                        <div className={styles.cardActions}>
+                          <V2Dropdown
+                            trigger={
+                              <V2Button size="compact" variant="secondary">
+                                Acciones ⋮
+                              </V2Button>
+                            }
+                            items={[
+                              { icon: <Edit size={14} />, label: "Editar", onSelect: () => abrirEditar(p) },
+                              { icon: <Trash2 size={14} style={{ color: "var(--v2-danger)" }} />, label: "Eliminar", onSelect: () => eliminar(p.id, p.nombre) },
+                            ]}
+                          />
+                        </div>
                       </div>
-
-                      <div className={styles.cardContent}>
-                        <div>
-                          <span className={styles.cardLabel}>RUC:</span>
-                          {p.ruc || "—"}
-                        </div>
-                        <div>
-                          <span className={styles.cardLabel}>Banco:</span>
-                          {p.banco || "—"}
-                        </div>
-                        <div>
-                          <span className={styles.cardLabel}>Contacto:</span>
-                          {p.nombre_contacto ? `${p.nombre_contacto}${p.apellido_contacto ? " " + p.apellido_contacto : ""}` : "—"}
-                        </div>
-                        <div>
-                          <span className={styles.cardLabel}>Tipo Pago:</span>
-                          {tipoPagoLabel(p.tipo_pago)}
-                        </div>
-                        <div>
-                          <span className={styles.cardLabel}>Rating:</span>
-                          {ratings[p.id] ? (
-                            <StarRating rating={ratings[p.id].promedio} totalVotos={ratings[p.id].total} size="sm" showCount={true} />
-                          ) : (
-                            <span style={{ fontSize: 11, color: "#d1d5db" }}>Sin rating</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className={styles.cardActions}>
-                        <V2Button
-                          type="button"
-                          size="compact"
-                          variant="secondary"
-                          onClick={() => abrirEditar(p)}
-                        >
-                          Editar
-                        </V2Button>
-                        <V2Button
-                          type="button"
-                          size="compact"
-                          variant="secondary"
-                          onClick={() => eliminar(p.id, p.nombre)}
-                          style={{ color: "#dc2626" }}
-                        >
-                          Eliminar
-                        </V2Button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Toolbar and pagination */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", flexWrap: "wrap", gap: 12 }}>
-                <ImportExport
-                  modulo="proveedores"
-                  campos={[
-                    { key: "nombre", label: "Nombre", requerido: true },
-                    { key: "ruc", label: "RUC" },
-                    { key: "categoria", label: "Categoria" },
-                    { key: "banco", label: "Banco" },
-                    { key: "numero_cuenta", label: "N cuenta" },
-                    { key: "cuenta_interbancaria", label: "CCI" },
-                    { key: "tipo_pago", label: "Tipo pago" },
-                    { key: "nombre_contacto", label: "Nombre contacto" },
-                    { key: "apellido_contacto", label: "Apellido contacto" },
-                    { key: "email_contacto", label: "Email contacto" },
-                    { key: "telefono_contacto", label: "Telefono" },
-                  ]}
-                  datos={proveedores}
-                  onImportar={async (registros) => {
-                    let exitosos = 0
-                    const errores: string[] = []
-                    for (const r of registros) {
-                      const { error } = await supabase.from("proveedores").insert({
-                        ...r,
-                        entidad: "peru",
-                        tipo_pago: r.tipo_pago || "contado",
-                        categoria: r.categoria || "otros",
-                      })
-                      if (error) errores.push(r.nombre + ": " + error.message)
-                      else exitosos++
-                    }
-                    load()
-                    return { exitosos, errores }
-                  }}
-                  variant="v2"
-                />
-
-                {totalPaginas > 1 && (
-                  <V2Pagination
-                    page={pagina}
-                    pageCount={totalPaginas}
-                    onPageChange={setPagina}
-                    summary={`${proveedoresFiltrados.length} proveedores · Pág. ${pagina}/{totalPaginas}`}
-                  />
+                    )
+                  })
                 )}
               </div>
             </>
           )
+        }
+        pagination={
+          totalPaginas > 1 ? (
+            <V2Pagination
+              page={pagina}
+              pageCount={totalPaginas}
+              onPageChange={setPagina}
+              summary={`${proveedoresFiltrados.length} proveedores · Pág. ${pagina}/${totalPaginas}`}
+            />
+          ) : undefined
         }
       />
 
@@ -672,26 +727,26 @@ export default function ProveedoresPage() {
               </div>
               {editando && (
                 <div>
-                  <h3 style={section}>Calificacion del proveedor</h3>
+                  <h3 style={section}>Calificación del proveedor</h3>
                   <div style={{ marginBottom: 16 }}>
-                    <label style={lbl}>RATING ACTUAL</label>
+                    <label style={lbl}>CALIFICACIÓN ACTUAL</label>
                     <StarRating rating={ratings[editando.id]?.promedio || 0} totalVotos={ratings[editando.id]?.total || 0} size="lg" showCount={true} />
                   </div>
                   <div style={{ background: "#f9fafb", borderRadius: 8, padding: 14, border: "1px solid #e5e7eb" }}>
-                    <label style={{ ...lbl, marginBottom: 8 }}>AGREGAR CALIFICACION</label>
+                    <label style={{ ...lbl, marginBottom: 8 }}>AGREGAR CALIFICACIÓN</label>
                     <StarRating rating={calificacionPendiente || 0} onRate={(v: number) => setCalificacionPendiente(v)} size="lg" showCount={false} />
                     {calificacionPendiente && (
                       <div style={{ marginTop: 10 }}>
                         <input style={{ ...inp, marginBottom: 8 }} placeholder="Comentario opcional..." value={comentarioPendiente} onChange={e => setComentarioPendiente(e.target.value)} />
                         <button onClick={guardarCalificacion} disabled={savingRating} style={{ fontSize: 12, padding: "6px 14px", background: "#1D9E75", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
-                          {savingRating ? "Guardando..." : "Guardar calificacion"}
+                          {savingRating ? "Guardando..." : "Guardar calificación"}
                         </button>
                       </div>
                     )}
                   </div>
                   {historialCalificaciones.length > 0 && (
                     <div style={{ marginTop: 12 }}>
-                      <label style={{ ...lbl, marginBottom: 8 }}>ULTIMAS CALIFICACIONES</label>
+                      <label style={{ ...lbl, marginBottom: 8 }}>ÚLTIMAS CALIFICACIONES</label>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {historialCalificaciones.map((c) => (
                           <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: "6px 10px" }}>

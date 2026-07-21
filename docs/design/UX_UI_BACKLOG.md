@@ -59,3 +59,22 @@ Este documento recopila las incidencias, deudas técnicas y oportunidades de mej
 * **Prioridad**: ALTA
 * **Descripción**: La coexistencia de dos shells monta tanto el Sidebar legacy como el V2, disparando dos consultas idénticas a la tabla de `perfiles` en cada refresco de página.
 * **Criterio de Cierre**: Centralizar la carga de perfil en un contexto compartido (UserSessionContext).
+
+---
+
+## 4. TAREAS TRANSVERSALES DE DISEÑO V2
+
+### DSV2-SEARCH-01: Unificación del sistema de búsqueda
+* **Ruta**: Global (Buscador global del shell, `/crm`, `/clientes`, `/proyectos`, `/proveedores`, `/biblioteca`, `/biblioteca-medios`, `/rq`, `/facturacion`, `/rrhh/trabajadores`, `/inventario`, `/gestor`, `/admin/usuarios`)
+* **Tipo**: Consistencia UX/UI / Diseño Transversal
+* **Prioridad**: MEDIA
+* **Descripción**: Actualmente el ERP posee distintos buscadores con diferencias en apariencia, altura, iconografía, placeholder, estado focus, botón de limpieza, debounce, ejecución mediante Enter, búsqueda inmediata, búsqueda local o remota, loading y comportamiento responsivo. Se requiere definir un estándar transversal y un componente visual V2 reutilizable con contratos de interacción unificados.
+* **Tipos de búsqueda definidos**:
+  * A. Global Search
+  * B. List Search
+  * C. Select/Search Autocomplete
+  * D. Catalog Search
+  * E. Remote Search
+  * F. Local Filter Search
+* **Criterio de Cierre**: Todos los buscadores equivalentes deben respetar: misma altura (32px), mismo radio, mismo icono de búsqueda, mismo padding, mismo comportamiento al hacer focus/limpieza, misma respuesta al teclado (debounce o Enter), misma nomenclatura en placeholders y misma experiencia responsiva en mobile y tablet.
+

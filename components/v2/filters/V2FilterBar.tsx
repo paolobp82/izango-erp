@@ -14,6 +14,7 @@ export type V2FilterBarProps = {
   onClearFilters?: () => void
   showClearButton?: boolean
   hideDrawerButton?: boolean
+  searchPlaceholder?: string
 }
 
 export function V2FilterBar({
@@ -25,6 +26,7 @@ export function V2FilterBar({
   onClearFilters,
   showClearButton = false,
   hideDrawerButton = false,
+  searchPlaceholder,
 }: V2FilterBarProps) {
   return (
     <div className={styles.filterBar}>
@@ -52,7 +54,7 @@ export function V2FilterBar({
           <V2Input
             compact
             icon={<Search size={14} />}
-            placeholder="Buscar..."
+            placeholder={searchPlaceholder || "Buscar..."}
             value={searchValue}
             onChange={(e) => onSearchChange(e.target.value)}
             style={{ width: "100%", height: "32px" }}
