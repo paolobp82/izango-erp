@@ -47,3 +47,4 @@ function clearBrowserStorage(storage: Storage) {
   }
   keys.forEach(key => storage.removeItem(key))
 }
+
