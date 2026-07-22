@@ -15,7 +15,7 @@ import {
   Search,
   SlidersHorizontal,
 } from "lucide-react"
-import { V2AppShell } from "@/components/v2/layout"
+
 import {
   V2Button,
   V2Dropdown,
@@ -157,7 +157,7 @@ export default function DesignSystemV2Page() {
   }, [query, status])
 
   return (
-    <V2AppShell>
+    <>
       <div className={styles.systemRoot}>
         <V2PageHeader
           actions={
@@ -1512,6 +1512,6 @@ export default function DesignSystemV2Page() {
           />
         ) : null}
       </V2ToastViewport>
-    </V2AppShell>
+    </>
   )
 }

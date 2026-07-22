@@ -11,7 +11,7 @@ import {
   SlidersHorizontal,
   UsersRound,
 } from "lucide-react"
-import { V2AppShell } from "@/components/v2/layout"
+
 import {
   V2Button,
   V2DataTable,
@@ -89,7 +89,7 @@ export default function UiV2ShellPage() {
   }, [query])
 
   return (
-    <V2AppShell>
+    <>
       <div className={styles.systemRoot}>
         <V2PageHeader
           eyebrow="SIG v2.0 Templates"
@@ -356,6 +356,6 @@ export default function UiV2ShellPage() {
           <V2Button onClick={() => setDrawerOpen(false)}>Cerrar</V2Button>
         </div>
       </V2Drawer>
-    </V2AppShell>
+    </>
   )
 }
