@@ -1107,9 +1107,9 @@
   --v2-primary:           #03E373;
   --v2-primary-container: #00C665;
   --v2-on-primary:        #03372A;
-  --v2-accent:            #0F6E56;
-  --v2-accent-hover:      #0D5C48;
-  --v2-accent-ink:        #FFFFFF;
+  --v2-accent:            #03E373;
+  --v2-accent-hover:      #02C764;
+  --v2-accent-ink:        #03372A;
   --v2-brand-primary:     #03E373;
 
   /* Text */
@@ -1146,6 +1146,17 @@
   --v2-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
   --v2-shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.12);
   --v2-shadow:    var(--v2-shadow-md);
+}
+
+/* Logo en modo Light: contenedor blanco limpio con borde sutil, sin fondo verde */
+:global([data-theme="light"]) .brandMark {
+  background: var(--v2-surface);
+  border: 1px solid var(--v2-border);
+  color: var(--v2-text);
+}
+
+:global([data-theme="light"]) .brandTitle {
+  color: #0F6E56;
 }
 
 /* Scrollbar claro para contenido en modo light */
