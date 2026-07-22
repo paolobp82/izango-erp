@@ -1103,14 +1103,17 @@
   --v2-topbar:           #FFFFFF;
   --v2-topbar-border:    #E5E7EB;
 
-  /* Brand & Primary */
-  --v2-primary:           #03E373;
-  --v2-primary-container: #00C665;
+  /* Brand & Primary. #0F6E56 es el "Verde Principal (Brand)" institucional
+     documentado en AGENTS.md — #03E373 es el "Verde Acento (Highlight)", no el
+     color de acciones primarias. Las acciones primarias en Light usan el verde
+     oscuro institucional; #03E373 sigue disponible para acentos puntuales. */
+  --v2-primary:           #0F6E56;
+  --v2-primary-container: #0C5A46;
   --v2-on-primary:        #FFFFFF;
-  --v2-accent:            #03E373;
-  --v2-accent-hover:      #02C764;
+  --v2-accent:            #0F6E56;
+  --v2-accent-hover:      #0C5A46;
   --v2-accent-ink:        #FFFFFF;
-  --v2-brand-primary:     #03E373;
+  --v2-brand-primary:     #0F6E56;
 
   /* Text */
   --v2-on-surface:         #0F172A;

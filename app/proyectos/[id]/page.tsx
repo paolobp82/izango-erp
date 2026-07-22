@@ -16,7 +16,7 @@ import { esFacturaAnulada, totalFactura } from "@/lib/finance"
 import { puedeCerrarFinancieramenteProyecto } from "@/lib/proyecto-cierre-financiero"
 import { RQ_MIGRATION_SUCCESS_ACTIONS } from "@/lib/rq-migracion"
 import { V2DetailPageTemplate } from "@/components/v2/templates"
-import { V2AlertCard, V2ActivityTimeline, V2Button, V2ErrorState, V2QuickActions, V2SectionCard, V2SectionHeader, V2StatusBadge } from "@/components/v2/system"
+import { V2AlertCard, V2ActivityTimeline, V2Button, V2ErrorState, V2QuickActions, V2SectionCard, V2SectionHeader, V2Select, V2StatusBadge } from "@/components/v2/system"
 import type { V2TimelineItem } from "@/components/v2/system/V2ActivityTimeline"
 import { ProjectDetailShellV2 } from "@/components/v2/projects/ProjectDetailShellV2"
 import { ProjectDetailHeaderV2, estadoTone } from "@/components/v2/projects/ProjectDetailHeaderV2"
@@ -53,7 +53,7 @@ const ENTIDADES = [
 
 const ESTADOS_RQ: Record<string, any> = {
   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e", label: "Pendiente" },
-  aprobado_produccion: { bg: "#fed7aa", color: "#9a3412", label: "Aprobado Produccion" },
+  aprobado_produccion: { bg: "#fed7aa", color: "#9a3412", label: "Aprobado Producción" },
   aprobado: { bg: "#dcfce7", color: "#15803d", label: "Aprobado GG" },
   programado: { bg: "#dbeafe", color: "#1e40af", label: "Programado" },
   pagado: { bg: "#f0fdf4", color: "#166534", label: "Pagado" },
@@ -1482,9 +1482,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const requiereMigracionRQ = rqsVersionAnterior.length > 0
   const resumenAlertas = [
     !tieneCotizacion ? { label: "Sin cotización", detalle: "Crea una cotización para continuar el flujo comercial." } : null,
-    tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
-    ["aprobado", "aprobado_cliente"].includes(proyecto?.estado) && cotAprobada ? { label: "Pendiente de RQ", detalle: "Al iniciar el proyecto se mantiene el flujo actual de pre-cuadre y generacion de RQs." } : null,
-    proyecto?.estado === "terminado" ? { label: "Pendiente de liquidacion", detalle: "El proyecto esta terminado y debe pasar por liquidacion." } : null,
+    tieneCotizacion && !cotAprobada ? { label: "Sin versión aprobada", detalle: "Aún no hay una versión aprobada por cliente." } : null,
+    ["aprobado", "aprobado_cliente"].includes(proyecto?.estado) && cotAprobada ? { label: "Pendiente de RQ", detalle: "Al iniciar el proyecto se mantiene el flujo actual de pre-cuadre y generación de RQs." } : null,
+    proyecto?.estado === "terminado" ? { label: "Pendiente de liquidación", detalle: "El proyecto está terminado y debe pasar por liquidación." } : null,
   ].filter(Boolean) as any[]
 
   const ecCot: any = {
@@ -1903,10 +1903,21 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             loading: cambiando,
             onClick: () => cambiarEstado(estadoInfo.siguiente),
           } : undefined}
-          secondaryAction={proyecto?.estado === "pendiente_facturacion" ? {
-            label: "Ir a Facturación",
-            onClick: () => router.push(`/facturacion?proyecto_id=${id}`),
-          } : undefined}
+          secondaryActions={([
+            (() => {
+              const cotObjetivo = cotizaciones.find((c: any) => c.id === versionAprobar)
+              const puedeMostrar = puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cotObjetivo && cotObjetivo.estado !== "aprobada_cliente"
+              return puedeMostrar ? {
+                label: "Marcar aprobado por cliente",
+                icon: <CheckCircle2 size={15} />,
+                onClick: () => marcarCotizacionAprobadaCliente(cotObjetivo),
+              } : null
+            })(),
+            proyecto?.estado === "pendiente_facturacion" ? {
+              label: "Ir a Facturación",
+              onClick: () => router.push(`/facturacion?proyecto_id=${id}`),
+            } : null,
+          ].filter(Boolean)) as any[]}
           dangerAction={puedeRechazar ? {
             label: "Rechazar proyecto",
             disabled: cambiando,
@@ -1919,37 +1930,40 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       <div className="card" style={{ marginBottom: 16, padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Cotizaciones</div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Cotizaciones</h2>
-            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-              Administra versiones, estados, previews y recuperacion de cotizaciones del proyecto.
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 4 }}>Tab Cotizaciones</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>Cotizaciones</h2>
+            <p style={{ fontSize: 13, color: "var(--v2-muted)", margin: "4px 0 0" }}>
+              Administra versiones, estados, vistas previas y recuperación de cotizaciones del proyecto.
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ background: "#f3f4f6", color: "#374151", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
-              {cotizaciones.length} version{cotizaciones.length !== 1 ? "es" : ""}
+            <span style={{ background: "var(--v2-surface-muted)", color: "var(--v2-text-secondary)", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+              {cotizaciones.length} {cotizaciones.length === 1 ? "versión" : "versiones"}
             </span>
             {cotizacionesEliminadas.length > 0 && (
-              <span style={{ background: "#fee2e2", color: "#991b1b", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+              <span style={{ background: "var(--v2-danger-bg)", color: "var(--v2-danger)", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
                 {cotizacionesEliminadas.length} recuperable{cotizacionesEliminadas.length !== 1 ? "s" : ""}
               </span>
             )}
             {cotizaciones.length > 0 && (
-              <select id="copiar-version" style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
-                <option value="">Nueva vacía</option>
-                {cotizaciones.map((cot: any) => (
-                  <option key={cot.id} value={cot.id}>Copiar V{cot.version}</option>
-                ))}
-              </select>
+              <V2Select
+                compact
+                fullWidth={false}
+                id="copiar-version"
+                options={[
+                  { label: "Nueva vacía", value: "" },
+                  ...cotizaciones.map((cot: any) => ({ label: `Copiar V${cot.version}`, value: cot.id })),
+                ]}
+              />
             )}
             {puedeCrearProforma && (
-            <button onClick={() => {
+            <V2Button loading={creando} onClick={() => {
               const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
               const val = sel?.value
               nuevaVersion(val && val !== "" ? val : undefined)
-            }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
-              {creando ? "Creando..." : "+ Crear cotización"}
-            </button>
+            }} variant="primary">
+              {creando ? "Creando..." : "Crear cotización"}
+            </V2Button>
             )}
           </div>
         </div>
@@ -1958,19 +1972,19 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       {cotizacionesEliminadas.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <button onClick={() => setShowVersionesEliminadas(!showVersionesEliminadas)}
-            style={{ fontSize: 12, color: "#dc2626", background: "#fee2e2", border: "none", borderRadius: 99, padding: "3px 10px", cursor: "pointer", marginBottom: 8 }}>
-            🗑 {cotizacionesEliminadas.length} version{cotizacionesEliminadas.length > 1 ? "es eliminadas" : " eliminada"} (recuperable{cotizacionesEliminadas.length > 1 ? "s" : ""})
+            style={{ fontSize: 12, color: "var(--v2-danger)", background: "var(--v2-danger-bg)", border: "none", borderRadius: 99, padding: "3px 10px", cursor: "pointer", marginBottom: 8 }}>
+            🗑 {cotizacionesEliminadas.length} {cotizacionesEliminadas.length > 1 ? "versiones eliminadas" : "versión eliminada"} (recuperable{cotizacionesEliminadas.length > 1 ? "s" : ""})
           </button>
           {showVersionesEliminadas && (
-            <div style={{ background: "#fff8f8", border: "1px solid #fecaca", borderRadius: 10, padding: 12 }}>
+            <div style={{ background: "var(--v2-danger-bg)", borderRadius: 10, padding: 12 }}>
               {cotizacionesEliminadas.map(cot => {
                 const horasRestantes = 48 - Math.floor((Date.now() - new Date(cot.deleted_at).getTime()) / (1000 * 60 * 60))
                 return (
-                  <div key={cot.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #fee2e2" }}>
+                  <div key={cot.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 6 }}>
                     <div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>V{cot.version}</span>
-                      {cot.total_cliente > 0 && <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 8 }}>{fmt(cot.total_cliente)}</span>}
-                      <span style={{ fontSize: 11, color: "#dc2626", marginLeft: 8 }}>Expira en {horasRestantes}h</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)" }}>V{cot.version}</span>
+                      {cot.total_cliente > 0 && <span style={{ fontSize: 12, color: "var(--v2-muted)", marginLeft: 8 }}>{fmt(cot.total_cliente)}</span>}
+                      <span style={{ fontSize: 11, color: "var(--v2-danger)", marginLeft: 8 }}>Expira en {horasRestantes}h</span>
                     </div>
                     <V2Button leadingIcon={<RotateCcw size={13} />} onClick={() => recuperarVersion(cot.id)} size="sm" variant="secondary">
                       Recuperar
@@ -1984,26 +1998,26 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Versiones</h2>
-          <span style={{ fontSize: 12, color: "#9ca3af" }}>{cotizaciones.length} version{cotizaciones.length !== 1 ? "es" : ""}</span>
+        <div style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "var(--v2-text)" }}>Versiones</h2>
+          <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>{cotizaciones.length} {cotizaciones.length === 1 ? "versión" : "versiones"}</span>
         </div>
         {cotizaciones.length === 0 ? (
-          <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af" }}>
-            <div style={{ fontSize: 14, marginBottom: 4 }}>No hay cotizaciones aun</div>
-            <div style={{ fontSize: 12 }}>Crea la primera version para comenzar</div>
+          <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--v2-muted)" }}>
+            <div style={{ fontSize: 14, marginBottom: 4 }}>No hay cotizaciones aún</div>
+            <div style={{ fontSize: 12 }}>Crea la primera versión para comenzar</div>
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>VERSION</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TOTAL CLIENTE</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MARGEN</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONDICION PAGO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>HISTORIAL</th>
-                <th style={{ padding: "10px 20px", width: 200 }}></th>
+              <tr style={{ background: "var(--v2-surface-muted)" }}>
+                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>VERSIÓN</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>ESTADO</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>TOTAL CLIENTE</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>MARGEN</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>CONDICIÓN DE PAGO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>HISTORIAL</th>
+                <th style={{ textAlign: "right", padding: "10px 20px", width: 200, fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>ACCIONES</th>
               </tr>
             </thead>
             <tbody>
@@ -2011,10 +2025,10 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                 const e = ecCot[cot.estado] || { bg: "#f3f4f6", color: "#6b7280" }
                 const esAprobada = (cot.id === proyecto?.cotizacion_aprobada_id || cot.estado === "aprobada_cliente") && ["en_curso","terminado","liquidado","pendiente_facturacion","facturado","cerrado_financiero"].includes(proyecto?.estado)
                 return (
-                  <tr key={cot.id} style={{ borderTop: "1px solid #f3f4f6", background: esAprobada ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                  <tr key={cot.id} style={{ background: esAprobada ? "var(--v2-success-bg)" : idx % 2 === 0 ? "var(--v2-surface)" : "var(--v2-surface-soft)" }}>
                     <td style={{ padding: "12px 20px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>V{cot.version}</span>
+                        <span style={{ fontWeight: 700, fontSize: 15, color: "var(--v2-text)" }}>V{cot.version}</span>
                         {esAprobada && <V2StatusBadge size="sm" tone="success">Aprobada</V2StatusBadge>}
                       </div>
                     </td>
@@ -2022,7 +2036,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       <select value={cot.estado || "borrador"} onChange={async ev => {
                         const nuevoEstado = ev.target.value
                         if (nuevoEstado === "aprobada_cliente") {
-                          alert("Usa la accion independiente para marcar aprobado por cliente")
+                          alert("Usa la acción independiente para marcar aprobado por cliente")
                           return
                         }
                         await supabase.from("cotizaciones").update({ estado: nuevoEstado }).eq("id", cot.id)
@@ -2036,19 +2050,19 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         <option value="rechazada">Rechazada</option>
                       </select>
                     </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>
+                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "var(--v2-accent)" }}>
                       {cot.total_cliente > 0 ? fmt(cot.total_cliente) : "—"}
                     </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: (cot.margen_pct || 0) >= 35 ? "#0F6E56" : "#6b7280" }}>
+                    <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: (cot.margen_pct || 0) >= 35 ? "var(--v2-accent)" : "var(--v2-muted)" }}>
                       {cot.margen_pct > 0 ? cot.margen_pct.toFixed(1) + "%" : "—"}
                     </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{cot.condicion_pago || "—"}</td>
+                    <td style={{ padding: "12px", fontSize: 12, color: "var(--v2-muted)" }}>{cot.condicion_pago || "—"}</td>
                     <td style={{ padding: "12px" }}>
                       {historial[cot.id] && historial[cot.id].length > 0 && (
                         <div style={{ marginTop: 4 }}>
                           {historial[cot.id].slice(0, 3).map((h: any, i: number) => (
-                            <div key={i} style={{ fontSize: 10, color: "#9ca3af", display: "flex", gap: 4, alignItems: "center" }}>
-                              <span style={{ color: h.accion === "aprobada_cliente" ? "#15803d" : "#6b7280" }}>
+                            <div key={i} style={{ fontSize: 10, color: "var(--v2-subtle)", display: "flex", gap: 4, alignItems: "center" }}>
+                              <span style={{ color: h.accion === "aprobada_cliente" ? "var(--v2-success)" : "var(--v2-muted)" }}>
                                 {h.accion === "aprobada_cliente" ? "✓" : "✎"}
                               </span>
                               <span>{h.usuario_nombre}</span>
@@ -2071,7 +2085,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         </V2Button>
                         {puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cot.estado !== "aprobada_cliente" && (
                           <V2Button leadingIcon={<CheckCircle2 size={13} />} onClick={() => marcarCotizacionAprobadaCliente(cot)} size="sm" variant="secondary">
-                            Marcar aprobado por cliente
+                            Aprobado cliente
                           </V2Button>
                         )}
                         {!esAprobada && puedeEliminarProforma && (
@@ -2106,7 +2120,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
         <div style={{ padding: 20, display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
             <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>Version aprobada</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>Versión aprobada</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: cotAprobada ? "#15803d" : "#9ca3af" }}>
                 {cotAprobada ? `V${cotAprobada.version}` : "Pendiente"}
               </div>
@@ -2349,14 +2363,14 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       <section id="tab-resumen" style={{ scrollMarginTop: 120 }}>
         <V2SectionHeader
           actions={<V2StatusBadge tone={estadoTone(proyecto?.estado)}>{estadoInfo.label}</V2StatusBadge>}
-          description="Vista rapida del proyecto, estado, economia base y alertas operativas."
+          description="Vista rápida del proyecto, estado, economía base y alertas operativas."
           title="Resumen ejecutivo"
         />
 
         <div className={styles.summaryGrid} style={{ marginTop: 16 }}>
           <ProjectInfoCardV2
             rows={[
-              { label: "Codigo", value: proyecto?.codigo || "-" },
+              { label: "Código", value: proyecto?.codigo || "-" },
               { label: "Nombre", value: proyecto?.nombre || "-" },
               { label: "Cliente", value: proyecto?.cliente?.razon_social || "Sin cliente" },
               { label: "Productor", value: productorNombre },
@@ -2370,14 +2384,14 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           <ProjectInfoCardV2
             rows={[
               { label: "Presupuesto referencial", value: proyecto?.presupuesto_referencial ? fmt(proyecto.presupuesto_referencial) : "-", emphasis: true },
-              { label: "Version aprobada", value: cotAprobada ? `V${cotAprobada.version}` : "Sin version aprobada" },
+              { label: "Versión aprobada", value: cotAprobada ? `V${cotAprobada.version}` : "Sin versión aprobada" },
               { label: "Monto aprobado", value: montoAprobado ? fmt(montoAprobado) : "-" },
             ]}
-            title="Informacion economica"
+            title="Información económica"
           />
 
           <div className={styles.summaryGridFull}>
-            <V2SectionCard description="Condiciones operativas que requieren atencion." title="Alertas del sistema">
+            <V2SectionCard description="Condiciones operativas que requieren atención." title="Alertas del sistema">
               {resumenAlertas.length === 0 ? (
                 <span className={styles.alertsEmpty}>Sin alertas operativas</span>
               ) : (
@@ -2385,9 +2399,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   {resumenAlertas.map((alerta: any) => {
                     const alertaAccion: Record<string, { actionLabel: string; onClick: () => void }> = {
                       "Sin cotización": { actionLabel: "Ir a Cotizaciones", onClick: () => handleTabChange("cotizaciones") },
-                      "Sin version aprobada": { actionLabel: "Ir a Cotizaciones", onClick: () => handleTabChange("cotizaciones") },
+                      "Sin versión aprobada": { actionLabel: "Ir a Cotizaciones", onClick: () => handleTabChange("cotizaciones") },
                       "Pendiente de RQ": { actionLabel: "Ir a Costos/RQ", onClick: () => handleTabChange("costos-rq") },
-                      "Pendiente de liquidacion": { actionLabel: "Ir a Liquidaciones", onClick: () => router.push(`/liquidaciones?proyecto_id=${id}`) },
+                      "Pendiente de liquidación": { actionLabel: "Ir a Liquidaciones", onClick: () => router.push(`/liquidaciones?proyecto_id=${id}`) },
                     }
                     const accion = alertaAccion[alerta.label]
                     return (
@@ -2406,7 +2420,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           </div>
 
           <div className={styles.summaryGridFull}>
-            <V2SectionCard description="Ultimos cambios registrados en las cotizaciones del proyecto." title="Actividad reciente">
+            <V2SectionCard description="Últimos cambios registrados en las cotizaciones del proyecto." title="Actividad reciente">
               <V2ActivityTimeline
                 items={Object.entries(historial)
                   .flatMap(([cotId, entradas]: [string, any[]]) => {
@@ -2414,7 +2428,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                     return entradas.map((h: any, i: number): V2TimelineItem => ({
                       id: `${cotId}-${i}`,
                       date: h.created_at ? new Date(h.created_at).toLocaleDateString("es-PE") : "-",
-                      title: cot ? `V${cot.version} - ${h.accion || "Actualizacion"}` : (h.accion || "Actualizacion"),
+                      title: cot ? `V${cot.version} - ${h.accion || "Actualización"}` : (h.accion || "Actualización"),
                       subtitle: h.usuario_nombre || undefined,
                     }))
                   })
@@ -2425,10 +2439,10 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           </div>
 
           <div className={styles.summaryGridFull}>
-            <V2SectionCard description="Accesos directos usados con frecuencia desde el Resumen." title="Acciones rapidas">
+            <V2SectionCard description="Accesos directos usados con frecuencia desde el Resumen." title="Acciones rápidas">
               <V2QuickActions cols={2}>
                 <V2Button leadingIcon={<FileText size={15} />} onClick={() => handleTabChange("cotizaciones")} variant="secondary">
-                  Ver historial economico
+                  Ver historial económico
                 </V2Button>
                 {puedeExportarProyecto && (
                   <V2Button leadingIcon={<FolderOpen size={15} />} onClick={() => window.open(`/api/reporte-pdf?proyecto_id=${id}`, "_blank")} variant="secondary">

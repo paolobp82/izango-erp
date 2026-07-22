@@ -29,14 +29,14 @@ export type ProjectWorkflowCardV2Props = {
   nextActionDescription: string
   responsibleText: string
   primaryAction?: ProjectWorkflowActionV2
-  secondaryAction?: ProjectWorkflowActionV2
+  secondaryActions?: (ProjectWorkflowActionV2 & { icon?: import("react").ReactNode })[]
   dangerAction?: ProjectWorkflowActionV2
 }
 
 // Toda la logica de negocio (permisos, confirm(), mutaciones Supabase) vive en
 // app/proyectos/[id]/page.tsx y llega aqui ya resuelta via props/callbacks. Este
 // componente solo se encarga de la presentacion del stepper de 10 estados y de la
-// siguiente accion disponible, preservando la paleta semantica de FLUJO (naranja,
+// siguiente acción disponible, preservando la paleta semantica de FLUJO (naranja,
 // morado, azul, gris, etc.) sin sustituirla por el verde primario del tema.
 export function ProjectWorkflowCardV2({
   dangerAction,
@@ -46,13 +46,13 @@ export function ProjectWorkflowCardV2({
   nextActionTitle,
   primaryAction,
   responsibleText,
-  secondaryAction,
+  secondaryActions = [],
   steps,
 }: ProjectWorkflowCardV2Props) {
   return (
     <V2SectionCard
       action={<V2StatusBadge tone={estadoTone}>{estadoLabel}</V2StatusBadge>}
-      description="Flujo operativo del proyecto y siguiente accion disponible."
+      description="Flujo operativo del proyecto y siguiente acción disponible."
       title="Estado del proyecto"
     >
       <div className={styles.stepperRow}>
@@ -77,7 +77,7 @@ export function ProjectWorkflowCardV2({
       </div>
 
       <div className={styles.nextActionBlock}>
-        <div className={styles.nextActionEyebrow}>Siguiente accion disponible</div>
+        <div className={styles.nextActionEyebrow}>Siguiente acción disponible</div>
         <div className={styles.nextActionTitle}>{nextActionTitle}</div>
         <p className={styles.nextActionDescription}>{nextActionDescription}</p>
         <p className={styles.nextActionResponsible}>{responsibleText}</p>
@@ -88,11 +88,11 @@ export function ProjectWorkflowCardV2({
               {primaryAction.label}
             </V2Button>
           )}
-          {secondaryAction && (
-            <V2Button onClick={secondaryAction.onClick} variant="secondary">
-              {secondaryAction.label}
+          {secondaryActions.map((action) => (
+            <V2Button disabled={action.disabled} key={action.label} leadingIcon={action.icon} loading={action.loading} onClick={action.onClick} variant="secondary">
+              {action.label}
             </V2Button>
-          )}
+          ))}
           {dangerAction && (
             <V2Button disabled={dangerAction.disabled} onClick={dangerAction.onClick} variant="danger">
               {dangerAction.label}

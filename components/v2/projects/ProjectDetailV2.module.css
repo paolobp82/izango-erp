@@ -170,8 +170,8 @@
 .nextActionBlock {
   display: grid;
   gap: 4px;
+  margin-top: 6px;
   padding-top: 12px;
-  border-top: 1px solid var(--v2-border-soft);
 }
 
 .nextActionEyebrow {
