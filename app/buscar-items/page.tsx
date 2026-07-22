@@ -11,5 +11,20 @@ export default function BuscarItemsRedirectPage() {
     router.replace(`/biblioteca?tab=cotizados${query ? `&${query}` : ""}`)
   }, [router])
 
-  return <div style={{ color: "#6b7280", padding: 24 }}>Redirigiendo a Biblioteca de Ítems...</div>
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#f8fafc",
+        fontFamily: "'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif",
+      }}
+    >
+      <div style={{ textAlign: "center", color: "#64748b", fontSize: 13 }}>
+        Redirigiendo a Biblioteca de Ítems…
+      </div>
+    </div>
+  )
 }

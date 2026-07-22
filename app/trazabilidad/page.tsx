@@ -2,10 +2,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps, react-hooks/immutability, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
-import KpiCard from "@/components/ui/KpiCard"
-import StatusBadge from "@/components/ui/StatusBadge"
 import { puedeVerInformacionSensible } from "@/lib/permissions"
 import { nextSortState, sortIndicator, sortRows, type SortState } from "@/lib/table-sort"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2KpiCard,
+  V2PageHeader,
+  V2Pagination,
+  V2SectionCard,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 const MODULO_COLOR: Record<string, any> = {
   proyectos:    { bg: "#dbeafe", color: "#1e40af" },
@@ -32,7 +42,6 @@ const ACCION_ICON: Record<string, string> = {
   enviar: "↗",
   pagar: "💳",
 }
-
 
 export default function TrazabilidadPage() {
   const supabase = createClient()
@@ -134,6 +143,7 @@ export default function TrazabilidadPage() {
     setModulos(ms as string[])
     setLoading(false)
   }
+
   const filtrados = registros.filter(r => {
     if (filtroModulo && r.modulo !== filtroModulo) return false
     if (filtroUsuario && r.usuario_nombre !== filtroUsuario) return false
@@ -146,201 +156,228 @@ export default function TrazabilidadPage() {
   })
   const filtradosOrdenados = sortRows(filtrados, sort, (row, key) => key === "entidad" ? (row.entidad_label || row.entidad_id) : row[key])
 
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none" }
-  const thSort = (label: string, key: string) => (
-    <button onClick={() => setSort(prev => nextSortState(prev, key))} style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer", color: "inherit", font: "inherit", fontWeight: 600 }}>
-      {label} <span style={{ color: sort.key === key ? "#0F6E56" : "#9ca3af" }}>{sortIndicator(sort, key)}</span>
-    </button>
-  )
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando trazabilidad y auditoría...
+      </div>
+    )
+  }
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (!autorizado) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-danger)", fontWeight: 700, fontSize: 13 }}>
+        Acceso no autorizado
+      </div>
+    )
+  }
 
-  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
+  const columns: V2TableColumn<any>[] = [
+    {
+      key: "created_at",
+      header: "Fecha / Hora",
+      render: (r) => {
+        const fecha = new Date(r.created_at)
+        return (
+          <div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--v2-text)" }}>{fecha.toLocaleDateString("es-PE")}</div>
+            <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>{fecha.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</div>
+          </div>
+        )
+      },
+    },
+    {
+      key: "usuario_nombre",
+      header: "Usuario",
+      render: (r) => <span style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)" }}>{r.usuario_nombre || "—"}</span>,
+    },
+    {
+      key: "accion",
+      header: "Acción",
+      render: (r) => {
+        const icon = ACCION_ICON[r.accion] || "•"
+        return <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--v2-text)" }}>{icon} {r.accion}</span>
+      },
+    },
+    {
+      key: "modulo",
+      header: "Módulo",
+      render: (r) => {
+        const mc = MODULO_COLOR[r.modulo] || { bg: "var(--v2-surface-subtle)", color: "var(--v2-muted)" }
+        return (
+          <span style={{ background: mc.bg, color: mc.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, textTransform: "capitalize" }}>
+            {r.modulo}
+          </span>
+        )
+      },
+    },
+    {
+      key: "descripcion",
+      header: "Descripción",
+      render: (r) => (
+        <span style={{ fontSize: 12.5, color: "var(--v2-muted)", maxWidth: 300, display: "inline-block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {r.descripcion || r.entidad_label || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (r) => (
+        <V2Button variant="secondary" size="compact" onClick={() => setSelected(r)}>
+          Ver
+        </V2Button>
+      ),
+    },
+  ]
+
+  const totalPaginas = Math.ceil(totalRegistros / POR_PAGINA) || 1
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Trazabilidad</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Registro de acciones de usuarios en el sistema</p>
+    <V2ListPageTemplate
+      header={
+        <V2PageHeader
+          eyebrow="Seguridad & Auditoría"
+          title="Trazabilidad del Sistema"
+          subtitle="Bitácora de eventos, modificaciones y acciones realizadas por usuarios en Izango SIG"
+        />
+      }
+      summary={
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
+          <V2KpiCard label="Total registros" value={String(totalRegistros || registros.length)} icon="file" />
+          <V2KpiCard label="Usuarios activos" value={String(usuarios.length)} icon="shield" />
+          <V2KpiCard label="Módulos registrados" value={String(modulos.length)} icon="folder" />
         </div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
-  <KpiCard
-    label="TOTAL REGISTROS"
-    value={String(totalRegistros || registros.length)}
-    sub="Acciones recientes"
-    icon="file"
-    borderColor="#0F6E56"
-    valueColor="#0F6E56"
-  />
-
-  <KpiCard
-    label="USUARIOS ACTIVOS"
-    value={String(usuarios.length)}
-    sub="Con actividad"
-    icon="shield"
-    borderColor="#2563EB"
-    valueColor="#1E40AF"
-  />
-
-  <KpiCard
-    label="MÓDULOS REGISTRADOS"
-    value={String(modulos.length)}
-    sub="Áreas auditadas"
-    icon="folder"
-    borderColor="#D97706"
-    valueColor="#B45309"
-  />
-</div>
-
-      <div className="card" style={{ marginBottom: 12, padding: "10px 14px", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <input style={{ ...inp, width: 220 }} placeholder="Buscar en registros..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-          <select style={{ ...inp, width: "auto" }} value={filtroModulo} onChange={e => setFiltroModulo(e.target.value)}>
-            <option value="">Todos los modulos</option>
-            {modulos.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <select style={{ ...inp, width: "auto" }} value={filtroUsuario} onChange={e => setFiltroUsuario(e.target.value)}>
-            <option value="">Todos los usuarios</option>
-            {usuarios.map(u => <option key={u} value={u}>{u}</option>)}
-          </select>
-          <select style={{ ...inp, width: "auto" }} value={filtroAccion} onChange={e => setFiltroAccion(e.target.value)}>
-            <option value="">Todas las acciones</option>
-            {[...new Set(registros.map(r => r.accion))].map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-          <input type="date" style={inp} value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} />
-          <input type="date" style={inp} value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} />
-          {(filtroModulo || filtroUsuario || filtroAccion || busqueda || fechaDesde || fechaHasta) && (
-            <button onClick={() => { setFiltroModulo(""); setFiltroUsuario(""); setFiltroAccion(""); setBusqueda(""); setFechaDesde(""); setFechaHasta("") }}
-              style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>Limpiar</button>
-          )}
-          <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: "auto" }}>{filtradosOrdenados.length} registros</span>
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 360px" : "1fr", gap: 16 }}>
-        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#FFFFFF", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
-          {filtradosOrdenados.length === 0 ? (
-            <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>
-              No hay registros de trazabilidad aún. Las acciones se irán registrando automáticamente.
-            </div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
-                  <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{thSort("FECHA / HORA", "created_at")}</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{thSort("USUARIO", "usuario_nombre")}</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{thSort("ACCION", "accion")}</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{thSort("MODULO", "modulo")}</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{thSort("DESCRIPCION", "descripcion")}</th>
-                  <th style={{ padding: "10px 20px", width: 60 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtradosOrdenados.map((r, idx) => {
-                  const mc = MODULO_COLOR[r.modulo] || { bg: "#f3f4f6", color: "#6b7280" }
-                  const icon = ACCION_ICON[r.accion] || "•"
-                  const fecha = new Date(r.created_at)
-                  return (
-                    <tr key={r.id} style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === r.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}
-                      onClick={() => setSelected(r)}>
-                      <td style={{ padding: "10px 20px" }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>{fecha.toLocaleDateString("es-PE")}</div>
-                        <div style={{ fontSize: 11, color: "#9ca3af" }}>{fecha.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</div>
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 13, color: "#374151", fontWeight: 600 }}>{r.usuario_nombre || "—"}</td>
-                      <td style={{ padding: "10px 12px" }}>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>{icon} {r.accion}</span>
-                      </td>
-                      <td style={{ padding: "10px 12px" }}>
-                        <span style={{ background: mc.bg, color: mc.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, textTransform: "capitalize" }}>{r.modulo}</span>
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {r.descripcion || r.entidad_label || "—"}
-                      </td>
-                      <td style={{ padding: "10px 20px", textAlign: "right" }}>
-                        <button onClick={e => { e.stopPropagation(); setSelected(r) }}
-                          style={{ fontSize: 11, padding: "5px 10px", border: "1px solid #E2E8F0", borderRadius: 8, background: "#FFFFFF", cursor: "pointer", color: "#334155", fontWeight: 700 }}>
-                          Ver
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-          {(totalRegistros > POR_PAGINA || pagina > 0) && (
-            <div style={{ padding: "12px 20px", borderTop: "1px solid #f3f4f6", display: "flex", gap: 8 }}>
-              <button disabled={pagina === 0} onClick={() => setPagina(p => p - 1)} className="btn-secondary" style={{ fontSize: 12 }}>← Anterior</button>
-              <span style={{ fontSize: 12, color: "#6b7280", padding: "4px 8px" }}>Página {pagina + 1} · {Math.min((pagina + 1) * POR_PAGINA, totalRegistros)} de {totalRegistros}</span>
-              <button disabled={(pagina + 1) * POR_PAGINA >= totalRegistros} onClick={() => setPagina(p => p + 1)} className="btn-secondary" style={{ fontSize: 12 }}>Siguiente →</button>
-            </div>
-          )}
-        </div>
-
-        {selected && (
-          <div className="card" style={{ alignSelf: "start" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: "#111827" }}>Detalle del registro</h3>
-              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 18 }}>×</button>
-            </div>
-            <div style={{ display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3 }}>Fecha y hora</div>
-                <div style={{ fontSize: 13, color: "#374151" }}>{new Date(selected.created_at).toLocaleString("es-PE")}</div>
+      }
+      toolbar={
+        <V2FilterBar
+          searchValue={busqueda}
+          onSearchChange={setBusqueda}
+          activeFiltersCount={(filtroModulo ? 1 : 0) + (filtroUsuario ? 1 : 0) + (filtroAccion ? 1 : 0) + (fechaDesde ? 1 : 0) + (fechaHasta ? 1 : 0)}
+          hideDrawerButton
+          onToggleDrawer={() => {}}
+          quickFilters={
+            <>
+              <div style={{ width: 160 }}>
+                <V2Select
+                  compact
+                  value={filtroModulo}
+                  onChange={(e) => setFiltroModulo(e.target.value)}
+                  options={[
+                    { label: "Todos los módulos", value: "" },
+                    ...modulos.map((m) => ({ label: m, value: m })),
+                  ]}
+                />
               </div>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3 }}>Usuario</div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{selected.usuario_nombre || "—"}</div>
+              <div style={{ width: 160 }}>
+                <V2Select
+                  compact
+                  value={filtroUsuario}
+                  onChange={(e) => setFiltroUsuario(e.target.value)}
+                  options={[
+                    { label: "Todos los usuarios", value: "" },
+                    ...usuarios.map((u) => ({ label: u, value: u })),
+                  ]}
+                />
               </div>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3 }}>Accion</div>
-                <div style={{ fontSize: 13, color: "#374151" }}>{ACCION_ICON[selected.accion] || "•"} {selected.accion}</div>
+              <div style={{ width: 160 }}>
+                <V2Select
+                  compact
+                  value={filtroAccion}
+                  onChange={(e) => setFiltroAccion(e.target.value)}
+                  options={[
+                    { label: "Todas las acciones", value: "" },
+                    ...[...new Set(registros.map((r) => r.accion))].map((a) => ({ label: a, value: a })),
+                  ]}
+                />
               </div>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3 }}>Modulo</div>
-                <div style={{ fontSize: 13, color: "#374151", textTransform: "capitalize" }}>{selected.modulo}</div>
-              </div>
-              {selected.entidad_tipo && (
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3 }}>Entidad</div>
-                  <div style={{ fontSize: 13, color: "#374151" }}>{selected.entidad_tipo}</div>
-                  {selected.entidad_label && <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{selected.entidad_label}</div>}
-                  {selected.entidad_id && <div style={{ fontSize: 11, color: "#9ca3af", fontFamily: "monospace" }}>ID interno: {String(selected.entidad_id).slice(0, 8)}…</div>}
+            </>
+          }
+          showClearButton={Boolean(filtroModulo || filtroUsuario || filtroAccion || busqueda || fechaDesde || fechaHasta)}
+          onClearFilters={() => {
+            setFiltroModulo("")
+            setFiltroUsuario("")
+            setFiltroAccion("")
+            setBusqueda("")
+            setFechaDesde("")
+            setFechaHasta("")
+          }}
+        />
+      }
+      table={
+        <div style={{ display: "grid", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 360px" : "1fr", gap: 16 }}>
+            <V2DataTable
+              columns={columns}
+              rows={filtradosOrdenados}
+              getRowKey={(r) => r.id}
+              empty={
+                <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
+                  No hay registros de trazabilidad con los filtros aplicados.
                 </div>
-              )}
-              {selected.descripcion && (
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3 }}>Descripcion</div>
-                  <div style={{ fontSize: 13, color: "#374151" }}>{selected.descripcion}</div>
+              }
+            />
+
+            {selected && (
+              <V2SectionCard title="Detalle del registro">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>ID: {String(selected.id).slice(0, 8)}…</h4>
+                  <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--v2-muted)", fontSize: 18 }}>×</button>
                 </div>
-              )}
-              {selected.datos_nuevos && (
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3 }}>Datos nuevos</div>
-                  <pre style={{ fontSize: 11, color: "#374151", background: "#f9fafb", borderRadius: 6, padding: "8px 10px", overflow: "auto", maxHeight: 150, margin: 0 }}>
-                    {JSON.stringify(JSON.parse(selected.datos_nuevos || "{}"), null, 2)}
-                  </pre>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Fecha y hora</div>
+                    <div style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{new Date(selected.created_at).toLocaleString("es-PE")}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Usuario</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)" }}>{selected.usuario_nombre || "—"}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Acción</div>
+                    <div style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{ACCION_ICON[selected.accion] || "•"} {selected.accion}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Módulo</div>
+                    <div style={{ fontSize: 12.5, color: "var(--v2-text)", textTransform: "capitalize" }}>{selected.modulo}</div>
+                  </div>
+                  {selected.entidad_tipo && (
+                    <div>
+                      <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Entidad</div>
+                      <div style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{selected.entidad_tipo}</div>
+                      {selected.entidad_label && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)" }}>{selected.entidad_label}</div>}
+                    </div>
+                  )}
+                  {selected.descripcion && (
+                    <div>
+                      <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Descripción</div>
+                      <div style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{selected.descripcion}</div>
+                    </div>
+                  )}
+                  {selected.datos_nuevos && (
+                    <div>
+                      <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Datos nuevos</div>
+                      <pre style={{ fontSize: 11, color: "var(--v2-text)", background: "var(--v2-surface-subtle)", borderRadius: "var(--v2-radius)", padding: "8px 10px", overflow: "auto", maxHeight: 140, margin: 0, border: "1px solid var(--v2-border)" }}>
+                        {JSON.stringify(JSON.parse(selected.datos_nuevos || "{}"), null, 2)}
+                      </pre>
+                    </div>
+                  )}
                 </div>
-              )}
-              {selected.datos_anteriores && (
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3 }}>Datos anteriores</div>
-                  <pre style={{ fontSize: 11, color: "#374151", background: "#fef9c3", borderRadius: 6, padding: "8px 10px", overflow: "auto", maxHeight: 150, margin: 0 }}>
-                    {JSON.stringify(JSON.parse(selected.datos_anteriores || "{}"), null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
+              </V2SectionCard>
+            )}
           </div>
-        )}
-      </div>
-    </div>
+
+          {totalRegistros > POR_PAGINA && (
+            <V2Pagination
+              page={pagina + 1}
+              pageCount={totalPaginas}
+              onPageChange={(p) => setPagina(p - 1)}
+              summary={`Mostrando ${(pagina * POR_PAGINA) + 1} - ${Math.min((pagina + 1) * POR_PAGINA, totalRegistros)} de ${totalRegistros} registros`}
+            />
+          )}
+        </div>
+      }
+    />
   )
 }
-
-
-

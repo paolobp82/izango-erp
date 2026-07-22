@@ -1,4 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&display=swap");
+@import "../components/design-system/theme/theme.css";
 *, *::before, *::after { box-sizing: border-box; }
 
 :root {
@@ -11,13 +12,7 @@
   --iz-color-brand-500: #00C665;
   --iz-color-brand-700: #0F6E56;
   --iz-color-brand-900: #04342C;
-  --iz-color-bg: #F6F8FA;
-  --iz-color-surface: #FFFFFF;
-  --iz-color-surface-muted: #F8FAFC;
-  --iz-color-text: #0F172A;
-  --iz-color-text-muted: #64748B;
-  --iz-color-border: #E2E8F0;
-  --iz-color-border-strong: #CBD5E1;
+  /* V2 Light tokens moved to theme.css */
   --iz-color-overlay: rgba(15, 23, 42, 0.34);
   --iz-color-on-brand: #FFFFFF;
   --iz-color-on-danger: #FFFFFF;
@@ -68,13 +63,7 @@
   --iz-color-brand-500: #16D979;
   --iz-color-brand-700: #71F1B3;
   --iz-color-brand-900: #D9FFEA;
-  --iz-color-bg: #07110F;
-  --iz-color-surface: #0E1A18;
-  --iz-color-surface-muted: #14231F;
-  --iz-color-text: #E7F4EF;
-  --iz-color-text-muted: #98AAA3;
-  --iz-color-border: #20352F;
-  --iz-color-border-strong: #315047;
+  /* V2 Dark tokens moved to theme.css */
   --iz-color-overlay: rgba(0, 0, 0, 0.56);
   --iz-color-on-brand: #042119;
   --iz-color-on-danger: #FFFFFF;
@@ -100,29 +89,80 @@
 .iz-table { font-family: var(--iz-font-sans); font-size: var(--iz-font-size-table); line-height: 1.35; }
 .iz-mono { font-family: var(--iz-font-mono); }
 body { margin: 0; font-family: var(--iz-font-sans); background: var(--iz-color-bg); color: var(--iz-color-text); }
-.sidebar-item { display: flex; align-items: center; gap: 12px; padding: 7px 16px; font-size: 13px; color: #4b5563; border-radius: 8px; cursor: pointer; transition: all .15s; border-left: 2px solid transparent; text-decoration: none; }
-.sidebar-item:hover { background: #f3f4f6; color: #111827; }
-.sidebar-item.active { background: #e6fff4; color: #04342C; font-weight: 500; border-left: 2px solid #03E373; }
-.btn-primary { background: #03E373; color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
-.btn-primary:hover { background: #027a45; }
-.btn-secondary { background: #fff; color: #374151; padding: 8px 16px; border-radius: 8px; font-size: 13px; border: 1px solid #e5e7eb; cursor: pointer; text-decoration: none; display: inline-block; }
-.btn-secondary:hover { background: #f9fafb; }
-.card { background: #fff; border-radius: 12px; border: 1px solid #f3f4f6; padding: 20px; }
+ .sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 16px;
+  font-size: 13px;
+  color: var(--v2-text-secondary);
+  border-left: 2px solid transparent;
+  border-radius: var(--v2-radius);
+  cursor: pointer;
+  transition: all .15s;
+  text-decoration: none;
+}
+
+.sidebar-item:hover {
+  background: var(--v2-surface-soft);
+  color: var(--v2-text);
+}
+
+.sidebar-item.active {
+  background: var(--v2-surface-soft);
+  color: var(--v2-text-primary);
+  font-weight: 500;
+  border-left: 2px solid var(--v2-brand);
+}
+
+.btn-primary {
+  background: var(--v2-brand);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: var(--v2-radius);
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.btn-primary:hover {
+  background: var(--v2-brand-darken);
+}
+
+.btn-secondary {
+  background: var(--v2-surface);
+  color: var(--v2-text);
+  padding: 8px 16px;
+  border-radius: var(--v2-radius);
+  font-size: 13px;
+  border: 1px solid var(--v2-border);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.btn-secondary:hover {
+  background: var(--v2-surface-soft);
+}
+.card { background: var(--v2-surface); border-radius: var(--v2-radius); border: 1px solid var(--v2-border); padding: 20px; }
 .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 11px; font-weight: 500; }
-.badge-green { background: #f0fdf4; color: #15803d; }
-.badge-yellow { background: #fefce8; color: #a16207; }
-.badge-blue { background: #eff6ff; color: #1d4ed8; }
-.badge-gray { background: #f3f4f6; color: #4b5563; }
-.badge-red { background: #fef2f2; color: #dc2626; }
-.badge-purple { background: #faf5ff; color: #7e22ce; }
-.input { width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; outline: none; background: #fff; font-family: inherit; }
-.input:focus { border-color: #03E373; }
-.label { display: block; font-size: 11px; color: #6b7280; margin-bottom: 4px; font-weight: 500; }
+.badge-success { background: var(--v2-success); color: var(--v2-text); }
+.badge-warning { background: var(--v2-warning); color: var(--v2-text); }
+.badge-info { background: var(--v2-info); color: var(--v2-text); }
+.badge-muted { background: var(--v2-surface-muted); color: var(--v2-text-secondary); }
+.badge-danger { background: var(--v2-danger); color: var(--v2-text); }
+.badge-purple { background: var(--v2-indigo); color: var(--v2-text); }
+.input { width: 100%; padding: 8px 12px; border: 1px solid var(--v2-border); border-radius: var(--v2-radius); font-size: 13px; outline: none; background: var(--v2-surface); color: var(--v2-text); font-family: inherit; }
+.input:focus { border-color: var(--v2-brand); box-shadow: 0 0 0 2px rgba(3,227,115,0.18); }
+.label { display: block; font-size: 11px; color: var(--v2-text-secondary); margin-bottom: 4px; font-weight: 500; }
 table { width: 100%; border-collapse: collapse; }
-thead tr { background: #f9fafb; }
-th { text-align: left; font-size: 11px; font-weight: 500; color: #6b7280; padding: 12px 16px; border-bottom: 1px solid #f3f4f6; }
-td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid #f9fafb; color: #374151; }
-tbody tr:hover td { background: #f9fafb; }
+thead tr { background: var(--v2-surface-muted); }
+th { text-align: left; font-size: 11px; font-weight: 500; color: var(--v2-muted); padding: 12px 16px; border-bottom: 1px solid var(--v2-border); }
+td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--v2-border); color: var(--v2-text); }
+tbody tr:hover td { background: var(--v2-surface-soft); }
 .min-h-screen { min-height: 100vh; }
 .flex { display: flex; }
 .flex-col { flex-direction: column; }

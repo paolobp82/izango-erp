@@ -1,7 +1,10 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { filtrarPorAlcance } from "@/lib/permisos"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import { V2Button, V2PageHeader, V2SectionCard } from "@/components/v2/system"
 
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 const DIAS = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"]
@@ -22,8 +25,6 @@ export default function CalendarioPage() {
   const [anio, setAnio] = useState(new Date().getFullYear())
   const [selected, setSelected] = useState<any>(null)
 
-  useEffect(() => { load() }, [])
-
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: perfil } = user ? await supabase.from("perfiles").select("*").eq("id", user.id).single() : { data: null }
@@ -37,6 +38,8 @@ export default function CalendarioPage() {
     setProyectos(filtrarPorAlcance(data || [], perfil, "calendario", { usuarioId: user?.id }))
     setLoading(false)
   }
+
+  useEffect(() => { load() }, [])
 
   function getDiasDelMes() {
     const primero = new Date(anio, mes, 1)
@@ -73,112 +76,161 @@ export default function CalendarioPage() {
     return f.getMonth() === mes && f.getFullYear() === anio
   })
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando calendario operacional...
+      </div>
+    )
+  }
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Calendario</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Proyectos aprobados por fecha de ejecución</p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={mesAnterior} style={{ padding: "6px 12px", border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 16 }}>‹</button>
-          <span style={{ fontSize: 16, fontWeight: 700, color: "#111827", minWidth: 160, textAlign: "center" }}>{MESES[mes]} {anio}</span>
-          <button onClick={mesSiguiente} style={{ padding: "6px 12px", border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 16 }}>›</button>
-          <button onClick={() => { setMes(new Date().getMonth()); setAnio(new Date().getFullYear()) }}
-            style={{ padding: "6px 14px", border: "1px solid #1D9E75", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 13, color: "#0F6E56", fontWeight: 600 }}>
-            Hoy
-          </button>
-        </div>
-      </div>
-
-      {/* Resumen del mes */}
-      {proyectosMes.length > 0 && (
-        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-          {proyectosMes.map(p => {
-            const ec = ESTADO_COLOR[p.estado] || { bg: "#f3f4f6", color: "#6b7280", label: p.estado }
-            return (
-              <div key={p.id} onClick={() => setSelected(p)}
-                style={{ background: ec.bg, border: "1px solid " + ec.color + "40", borderRadius: 8, padding: "6px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: ec.color }}>{p.codigo}</span>
-                <span style={{ fontSize: 12, color: "#374151" }}>{p.nombre}</span>
-                <span style={{ fontSize: 11, color: "#9ca3af" }}>{p.fecha_inicio}</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 320px" : "1fr", gap: 16 }}>
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          {/* Header días */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", background: "#1D9E75" }}>
-            {DIAS.map(d => (
-              <div key={d} style={{ padding: "10px 0", textAlign: "center", fontSize: 12, fontWeight: 700, color: "#fff" }}>{d}</div>
-            ))}
-          </div>
-
-          {/* Días */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0 }}>
-            {dias.map((dia, idx) => {
-              if (!dia) return <div key={idx} style={{ minHeight: 100, background: "#fafafa", borderRight: "1px solid #f3f4f6", borderBottom: "1px solid #f3f4f6" }} />
-              const proysDia = proyectosDelDia(dia)
-              const esHoy = dia.getDate() === hoy.getDate() && dia.getMonth() === hoy.getMonth() && dia.getFullYear() === hoy.getFullYear()
+    <V2ListPageTemplate
+      header={
+        <V2PageHeader
+          eyebrow="Operaciones"
+          title="Calendario Operacional"
+          subtitle="Proyectos aprobados y en curso por fecha de ejecución"
+          actions={
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <V2Button variant="ghost" size="compact" onClick={mesAnterior}>‹ Anterior</V2Button>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "var(--v2-text)", minWidth: 140, textAlign: "center" }}>
+                {MESES[mes]} {anio}
+              </span>
+              <V2Button variant="ghost" size="compact" onClick={mesSiguiente}>Siguiente ›</V2Button>
+              <V2Button variant="secondary" size="compact" onClick={() => { setMes(new Date().getMonth()); setAnio(new Date().getFullYear()) }}>
+                Hoy
+              </V2Button>
+            </div>
+          }
+        />
+      }
+      summary={
+        proyectosMes.length > 0 ? (
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+            {proyectosMes.map(p => {
+              const ec = ESTADO_COLOR[p.estado] || { bg: "var(--v2-surface-subtle)", color: "var(--v2-muted)", label: p.estado }
               return (
-                <div key={idx} style={{ minHeight: 100, padding: "6px 8px", borderRight: "1px solid #f3f4f6", borderBottom: "1px solid #f3f4f6", background: "#fff" }}>
-                  <div style={{ fontSize: 13, fontWeight: esHoy ? 800 : 400, color: esHoy ? "#fff" : "#374151",
-                    background: esHoy ? "#0F6E56" : "transparent", width: 26, height: 26, borderRadius: "50%",
-                    display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
-                    {dia.getDate()}
-                  </div>
-                  {proysDia.map(p => {
-                    const ec = ESTADO_COLOR[p.estado] || { bg: "#f3f4f6", color: "#6b7280" }
-                    return (
-                      <div key={p.id} onClick={() => setSelected(p)}
-                        style={{ background: ec.bg, color: ec.color, padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600, marginBottom: 2, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {p.codigo} {p.nombre}
-                      </div>
-                    )
-                  })}
+                <div
+                  key={p.id}
+                  onClick={() => setSelected(p)}
+                  style={{
+                    background: ec.bg,
+                    border: "1px solid " + ec.color + "40",
+                    borderRadius: "var(--v2-radius-sm)",
+                    padding: "6px 12px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 11, fontWeight: 700, color: ec.color }}>{p.codigo}</span>
+                  <span style={{ fontSize: 12, color: "var(--v2-text)" }}>{p.nombre}</span>
+                  <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>{p.fecha_inicio}</span>
                 </div>
               )
             })}
           </div>
-        </div>
-
-        {/* Panel detalle */}
-        {selected && (
-          <div className="card" style={{ alignSelf: "start" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af", marginBottom: 4 }}>{selected.codigo}</div>
-                <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "#111827" }}>{selected.nombre}</h2>
-              </div>
-              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 20 }}>×</button>
-            </div>
-            <div style={{ display: "grid", gap: 10 }}>
-              {[
-                { label: "Cliente", value: selected.cliente?.razon_social },
-                { label: "Productor", value: selected.productor ? selected.productor.nombre + " " + selected.productor.apellido : "—" },
-                { label: "Estado", value: ESTADO_COLOR[selected.estado]?.label || selected.estado },
-                { label: "Fecha ejecución", value: selected.fecha_inicio || "—" },
-                { label: "Fecha fin estimada", value: selected.fecha_fin_estimada || "—" },
-                { label: "Presupuesto", value: selected.presupuesto_referencial ? "S/ " + Number(selected.presupuesto_referencial).toLocaleString("es-PE") : "—" },
-              ].map(item => (
-                <div key={item.label}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 2 }}>{item.label}</div>
-                  <div style={{ fontSize: 13, color: "#374151", fontWeight: 500 }}>{item.value || "—"}</div>
-                </div>
+        ) : undefined
+      }
+      table={
+        <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 320px" : "1fr", gap: 16 }}>
+          <V2SectionCard title="Programación del Mes">
+            {/* Header días */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", background: "var(--v2-brand, #0F6E56)", borderRadius: "var(--v2-radius-sm) var(--v2-radius-sm) 0 0" }}>
+              {DIAS.map(d => (
+                <div key={d} style={{ padding: "10px 0", textAlign: "center", fontSize: 12, fontWeight: 700, color: "#fff" }}>{d}</div>
               ))}
             </div>
-            <a href={"/proyectos/" + selected.id}
-              style={{ display: "block", marginTop: 16, padding: "8px 16px", background: "#0F6E56", color: "#fff", borderRadius: 8, textAlign: "center", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>
-              Ver proyecto →
-            </a>
-          </div>
-        )}
-      </div>
-    </div>
+
+            {/* Días */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, border: "1px solid var(--v2-border)", borderRadius: "0 0 var(--v2-radius) var(--v2-radius)" }}>
+              {dias.map((dia, idx) => {
+                if (!dia) return <div key={idx} style={{ minHeight: 100, background: "var(--v2-surface-subtle)", borderRight: "1px solid var(--v2-border)", borderBottom: "1px solid var(--v2-border)" }} />
+                const proysDia = proyectosDelDia(dia)
+                const esHoy = dia.getDate() === hoy.getDate() && dia.getMonth() === hoy.getMonth() && dia.getFullYear() === hoy.getFullYear()
+                return (
+                  <div key={idx} style={{ minHeight: 100, padding: "6px 8px", borderRight: "1px solid var(--v2-border)", borderBottom: "1px solid var(--v2-border)", background: "var(--v2-surface)" }}>
+                    <div style={{
+                      fontSize: 12.5,
+                      fontWeight: esHoy ? 800 : 500,
+                      color: esHoy ? "#fff" : "var(--v2-text)",
+                      background: esHoy ? "var(--v2-brand)" : "transparent",
+                      width: 24,
+                      height: 24,
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginBottom: 4,
+                    }}>
+                      {dia.getDate()}
+                    </div>
+                    {proysDia.map(p => {
+                      const ec = ESTADO_COLOR[p.estado] || { bg: "var(--v2-surface-subtle)", color: "var(--v2-muted)" }
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => setSelected(p)}
+                          style={{
+                            background: ec.bg,
+                            color: ec.color,
+                            padding: "2px 6px",
+                            borderRadius: 4,
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                            marginBottom: 3,
+                            cursor: "pointer",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {p.codigo} {p.nombre}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </div>
+          </V2SectionCard>
+
+          {/* Panel detalle */}
+          {selected && (
+            <V2SectionCard title={selected.codigo}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>{selected.nombre}</h3>
+                <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--v2-subtle)", fontSize: 20 }}>×</button>
+              </div>
+              <div style={{ display: "grid", gap: 10 }}>
+                {[
+                  { label: "Cliente", value: selected.cliente?.razon_social },
+                  { label: "Productor", value: selected.productor ? selected.productor.nombre + " " + selected.productor.apellido : "—" },
+                  { label: "Estado", value: ESTADO_COLOR[selected.estado]?.label || selected.estado },
+                  { label: "Fecha ejecución", value: selected.fecha_inicio || "—" },
+                  { label: "Fecha fin estimada", value: selected.fecha_fin_estimada || "—" },
+                  { label: "Presupuesto", value: selected.presupuesto_referencial ? "S/ " + Number(selected.presupuesto_referencial).toLocaleString("es-PE") : "—" },
+                ].map(item => (
+                  <div key={item.label}>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>{item.label}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--v2-text)", fontWeight: 500 }}>{item.value || "—"}</div>
+                  </div>
+                ))}
+              </div>
+              <a
+                href={"/proyectos/" + selected.id}
+                style={{ textDecoration: "none", display: "block", marginTop: 16 }}
+              >
+                <V2Button variant="primary" style={{ width: "100%" }}>
+                  Ver detalle proyecto →
+                </V2Button>
+              </a>
+            </V2SectionCard>
+          )}
+        </div>
+      }
+    />
   )
 }

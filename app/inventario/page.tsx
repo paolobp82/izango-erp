@@ -1,15 +1,24 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/purity, react-hooks/immutability, react-hooks/exhaustive-deps, @next/next/no-img-element */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
-import { useRouter } from "next/navigation"
 import ImportExport from "@/components/ImportExport"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2KpiCard,
+  V2PageHeader,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 const CATEGORIAS = ["activo", "consumible", "material"]
 const UNIDADES = ["unidad", "kg", "metro", "litro", "caja", "par", "juego"]
 
 export default function InventarioPage() {
   const supabase = createClient()
-  const router = useRouter()
   const [items, setItems] = useState<any[]>([])
   const [ubicaciones, setUbicaciones] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
@@ -61,14 +70,16 @@ export default function InventarioPage() {
     if (!form.nombre) { alert("Nombre es obligatorio"); return }
     setSaving(true)
     const payload = { ...form, cliente_id: form.cliente_id || null, updated_at: new Date().toISOString() }
+    let itemId = editando?.id
     if (editando) {
       await supabase.from("inventario_items").update(payload).eq("id", editando.id)
     } else {
-      const { data: item } = await supabase.from("inventario_items").insert({ ...payload, activo: true }).select().single()
-      if (item && form.tiene_variantes && variantes.filter(v => v.trim()).length > 0) {
-        const vars = variantes.filter(v => v.trim()).map(v => ({ item_id: item.id, nombre: v.trim() }))
-        await supabase.from("inventario_variantes").insert(vars)
-      }
+      const { data: nuevo } = await supabase.from("inventario_items").insert({ ...payload, activo: true, entidad: "peru" }).select().single()
+      itemId = nuevo?.id
+    }
+    if (!editando && form.tiene_variantes && variantes.length > 0 && itemId) {
+      const vars = variantes.map(v => v.trim()).filter(Boolean).map(v => ({ item_id: itemId, nombre: v, sku: `${form.nombre.slice(0,3).toUpperCase()}-${v.toUpperCase()}` }))
+      if (vars.length > 0) await supabase.from("inventario_variantes").insert(vars)
     }
     setSaving(false)
     setShowForm(false)
@@ -76,165 +87,227 @@ export default function InventarioPage() {
   }
 
   async function eliminar(id: string) {
-    if (!confirm("¿Desactivar este item?")) return
+    if (!confirm("¿Eliminar este ítem del inventario?")) return
     await supabase.from("inventario_items").update({ activo: false }).eq("id", id)
     load()
   }
 
-  const itemsFiltrados = items.filter(i => {
-    const matchCat = !filtroCategoria || i.categoria === filtroCategoria
-    const matchBus = !filtroBusqueda || i.nombre.toLowerCase().includes(filtroBusqueda.toLowerCase())
-    return matchCat && matchBus
-  })
-
-  const getStockTotal = (item: any) => {
+  function getStockTotal(item: any) {
     if (!item.inventario_stock_sin_variante) return 0
-    return item.inventario_stock_sin_variante.reduce((s: number, st: any) => s + (st.cantidad || 0), 0)
+    return item.inventario_stock_sin_variante.reduce((s: number, x: any) => s + (x.cantidad || 0), 0)
   }
 
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
+  const itemsFiltrados = items.filter(item => {
+    const matchCat = !filtroCategoria || item.categoria === filtroCategoria
+    const matchBusq = !filtroBusqueda || item.nombre.toLowerCase().includes(filtroBusqueda.toLowerCase()) || item.descripcion?.toLowerCase().includes(filtroBusqueda.toLowerCase())
+    return matchCat && matchBusq
+  })
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  const inp: any = { padding: "8px 12px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius)", fontSize: 13, fontFamily: "inherit", background: "var(--v2-surface)", width: "100%", outline: "none", boxSizing: "border-box" as const }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", marginBottom: 6, textTransform: "uppercase" as const }
+
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando catálogo de inventario...
+      </div>
+    )
+  }
+
+  const columns: V2TableColumn<any>[] = [
+    {
+      key: "item",
+      header: "Ítem",
+      render: (item) => {
+        const stockTotal = getStockTotal(item)
+        const bajominimo = stockTotal <= (item.stock_minimo || 0) && item.stock_minimo > 0
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {item.foto_url ? (
+              <img src={item.foto_url} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} alt={item.nombre} />
+            ) : (
+              <div style={{ width: 36, height: 36, borderRadius: 6, background: "var(--v2-surface-subtle)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+                📦
+              </div>
+            )}
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13.5, color: "var(--v2-text)" }}>{item.nombre}</div>
+              {item.descripcion && <div style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{item.descripcion}</div>}
+              {item.tiene_variantes && <span style={{ fontSize: 10, color: "#7c3aed", background: "#ede9fe", padding: "1px 6px", borderRadius: 99, fontWeight: 600 }}>Con variantes</span>}
+              {bajominimo && <span style={{ fontSize: 10, color: "#dc2626", background: "#fee2e2", padding: "1px 6px", borderRadius: 99, fontWeight: 600, marginLeft: 4 }}>⚠ Stock bajo</span>}
+            </div>
+          </div>
+        )
+      },
+    },
+    {
+      key: "categoria",
+      header: "Categoría",
+      render: (item) => (
+        <span style={{
+          background: item.categoria === "activo" ? "#dbeafe" : item.categoria === "consumible" ? "#fef3c7" : "#f0fdf4",
+          color: item.categoria === "activo" ? "#1e40af" : item.categoria === "consumible" ? "#92400e" : "#15803d",
+          padding: "2px 8px",
+          borderRadius: 99,
+          fontSize: 11,
+          fontWeight: 600,
+        }}>
+          {item.categoria}
+        </span>
+      ),
+    },
+    {
+      key: "cliente",
+      header: "Cliente",
+      render: (item) => <span style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{item.cliente?.razon_social || "—"}</span>,
+    },
+    {
+      key: "stock_total",
+      header: "Stock Total",
+      align: "center",
+      render: (item) => <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--v2-text)" }}>{getStockTotal(item)}</span>,
+    },
+    ...ubicaciones.map((ub) => ({
+      key: `ub_${ub.id}`,
+      header: ub.nombre,
+      align: "center" as const,
+      render: (item: any) => {
+        const st = item.inventario_stock_sin_variante?.find((x: any) => x.ubicacion?.nombre === ub.nombre)
+        return <span style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>{st?.cantidad || 0}</span>
+      },
+    })),
+    {
+      key: "stock_minimo",
+      header: "Mínimo",
+      align: "center",
+      render: (item) => <span style={{ fontSize: 12, color: "var(--v2-subtle)" }}>{item.stock_minimo || 0}</span>,
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (item) => (
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          <V2Button variant="ghost" size="compact" onClick={() => abrirEditar(item)}>
+            Editar
+          </V2Button>
+          <V2Button variant="destructive" size="compact" onClick={() => eliminar(item.id)}>
+            ×
+          </V2Button>
+        </div>
+      ),
+    },
+  ]
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Inventario</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{items.length} items registrados</p>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => router.push("/inventario/ordenes")} className="btn-secondary" style={{ fontSize: 13 }}>📋 Ordenes</button>
-          <ImportExport
-            modulo="inventario_items"
-            campos={[
-              {key:"nombre",label:"Nombre",requerido:true},
-              {key:"descripcion",label:"Descripcion"},
-              {key:"categoria",label:"Categoria"},
-              {key:"unidad",label:"Unidad"},
-              {key:"stock_minimo",label:"Stock minimo"},
-              {key:"tiene_variantes",label:"Tiene variantes"},
-              {key:"foto_url",label:"URL Foto"},
-            ]}
-            datos={items}
-            onImportar={async (registros) => {
-              let exitosos=0; const errores: string[]=[];
-              for(const r of registros){
-                const {error}=await supabase.from("inventario_items").insert({...r,activo:true});
-                if(error)errores.push(r.nombre+": "+error.message); else exitosos++;
-              }
-              load(); return{exitosos,errores};
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            eyebrow="Inventario"
+            title="Catálogo de Ítems"
+            subtitle={`${itemsFiltrados.length} de ${items.length} ítems en almacén`}
+            actions={
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <ImportExport
+                  modulo="inventario_items"
+                  campos={[
+                    { key: "nombre", label: "Nombre", requerido: true },
+                    { key: "descripcion", label: "Descripción" },
+                    { key: "categoria", label: "Categoría", requerido: true },
+                    { key: "unidad", label: "Unidad", requerido: true },
+                    { key: "stock_minimo", label: "Stock mínimo" },
+                  ]}
+                  datos={itemsFiltrados}
+                  onImportar={async (registros) => {
+                    let exitosos = 0
+                    const errores: string[] = []
+                    for (const r of registros) {
+                      const { error } = await supabase.from("inventario_items").insert({ ...r, activo: true, entidad: "peru" })
+                      if (error) errores.push(r.nombre + ": " + error.message)
+                      else exitosos++
+                    }
+                    load()
+                    return { exitosos, errores }
+                  }}
+                />
+                <V2Button variant="primary" onClick={abrirNuevo}>
+                  + Nuevo ítem
+                </V2Button>
+              </div>
+            }
+          />
+        }
+        summary={
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(180px, 1fr))`, gap: 14 }}>
+            {ubicaciones.map((ub) => {
+              const total = items.reduce((s, item) => {
+                const st = item.inventario_stock_sin_variante?.find((x: any) => x.ubicacion?.nombre === ub.nombre)
+                return s + (st?.cantidad || 0)
+              }, 0)
+              return (
+                <V2KpiCard
+                  key={ub.id}
+                  label={ub.nombre}
+                  value={String(total)}
+                  icon="folder"
+                />
+              )
+            })}
+          </div>
+        }
+        toolbar={
+          <V2FilterBar
+            searchValue={filtroBusqueda}
+            onSearchChange={setFiltroBusqueda}
+            activeFiltersCount={filtroCategoria ? 1 : 0}
+            hideDrawerButton
+            onToggleDrawer={() => {}}
+            quickFilters={
+              <div style={{ width: 180 }}>
+                <V2Select
+                  compact
+                  value={filtroCategoria}
+                  onChange={(e) => setFiltroCategoria(e.target.value)}
+                  options={[
+                    { label: "Todas las categorías", value: "" },
+                    ...CATEGORIAS.map((c) => ({ label: c, value: c })),
+                  ]}
+                />
+              </div>
+            }
+            showClearButton={Boolean(filtroCategoria || filtroBusqueda)}
+            onClearFilters={() => {
+              setFiltroBusqueda("")
+              setFiltroCategoria("")
             }}
           />
-          <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo item</button>
-        </div>
-      </div>
+        }
+        table={
+          <V2DataTable
+            columns={columns}
+            rows={itemsFiltrados}
+            getRowKey={(item) => item.id}
+            empty={
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
+                No hay ítems registrados en el catálogo.
+              </div>
+            }
+          />
+        }
+      />
 
-      {/* Filtros */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-        <input style={{ ...inp, maxWidth: 280 }} placeholder="Buscar item..." value={filtroBusqueda} onChange={e => setFiltroBusqueda(e.target.value)} />
-        <select style={{ ...inp, maxWidth: 160 }} value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}>
-          <option value="">Todas las categorías</option>
-          {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
-        </select>
-      </div>
-
-      {/* Cards de stock por ubicación */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 20 }}>
-        {ubicaciones.map(ub => {
-          const total = items.reduce((s, i) => {
-            const st = i.inventario_stock_sin_variante?.find((x: any) => x.ubicacion?.nombre === ub.nombre)
-            return s + (st?.cantidad || 0)
-          }, 0)
-          return (
-            <div key={ub.id} className="card" style={{ padding: "14px 18px" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>{ub.nombre}</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "#111827" }}>{total}</div>
-              <div style={{ fontSize: 11, color: "#9ca3af" }}>items en stock</div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Tabla items */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {itemsFiltrados.length === 0 ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "#9ca3af" }}>No hay items. Crea el primero.</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ITEM</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CATEGORÍA</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>STOCK TOTAL</th>
-                {ubicaciones.map(ub => (
-                  <th key={ub.id} style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{ub.nombre.toUpperCase()}</th>
-                ))}
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>STOCK MÍN.</th>
-                <th style={{ padding: "10px 20px", width: 120 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {itemsFiltrados.map((item, idx) => {
-                const stockTotal = getStockTotal(item)
-                const bajominimo = stockTotal <= (item.stock_minimo || 0) && item.stock_minimo > 0
-                return (
-                  <tr key={item.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                    <td style={{ padding: "12px 20px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        {item.foto_url ? (
-                          <img src={item.foto_url} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} />
-                        ) : (
-                          <div style={{ width: 36, height: 36, borderRadius: 6, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>📦</div>
-                        )}
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{item.nombre}</div>
-                          {item.descripcion && <div style={{ fontSize: 11, color: "#9ca3af" }}>{item.descripcion}</div>}
-                          {item.tiene_variantes && <span style={{ fontSize: 10, color: "#7c3aed", background: "#ede9fe", padding: "1px 6px", borderRadius: 99, fontWeight: 600 }}>Con variantes</span>}
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: "12px" }}>
-                      <span style={{ background: item.categoria === "activo" ? "#dbeafe" : item.categoria === "consumible" ? "#fef3c7" : "#f0fdf4", color: item.categoria === "activo" ? "#1e40af" : item.categoria === "consumible" ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{item.categoria}</span>
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{item.cliente?.razon_social || "—"}</td>
-                    <td style={{ padding: "12px", textAlign: "center" }}>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: bajominimo ? "#dc2626" : "#111827" }}>{stockTotal}</span>
-                      {bajominimo && <div style={{ fontSize: 10, color: "#dc2626" }}>⚠ Stock bajo</div>}
-                    </td>
-                    {ubicaciones.map(ub => {
-                      const st = item.inventario_stock_sin_variante?.find((x: any) => x.ubicacion?.nombre === ub.nombre)
-                      return <td key={ub.id} style={{ padding: "12px", textAlign: "center", fontSize: 13, color: "#475569" }}>{st?.cantidad || 0}</td>
-                    })}
-                    <td style={{ padding: "12px", textAlign: "center", fontSize: 13, color: "#9ca3af" }}>{item.stock_minimo || 0}</td>
-                    <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                        <button onClick={() => abrirEditar(item)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
-                        <button onClick={() => eliminar(item.id)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Modal form */}
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 580, maxHeight: "90vh", overflowY: "auto" }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 580, maxHeight: "90vh", overflowY: "auto", boxShadow: "var(--v2-shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>{editando ? "Editar item" : "Nuevo item"}</h2>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>×</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>{editando ? "Editar ítem" : "Nuevo ítem"}</h2>
+              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--v2-subtle)" }}>×</button>
             </div>
             <div style={{ display: "grid", gap: 14 }}>
               <div>
                 <label style={lbl}>Nombre *</label>
-                <input style={inp} value={form.nombre} placeholder="Nombre del item" onChange={e => setForm({ ...form, nombre: e.target.value })} />
+                <input style={inp} value={form.nombre} placeholder="Nombre del ítem" onChange={e => setForm({ ...form, nombre: e.target.value })} />
               </div>
               <div>
                 <label style={lbl}>Descripción</label>
@@ -275,7 +348,7 @@ export default function InventarioPage() {
                 <div>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 10 }}>
                     <input type="checkbox" checked={form.tiene_variantes} onChange={e => setForm({ ...form, tiene_variantes: e.target.checked })} style={{ width: 15, height: 15 }} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Tiene variantes (tallas, medidas, pesos)</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)" }}>Tiene variantes (tallas, medidas, pesos)</span>
                   </label>
                   {form.tiene_variantes && (
                     <div>
@@ -290,12 +363,12 @@ export default function InventarioPage() {
               )}
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : editando ? "Actualizar" : "Crear item"}</button>
+              <V2Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={guardar} disabled={saving}>{saving ? "Guardando..." : editando ? "Actualizar" : "Crear ítem"}</V2Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

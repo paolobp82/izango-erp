@@ -18,6 +18,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" href={LOGO_URL} />
       </head>
       <body>
+        {/* Pre-hydration script: sets data-theme before React renders to prevent flash */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var k="izango-theme",s=localStorage.getItem(k),t=(s==="light"||s==="dark")?s:"light";document.documentElement.dataset.theme=t;}catch(e){}})();`,
+          }}
+        />
         <ThemeProvider>
           <AppLayout>{children}</AppLayout>
         </ThemeProvider>

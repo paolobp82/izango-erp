@@ -1,0 +1,339 @@
+.pipelineGrid {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  align-items: start;
+}
+
+/* Desktop: 7 columns on compacto/normal */
+.pipelineGridCompact,
+.pipelineGridNormal {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+/* If some columns are collapsed, we adjust widths in JSX styles */
+
+/* Expandido allows scroll or wider columns */
+.pipelineGridExpandido {
+  grid-template-columns: repeat(7, minmax(260px, 1fr));
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+.kanbanColumn {
+  display: flex;
+  flex-direction: column;
+  background: var(--v2-surface-soft);
+  border: 1px solid var(--v2-border-soft);
+  border-radius: var(--v2-radius-lg);
+  padding: 8px;
+  min-height: 190px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.kanbanColumnDragOver {
+  background: rgba(3, 227, 115, 0.05);
+  border-color: var(--v2-accent);
+}
+
+.columnHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--v2-border-soft);
+}
+
+.columnHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.statusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.columnTitle {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-text);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.columnCountBadge {
+  background: var(--v2-border);
+  color: var(--v2-muted);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 99px;
+  margin-left: 4px;
+}
+
+.columnHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.columnTotal {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+
+.columnHeaderAction {
+  background: none;
+  border: none;
+  color: var(--v2-subtle);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--v2-radius-sm);
+  display: flex;
+  align-items: center;
+}
+
+.columnHeaderAction:hover {
+  background: var(--v2-border-soft);
+  color: var(--v2-text);
+}
+
+.cardsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 100px;
+}
+
+/* Collapsed column style */
+.collapsedColumn {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  min-height: 220px;
+  padding: 8px 2px;
+  align-items: center;
+  background: var(--v2-surface-soft);
+  border: 1px solid var(--v2-border-soft);
+  border-radius: var(--v2-radius-lg);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  cursor: pointer;
+}
+
+.collapsedColumn:hover {
+  border-color: var(--v2-accent);
+}
+
+.collapsedHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+}
+
+.collapsedTitleWrapper {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  color: var(--v2-muted);
+}
+
+.collapsedTitle {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.collapsedDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Responsive Tablet */
+@media (max-width: 1024px) {
+  .pipelineGridCompact,
+  .pipelineGridNormal {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+/* Responsive Mobile */
+@media (max-width: 768px) {
+  .pipelineGridCompact,
+  .pipelineGridNormal,
+  .pipelineGridExpandido {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .kanbanColumn, .collapsedColumn {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+  }
+  
+  .cardsContainer {
+    min-height: auto !important;
+  }
+}
+
+/* Premium Lead Card */
+.leadCard {
+  background: var(--v2-surface);
+  border: 1px solid var(--v2-border-soft);
+  border-radius: var(--v2-radius-lg);
+  padding: 12px 14px;
+  cursor: grab;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  outline: none;
+}
+
+.leadCard:hover {
+  border-color: var(--v2-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  transform: translateY(-1px);
+}
+
+.leadCard:focus-visible {
+  border-color: var(--v2-brand-primary);
+  box-shadow: 0 0 0 2px var(--v2-brand-primary-light);
+}
+
+.leadCardSelected {
+  background: var(--v2-surface-soft) !important;
+  border-color: var(--v2-brand-primary) !important;
+  box-shadow: 0 4px 12px rgba(15, 110, 86, 0.05);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--v2-text);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.cardMonto {
+  font-size: 15px;
+  font-weight: 850;
+  color: var(--v2-text);
+  margin-top: 2px;
+}
+
+.cardLabelVinculado {
+  font-size: 9.5px;
+  color: var(--v2-brand-primary);
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 1px;
+}
+
+.cardTempBadge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: var(--v2-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+}
+
+.cardTempCaliente {
+  background: rgba(239, 68, 68, 0.08);
+  color: rgb(239, 68, 68);
+}
+
+.cardTempTibio {
+  background: rgba(245, 158, 11, 0.08);
+  color: rgb(245, 158, 11);
+}
+
+.cardTempFrio {
+  background: rgba(59, 130, 246, 0.08);
+  color: rgb(59, 130, 246);
+}
+
+.cardMetadataSection {
+  display: grid;
+  gap: 4px;
+  border-left: 2px solid var(--v2-border-soft);
+  padding-left: 8px;
+  font-size: 11px;
+  color: var(--v2-muted);
+  margin: 4px 0;
+}
+
+.cardFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--v2-border-soft);
+}
+
+.cardOwner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 10.5px;
+  font-weight: 650;
+  color: var(--v2-subtle);
+}
+
+.cardOwnerInitials {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--v2-border-soft);
+  color: var(--v2-text);
+  font-size: 8px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.cardDate {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--v2-muted);
+}
+
+.cardDateCaliente {
+  color: var(--v2-danger) !important;
+}

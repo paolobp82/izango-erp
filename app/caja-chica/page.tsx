@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/immutability, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
@@ -7,6 +8,8 @@ import { rqCodigo } from "@/lib/rq-code"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import { puedeAccederRuta } from "@/lib/permissions"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import { V2Button, V2KpiCard, V2PageHeader, V2SectionCard } from "@/components/v2/system"
 
 const ESTADOS: Record<string, any> = {
   pendiente: { label: "Pendiente", bg: "#fef9c3", color: "#92400e" },
@@ -315,19 +318,20 @@ export default function CajaChicaPage() {
 
       <div style={{ flex: 1, overflowY: "auto", paddingRight: 4 }}>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Caja Chica</h1>
-            <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{registros.length} registros</p>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (<>
-              <button onClick={() => setShowAbrirCaja(true)} style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#f0fdf4", color: "#0F6E56", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>💰 Abrir caja</button>
-              <button onClick={() => setShowCerrarRendicion(true)} style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📦 Cerrar rendición</button>
-            </>)}
-            <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva solicitud</button>
-          </div>
-        </div>
+        <V2PageHeader
+          eyebrow="Finanzas & Tesorería"
+          title="Caja Chica y Rendiciones"
+          subtitle={`${registros.length} registros de caja chica`}
+          actions={
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {["superadmin","gerente_general","controller"].includes(perfil?.perfil) && (<>
+                <V2Button variant="secondary" onClick={() => setShowAbrirCaja(true)}>💰 Abrir caja</V2Button>
+                <V2Button variant="secondary" onClick={() => setShowCerrarRendicion(true)}>📦 Cerrar rendición</V2Button>
+              </>)}
+              <V2Button variant="primary" onClick={() => setShowForm(true)}>+ Nueva solicitud</V2Button>
+            </div>
+          }
+        />
 
         {/* Saldo y progreso */}
         {montoInicialCaja > 0 && (

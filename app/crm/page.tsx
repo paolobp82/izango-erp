@@ -1,11 +1,31 @@
 "use client"
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/exhaustive-deps */
-import { useEffect, useMemo, useState } from "react"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
+
+import { useEffect, useMemo, useState, DragEvent } from "react"
+import {
+  BriefcaseBusiness,
+  CircleDollarSign,
+  Clock3,
+  Percent,
+  Search,
+  TrendingUp,
+} from "lucide-react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
 import ImportExport from "@/components/ImportExport"
-import { Drawer, EmptyState, ExecutiveSummary, FiltersBar, MasterPage, StatusBadge } from "@/components/design-system"
+import {
+  V2Button,
+  V2Drawer,
+  V2FormField,
+  V2Input,
+  V2KpiCard,
+  V2Modal,
+  V2PageHeader,
+  V2SectionCard,
+  V2Select,
+  V2Skeleton,
+} from "@/components/v2/system"
 import {
   getCRMEstadosPipeline,
   getCRMEstadosVisuales,
@@ -16,12 +36,10 @@ import {
 import { businessRuleEngine } from "@/lib/core/business-rules"
 import { lifecycleEngine } from "@/lib/core/lifecycle"
 import {
+  cotizacionVigenteProyecto,
   estadoCobroFactura,
   facturaVigenteProyecto,
-  montoCobradoFacturaComercial,
   totalCotizacionComercial,
-  totalFacturaComercial,
-  cotizacionVigenteProyecto,
 } from "@/lib/comercial/cotizaciones"
 import { sincronizarLeadPorProyecto } from "@/lib/comercial/sincronizacion"
 import {
@@ -30,6 +48,11 @@ import {
   puedeVerModulo,
   type AccionPermiso,
 } from "@/lib/permisos"
+
+// Custom Components
+import { CRMFilterSection, type AppliedFilters } from "./components/CRMFilterSection"
+import { CRMKanbanBoard } from "./components/CRMKanbanBoard"
+import { CRMLeadCard } from "./components/CRMLeadCard"
 
 const ESTADOS = getCRMEstadosVisuales()
 const ESTADOS_PIPELINE = getCRMEstadosPipeline()
@@ -49,13 +72,6 @@ function periodoActual() {
   return new Date().toISOString().slice(0, 7)
 }
 
-function referenciasCotizacion(value?: string | null) {
-  return String(value || "")
-    .split(",")
-    .map(item => item.trim())
-    .filter(Boolean)
-}
-
 function normalizarBusqueda(value: unknown) {
   return String(value || "")
     .toLowerCase()
@@ -63,19 +79,46 @@ function normalizarBusqueda(value: unknown) {
 }
 
 const emptyForm = {
-  razon_social: "", ruc: "", nombre_contacto: "", email_contacto: "",
-  telefono_contacto: "", direccion: "", cargo_contacto: "", origen: "", estado: "nuevo",
-  temperatura: "frio", industria: "", presupuesto_estimado: "",
-  probabilidad_cierre: 0, fecha_proxima_accion: "", notas: "",
-  responsable_id: "", cliente_id: "", periodo_pipeline: periodoActual(),
+  razon_social: "",
+  ruc: "",
+  nombre_contacto: "",
+  email_contacto: "",
+  telefono_contacto: "",
+  direccion: "",
+  cargo_contacto: "",
+  origen: "",
+  estado: "nuevo",
+  temperatura: "frio",
+  industria: "",
+  presupuesto_estimado: "",
+  probabilidad_cierre: 0,
+  fecha_proxima_accion: "",
+  notas: "",
+  responsable_id: "",
+  cliente_id: "",
+  periodo_pipeline: periodoActual(),
   proyecto_id: "",
   referencias_cotizacion: "",
   crear_cliente: false,
 }
 
+const emptyFilters: AppliedFilters = {
+  responsableId: "",
+  clienteId: "",
+  estado: "",
+  origen: "",
+  periodo: "actual",
+  temperatura: "",
+  montoMin: "",
+  montoMax: "",
+  soloMisLeads: false,
+}
+
 export default function CRMPage() {
   const supabase = createClient()
   const router = useRouter()
+
+  // Data sets
   const [leads, setLeads] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [proyectos, setProyectos] = useState<any[]>([])
@@ -83,27 +126,37 @@ export default function CRMPage() {
   const [facturas, setFacturas] = useState<any[]>([])
   const [responsables, setResponsables] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Layout & modals states
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState<any>(null)
-  const [filtroEstado, setFiltroEstado] = useState("")
-  const [filtroTemp, setFiltroTemp] = useState("")
-  const [filtroPeriodo, setFiltroPeriodo] = useState("actual")
-  const [busqueda, setBusqueda] = useState("")
   const [form, setForm] = useState<any>(emptyForm)
   const [nuevaNota, setNuevaNota] = useState("")
   const [notas, setNotas] = useState<any[]>([])
   const [clientesConvertidos, setClientesConvertidos] = useState<Record<string, { id: string; razon_social: string }>>({})
-  const [archivando, setArchivando] = useState(false)
   const [perfilActual, setPerfilActual] = useState<any>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
-  useEffect(() => { load() }, [])
+  // View States
+  const [density, setDensity] = useState<"compacta" | "normal" | "expandida">("compacta")
+  const [orderBy, setOrderBy] = useState<"actualizacion" | "monto" | "probabilidad">("actualizacion")
+  const [collapsedColumns, setCollapsedColumns] = useState<Record<string, boolean>>({})
+
+  // Filters State
+  const [busqueda, setBusqueda] = useState("")
+  const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({ ...emptyFilters })
+
+  useEffect(() => {
+    load()
+  }, [])
 
   async function load() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     if (!user) {
       setCurrentUserId(null)
       setPerfilActual(null)
@@ -135,17 +188,17 @@ export default function CRMPage() {
     const [leadsRes, clientesRes, perfilesRes, proyectosRes, cotizacionesRes, facturasRes] = await Promise.all([
       supabase
         .from("crm_leads")
-        .select("*, cliente:clientes(id, razon_social, ruc, direccion, nombre_contacto, email_contacto, telefono_contacto, nombre_contacto_admin, email_contacto_admin, telefono_contacto_admin), proyecto:proyectos(id, codigo, nombre, estado, cliente_id, deleted_at, cliente:clientes(id, razon_social))")
+        .select(
+          "*, cliente:clientes(id, razon_social, ruc, direccion, nombre_contacto, email_contacto, telefono_contacto, nombre_contacto_admin, email_contacto_admin, telefono_contacto_admin), proyecto:proyectos(id, codigo, nombre, estado, cliente_id, deleted_at, cliente:clientes(id, razon_social))"
+        )
         .order("created_at", { ascending: false }),
       supabase
         .from("clientes")
-        .select("id, razon_social, ruc, direccion, nombre_contacto, email_contacto, telefono_contacto, nombre_contacto_admin, email_contacto_admin, telefono_contacto_admin, banco_1, numero_cuenta_1, cci_1")
+        .select(
+          "id, razon_social, ruc, direccion, nombre_contacto, email_contacto, telefono_contacto, nombre_contacto_admin, email_contacto_admin, telefono_contacto_admin, banco_1, numero_cuenta_1, cci_1"
+        )
         .order("razon_social"),
-      supabase
-        .from("perfiles")
-        .select("id, nombre, apellido, perfil")
-        .eq("activo", true)
-        .order("apellido"),
+      supabase.from("perfiles").select("id, nombre, apellido, perfil").eq("activo", true).order("apellido"),
       supabase
         .from("proyectos")
         .select("id, codigo, nombre, estado, cliente_id, deleted_at, cliente:clientes(id, razon_social)")
@@ -153,13 +206,18 @@ export default function CRMPage() {
         .order("codigo", { ascending: false }),
       supabase
         .from("cotizaciones")
-        .select("id, proyecto_id, version, estado, created_at, updated_at, total_cliente, subtotal_precio_cliente, subtotal_con_fee, igv_monto, fee_agencia_pct, fee_activo, igv_pct, descuento_pct, items:cotizacion_items(precio_cliente,incluir_en_total)")
+        .select(
+          "id, proyecto_id, version, estado, created_at, updated_at, total_cliente, subtotal_precio_cliente, subtotal_con_fee, igv_monto, fee_agencia_pct, fee_activo, igv_pct, descuento_pct, items:cotizacion_items(precio_cliente,incluir_en_total)"
+        )
         .order("updated_at", { ascending: false }),
       supabase
         .from("facturas")
-        .select("id, proyecto_id, numero_factura, estado, tipo_factura, fecha_emision, fecha_abono, subtotal, igv, monto_final_abonado, updated_at, created_at")
+        .select(
+          "id, proyecto_id, numero_factura, estado, tipo_factura, fecha_emision, fecha_abono, subtotal, igv, monto_final_abonado, updated_at, created_at"
+        )
         .order("updated_at", { ascending: false }),
     ])
+
     if (leadsRes.error) {
       console.error("Error CRM leads", leadsRes.error)
       setLeads([])
@@ -201,7 +259,11 @@ export default function CRMPage() {
   }
 
   async function loadNotas(leadId: string) {
-    const { data, error } = await supabase.from("crm_notas").select("*").eq("lead_id", leadId).order("created_at", { ascending: false })
+    const { data, error } = await supabase
+      .from("crm_notas")
+      .select("*")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
     if (error) {
       console.error("Error CRM notas", error)
       setNotas([])
@@ -271,16 +333,23 @@ export default function CRMPage() {
     const normalizado = normalizarLead(lead)
     setEditando(normalizado)
     setForm({
-      razon_social: normalizado.razon_social || "", ruc: normalizado.ruc || "",
-      nombre_contacto: normalizado.nombre_contacto || "", email_contacto: normalizado.email_contacto || "",
-      telefono_contacto: normalizado.telefono_contacto || "", direccion: normalizado.direccion || "",
+      razon_social: normalizado.razon_social || "",
+      ruc: normalizado.ruc || "",
+      nombre_contacto: normalizado.nombre_contacto || "",
+      email_contacto: normalizado.email_contacto || "",
+      telefono_contacto: normalizado.telefono_contacto || "",
+      direccion: normalizado.direccion || "",
       cargo_contacto: normalizado.cargo_contacto || "",
-      origen: normalizado.origen || "", estado: normalizado.estado || "nuevo",
-      temperatura: normalizado.temperatura || "frio", industria: normalizado.industria || "",
+      origen: normalizado.origen || "",
+      estado: normalizado.estado || "nuevo",
+      temperatura: normalizado.temperatura || "frio",
+      industria: normalizado.industria || "",
       presupuesto_estimado: normalizado.presupuesto_estimado || "",
       probabilidad_cierre: normalizado.probabilidad_cierre || 0,
-      fecha_proxima_accion: normalizado.fecha_proxima_accion || "", notas: normalizado.notas || "",
-      responsable_id: normalizado.responsable_id || "", cliente_id: normalizado.cliente_id || "",
+      fecha_proxima_accion: normalizado.fecha_proxima_accion || "",
+      notas: normalizado.notas || "",
+      responsable_id: normalizado.responsable_id || "",
+      cliente_id: normalizado.cliente_id || "",
       periodo_pipeline: normalizado.periodo_pipeline || periodoActual(),
       proyecto_id: normalizado.proyecto_id || "",
       referencias_cotizacion: normalizado.referencias_cotizacion || "",
@@ -290,7 +359,7 @@ export default function CRMPage() {
   }
 
   function aplicarCliente(clienteId: string) {
-    const cliente = clientes.find(c => c.id === clienteId)
+    const cliente = clientes.find((c) => c.id === clienteId)
     if (!cliente) {
       setForm((prev: any) => ({ ...prev, cliente_id: "" }))
       return
@@ -319,7 +388,7 @@ export default function CRMPage() {
       setForm((prev: any) => ({ ...prev, proyecto_id: "" }))
       return
     }
-    const proyecto = proyectos.find(p => p.id === proyectoId)
+    const proyecto = proyectos.find((p) => p.id === proyectoId)
     if (!proyecto) {
       setForm((prev: any) => ({ ...prev, proyecto_id: proyectoId }))
       return
@@ -334,8 +403,18 @@ export default function CRMPage() {
 
   async function guardar() {
     if (!validarAccionCRM(editando ? "editar" : "crear", editando || form)) return
-    if (!validarReglaCRM(editando ? "editar_lead" : "crear_lead", editando ? { ...editando, ...form } : form, { editando: Boolean(editando) })) return
-    if (!form.razon_social) { alert("Razón social es obligatoria"); return }
+    if (
+      !validarReglaCRM(
+        editando ? "editar_lead" : "crear_lead",
+        editando ? { ...editando, ...form } : form,
+        { editando: Boolean(editando) }
+      )
+    )
+      return
+    if (!form.razon_social) {
+      alert("Razón social es obligatoria")
+      return
+    }
     setSaving(true)
 
     let clienteId = form.cliente_id || null
@@ -364,10 +443,10 @@ export default function CRMPage() {
       responsable_id: form.responsable_id || null,
       cliente_id: clienteId,
       proyecto_id: form.proyecto_id || null,
-      periodo_pipeline: form.periodo_pipeline || periodoActual(),
+      periodo_pipeline: form.periodo_pipeline || pipelinePeriodoPorForm(form.periodo_pipeline),
       referencias_cotizacion: String(form.referencias_cotizacion || "").trim() || null,
       archivado: false,
-      notas: form.notas || null,
+      notas: form.notes || form.notas || null,
     }
 
     const { data, error } = editando
@@ -375,8 +454,17 @@ export default function CRMPage() {
       : await supabase.from("crm_leads").insert({ ...payload, entidad: "peru" }).select().single()
 
     setSaving(false)
-    if (error) { alert("No se pudo guardar el lead: " + error.message); return }
-    await registrarAccion({ accion: editando ? "editar" : "crear", modulo: "crm", entidad_tipo: "lead", entidad_id: data?.id, descripcion: (editando ? "Lead editado: " : "Lead creado: ") + form.razon_social })
+    if (error) {
+      alert("No se pudo guardar el lead: " + error.message)
+      return
+    }
+    await registrarAccion({
+      accion: editando ? "editar" : "crear",
+      modulo: "crm",
+      entidad_tipo: "lead",
+      entidad_id: data?.id,
+      descripcion: (editando ? "Lead editado: " : "Lead creado: ") + form.razon_social,
+    })
     if (payload.proyecto_id) {
       await sincronizarLeadPorProyecto({
         supabase,
@@ -388,26 +476,43 @@ export default function CRMPage() {
     load()
   }
 
+  function pipelinePeriodoPorForm(val: string) {
+    if (!val) return periodoActual()
+    const regex = /^\d{4}-\d{2}$/
+    return regex.test(val) ? val : periodoActual()
+  }
+
   async function agregarNota() {
     if (!nuevaNota.trim() || !selected) return
     if (!validarAccionCRM("editar", selected)) return
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from("crm_notas").insert({ lead_id: selected.id, contenido: nuevaNota, created_by: user?.id })
-    if (error) { alert("No se pudo agregar la nota: " + error.message); return }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    const { error } = await supabase
+      .from("crm_notas")
+      .insert({ lead_id: selected.id, contenido: nuevaNota, created_by: user?.id })
+    if (error) {
+      alert("No se pudo agregar la nota: " + error.message)
+      return
+    }
     setNuevaNota("")
     loadNotas(selected.id)
   }
 
   async function cambiarEstado(leadId: string, estado: string) {
-    if (!ESTADOS[estado]) return
-    const lead = leads.find(l => l.id === leadId) || selected
-    if (!validarAccionCRM("editar", lead)) return
+    if (!ESTADOS[estado]) return false
+    const lead = leads.find((l) => l.id === leadId) || selected
+    if (!validarAccionCRM("editar", lead)) return false
     const estadoActual = lead?.estado
     if (!lifecycleEngine.canTransition("crm", estadoActual, estado)) {
-      alert(`Transición no permitida: ${ESTADOS[estadoActual]?.label || estadoActual} → ${ESTADOS[estado]?.label || estado}`)
-      return
+      alert(
+        `Transición no permitida: ${ESTADOS[estadoActual]?.label || estadoActual} → ${
+          ESTADOS[estado]?.label || estado
+        }`
+      )
+      return false
     }
-    if (!validarReglaCRM("cambiar_estado", lead, { desde: estadoActual, hacia: estado })) return
+    if (!validarReglaCRM("cambiar_estado", lead, { desde: estadoActual, hacia: estado })) return false
     let clienteId = lead?.cliente_id || null
     if (estado === "ganado" && lead && !clienteId) {
       const cliente = await buscarOCrearCliente(lead)
@@ -420,9 +525,23 @@ export default function CRMPage() {
     const payload: any = { estado }
     if (clienteId) payload.cliente_id = clienteId
     const { error } = await supabase.from("crm_leads").update(payload).eq("id", leadId)
-    if (error) { alert("No se pudo cambiar el estado: " + error.message); return false }
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...payload } : l))
+    if (error) {
+      alert("No se pudo cambiar el estado: " + error.message)
+      return false
+    }
+
+    // Update local list
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...payload } : l)))
     if (selected?.id === leadId) setSelected((prev: any) => ({ ...prev, ...payload }))
+
+    await registrarAccion({
+      accion: "cambiar_estado",
+      modulo: "crm",
+      entidad_tipo: "lead",
+      entidad_id: leadId,
+      descripcion: `Estado cambiado: ${ESTADOS[estadoActual]?.label || estadoActual} → ${ESTADOS[estado]?.label}`,
+    })
+
     return true
   }
 
@@ -431,10 +550,19 @@ export default function CRMPage() {
     if (!validarReglaCRM("eliminar_lead", lead)) return
     if (!confirm("¿Eliminar lead " + lead.razon_social + "?")) return
     const { error } = await supabase.from("crm_leads").delete().eq("id", lead.id)
-    if (error) { alert("No se pudo eliminar el lead: " + error.message); return }
+    if (error) {
+      alert("No se pudo eliminar el lead: " + error.message)
+      return
+    }
     if (selected?.id === lead.id) setSelected(null)
-    setLeads(prev => prev.filter(l => l.id !== lead.id))
-    await registrarAccion({ accion: "eliminar", modulo: "crm", entidad_tipo: "lead", entidad_id: lead.id, descripcion: "Lead eliminado: " + lead.razon_social })
+    setLeads((prev) => prev.filter((l) => l.id !== lead.id))
+    await registrarAccion({
+      accion: "eliminar",
+      modulo: "crm",
+      entidad_tipo: "lead",
+      entidad_id: lead.id,
+      descripcion: "Lead eliminado: " + lead.razon_social,
+    })
   }
 
   async function convertirACliente(lead = selected, confirmar = true) {
@@ -442,110 +570,142 @@ export default function CRMPage() {
     if (!validarAccionCRM("convertir", lead)) return null
     if (!validarReglaCRM("convertir_cliente", lead)) return null
     if (lead.cliente_id) {
-      const cambioOk = await cambiarEstado(lead.id, "ganado")
-      return cambioOk ? lead.cliente : null
+      alert("El lead ya está vinculado a un cliente.")
+      return lead.cliente_id
     }
-    if (!lifecycleEngine.canTransition("crm", lead.estado, "ganado")) {
-      alert(`Transición no permitida: ${ESTADOS[lead.estado]?.label || lead.estado} → ${ESTADOS.ganado?.label || "ganado"}`)
-      return null
-    }
-    if (!validarReglaCRM("cambiar_estado", lead, { desde: lead.estado, hacia: "ganado" })) return null
-    if (confirmar && !confirm("Convertir " + lead.razon_social + " a cliente?")) return null
+    if (confirmar && !confirm(`¿Convertir lead ${lead.razon_social} a Cliente?`)) return null
     const cliente = await buscarOCrearCliente(lead)
-    if (!cliente) return null
-    const { error } = await supabase.from("crm_leads").update({ estado: "ganado", cliente_id: cliente.id }).eq("id", lead.id)
-    if (error) { alert("No se pudo convertir el lead a cliente: " + error.message); return null }
-    setSelected((prev: any) => prev ? ({ ...prev, estado: "ganado", cliente_id: cliente.id, cliente }) : prev)
-    setClientesConvertidos(prev => ({ ...prev, [lead.id]: cliente }))
-    load()
-    return cliente
+    if (cliente) {
+      const { error } = await supabase.from("crm_leads").update({ cliente_id: cliente.id }).eq("id", lead.id)
+      if (error) {
+        console.error("Error vinculando lead a cliente convertido", error)
+      } else {
+        setClientesConvertidos((prev) => ({ ...prev, [lead.id]: { id: cliente.id, razon_social: cliente.razon_social } }))
+        load()
+      }
+      return cliente.id
+    }
+    return null
   }
 
   async function buscarOCrearCliente(datos: any) {
-    const email = String(datos.email_contacto || "").trim()
-    const razon = String(datos.razon_social || "").trim()
-    const ruc = String(datos.ruc || "").trim()
+    const { data: existente } = await supabase
+      .from("clientes")
+      .select("id, razon_social")
+      .eq("razon_social", datos.razon_social)
+      .is("deleted_at", null)
+      .maybeSingle()
+    if (existente) return existente
 
-    if (ruc) {
-      const { data } = await supabase.from("clientes").select("id, razon_social").eq("ruc", ruc).maybeSingle()
-      if (data) return data
-    }
-    if (email) {
-      const { data } = await supabase.from("clientes").select("id, razon_social").ilike("email_contacto", email).maybeSingle()
-      if (data) return data
-    }
-    if (razon) {
-      const { data } = await supabase.from("clientes").select("id, razon_social").ilike("razon_social", razon).maybeSingle()
-      if (data) return data
-    }
+    const { data: creado, error } = await supabase
+      .from("clientes")
+      .insert({
+        razon_social: datos.razon_social,
+        ruc: datos.ruc || null,
+        direccion: datos.direccion || null,
+        nombre_contacto: datos.nombre_contacto || null,
+        email_contacto: datos.email_contacto || null,
+        telefono_contacto: datos.telefono_contacto || null,
+        entidad: "peru",
+        activo: true,
+      })
+      .select("id, razon_social")
+      .single()
 
-    const { data: cliente, error } = await supabase.from("clientes").insert({
-      razon_social: razon,
-      ruc: ruc || null,
-      direccion: datos.direccion || null,
-      entidad: "peru",
-      nombre_contacto: datos.nombre_contacto || datos.contacto_nombre || null,
-      email_contacto: datos.email_contacto || null,
-      telefono_contacto: datos.telefono_contacto || null,
-    }).select("id, razon_social").single()
-
-    if (error || !cliente) {
-      alert("Error creando cliente: " + (error?.message || "sin respuesta"))
+    if (error) {
+      alert("Error al crear cliente: " + error.message)
       return null
     }
-    return cliente
+    await registrarAccion({
+      accion: "crear",
+      modulo: "clientes",
+      entidad_tipo: "cliente",
+      entidad_id: creado?.id,
+      descripcion: "Cliente creado desde CRM: " + datos.razon_social,
+    })
+    return creado
   }
 
   async function archivarLead(lead: any) {
     if (!validarAccionCRM("editar", lead)) return
     if (!validarReglaCRM("archivar_lead", lead)) return
-    if (!confirm("¿Archivar lead " + lead.razon_social + "?")) return
+    if (!confirm(`¿Archivar lead ${lead.razon_social}?`)) return
     const { error } = await supabase.from("crm_leads").update({ archivado: true }).eq("id", lead.id)
-    if (error) { alert("No se pudo archivar: " + error.message); return }
+    if (error) {
+      alert("No se pudo archivar el lead: " + error.message)
+      return
+    }
     if (selected?.id === lead.id) setSelected(null)
-    load()
+    setLeads((prev) => prev.filter((l) => l.id !== lead.id))
+    await registrarAccion({
+      accion: "editar",
+      modulo: "crm",
+      entidad_tipo: "lead",
+      entidad_id: lead.id,
+      descripcion: "Lead archivado: " + lead.razon_social,
+    })
   }
 
   async function archivarCerradosDelMes() {
-    if (!validarAccionCRM("editar")) return
-    const periodo = filtroPeriodo === "actual" || filtroPeriodo === "todos" ? periodoActual() : filtroPeriodo
-    if (!validarReglaCRM("archivar_lead", null, { periodo, masivo: true })) return
-    if (!confirm("Archivar leads ganados/perdidos del periodo " + periodo + "?")) return
-    setArchivando(true)
-    const { error } = await supabase
-      .from("crm_leads")
-      .update({ archivado: true })
-      .eq("periodo_pipeline", periodo)
-      .in("estado", ["ganado", "perdido"])
-    setArchivando(false)
-    if (error) { alert("No se pudo archivar el periodo: " + error.message); return }
+    if (!puedeCrearCRM) {
+      alert("No tienes permisos suficientes.")
+      return
+    }
+    const mes = periodoActual()
+    const cerrados = leads.filter(
+      (l) => l.periodo_pipeline === mes && ["ganado", "perdido"].includes(l.estado) && !l.archivado
+    )
+    if (cerrados.length === 0) {
+      alert("No hay leads ganados o perdidos sin archivar en el periodo actual.")
+      return
+    }
+    if (!confirm(`¿Archivar ${cerrados.length} leads ganados/perdidos del mes?`)) return
+    const ids = cerrados.map((l) => l.id)
+    const { error } = await supabase.from("crm_leads").update({ archivado: true }).in("id", ids)
+    if (error) {
+      alert("Error al archivar leads: " + error.message)
+      return
+    }
+    alert(`${cerrados.length} leads archivados correctamente.`)
     load()
   }
 
   async function importarLeads(registros: any[]) {
-    if (!validarAccionCRM("crear")) return { exitosos: 0, errores: ["No tienes permiso para realizar esta acción."] }
-
     let exitosos = 0
     const errores: string[] = []
 
     for (const r of registros) {
       const payload = {
-        ...r,
+        razon_social: r.razon_social || r.Empresa,
+        ruc: r.ruc || r.RUC || null,
+        nombre_contacto: r.nombre_contacto || r.Contacto || null,
+        email_contacto: r.email_contacto || r.Email || null,
+        telefono_contacto: r.telefono_contacto || r.Telefono || null,
+        direccion: r.direccion || r.Direccion || null,
+        cargo_contacto: r.cargo_contacto || r.Cargo || null,
+        origen: r.origen || r.Origen || null,
+        estado: r.estado || r.Estado || "nuevo",
+        temperatura: r.temperatura || r.Temperatura || "frio",
+        industria: r.industria || r.Industria || null,
+        presupuesto_estimado: r.presupuesto_estimado || r.Presupuesto ? Number(r.presupuesto_estimado || r.Presupuesto) : null,
+        probabilidad_cierre: Number(r.probabilidad_cierre || r.Probabilidad) || 0,
+        fecha_proxima_accion: r.fecha_proxima_accion || r.Fecha_Contacto || null,
+        responsable_id: r.responsable_id || null,
+        periodo_pipeline: r.periodo_pipeline || r.Periodo || periodoActual(),
+        referencias_cotizacion: r.referencias_cotizacion || r.Referencia || null,
         entidad: "peru",
-        estado: ESTADOS[r.estado] ? r.estado : "nuevo",
-        temperatura: TEMPERATURAS[r.temperatura] ? r.temperatura : "frio",
-        periodo_pipeline: r.periodo_pipeline || periodoActual(),
-        proyecto_id: /^[0-9a-f-]{36}$/i.test(String(r.proyecto_id || "")) ? String(r.proyecto_id) : null,
-        referencias_cotizacion: String(r.referencias_cotizacion || "").trim() || null,
         archivado: false,
       }
+
       const result = businessRuleEngine.evaluate("crm", "crear_lead", {
         action: "crear_lead",
         record: payload,
         user: perfilActual,
       })
       if (!result.allowed) {
-        errores.push((r.razon_social || "Lead sin nombre") + ": " + (result.reason || "No se puede importar este lead."))
+        errores.push(
+          (r.razon_social || "Lead sin nombre") + ": " + (result.reason || "No se puede importar este lead.")
+        )
         continue
       }
 
@@ -559,505 +719,1021 @@ export default function CRMPage() {
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 0 })
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
 
+  // Derived arrays
   const periodos = useMemo(() => {
-    const valores = Array.from(new Set(leads.map(l => l.periodo_pipeline || periodoActual()).filter(Boolean)))
+    const valores = Array.from(new Set(leads.map((l) => l.periodo_pipeline || periodoActual()).filter(Boolean)))
     return valores.sort().reverse()
   }, [leads])
 
-  const leadsPeriodo = leads.filter(l => {
-    if (filtroPeriodo === "todos") return true
-    const periodo = filtroPeriodo === "actual" ? periodoActual() : filtroPeriodo
-    return l.periodo_pipeline === periodo && !l.archivado
-  })
+  const leadsPeriodo = useMemo(() => {
+    return leads.filter((l) => {
+      if (appliedFilters.periodo === "todos") return true
+      const periodo = appliedFilters.periodo === "actual" ? periodoActual() : appliedFilters.periodo
+      return l.periodo_pipeline === periodo && !l.archivado
+    })
+  }, [leads, appliedFilters.periodo])
 
-  const filtrados = leadsPeriodo.filter(l => {
-    if (filtroEstado && l.estado !== filtroEstado) return false
-    if (filtroTemp && l.temperatura !== filtroTemp) return false
-    if (busqueda) {
-      const q = busqueda.toLowerCase()
-      const texto = [l.razon_social, l.ruc, l.nombre_contacto, l.email_contacto, l.telefono_contacto, l.direccion, l.proyecto?.codigo, l.proyecto?.nombre, l.referencias_cotizacion].filter(Boolean).join(" ").toLowerCase()
-      const textoNormalizado = normalizarBusqueda(texto)
-      const qNormalizado = normalizarBusqueda(q)
-      if (!texto.includes(q) && (!qNormalizado || !textoNormalizado.includes(qNormalizado))) return false
-    }
-    return true
-  })
+  const filtrados = useMemo(() => {
+    return leadsPeriodo.filter((l) => {
+      if (appliedFilters.estado && l.estado !== appliedFilters.estado) return false
+      if (appliedFilters.temperatura && l.temperatura !== appliedFilters.temperatura) return false
+      if (appliedFilters.responsableId && l.responsable_id !== appliedFilters.responsableId) return false
+      if (appliedFilters.clienteId && l.cliente_id !== appliedFilters.clienteId) return false
+      if (appliedFilters.origen && l.origen !== appliedFilters.origen) return false
+      if (appliedFilters.soloMisLeads && l.responsable_id !== currentUserId) return false
+      if (appliedFilters.montoMin && (Number(l.presupuesto_estimado) || 0) < Number(appliedFilters.montoMin)) return false
+      if (appliedFilters.montoMax && (Number(l.presupuesto_estimado) || 0) > Number(appliedFilters.montoMax)) return false
 
-  const totalPipeline = leadsPeriodo.filter(l => !["ganado","perdido"].includes(l.estado)).reduce((s, l) => s + (l.presupuesto_estimado || 0), 0)
-  const totalGanado = leadsPeriodo.filter(l => l.estado === "ganado").reduce((s, l) => s + (l.presupuesto_estimado || 0), 0)
-  const tasaConversion = leadsPeriodo.length > 0 ? Math.round((leadsPeriodo.filter(l => l.estado === "ganado").length / leadsPeriodo.length) * 100) : 0
-  const leadsActivos = leadsPeriodo.filter(l => !["ganado","perdido"].includes(l.estado))
-  const leadsCalientes = leadsPeriodo.filter(l => l.temperatura === "caliente")
-  const propuestasAbiertas = leadsPeriodo.filter(l => ["propuesta","negociacion"].includes(l.estado))
-  const cierreEsperado = leadsActivos.reduce((s, l) => s + ((Number(l.presupuesto_estimado) || 0) * ((Number(l.probabilidad_cierre) || 0) / 100)), 0)
-  const selectedProject = selected ? (selected.proyecto || proyectos.find(p => p.id === selected.proyecto_id)) : null
-  const selectedQuote = selected ? cotizacionVigenteProyecto(selected.proyecto_id, cotizaciones) : null
-  const selectedInvoice = selected ? facturaVigenteProyecto(selected.proyecto_id, facturas) : null
+      if (busqueda) {
+        const q = busqueda.toLowerCase()
+        const texto = [
+          l.razon_social,
+          l.ruc,
+          l.nombre_contacto,
+          l.email_contacto,
+          l.telefono_contacto,
+          l.direccion,
+          l.proyecto?.codigo,
+          l.proyecto?.nombre,
+          l.referencias_cotizacion,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+        const textoNormalizado = normalizarBusqueda(texto)
+        const qNormalizado = normalizarBusqueda(q)
+        if (!texto.includes(q) && (!qNormalizado || !textoNormalizado.includes(qNormalizado))) return false
+      }
+      return true
+    })
+  }, [leadsPeriodo, appliedFilters, busqueda, currentUserId])
 
-  const leadsPorEstado = (estado: string) => filtrados.filter(l => l.estado === estado)
+  // Active filters count
+  const activeFiltersCount = useMemo(() => {
+    let count = 0
+    if (appliedFilters.estado) count++
+    if (appliedFilters.temperatura) count++
+    if (appliedFilters.periodo !== "actual") count++
+    if (appliedFilters.responsableId) count++
+    if (appliedFilters.clienteId) count++
+    if (appliedFilters.origen) count++
+    if (appliedFilters.soloMisLeads) count++
+    if (appliedFilters.montoMin || appliedFilters.montoMax) count++
+    if (busqueda) count++
+    return count
+  }, [appliedFilters, busqueda])
 
-  const valorPorEstado = (estado: string) =>
-    leadsPorEstado(estado).reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)
+  // KPIs Calculations
+  const leadsActivos = useMemo(() => {
+    return leadsPeriodo.filter((l) => !["ganado", "perdido"].includes(l.estado))
+  }, [leadsPeriodo])
 
-  const responsableNombre = (id?: string | null) => {
-    const r = responsables.find(p => p.id === id)
+  const totalPipeline = useMemo(() => {
+    return leadsActivos.reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)
+  }, [leadsActivos])
+
+  const totalGanado = useMemo(() => {
+    return leadsPeriodo.filter((l) => l.estado === "ganado").reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)
+  }, [leadsPeriodo])
+
+  const totalPerdido = useMemo(() => {
+    return leadsPeriodo.filter((l) => l.estado === "perdido").reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)
+  }, [leadsPeriodo])
+
+  const cierreEsperado = useMemo(() => {
+    return leadsActivos.reduce(
+      (s, l) => s + (Number(l.presupuesto_estimado) || 0) * ((Number(l.probabilidad_cierre) || 0) / 100),
+      0
+    )
+  }, [leadsActivos])
+
+  const tasaConversion = useMemo(() => {
+    const totalMes = leadsPeriodo.length
+    if (totalMes === 0) return 0
+    const ganadosMes = leadsPeriodo.filter((l) => l.estado === "ganado").length
+    return Math.round((ganadosMes / totalMes) * 100)
+  }, [leadsPeriodo])
+
+  const propuestasAbiertas = useMemo(() => {
+    return leadsPeriodo.filter((l) => ["propuesta", "negociacion"].includes(l.estado))
+  }, [leadsPeriodo])
+
+  const vencenEstaSemana = useMemo(() => {
+    const hoy = new Date()
+    const finSem = new Date()
+    finSem.setDate(hoy.getDate() + 7)
+    return leadsPeriodo.filter((l) => {
+      if (!l.fecha_proxima_accion) return false
+      const d = new Date(l.fecha_proxima_accion)
+      return d >= hoy && d <= finSem
+    }).length
+  }, [leadsPeriodo])
+
+  // Column totals
+  const columnTotals = useMemo(() => {
+    const totals: Record<string, number> = {}
+    ESTADOS_PIPELINE.forEach((k) => {
+      totals[k] = filtrados.filter((l) => l.estado === k).reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)
+    })
+    return totals
+  }, [filtrados])
+
+  // Select configurations
+  const periodosOptions = useMemo(() => {
+    return [
+      { label: "Pipeline actual", value: "actual" },
+      { label: "Todos los periodos", value: "todos" },
+      ...periodos
+        .filter((p) => p !== periodoActual())
+        .map((p) => ({ label: p, value: p })),
+    ]
+  }, [periodos])
+
+  const filtroEstadoOptions = useMemo(() => {
+    return [
+      { label: "Todos los estados", value: "" },
+      ...ESTADOS_PIPELINE.map((k) => ({ label: ESTADOS[k].label, value: k })),
+    ]
+  }, [])
+
+  const filtroTempOptions = useMemo(() => {
+    return [
+      { label: "Todas las temp.", value: "" },
+      ...Object.keys(TEMPERATURAS).map((k) => {
+        let label = "Baja (Frío)"
+        if (k === "caliente") label = "Alta (Caliente)"
+        else if (k === "tibio") label = "Media (Tibio)"
+        return { label, value: k }
+      }),
+    ]
+  }, [])
+
+  const clienteOptions = useMemo(() => {
+    return [
+      { label: "Todos los clientes", value: "" },
+      ...clientes.map((c) => ({ label: c.razon_social, value: c.id })),
+    ]
+  }, [clientes])
+
+  const responsableOptions = useMemo(() => {
+    const comerciales = responsables.filter((r) => r.perfil === "comercial")
+    return [
+      { label: "Todos los comerciales", value: "" },
+      ...comerciales.map((r) => ({ label: `${r.nombre || ""} ${r.apellido || ""}`.trim(), value: r.id })),
+    ]
+  }, [responsables])
+
+  const origenOptions = useMemo(() => {
+    return [
+      { label: "Todos los orígenes", value: "" },
+      ...ORIGENES.map((o) => ({ label: o, value: o })),
+    ]
+  }, [])
+
+  const industriaOptions = useMemo(() => {
+    return [
+      { label: "Seleccionar industria...", value: "" },
+      ...INDUSTRIAS.map((i) => ({ label: i, value: i })),
+    ]
+  }, [])
+
+  const proyectoOptions = useMemo(() => {
+    return [
+      { label: "Vincular a proyecto...", value: "" },
+      ...proyectos.map((p) => ({ label: proyectoLabel(p), value: p.id })),
+    ]
+  }, [proyectos, cotizaciones])
+
+  const ESTADOS_COMPLETOS = useMemo(() => {
+    return ESTADOS_PIPELINE.map((k) => ({
+      key: k,
+      label: ESTADOS[k].label,
+      color: ESTADOS[k].color,
+    }))
+  }, [])
+
+  // Action Permissions
+  const puedeCrearCRM = puedeAccionCRM("crear")
+  const puedeEditarCRM = puedeAccionCRM("editar")
+
+  const headerActions = (
+    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+      {/* Acciones rápidas dropdown */}
+      <select
+        value=""
+        onChange={(e) => {
+          if (e.target.value === "archivar_cerrados") {
+            archivarCerradosDelMes()
+          }
+          e.target.value = ""
+        }}
+        style={{
+          padding: "0 12px",
+          border: "1px solid var(--v2-border)",
+          borderRadius: "var(--v2-radius)",
+          background: "var(--v2-surface)",
+          color: "var(--v2-text)",
+          fontSize: "12px",
+          fontWeight: 900,
+          fontFamily: "inherit",
+          cursor: "pointer",
+          outline: "none",
+          height: "32px",
+          boxSizing: "border-box",
+        }}
+      >
+        <option value="" disabled>Acciones rápidas</option>
+        <option value="archivar_cerrados">Archivar cerrados del mes</option>
+      </select>
+
+      {/* Import / Export component */}
+      {puedeCrearCRM && (
+        <ImportExport
+          modulo="crm_leads"
+          campos={[
+            { key: "razon_social", label: "Empresa", requerido: true },
+            { key: "ruc", label: "RUC" },
+            { key: "nombre_contacto", label: "Contacto" },
+            { key: "email_contacto", label: "Email" },
+            { key: "telefono_contacto", label: "Telefono" },
+            { key: "direccion", label: "Direccion" },
+            { key: "cargo_contacto", label: "Cargo" },
+            { key: "origen", label: "Origen" },
+            { key: "estado", label: "Estado" },
+            { key: "temperatura", label: "Temperatura" },
+            { key: "industria", label: "Industria" },
+            { key: "presupuesto_estimado", label: "Presupuesto" },
+            { key: "probabilidad_cierre", label: "Probabilidad" },
+            { key: "fecha_proxima_accion", label: "Fecha_Contacto" },
+            { key: "referencias_cotizacion", label: "Referencia" },
+          ]}
+          datos={leads}
+          onImportar={importarLeads}
+          variant="v2"
+        />
+      )}
+
+      {/* Nuevo Lead button */}
+      {puedeCrearCRM && (
+        <V2Button onClick={abrirNuevo} size="compact">
+          + Nuevo Lead
+        </V2Button>
+      )}
+    </div>
+  )
+
+  const kpiSection = (
+    <>
+      <V2KpiCard
+        icon={<CircleDollarSign size={16} />}
+        label="Pipeline Comercial"
+        value={fmt(totalPipeline)}
+        meta={`${leadsActivos.length} leads`}
+        density="compact"
+      />
+      <V2KpiCard
+        icon={<TrendingUp size={16} />}
+        label="Cierre Esperado"
+        value={fmt(cierreEsperado)}
+        meta={`${totalPipeline > 0 ? ((cierreEsperado / totalPipeline) * 100).toFixed(1) : "0.0"}% del pipeline`}
+        density="compact"
+      />
+      <V2KpiCard
+        icon={<Clock3 size={16} />}
+        label="Propuestas Abiertas"
+        value={String(propuestasAbiertas.length)}
+        meta={`${vencenEstaSemana} vencen esta semana`}
+        trend={vencenEstaSemana > 0 ? "negative" : "neutral"}
+        trendLabel={vencenEstaSemana > 0 ? `${vencenEstaSemana} alerta` : undefined}
+        density="compact"
+      />
+      <V2KpiCard
+        icon={<BriefcaseBusiness size={16} />}
+        label="Negocios Ganados"
+        value={fmt(totalGanado)}
+        meta={`${leadsPeriodo.filter((l) => l.estado === "ganado").length} lead`}
+        trend="positive"
+        trendLabel="Este mes"
+        density="compact"
+      />
+      <V2KpiCard
+        icon={<Search size={16} />}
+        label="Negocios Perdidos"
+        value={fmt(totalPerdido)}
+        meta={`${leadsPeriodo.filter((l) => l.estado === "perdido").length} leads`}
+        trend="neutral"
+        trendLabel="Este mes"
+        density="compact"
+      />
+      <V2KpiCard
+        icon={<Percent size={16} />}
+        label="Tasa de Conversión"
+        value={`${tasaConversion}%`}
+        meta={`${leadsPeriodo.filter((l) => l.estado === "ganado").length} / ${leadsPeriodo.length} leads`}
+        trend="positive"
+        trendLabel="Este mes"
+        density="compact"
+      />
+    </>
+  )
+
+  const totalCollapsed = ESTADOS_PIPELINE.filter((k) => collapsedColumns[k]).length
+  const allCollapsed = totalCollapsed === ESTADOS_PIPELINE.length
+
+  const controlsRow = (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: "4px",
+        fontSize: "12px",
+        borderBottom: "1px solid var(--v2-border-soft)",
+        paddingBottom: "4px",
+      }}
+    >
+      <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span style={{ color: "var(--v2-muted)" }}>Vista:</span>
+          <span style={{ fontWeight: 800, color: "var(--v2-text)" }}>Pipeline</span>
+        </div>
+
+        {/* Compacta / Normal / Expandida toggle */}
+        <div
+          style={{
+            display: "flex",
+            background: "var(--v2-surface-soft)",
+            borderRadius: "var(--v2-radius-sm)",
+            padding: "2px",
+          }}
+        >
+          {(["compacta", "normal", "expandida"] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setDensity(mode)}
+              style={{
+                padding: "3px 8px",
+                borderRadius: "var(--v2-radius-sm)",
+                border: "none",
+                fontSize: "10.5px",
+                fontWeight: density === mode ? 900 : 600,
+                background: density === mode ? "var(--v2-surface)" : "none",
+                color: density === mode ? "var(--v2-text)" : "var(--v2-muted)",
+                cursor: "pointer",
+                transition: "all 0.1s ease",
+                textTransform: "capitalize",
+              }}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+
+        {/* Selector "Pipeline actual" */}
+        <div style={{ width: "135px" }}>
+          <V2Select
+            options={periodosOptions}
+            value={appliedFilters.periodo}
+            onChange={(e) => setAppliedFilters((prev) => ({ ...prev, periodo: e.target.value }))}
+            compact
+          />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span style={{ color: "var(--v2-muted)" }}>Ordenar por:</span>
+          <V2Select
+            options={[
+              { label: "Fecha de actualización", value: "actualizacion" },
+              { label: "Monto", value: "monto" },
+              { label: "Probabilidad", value: "probabilidad" },
+            ]}
+            value={orderBy}
+            onChange={(e) => setOrderBy(e.target.value as any)}
+            compact
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={allCollapsed ? handleExpandAll : handleCollapseAll}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--v2-subtle)",
+            fontSize: "11px",
+            fontWeight: 800,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            fontFamily: "inherit",
+          }}
+        >
+          {allCollapsed ? "Expandir etapas" : "Colapsar etapas"}
+        </button>
+      </div>
+    </div>
+  )
+
+  function renderCard(lead: any) {
+    const proyecto = lead.proyecto || proyectos.find((p) => p.id === lead.proyecto_id)
+    const cotizacionVigente = cotizacionVigenteProyecto(lead.proyecto_id, cotizaciones)
+    const facturaVigente = facturaVigenteProyecto(lead.proyecto_id, facturas)
+    const totalCotLabel = cotizacionVigente ? fmt(totalCotizacionComercial(cotizacionVigente)) : ""
+    const estadoCobroFactLabel = facturaVigente ? estadoCobroFactura(facturaVigente) : ""
+
+    return (
+      <CRMLeadCard
+        key={lead.id}
+        lead={lead}
+        responsables={responsables}
+        selected={selected && selected.id === lead.id}
+        density={density}
+        onClick={() => {
+          setSelected(lead)
+          loadNotas(lead.id)
+        }}
+        puedeEditar={puedeEditarCRM}
+        onFastWin={() => cambiarEstado(lead.id, "ganado")}
+        proyecto={proyecto}
+        cotizacionVigente={cotizacionVigente}
+        facturaVigente={facturaVigente}
+        totalCotizacionLabel={totalCotLabel}
+        estadoCobroFacturaLabel={estadoCobroFactLabel}
+        onDragStart={handleDragStart}
+      />
+    )
+  }
+
+  function handleDragStart(e: DragEvent<HTMLDivElement>, leadId: string) {
+    if (!puedeEditarCRM) return
+    e.dataTransfer.setData("text/plain", leadId)
+  }
+
+  function handleToggleCollapseColumn(key: string) {
+    setCollapsedColumns((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }))
+  }
+
+  function handleCollapseAll() {
+    const updated: Record<string, boolean> = {}
+    ESTADOS_PIPELINE.forEach((k) => {
+      updated[k] = true
+    })
+    setCollapsedColumns(updated)
+  }
+
+  function handleExpandAll() {
+    setCollapsedColumns({})
+  }
+
+  function responsableNombre(id?: string | null) {
+    const r = responsables.find((p) => p.id === id)
     return r ? `${r.nombre || ""} ${r.apellido || ""}`.trim() : ""
   }
 
-  if (loading) return <MasterPage title="CRM Comercial" subtitle="Cargando oportunidades comerciales..."><EmptyState title="Cargando..." /></MasterPage>
-  if (!puedeVerModulo(perfilActual, "crm")) {
-    return <MasterPage title="CRM Comercial"><EmptyState title="Acceso restringido" description="No tienes permiso para ver este modulo." /></MasterPage>
-  }
-
-  const puedeCrearCRM = puedeAccionCRM("crear")
-  const puedeEditarCRM = puedeAccionCRM("editar")
-  const puedeEliminarCRM = puedeAccionCRM("eliminar")
-  const puedeConvertirCRM = puedeAccionCRM("convertir")
-
   return (
-    <MasterPage
-      title="CRM Comercial"
-      subtitle={`Gestion de oportunidades comerciales · ${leadsPeriodo.length} leads`}
-      actions={
-        <>
-          {puedeCrearCRM && <ImportExport modulo="crm_leads" campos={[{key:"razon_social",label:"Razón social",requerido:true},{key:"ruc",label:"RUC"},{key:"nombre_contacto",label:"Nombre contacto"},{key:"email_contacto",label:"Email"},{key:"telefono_contacto",label:"Teléfono"},{key:"direccion",label:"Dirección"},{key:"cargo_contacto",label:"Cargo"},{key:"origen",label:"Origen"},{key:"industria",label:"Industria"},{key:"temperatura",label:"Temperatura"},{key:"presupuesto_estimado",label:"Presupuesto estimado"},{key:"probabilidad_cierre",label:"Probabilidad %"},{key:"proyecto_id",label:"Proyecto ID (UUID)"},{key:"referencias_cotizacion",label:"Referencia externa"},{key:"periodo_pipeline",label:"Periodo pipeline"}]} datos={leads} onImportar={importarLeads} />}
-          {puedeCrearCRM && <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>}
-        </>
-      }
-    >
-
-      <div style={{ marginBottom: 24 }}>
-        <ExecutiveSummary
-          columns={5}
-          items={[
-            { label: "Pipeline Comercial", value: fmt(totalPipeline), subtitle: `${leadsActivos.length} oportunidades activas`, tone: "success" },
-            { label: "Cierre esperado", value: fmt(cierreEsperado), subtitle: "Presupuesto x probabilidad", tone: "info" },
-            { label: "Propuestas abiertas", value: propuestasAbiertas.length, subtitle: fmt(propuestasAbiertas.reduce((s, l) => s + (Number(l.presupuesto_estimado) || 0), 0)), tone: "warning" },
-            { label: "Negocios Ganados", value: fmt(totalGanado), subtitle: `${leadsPeriodo.filter(l => l.estado === "ganado").length} clientes`, tone: "success" },
-            { label: "Conversion", value: tasaConversion + "%", subtitle: `${leadsCalientes.length} leads calientes`, tone: "danger" },
-          ]}
+    <div style={{ display: "grid", gap: "12px", width: "100%" }}>
+        {/* Cabecera */}
+        <V2PageHeader
+          eyebrow="CRM COMERCIAL"
+          title="Gestión de Oportunidades"
+          subtitle="Seguimiento de prospectos y control de leads comerciales."
+          actions={headerActions}
         />
-      </div>
 
-      {showForm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 760, maxHeight: "92vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>{editando ? "Editar lead" : "Nuevo lead"}</h2>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>x</button>
-            </div>
+        {/* KPIs */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: "12px",
+            width: "100%",
+          }}
+        >
+          {kpiSection}
+        </div>
+
+        {/* Barra de Filtros rápidos y Drawer */}
+        <CRMFilterSection
+          appliedFilters={appliedFilters}
+          setAppliedFilters={setAppliedFilters}
+          busqueda={busqueda}
+          setBusqueda={setBusqueda}
+          activeFiltersCount={activeFiltersCount}
+          responsableOptions={responsableOptions}
+          clienteOptions={clienteOptions}
+          estadoOptions={filtroEstadoOptions}
+          origenOptions={origenOptions}
+          temperaturaOptions={filtroTempOptions}
+        />
+
+        {/* Controles de vista y densidad */}
+        {controlsRow}
+
+        {/* Tablero Kanban */}
+        {loading ? (
+          <div style={{ display: "grid", gap: "10px", gridTemplateColumns: "repeat(7, 1fr)" }}>
+            {Array.from({ length: 7 }).map((_, i) => (
+              <V2Skeleton key={i} height={400} />
+            ))}
+          </div>
+        ) : (
+          <CRMKanbanBoard
+            estados={ESTADOS_COMPLETOS}
+            leadsFiltrados={filtrados}
+            renderCard={renderCard}
+            onLeadDrop={cambiarEstado}
+            puedeEditar={puedeEditarCRM}
+            density={density}
+            collapsedColumns={collapsedColumns}
+            onToggleCollapseColumn={handleToggleCollapseColumn}
+            columnTotals={columnTotals}
+            onAddLead={abrirNuevo}
+          />
+        )}
+
+        {/* Modal de Creación / Edición */}
+        {showForm && (
+          <V2Modal
+            open={showForm}
+            onClose={() => {
+              setShowForm(false)
+              setEditando(null)
+            }}
+            title={editando ? "Editar Lead" : "Nuevo Lead"}
+            footer={
+              <div style={{ display: "flex", justifySelf: "end", gap: "8px" }}>
+                <V2Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowForm(false)
+                    setEditando(null)
+                  }}
+                >
+                  Cancelar
+                </V2Button>
+                <V2Button onClick={guardar} loading={saving}>
+                  {saving ? "Guardando..." : "Guardar"}
+                </V2Button>
+              </div>
+            }
+          >
             <div style={{ display: "grid", gap: 14 }}>
-              <div>
-                <label style={lbl}>Cliente existente</label>
-                <select style={inp} value={form.cliente_id} onChange={e => aplicarCliente(e.target.value)}>
-                  <option value="">Sin cliente vinculado</option>
-                  {clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
-                </select>
-              </div>
+              <V2FormField label="Cliente existente">
+                <V2Select
+                  options={clienteOptions}
+                  value={form.cliente_id || ""}
+                  onChange={(e) => aplicarCliente(e.target.value)}
+                />
+              </V2FormField>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>Empresa / nombre *</label><input style={inp} value={form.razon_social} onChange={e => setForm({ ...form, razon_social: e.target.value })} /></div>
-                <div><label style={lbl}>RUC</label><input style={inp} value={form.ruc} onChange={e => setForm({ ...form, ruc: e.target.value })} /></div>
+                <V2FormField label="Empresa / nombre" required>
+                  <V2Input
+                    value={form.razon_social}
+                    onChange={(e) => setForm({ ...form, razon_social: e.target.value })}
+                  />
+                </V2FormField>
+                <V2FormField label="RUC">
+                  <V2Input value={form.ruc} onChange={(e) => setForm({ ...form, ruc: e.target.value })} />
+                </V2FormField>
               </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>Contacto</label><input style={inp} value={form.nombre_contacto} onChange={e => setForm({ ...form, nombre_contacto: e.target.value })} /></div>
-                <div><label style={lbl}>Email</label><input style={inp} value={form.email_contacto} onChange={e => setForm({ ...form, email_contacto: e.target.value })} /></div>
-                <div><label style={lbl}>Teléfono</label><input style={inp} value={form.telefono_contacto} onChange={e => setForm({ ...form, telefono_contacto: e.target.value })} /></div>
+                <V2FormField label="Contacto">
+                  <V2Input
+                    value={form.nombre_contacto}
+                    onChange={(e) => setForm({ ...form, nombre_contacto: e.target.value })}
+                  />
+                </V2FormField>
+                <V2FormField label="Email">
+                  <V2Input
+                    value={form.email_contacto}
+                    onChange={(e) => setForm({ ...form, email_contacto: e.target.value })}
+                  />
+                </V2FormField>
+                <V2FormField label="Teléfono">
+                  <V2Input
+                    value={form.telefono_contacto}
+                    onChange={(e) => setForm({ ...form, telefono_contacto: e.target.value })}
+                  />
+                </V2FormField>
               </div>
-              <div><label style={lbl}>Dirección</label><input style={inp} value={form.direccion} onChange={e => setForm({ ...form, direccion: e.target.value })} /></div>
+
+              <V2FormField label="Dirección">
+                <V2Input value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
+              </V2FormField>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>Cargo</label><input style={inp} value={form.cargo_contacto} onChange={e => setForm({ ...form, cargo_contacto: e.target.value })} /></div>
-                <div>
-                  <label style={lbl}>Origen</label>
-                  <select style={inp} value={form.origen} onChange={e => setForm({ ...form, origen: e.target.value })}>
-                    <option value="">Seleccionar</option>
-                    {ORIGENES.map(o => <option key={o}>{o}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>Industria</label>
-                  <select style={inp} value={form.industria} onChange={e => setForm({ ...form, industria: e.target.value })}>
-                    <option value="">Seleccionar</option>
-                    {INDUSTRIAS.map(i => <option key={i}>{i}</option>)}
-                  </select>
-                </div>
+                <V2FormField label="Cargo">
+                  <V2Input
+                    value={form.cargo_contacto}
+                    onChange={(e) => setForm({ ...form, cargo_contacto: e.target.value })}
+                  />
+                </V2FormField>
+                <V2FormField label="Origen">
+                  <V2Select
+                    options={origenOptions}
+                    value={form.origen || ""}
+                    onChange={(e) => setForm({ ...form, origen: e.target.value })}
+                  />
+                </V2FormField>
+                <V2FormField label="Industria">
+                  <V2Select
+                    options={industriaOptions}
+                    value={form.industria || ""}
+                    onChange={(e) => setForm({ ...form, industria: e.target.value })}
+                  />
+                </V2FormField>
               </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>Estado</label>
-                  <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
-                    {ESTADOS_PIPELINE.map(k => <option key={k} value={k}>{ESTADOS[k].label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>Temperatura</label>
-                  <select style={inp} value={form.temperatura} onChange={e => setForm({ ...form, temperatura: e.target.value })}>
-                    {Object.entries(TEMPERATURAS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
-                <div><label style={lbl}>Presupuesto est.</label><input type="number" style={inp} value={form.presupuesto_estimado} onChange={e => setForm({ ...form, presupuesto_estimado: e.target.value })} /></div>
-                <div><label style={lbl}>Probabilidad %</label><input type="number" min={0} max={100} style={inp} value={form.probabilidad_cierre} onChange={e => setForm({ ...form, probabilidad_cierre: Number(e.target.value) })} /></div>
+                <V2FormField label="Estado">
+                  <V2Select
+                    options={filtroEstadoOptions.filter((o) => o.value !== "")}
+                    value={form.estado}
+                    onChange={(e) => setForm({ ...form, estado: e.target.value })}
+                  />
+                </V2FormField>
+                <V2FormField label="Temperatura">
+                  <V2Select
+                    options={filtroTempOptions.filter((o) => o.value !== "")}
+                    value={form.temperatura}
+                    onChange={(e) => setForm({ ...form, temperatura: e.target.value })}
+                  />
+                </V2FormField>
+                <V2FormField label="Presupuesto est.">
+                  <V2Input
+                    type="number"
+                    value={form.presupuesto_estimado}
+                    onChange={(e) => setForm({ ...form, presupuesto_estimado: e.target.value })}
+                  />
+                </V2FormField>
+                <V2FormField label="Probabilidad %">
+                  <V2Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={form.probabilidad_cierre}
+                    onChange={(e) => setForm({ ...form, probabilidad_cierre: Number(e.target.value) })}
+                  />
+                </V2FormField>
               </div>
-              <div>
-                <label style={lbl}>Proyecto / presupuesto asociado</label>
-                <select style={inp} value={form.proyecto_id} onChange={e => aplicarProyecto(e.target.value)}>
-                  <option value="">Sin proyecto asociado</option>
-                  {proyectos.map(proyecto => <option key={proyecto.id} value={proyecto.id}>{proyectoLabel(proyecto)}</option>)}
-                </select>
+
+              <V2FormField label="Proyecto / presupuesto asociado">
+                <V2Select
+                  options={proyectoOptions}
+                  value={form.proyecto_id || ""}
+                  onChange={(e) => aplicarProyecto(e.target.value)}
+                />
                 {form.proyecto_id && (
-                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                  <div style={{ fontSize: 11, color: "var(--v2-muted)", marginTop: 4 }}>
                     La cotización vigente del proyecto será la fuente del monto cotizado.
                   </div>
                 )}
-              </div>
-              <div>
-                <label style={lbl}>Referencia externa</label>
-                <input
+              </V2FormField>
+
+              <V2FormField label="Referencia externa">
+                <V2Input
                   type="text"
-                  style={inp}
                   value={form.referencias_cotizacion}
                   placeholder="Ej: código enviado por el cliente o referencia histórica"
-                  onChange={e => setForm({ ...form, referencias_cotizacion: e.target.value })}
+                  onChange={(e) => setForm({ ...form, referencias_cotizacion: e.target.value })}
                 />
-                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
-                  Campo compatible con registros anteriores; no se usa para KPIs.
-                </div>
-              </div>
+              </V2FormField>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>Próxima acción</label><input type="date" style={inp} value={form.fecha_proxima_accion} onChange={e => setForm({ ...form, fecha_proxima_accion: e.target.value })} /></div>
-                <div><label style={lbl}>Periodo pipeline</label><input style={inp} value={form.periodo_pipeline} onChange={e => setForm({ ...form, periodo_pipeline: e.target.value })} placeholder="YYYY-MM" /></div>
-                <div>
-                  <label style={lbl}>Responsable</label>
-                  <select style={inp} value={form.responsable_id} onChange={e => setForm({ ...form, responsable_id: e.target.value })}>
-                    <option value="">Sin responsable</option>
-                    {responsables.map(r => <option key={r.id} value={r.id}>{r.apellido} {r.nombre}</option>)}
-                  </select>
-                </div>
+                <V2FormField label="Próxima acción">
+                  <V2Input
+                    type="date"
+                    value={form.fecha_proxima_accion}
+                    onChange={(e) => setForm({ ...form, fecha_proxima_accion: e.target.value })}
+                  />
+                </V2FormField>
+                <V2FormField label="Periodo pipeline">
+                  <V2Input
+                    value={form.periodo_pipeline}
+                    onChange={(e) => setForm({ ...form, periodo_pipeline: e.target.value })}
+                    placeholder="YYYY-MM"
+                  />
+                </V2FormField>
+                <V2FormField label="Responsable">
+                  <V2Select
+                    options={responsableOptions}
+                    value={form.responsable_id || ""}
+                    onChange={(e) => setForm({ ...form, responsable_id: e.target.value })}
+                  />
+                </V2FormField>
               </div>
+
               {!form.cliente_id && (
-                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
-                  <input type="checkbox" checked={form.crear_cliente} onChange={e => setForm({ ...form, crear_cliente: e.target.checked })} />
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 13,
+                    color: "var(--v2-text)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.crear_cliente}
+                    onChange={(e) => setForm({ ...form, crear_cliente: e.target.checked })}
+                  />
                   Crear también en Clientes al guardar
                 </label>
               )}
-              <div><label style={lbl}>Notas / seguimiento</label><textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} /></div>
-            </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : editando ? "Actualizar" : "Crear lead"}</button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20 }}>
-        <div>
-          <div style={{ marginBottom: 16 }}>
-            <FiltersBar
-              actions={
-                <>
-                  <span style={{ fontSize: 12, color: "#9ca3af" }}>{filtrados.length} resultados</span>
-                  {puedeEditarCRM && <button onClick={archivarCerradosDelMes} disabled={archivando} className="btn-secondary" style={{ fontSize: 13 }}>{archivando ? "Archivando..." : "Archivar cerrados del mes"}</button>}
-                  {puedeCrearCRM && <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo lead</button>}
-                </>
-              }
-            >
-              <input style={{ ...inp, width: 220 }} placeholder="Buscar lead..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-              <select style={{ ...inp, width: "auto" }} value={filtroPeriodo} onChange={e => setFiltroPeriodo(e.target.value)}>
-                <option value="actual">Pipeline actual</option>
-                <option value="todos">Todos</option>
-                {periodos.filter(p => p !== periodoActual()).map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
-                <option value="">Todos los estados</option>
-                {ESTADOS_PIPELINE.map(k => <option key={k} value={k}>{ESTADOS[k].label}</option>)}
-              </select>
-              <select style={{ ...inp, width: "auto" }} value={filtroTemp} onChange={e => setFiltroTemp(e.target.value)}>
-                <option value="">Todas las temp.</option>
-                {Object.entries(TEMPERATURAS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-              {(filtroEstado || filtroTemp || busqueda || filtroPeriodo !== "actual") && (
-                <button onClick={() => { setFiltroEstado(""); setFiltroTemp(""); setBusqueda(""); setFiltroPeriodo("actual") }}
-                  style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>Limpiar</button>
-              )}
-            </FiltersBar>
-          </div>
-
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 18, background: "#fff", padding: 12, boxShadow: "0 10px 24px rgba(15,23,42,.03)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 10, color: "#64748b", fontSize: 12 }}>
-              <span>Pipeline de 7 etapas</span>
-              <span>Desplázate horizontalmente para ver todo el flujo</span>
+              <V2FormField label="Notas / seguimiento">
+                <textarea
+                  style={{
+                    padding: "8px 12px",
+                    border: "1px solid var(--v2-border)",
+                    borderRadius: "var(--v2-radius)",
+                    fontSize: 13,
+                    fontFamily: "inherit",
+                    background: "var(--v2-surface)",
+                    width: "100%",
+                    outline: "none",
+                    minHeight: 70,
+                    resize: "vertical",
+                  }}
+                  value={form.notas}
+                  onChange={(e) => setForm({ ...form, notas: e.target.value })}
+                />
+              </V2FormField>
             </div>
-            <div style={{ overflowX: "auto", paddingBottom: 10, scrollbarGutter: "stable" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 280px)", gap: 16, width: "max-content" }}>
-              {ESTADOS_PIPELINE.map(estado => {
-                const ec = ESTADOS[estado]
-                const lista = leadsPorEstado(estado)
-                return (
-                  <div key={estado} style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 18, overflow: "hidden", boxShadow: "0 12px 28px rgba(15,23,42,.04)" }}>
-                    <div style={{ padding: "14px 16px", borderBottom: "1px solid #e5e7eb", background: "#fff" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 99, background: ec.color }} />
-                          <div style={{ fontSize: 14, fontWeight: 900, color: "#111827" }}>{ec.label}</div>
-                        </div>
-                        <StatusBadge label={String(lista.length)} type={estado} />
-                      </div>
-                      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{fmt(valorPorEstado(estado))}</div>
+          </V2Modal>
+        )}
+
+        {/* Drawer de Detalle de Lead */}
+        {selected && (
+          <V2Drawer open={!!selected} onClose={() => setSelected(null)} title={selected.razon_social}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ fontSize: 13, color: "var(--v2-muted)", marginTop: -8, marginBottom: 8 }}>
+                {selected.cliente_id ? "Cliente vinculado" : "Sin cliente vinculado"}
+              </div>
+
+              <V2SectionCard title="Información Comercial">
+                <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+                  {selected.ruc && (
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: "var(--v2-muted)" }}>RUC: </span>
+                      {selected.ruc}
                     </div>
+                  )}
+                  {selected.nombre_contacto && (
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: "var(--v2-muted)" }}>Contacto: </span>
+                      {selected.nombre_contacto}
+                      {selected.cargo_contacto ? " · " + selected.cargo_contacto : ""}
+                    </div>
+                  )}
+                  {selected.email_contacto && (
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: "var(--v2-muted)" }}>Email: </span>
+                      {selected.email_contacto}
+                    </div>
+                  )}
+                  {selected.telefono_contacto && (
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: "var(--v2-muted)" }}>Tel: </span>
+                      {selected.telefono_contacto}
+                    </div>
+                  )}
+                  {selected.direccion && (
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: "var(--v2-muted)" }}>Dirección: </span>
+                      {selected.direccion}
+                    </div>
+                  )}
+                  {selected.origen && (
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: "var(--v2-muted)" }}>Origen: </span>
+                      {selected.origen}
+                    </div>
+                  )}
+                  {selected.industria && (
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: "var(--v2-muted)" }}>Industria: </span>
+                      {selected.industria}
+                    </div>
+                  )}
+                  {selected.periodo_pipeline && (
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: "var(--v2-muted)" }}>Periodo: </span>
+                      {selected.periodo_pipeline}
+                    </div>
+                  )}
+                  {responsableNombre(selected.responsable_id) && (
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: "var(--v2-muted)" }}>Responsable: </span>
+                      {responsableNombre(selected.responsable_id)}
+                    </div>
+                  )}
+                  {selected.fecha_proxima_accion && (
+                    <div style={{ fontSize: 13, color: "var(--v2-warning)", fontWeight: 600 }}>
+                      Próxima acción: {selected.fecha_proxima_accion}
+                    </div>
+                  )}
+                  {selected.notas && (
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: "var(--v2-muted)" }}>Notas: </span>
+                      {selected.notas}
+                    </div>
+                  )}
+                </div>
 
-                    <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10, minHeight: 360 }}>
-                      {lista.length === 0 ? (
-                        <EmptyState title="Sin leads" description="No hay oportunidades en esta etapa." />
-                      ) : lista.map(lead => {
-                        const tc = TEMPERATURAS[lead.temperatura] || { color: "#6b7280", label: lead.temperatura }
-                        const responsable = responsableNombre(lead.responsable_id)
-                        const proyecto = lead.proyecto || proyectos.find(p => p.id === lead.proyecto_id)
-                        const cotizacionVigente = cotizacionVigenteProyecto(lead.proyecto_id, cotizaciones)
-                        const facturaVigente = facturaVigenteProyecto(lead.proyecto_id, facturas)
-                        const referencias = referenciasCotizacion(lead.referencias_cotizacion)
+                {puedeEditarCRM && (
+                  <div style={{ marginBottom: 12, borderTop: "1px solid var(--v2-border-soft)", paddingTop: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "var(--v2-muted)", marginBottom: 8 }}>
+                      CAMBIAR ESTADO
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {ESTADOS_PIPELINE.map((k) => {
+                        const v = ESTADOS[k]
                         return (
-                          <div key={lead.id}
-                            onClick={() => { setSelected(lead); loadNotas(lead.id) }}
+                          <button
+                            key={k}
+                            onClick={() => cambiarEstado(selected.id, k)}
                             style={{
-                              background: selected?.id === lead.id ? "#ecfdf5" : "#fff",
-                              border: selected?.id === lead.id ? "1px solid #03E373" : "1px solid #e5e7eb",
-                              borderRadius: 14,
-                              padding: 14,
-                              boxShadow: "0 10px 24px rgba(15,23,42,.06)",
-                              cursor: "pointer"
-                            }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: 14, fontWeight: 900, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {lead.razon_social}
-                                </div>
-                                {lead.cliente_id && <div style={{ fontSize: 11, color: "#0F6E56", marginTop: 2, fontWeight: 700 }}>Cliente vinculado</div>}
-                              </div>
-                              {puedeEditarCRM && (
-                                <div style={{ display: "flex", gap: 6 }}>
-                                  <button onClick={e => { e.stopPropagation(); abrirEditar(lead) }}
-                                    style={{ border: "1px solid #e5e7eb", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#374151" }}>
-                                    Editar
-                                  </button>
-                                  <button onClick={e => { e.stopPropagation(); cambiarEstado(lead.id, "ganado") }}
-                                    style={{ border: "1px solid #bbf7d0", background: "#fff", borderRadius: 8, padding: "4px 7px", fontSize: 11, cursor: "pointer", color: "#15803d" }}>
-                                    Ganar
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-
-                            <div style={{ display: "grid", gap: 6, fontSize: 12, color: "#4b5563" }}>
-                              {lead.nombre_contacto && <div>Contacto: {lead.nombre_contacto}</div>}
-                              {(lead.telefono_contacto || lead.email_contacto) && <div>{lead.telefono_contacto || lead.email_contacto}</div>}
-                              {proyecto && (
-                                <div style={{ display: "grid", gap: 3, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 8px" }}>
-                                  <a href={`/proyectos/${proyecto.id}`} onClick={e => e.stopPropagation()} style={{ fontSize: 11, fontWeight: 800, color: "#0F6E56", textDecoration: "none" }}>
-                                    Proyecto: {proyecto.codigo || proyecto.nombre}
-                                  </a>
-                                  <div style={{ fontSize: 11, color: "#64748b" }}>
-                                    {cotizacionVigente ? `Cotización: V${cotizacionVigente.version || "-"} · ${fmt(totalCotizacionComercial(cotizacionVigente))}` : "Sin cotización registrada"}
-                                  </div>
-                                  <div style={{ fontSize: 11, color: "#64748b" }}>
-                                    {facturaVigente ? `Factura: ${facturaVigente.numero_factura || facturaVigente.id} · ${estadoCobroFactura(facturaVigente)}` : "Sin factura registrada"}
-                                  </div>
-                                </div>
-                              )}
-                              {referencias.length > 0 && (
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                                  {referencias.slice(0, 3).map(ref => (
-                                    <span
-                                      key={ref}
-                                      title={ref}
-                                      style={{
-                                        fontSize: 10,
-                                        fontWeight: 700,
-                                        color: "#0F6E56",
-                                        background: "#ecfdf5",
-                                        border: "1px solid #bbf7d0",
-                                        borderRadius: 999,
-                                        padding: "2px 7px"
-                                      }}
-                                    >
-                                      {ref}
-                                    </span>
-                                  ))}
-                                  {referencias.length > 3 && (
-                                    <span
-                                      title={referencias.slice(3).join(", ")}
-                                      style={{ fontSize: 10, fontWeight: 700, color: "#0F6E56", background: "#ecfdf5", border: "1px solid #bbf7d0", borderRadius: 999, padding: "2px 7px" }}
-                                    >
-                                      +{referencias.length - 3}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                                <span>{lead.presupuesto_estimado ? fmt(lead.presupuesto_estimado) : "Sin presupuesto"}</span>
-                                <strong style={{ color: lead.probabilidad_cierre >= 70 ? "#0F6E56" : lead.probabilidad_cierre >= 40 ? "#ca8a04" : "#6b7280" }}>
-                                  {lead.probabilidad_cierre || 0}%
-                                </strong>
-                              </div>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                                <StatusBadge label={tc.label} type={lead.temperatura} />
-                                {lead.fecha_proxima_accion && <span style={{ color: "#d97706", fontSize: 11 }}>Próx. {lead.fecha_proxima_accion}</span>}
-                              </div>
-                              {responsable && <div style={{ fontSize: 11, color: "#64748b" }}>Responsable: {responsable}</div>}
-                            </div>
-                          </div>
+                              padding: "4px 10px",
+                              borderRadius: 99,
+                              fontSize: 11,
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              background: selected.estado === k ? v.color : "var(--v2-surface-soft)",
+                              color: selected.estado === k ? "#fff" : v.color,
+                              border: "1px solid " + v.color,
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            {v.label}
+                          </button>
                         )
                       })}
                     </div>
                   </div>
-                )
-              })}
-            </div>
-            </div>
-          </div>
-        </div>
+                )}
 
-        <Drawer
-          open={Boolean(selected)}
-          title={selected?.razon_social || "Detalle lead"}
-          subtitle={selected?.cliente_id ? "Cliente vinculado" : "Sin cliente vinculado"}
-          onClose={() => setSelected(null)}
-          width={420}
-        >
-        {selected && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div className="card">
-              <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
-                <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Cliente existente: </span>{selected.cliente_id ? "Sí" : "No"}</div>
-                {selected.ruc && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>RUC: </span>{selected.ruc}</div>}
-                {selected.nombre_contacto && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Contacto: </span>{selected.nombre_contacto}{selected.cargo_contacto ? " · " + selected.cargo_contacto : ""}</div>}
-                {selected.email_contacto && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Email: </span>{selected.email_contacto}</div>}
-                {selected.telefono_contacto && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Tel: </span>{selected.telefono_contacto}</div>}
-                {selected.direccion && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Dirección: </span>{selected.direccion}</div>}
-                {selected.origen && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Origen: </span>{selected.origen}</div>}
-                {selected.industria && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Industria: </span>{selected.industria}</div>}
-                {selected.periodo_pipeline && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Periodo: </span>{selected.periodo_pipeline}</div>}
-                {responsableNombre(selected.responsable_id) && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Responsable: </span>{responsableNombre(selected.responsable_id)}</div>}
-                {selected.fecha_proxima_accion && <div style={{ fontSize: 13, color: "#d97706", fontWeight: 600 }}>Próxima acción: {selected.fecha_proxima_accion}</div>}
-                {selected.notas && <div style={{ fontSize: 13 }}><span style={{ color: "#9ca3af" }}>Notas: </span>{selected.notas}</div>}
-              </div>
-              {puedeEditarCRM && (
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>CAMBIAR ESTADO</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {ESTADOS_PIPELINE.map(k => {
-                    const v = ESTADOS[k]
-                    return (
-                      <button key={k} onClick={() => cambiarEstado(selected.id, k)}
-                        style={{ padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                          background: selected.estado === k ? v.color : v.bg,
-                          color: selected.estado === k ? "#fff" : v.color,
-                          border: "1px solid " + v.color }}>
-                        {v.label}
-                      </button>
-                    )
-                  })}
+                {selected.presupuesto_estimado > 0 && (
+                  <div
+                    style={{
+                      background: "rgba(3, 227, 115, 0.05)",
+                      border: "1px solid rgba(3, 227, 115, 0.1)",
+                      borderRadius: 8,
+                      padding: "10px 14px",
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>Presupuesto estimado</div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: "var(--v2-success)" }}>
+                      {fmt(selected.presupuesto_estimado)}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>
+                      Prob. cierre: {selected.probabilidad_cierre}%
+                    </div>
                   </div>
-                </div>
-              )}
-              {selected.presupuesto_estimado > 0 && (
-                <div style={{ background: "#f0fdf4", borderRadius: 8, padding: "10px 14px", marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, color: "#6b7280" }}>Presupuesto estimado</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "#0F6E56" }}>{fmt(selected.presupuesto_estimado)}</div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>Prob. cierre: {selected.probabilidad_cierre}%</div>
-                </div>
-              )}
-              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 8 }}>PROYECTO ASOCIADO</div>
-                {selectedProject ? (
+                )}
+              </V2SectionCard>
+
+              {/* Proyecto Asociado */}
+              <V2SectionCard title="Proyecto Asociado">
+                {selected.proyecto_id ? (
                   <div style={{ display: "grid", gap: 6, fontSize: 13 }}>
-                    <div><span style={{ color: "#9ca3af" }}>Código: </span>{selectedProject.codigo || "Sin código"}</div>
-                    <div><span style={{ color: "#9ca3af" }}>Nombre: </span>{selectedProject.nombre || "Sin nombre"}</div>
-                    <div><span style={{ color: "#9ca3af" }}>Cliente: </span>{selectedProject.cliente?.razon_social || selected.cliente?.razon_social || "Sin cliente"}</div>
-                    <div><span style={{ color: "#9ca3af" }}>Estado: </span>{selectedProject.estado || "Sin estado"}</div>
-                    <div><span style={{ color: "#9ca3af" }}>Cotización vigente: </span>{selectedQuote ? `V${selectedQuote.version || "-"} · ${fmt(totalCotizacionComercial(selectedQuote))}` : "Sin cotización registrada"}</div>
-                    {selectedQuote && <div><span style={{ color: "#9ca3af" }}>Estado cotización: </span>{selectedQuote.estado || "Sin estado"}</div>}
-                    <div><span style={{ color: "#9ca3af" }}>Factura: </span>{selectedInvoice ? `${selectedInvoice.numero_factura || selectedInvoice.id} · ${fmt(totalFacturaComercial(selectedInvoice))}` : "Sin factura registrada"}</div>
-                    <div><span style={{ color: "#9ca3af" }}>Cobranza: </span>{selectedInvoice ? `${estadoCobroFactura(selectedInvoice)} · cobrado ${fmt(montoCobradoFacturaComercial(selectedInvoice))}` : "Sin cobranza"}</div>
-                    <div style={{ display: "grid", gridTemplateColumns: selectedQuote ? "1fr 1fr" : "1fr", gap: 8, marginTop: 4 }}>
-                      <button onClick={() => router.push(`/proyectos/${selectedProject.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver proyecto</button>
-                      {selectedQuote && <button onClick={() => router.push(`/proyectos/${selectedProject.id}/cotizaciones/${selectedQuote.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver cotización</button>}
-                      {selectedInvoice && <button onClick={() => router.push(`/facturacion?proyecto_id=${selectedProject.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver factura</button>}
+                    <div>
+                      <span style={{ color: "var(--v2-muted)" }}>Código: </span>
+                      {selected.proyecto?.codigo || "Sin código"}
+                    </div>
+                    <div>
+                      <span style={{ color: "var(--v2-muted)" }}>Nombre: </span>
+                      {selected.proyecto?.nombre || "Sin nombre"}
+                    </div>
+                    <div>
+                      <span style={{ color: "var(--v2-muted)" }}>Estado: </span>
+                      {selected.proyecto?.estado || "Sin estado"}
                     </div>
                   </div>
                 ) : (
-                  <div style={{ fontSize: 13, color: "#94a3b8" }}>Sin proyecto asociado.</div>
+                  <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>Sin proyecto asociado.</div>
                 )}
-              </div>
-              {referenciasCotizacion(selected.referencias_cotizacion).length > 0 && (
-                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 8 }}>REFERENCIA EXTERNA</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {referenciasCotizacion(selected.referencias_cotizacion).map(ref => (
-                      <span key={ref} title={ref} style={{ fontSize: 11, fontWeight: 700, color: "#0F6E56", background: "#ecfdf5", border: "1px solid #bbf7d0", borderRadius: 999, padding: "3px 8px" }}>
-                        {ref}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div style={{ display: "grid", gap: 8 }}>
-                {puedeEditarCRM && <button onClick={() => abrirEditar(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Editar</button>}
-                {puedeConvertirCRM && !selected.cliente_id && (
-                  <button onClick={() => convertirACliente(selected, true)}
-                    style={{ width: "100%", padding: "8px", background: "#0F6E56", border: "none", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                    Convertir a cliente
-                  </button>
-                )}
-                <button disabled title="Próximamente" className="btn-secondary" style={{ fontSize: 13, width: "100%", opacity: .55, cursor: "not-allowed" }}>Crear cotización</button>
-                {puedeEditarCRM && <button onClick={() => archivarLead(selected)} className="btn-secondary" style={{ fontSize: 13, width: "100%" }}>Archivar</button>}
-                {puedeEliminarCRM && <button onClick={() => eliminarLead(selected)}
-                  style={{ width: "100%", padding: "8px", background: "#fff", border: "1px solid #fecaca", borderRadius: 8, color: "#dc2626", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  Eliminar
-                </button>}
-              </div>
-              {clientesConvertidos[selected.id] && (
-                <div style={{ display: "grid", gap: 8, marginTop: 12, padding: 12, border: "1px solid #bbf7d0", borderRadius: 10, background: "#f0fdf4" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>Cliente creado</div>
-                  <button onClick={() => router.push(`/clientes/${clientesConvertidos[selected.id].id}`)}
-                    className="btn-secondary" style={{ fontSize: 12, width: "100%" }}>
-                    Ver cliente
-                  </button>
-                  <button onClick={() => router.push(`/proyectos/nuevo?cliente_id=${clientesConvertidos[selected.id].id}`)}
-                    className="btn-primary" style={{ fontSize: 12, width: "100%" }}>
-                    Crear proyecto para este cliente
-                  </button>
-                </div>
-              )}
-            </div>
+              </V2SectionCard>
 
-            <div className="card">
-              <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 12px", color: "#374151" }}>Seguimiento</h3>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <input style={{ ...inp, flex: 1, fontSize: 12 }} value={nuevaNota} placeholder="Agregar nota..."
-                  onChange={e => setNuevaNota(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && agregarNota()} />
-                <button onClick={agregarNota} className="btn-primary" style={{ fontSize: 12, padding: "6px 12px" }}>+</button>
-              </div>
-              <div style={{ maxHeight: 220, overflowY: "auto", display: "grid", gap: 8 }}>
-                {notas.length === 0 ? (
-                  <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 12 }}>Sin notas aun</div>
-                ) : notas.map((nota: any) => (
-                  <div key={nota.id} style={{ background: "#f9fafb", borderRadius: 8, padding: "8px 12px" }}>
-                    <div style={{ fontSize: 12, color: "#374151" }}>{nota.contenido}</div>
-                    <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>
-                      {new Date(nota.created_at).toLocaleDateString("es-PE")}
+              {/* Acciones principales de lead */}
+              <V2SectionCard title="Acciones de Lead">
+                <div style={{ display: "grid", gap: 8 }}>
+                  {puedeEditarCRM && (
+                    <V2Button variant="secondary" onClick={() => abrirEditar(selected)}>
+                      Editar Lead
+                    </V2Button>
+                  )}
+                  {puedeEditarCRM && !selected.cliente_id && (
+                    <V2Button onClick={() => convertirACliente(selected, true)}>
+                      Convertir a cliente
+                    </V2Button>
+                  )}
+                  {selected.cliente_id && (
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <V2Button
+                        variant="secondary"
+                        onClick={() => router.push(`/clientes?id=${selected.cliente_id}`)}
+                        style={{ flex: 1 }}
+                      >
+                        Ver Cliente
+                      </V2Button>
+                      <V2Button
+                        variant="secondary"
+                        onClick={() => router.push(`/proyectos/nuevo?cliente_id=${selected.cliente_id}`)}
+                        style={{ flex: 1 }}
+                      >
+                        Crear Proyecto
+                      </V2Button>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  )}
+                  {clientesConvertidos[selected.id] && (
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <V2Button
+                        variant="secondary"
+                        onClick={() => router.push(`/clientes?id=${clientesConvertidos[selected.id].id}`)}
+                        style={{ flex: 1 }}
+                      >
+                        Ver Cliente
+                      </V2Button>
+                      <V2Button
+                        variant="secondary"
+                        onClick={() => router.push(`/proyectos/nuevo?cliente_id=${clientesConvertidos[selected.id].id}`)}
+                        style={{ flex: 1 }}
+                      >
+                        Crear Proyecto
+                      </V2Button>
+                    </div>
+                  )}
+                  {puedeEditarCRM && (
+                    <V2Button variant="secondary" onClick={() => archivarLead(selected)}>
+                      Archivar Lead
+                    </V2Button>
+                  )}
+                  {puedeAccionCRM("eliminar", selected) && (
+                    <V2Button
+                      variant="secondary"
+                      style={{ color: "var(--v2-danger)", borderColor: "var(--v2-danger-bg)" }}
+                      onClick={() => eliminarLead(selected)}
+                    >
+                      Eliminar Lead
+                    </V2Button>
+                  )}
+                </div>
+              </V2SectionCard>
+
+              {/* Notas y Seguimiento */}
+              <V2SectionCard title="Seguimiento (Notas)">
+                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                  <V2Input
+                    compact
+                    value={nuevaNota}
+                    placeholder="Agregar nota..."
+                    onChange={(e) => setNuevaNota(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && agregarNota()}
+                    style={{ flex: 1 }}
+                  />
+                  <V2Button onClick={agregarNota}>+</V2Button>
+                </div>
+                <div style={{ maxHeight: 220, overflowY: "auto", display: "grid", gap: 8 }}>
+                  {notas.length === 0 ? (
+                    <div style={{ fontSize: 12, color: "var(--v2-muted)", textAlign: "center", padding: 12 }}>
+                      Sin notas aún
+                    </div>
+                  ) : (
+                    notas.map((nota: any) => (
+                      <div
+                        key={nota.id}
+                        style={{
+                          background: "var(--v2-surface-soft)",
+                          borderRadius: "var(--v2-radius)",
+                          padding: "8px 12px",
+                          border: "1px solid var(--v2-border-soft)",
+                        }}
+                      >
+                        <div style={{ fontSize: 12, color: "var(--v2-text)" }}>{nota.contenido}</div>
+                        <div style={{ fontSize: 10, color: "var(--v2-muted)", marginTop: 4 }}>
+                          {new Date(nota.created_at).toLocaleDateString("es-PE")}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </V2SectionCard>
             </div>
-          </div>
+          </V2Drawer>
         )}
-        </Drawer>
       </div>
-    </MasterPage>
   )
 }

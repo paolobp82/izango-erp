@@ -1,5 +1,5 @@
 "use client"
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/immutability, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
@@ -17,6 +17,8 @@ import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import { SYSTEM_COLUMNS } from "@/lib/core/configuration"
 import { buildCreateRQPPayload, buildUpdateRQPFinancialPayload } from "@/lib/services/rqp"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import { V2Button, V2KpiCard, V2PageHeader, V2SectionCard } from "@/components/v2/system"
 import {
   BANCOS_PAGO,
   MEDIOS_PAGO,
@@ -885,16 +887,21 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
           {toastMsg}
         </div>
       )}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Requerimientos de pago</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-            {rqsVistaActiva.length} RQs activos{rqsProyectosEliminados.length ? ` · ${rqsProyectosEliminados.length} en proyectos eliminados` : ""} · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}
-          </p>
-        </div>
-        {puedeAccionRQ("crear") && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo"); setProyectos(filtrarPorAlcance(projs || [], perfil, "proyectos", { usuarioId: perfil?.id })); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
-        <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
-      </div>      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+      <V2PageHeader
+        eyebrow="Tesorería & Pagos"
+        title="Requerimientos de Pago (RQ)"
+        subtitle={`${rqsVistaActiva.length} RQs activos · ${perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}`}
+        actions={
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {puedeAccionRQ("crear") && (
+              <V2Button variant="primary" onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo"); setProyectos(filtrarPorAlcance(projs || [], perfil, "proyectos", { usuarioId: perfil?.id })); setShowNuevoRQ(true) }}>
+                + Nuevo RQ
+              </V2Button>
+            )}
+            <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
+          </div>
+        }
+      />      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         <KpiCard
           icon="money"
           label="Pendientes"

@@ -1,9 +1,18 @@
-﻿"use client"
+"use client"
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/exhaustive-deps, jsx-a11y/alt-text */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
-import { nextSortState, sortIndicator, sortRows, type SortState } from "@/lib/table-sort"
+import { sortRows, type SortState } from "@/lib/table-sort"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2PageHeader,
+  V2Pagination,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 const BANCOS = ["BCP","BBVA","Interbank","Scotiabank","BanBif","Pichincha","Banco de la Nacion","Otro"]
 const TIPOS_CUENTA = ["Ahorros","Corriente"]
@@ -17,7 +26,7 @@ export default function TrabajadoresPage() {
   const [loading, setLoading] = useState(true)
   const [pagina, setPagina] = useState(1)
   const [vista, setVista] = useState<"activos" | "archivados">("activos")
-  const [sort, setSort] = useState<SortState>({ key: "apellido", direction: "asc" })
+  const [sort] = useState<SortState>({ key: "apellido", direction: "asc" })
   const POR_PAGINA = 50
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<any>(null)
@@ -53,11 +62,9 @@ export default function TrabajadoresPage() {
 
     const activos = vista === "activos"
     if (esAdminTotal) {
-      // Admins ven activos o archivados segun la vista.
       const { data } = await supabase.from("rrhh_trabajadores").select("*").eq("activo", activos).order("apellido")
       setTrabajadores(data || [])
     } else {
-      // El resto solo ve su propia ficha
       const { data } = await supabase.from("rrhh_trabajadores").select("*").eq("activo", true).eq("user_id", user.id)
       setTrabajadores(data || [])
     }
@@ -159,7 +166,7 @@ export default function TrabajadoresPage() {
   }
 
   async function eliminar(id: string) {
-    if (!confirm("Desactivar este trabajador?")) return
+    if (!confirm("¿Desactivar este trabajador?")) return
     const trabajador = trabajadores.find(t => t.id === id)
     const { error } = await supabase.from("rrhh_trabajadores").update({ activo: false }).eq("id", id)
     if (error) { alert(error.message); return }
@@ -171,7 +178,7 @@ export default function TrabajadoresPage() {
   }
 
   async function restaurar(t: any) {
-    if (!confirm(`Restaurar a ${t.nombre} ${t.apellido} como trabajador activo?`)) return
+    if (!confirm(`¿Restaurar a ${t.nombre} ${t.apellido} como trabajador activo?`)) return
     const { error } = await supabase.from("rrhh_trabajadores").update({ activo: true }).eq("id", t.id)
     if (error) { alert(error.message); return }
     if (t.user_id) {
@@ -185,164 +192,279 @@ export default function TrabajadoresPage() {
   const esAdminRRHH = ["superadmin","gerente_general","administrador","controller"].includes(perfil?.perfil)
   const puedeVerSueldo = ["superadmin","gerente_general","administrador","controller"].includes(perfil?.perfil)
 
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
-  const tabStyle = (active: boolean) => ({ padding: "6px 16px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: active ? "#1D2040" : "#f3f4f6", color: active ? "#fff" : "#6b7280" })
+  const inp: any = { padding: "8px 12px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius)", fontSize: 13, fontFamily: "inherit", background: "var(--v2-surface)", width: "100%", outline: "none", boxSizing: "border-box" as const }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", marginBottom: 6, textTransform: "uppercase" as const }
+  const tabStyle = (active: boolean) => ({ padding: "6px 16px", borderRadius: "var(--v2-radius-sm)", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: active ? "var(--v2-primary)" : "var(--v2-surface-subtle)", color: active ? "#fff" : "var(--v2-muted)" })
+
   const trabajadoresOrdenados = sortRows(trabajadores, sort, (t, key) => key === "trabajador" ? `${t.apellido || ""} ${t.nombre || ""}` : t[key])
   const trabajadoresPaginados = trabajadoresOrdenados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
   const totalPaginas = Math.max(1, Math.ceil(trabajadoresOrdenados.length / POR_PAGINA))
-  const sortHeader = (label: string, key: string, align: "left" | "right" | "center" = "left") => (
-    <button onClick={() => { setSort(prev => nextSortState(prev, key)); setPagina(1) }} style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer", color: "inherit", font: "inherit", fontWeight: 600, textAlign: align }}>
-      {label} <span style={{ color: sort.key === key ? "#0F6E56" : "#9ca3af" }}>{sortIndicator(sort, key)}</span>
-    </button>
-  )
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando trabajadores...
+      </div>
+    )
+  }
+
+  const columns: V2TableColumn<any>[] = [
+    {
+      key: "trabajador",
+      header: "TRABAJADOR",
+      render: (t) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {t.foto_url ? (
+            <img src={t.foto_url} style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} />
+          ) : (
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#E1F5EE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#04342C" }}>
+              {t.nombre[0]}{t.apellido[0]}
+            </div>
+          )}
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13.5, color: "var(--v2-text)" }}>{t.nombre} {t.apellido}</div>
+            <div style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{t.email || t.dni}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "cargo",
+      header: "CARGO / ÁREA",
+      render: (t) => (
+        <div>
+          <div style={{ fontSize: 13, color: "var(--v2-text)" }}>{t.cargo || "—"}</div>
+          <div style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{t.area || ""}</div>
+        </div>
+      ),
+    },
+    {
+      key: "tipo",
+      header: "TIPO",
+      render: (t) => (
+        <span style={{
+          background: t.tipo === "planilla" ? "#dbeafe" : t.tipo === "honorarios" ? "#fef3c7" : "#f0fdf4",
+          color: t.tipo === "planilla" ? "#1e40af" : t.tipo === "honorarios" ? "#92400e" : "#15803d",
+          padding: "2px 8px",
+          borderRadius: 99,
+          fontSize: 11,
+          fontWeight: 600,
+        }}>
+          {t.tipo || "planilla"}
+        </span>
+      ),
+    },
+    ...(puedeVerSueldo
+      ? [
+          {
+            key: "sueldo_base",
+            header: "SUELDO BASE",
+            align: "right" as const,
+            render: (t: any) => (
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)" }}>
+                S/ {Number(t.sueldo_base || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+              </span>
+            ),
+          },
+        ]
+      : []),
+    {
+      key: "ficha_aprobada",
+      header: "FICHA",
+      align: "center",
+      render: (t) => (
+        <span style={{
+          background: t.ficha_aprobada ? "#d1fae5" : "#fef3c7",
+          color: t.ficha_aprobada ? "#065f46" : "#92400e",
+          padding: "2px 8px",
+          borderRadius: 99,
+          fontSize: 11,
+          fontWeight: 600,
+        }}>
+          {t.ficha_aprobada ? "Aprobada" : "Pendiente"}
+        </span>
+      ),
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (t) => (
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <V2Button variant="ghost" size="compact" onClick={() => window.location.href = "/rrhh/trabajadores/" + t.id}>
+            Ver ficha
+          </V2Button>
+          <V2Button variant="ghost" size="compact" onClick={() => abrirEditar(t)}>
+            Editar
+          </V2Button>
+          <V2Button variant="secondary" size="compact" onClick={() => { setTrabajadorSeleccionado(t.id); cargarHistorial(t.id); setShowContrato(true); cargarContratos(t.id) }}>
+            Historial
+          </V2Button>
+          {esAdminRRHH && (
+            <>
+              {!t.ficha_aprobada && (
+                <V2Button variant="ghost" size="compact" onClick={() => aprobarFicha(t.id)}>
+                  Aprobar
+                </V2Button>
+              )}
+              {t.ficha_aprobada && t.ficha_bloqueada && (
+                <V2Button variant="ghost" size="compact" onClick={() => desbloquearFicha(t.id)}>
+                  Desbloquear
+                </V2Button>
+              )}
+              {vista === "activos" ? (
+                <V2Button variant="destructive" size="compact" onClick={() => eliminar(t.id)}>
+                  Archivar
+                </V2Button>
+              ) : (
+                <V2Button variant="ghost" size="compact" onClick={() => restaurar(t)}>
+                  Restaurar
+                </V2Button>
+              )}
+            </>
+          )}
+        </div>
+      ),
+    },
+  ]
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Trabajadores</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-            {esAdminTotal ? `${trabajadores.length} trabajadores ${vista === "activos" ? "activos" : "archivados"}` : "Mi ficha de trabajador"}
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {esAdminTotal && (
-            <ImportExport modulo="rrhh_trabajadores"
-              campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"apellido",label:"Apellido",requerido:true},{key:"dni",label:"DNI"},{key:"email",label:"Email"},{key:"telefono",label:"Telefono"},{key:"fecha_ingreso",label:"Fecha ingreso"},{key:"cargo",label:"Cargo"},{key:"area",label:"Area"},{key:"tipo",label:"Tipo"},{key:"sueldo_base",label:"Sueldo base"},{key:"banco",label:"Banco"},{key:"numero_cuenta",label:"N cuenta"},{key:"cci",label:"CCI"},{key:"sistema_pension",label:"Sistema pension"}]}
-              datos={trabajadores}
-              onImportar={async (registros) => {
-                let exitosos=0; const errores: string[]=[]
-                for(const r of registros){
-                  const {error}=await supabase.from("rrhh_trabajadores").insert({...r,activo:true,tipo:r.tipo||"planilla",ficha_aprobada:false,ficha_bloqueada:false})
-                  if(error)errores.push(r.nombre+": "+error.message); else exitosos++
-                }
-                load(); return{exitosos,errores}
-              }} />
-          )}
-          {/* Solo puede crear si no tiene ficha propia */}
-          {!esAdminTotal && trabajadores.length === 0 && (
-            <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Crear mi ficha</button>
-          )}
-          {esAdminTotal && (
-            <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo trabajador</button>
-          )}
-        </div>
-      </div>
-
-      {esAdminTotal && (
-        <div className="card" style={{ marginBottom: 14, padding: "10px 14px", display: "flex", gap: 8, alignItems: "center" }}>
-          <button className={vista === "activos" ? "btn-primary" : "btn-secondary"} style={{ fontSize: 12 }} onClick={() => { setVista("activos"); setPagina(1) }}>Activos</button>
-          <button className={vista === "archivados" ? "btn-primary" : "btn-secondary"} style={{ fontSize: 12 }} onClick={() => { setVista("archivados"); setPagina(1) }}>Archivados</button>
-          <span style={{ fontSize: 12, color: "#6b7280", marginLeft: "auto" }}>Los archivados conservan historial, pero no aparecen para nuevas asignaciones.</span>
-        </div>
-      )}
-
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {trabajadores.length === 0 ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "#9ca3af" }}>
-            <div style={{ fontSize: 14, marginBottom: 8 }}>
-              {esAdminTotal ? "No hay trabajadores registrados." : "Aun no tienes una ficha de trabajador."}
-            </div>
-            {!esAdminTotal && (
-              <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Crear mi ficha</button>
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            eyebrow="Recursos Humanos"
+            title="Trabajadores"
+            subtitle={esAdminTotal ? `${trabajadores.length} trabajadores ${vista === "activos" ? "activos" : "archivados"}` : "Mi ficha de trabajador"}
+            actions={
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {esAdminTotal && (
+                  <ImportExport
+                    modulo="rrhh_trabajadores"
+                    campos={[
+                      { key: "nombre", label: "Nombre", requerido: true },
+                      { key: "apellido", label: "Apellido", requerido: true },
+                      { key: "dni", label: "DNI" },
+                      { key: "email", label: "Email" },
+                      { key: "telefono", label: "Teléfono" },
+                      { key: "fecha_ingreso", label: "Fecha ingreso" },
+                      { key: "cargo", label: "Cargo" },
+                      { key: "area", label: "Área" },
+                      { key: "tipo", label: "Tipo" },
+                      { key: "sueldo_base", label: "Sueldo base" },
+                      { key: "banco", label: "Banco" },
+                      { key: "numero_cuenta", label: "N° cuenta" },
+                      { key: "cci", label: "CCI" },
+                      { key: "sistema_pension", label: "Sistema pensión" },
+                    ]}
+                    datos={trabajadores}
+                    onImportar={async (registros) => {
+                      let exitosos = 0
+                      const errores: string[] = []
+                      for (const r of registros) {
+                        const { error } = await supabase.from("rrhh_trabajadores").insert({ ...r, activo: true, tipo: r.tipo || "planilla", ficha_aprobada: false, ficha_bloqueada: false })
+                        if (error) errores.push(r.nombre + ": " + error.message)
+                        else exitosos++
+                      }
+                      load()
+                      return { exitosos, errores }
+                    }}
+                  />
+                )}
+                {!esAdminTotal && trabajadores.length === 0 && (
+                  <V2Button variant="primary" onClick={abrirNuevo}>
+                    + Crear mi ficha
+                  </V2Button>
+                )}
+                {esAdminTotal && (
+                  <V2Button variant="primary" onClick={abrirNuevo}>
+                    + Nuevo trabajador
+                  </V2Button>
+                )}
+              </div>
+            }
+          />
+        }
+        toolbar={
+          esAdminTotal ? (
+            <V2FilterBar
+              searchValue=""
+              onSearchChange={() => {}}
+              activeFiltersCount={0}
+              hideDrawerButton
+              onToggleDrawer={() => {}}
+              quickFilters={
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <V2Button
+                    variant={vista === "activos" ? "primary" : "secondary"}
+                    size="compact"
+                    onClick={() => {
+                      setVista("activos")
+                      setPagina(1)
+                    }}
+                  >
+                    Activos
+                  </V2Button>
+                  <V2Button
+                    variant={vista === "archivados" ? "primary" : "secondary"}
+                    size="compact"
+                    onClick={() => {
+                      setVista("archivados")
+                      setPagina(1)
+                    }}
+                  >
+                    Archivados
+                  </V2Button>
+                  <span style={{ fontSize: 12, color: "var(--v2-muted)", marginLeft: 8 }}>
+                    Los archivados conservan historial, pero no aparecen para nuevas asignaciones.
+                  </span>
+                </div>
+              }
+            />
+          ) : undefined
+        }
+        table={
+          <>
+            <V2DataTable
+              columns={columns}
+              rows={trabajadoresPaginados}
+              getRowKey={(t) => t.id}
+              empty={
+                <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
+                  <div style={{ fontSize: 14, marginBottom: 8 }}>
+                    {esAdminTotal ? "No hay trabajadores registrados." : "Aún no tienes una ficha de trabajador."}
+                  </div>
+                  {!esAdminTotal && (
+                    <V2Button variant="primary" onClick={abrirNuevo}>
+                      + Crear mi ficha
+                    </V2Button>
+                  )}
+                </div>
+              }
+            />
+            {trabajadoresOrdenados.length > 0 && (
+              <V2Pagination
+                page={pagina}
+                pageCount={totalPaginas}
+                onPageChange={(p) => setPagina(p)}
+                summary={`Mostrando ${((pagina - 1) * POR_PAGINA) + 1}-${Math.min(pagina * POR_PAGINA, trabajadoresOrdenados.length)} de ${trabajadoresOrdenados.length}`}
+              />
             )}
-          </div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{sortHeader("TRABAJADOR", "trabajador")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{sortHeader("CARGO / AREA", "cargo")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{sortHeader("TIPO", "tipo")}</th>
-                {puedeVerSueldo && <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{sortHeader("SUELDO BASE", "sueldo_base", "right")}</th>}
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{sortHeader("FICHA", "ficha_aprobada", "center")}</th>
-                <th style={{ padding: "10px 20px", width: 200 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {trabajadoresPaginados.map((t, idx) => (
-                <tr key={t.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                  <td style={{ padding: "12px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      {t.foto_url ? (
-                        <img src={t.foto_url} style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} />
-                      ) : (
-                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#E1F5EE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#04342C" }}>
-                          {t.nombre[0]}{t.apellido[0]}
-                        </div>
-                      )}
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{t.nombre} {t.apellido}</div>
-                        <div style={{ fontSize: 11, color: "#9ca3af" }}>{t.email || t.dni}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>
-                    <div>{t.cargo || "—"}</div>
-                    <div style={{ fontSize: 11, color: "#9ca3af" }}>{t.area || ""}</div>
-                  </td>
-                  <td style={{ padding: "12px" }}>
-                    <span style={{ background: t.tipo === "planilla" ? "#dbeafe" : t.tipo === "honorarios" ? "#fef3c7" : "#f0fdf4", color: t.tipo === "planilla" ? "#1e40af" : t.tipo === "honorarios" ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{t.tipo || "planilla"}</span>
-                  </td>
-                  {puedeVerSueldo && <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: "#111827" }}>S/ {Number(t.sueldo_base || 0).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</td>}
-                  <td style={{ padding: "12px", textAlign: "center" }}>
-                    {t.ficha_aprobada ? (
-                      <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>Aprobada</span>
-                    ) : (
-                      <span style={{ background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>Pendiente</span>
-                    )}
-                  </td>
-                  <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                      <button onClick={() => window.location.href = "/rrhh/trabajadores/" + t.id} className="btn-secondary" style={{ fontSize: 12 }}>Ver ficha</button>
-                      <button onClick={() => abrirEditar(t)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
-                      <button onClick={() => { setTrabajadorSeleccionado(t.id); cargarHistorial(t.id); setShowContrato(true); cargarContratos(t.id) }} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer" }}>Historial</button>
-                      {esAdminRRHH && (
-                        <>
-                          {!t.ficha_aprobada && <button onClick={() => aprobarFicha(t.id)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Aprobar</button>}
-                          {t.ficha_aprobada && t.ficha_bloqueada && <button onClick={() => desbloquearFicha(t.id)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", color: "#1e40af", cursor: "pointer" }}>Desbloquear</button>}
-                          {vista === "activos" ? (
-                            <button onClick={() => eliminar(t.id)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>Archivar</button>
-                          ) : (
-                            <button onClick={() => restaurar(t)} style={{ fontSize: 12, padding: "4px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Restaurar</button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {trabajadoresOrdenados.length > 0 && (
-          <div style={{ padding: "12px 20px", borderTop: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 13, color: "#6b7280" }}>
-              Mostrando {((pagina - 1) * POR_PAGINA) + 1}-{Math.min(pagina * POR_PAGINA, trabajadoresOrdenados.length)} de {trabajadoresOrdenados.length}
-            </span>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button className="btn-secondary" style={{ fontSize: 12 }} disabled={pagina <= 1} onClick={() => setPagina(p => Math.max(1, p - 1))}>← Anterior</button>
-              <span style={{ fontSize: 13, color: "#374151", fontWeight: 700 }}>Página {pagina} de {totalPaginas}</span>
-              <button className="btn-secondary" style={{ fontSize: 12 }} disabled={pagina >= totalPaginas} onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}>Siguiente →</button>
-            </div>
-          </div>
-        )}
-      </div>
+          </>
+        }
+      />
 
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 720, maxHeight: "92vh", overflowY: "auto" }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 720, maxHeight: "92vh", overflowY: "auto", boxShadow: "var(--v2-shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>{editando ? "Editar ficha" : "Nueva ficha de trabajador"}</h2>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>{editando ? "Editar ficha" : "Nueva ficha de trabajador"}</h2>
+              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--v2-subtle)" }}>×</button>
             </div>
             <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
               {["info","contacto","laboral","banco","docs"].map(t => (
                 <button key={t} style={tabStyle(tab === t)} onClick={() => setTab(t)}>
-                  {t === "info" ? "Informacion" : t === "contacto" ? "Contacto" : t === "laboral" ? "Laboral" : t === "banco" ? "Banco" : "Docs"}
+                  {t === "info" ? "Información" : t === "contacto" ? "Contacto" : t === "laboral" ? "Laboral" : t === "banco" ? "Banco" : "Docs"}
                 </button>
               ))}
             </div>
@@ -356,20 +478,20 @@ export default function TrabajadoresPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                   <div><label style={lbl}>DNI</label><input style={inp} value={form.dni} onChange={e => setForm({ ...form, dni: e.target.value })} /></div>
                   <div><label style={lbl}>Email</label><input style={inp} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
-                  <div><label style={lbl}>Telefono</label><input style={inp} value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} /></div>
+                  <div><label style={lbl}>Teléfono</label><input style={inp} value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} /></div>
                 </div>
-                <div><label style={lbl}>Direccion actual</label><input style={inp} value={form.direccion} placeholder="Av. / Calle, distrito, ciudad" onChange={e => setForm({ ...form, direccion: e.target.value })} /></div>
+                <div><label style={lbl}>Dirección actual</label><input style={inp} value={form.direccion} placeholder="Av. / Calle, distrito, ciudad" onChange={e => setForm({ ...form, direccion: e.target.value })} /></div>
                 <div><label style={lbl}>URL Foto</label><input style={inp} value={form.foto_url} placeholder="https://..." onChange={e => setForm({ ...form, foto_url: e.target.value })} /></div>
               </div>
             )}
 
             {tab === "contacto" && (
               <div style={{ display: "grid", gap: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", paddingBottom: 8, borderBottom: "1px solid #f3f4f6" }}>Contacto de emergencia</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)", paddingBottom: 8, borderBottom: "1px solid var(--v2-border)" }}>Contacto de emergencia</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                   <div><label style={lbl}>Nombre</label><input style={inp} value={form.contacto_emergencia_nombre} placeholder="Nombre completo" onChange={e => setForm({ ...form, contacto_emergencia_nombre: e.target.value })} /></div>
-                  <div><label style={lbl}>Telefono</label><input style={inp} value={form.contacto_emergencia_telefono} placeholder="9xxxxxxxx" onChange={e => setForm({ ...form, contacto_emergencia_telefono: e.target.value })} /></div>
-                  <div><label style={lbl}>Relacion</label><input style={inp} value={form.contacto_emergencia_relacion} placeholder="Padre, madre, esposo/a..." onChange={e => setForm({ ...form, contacto_emergencia_relacion: e.target.value })} /></div>
+                  <div><label style={lbl}>Teléfono</label><input style={inp} value={form.contacto_emergencia_telefono} placeholder="9xxxxxxxx" onChange={e => setForm({ ...form, contacto_emergencia_telefono: e.target.value })} /></div>
+                  <div><label style={lbl}>Relación</label><input style={inp} value={form.contacto_emergencia_relacion} placeholder="Padre, madre, esposo/a..." onChange={e => setForm({ ...form, contacto_emergencia_relacion: e.target.value })} /></div>
                 </div>
               </div>
             )}
@@ -378,7 +500,7 @@ export default function TrabajadoresPage() {
               <div style={{ display: "grid", gap: 14 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div><label style={lbl}>Cargo</label><input style={inp} value={form.cargo} onChange={e => setForm({ ...form, cargo: e.target.value })} /></div>
-                  <div><label style={lbl}>Area</label><select style={inp} value={form.area} onChange={e => setForm({ ...form, area: e.target.value })}><option value="">Seleccionar</option>{AREAS.map(a => <option key={a}>{a}</option>)}</select></div>
+                  <div><label style={lbl}>Área</label><select style={inp} value={form.area} onChange={e => setForm({ ...form, area: e.target.value })}><option value="">Seleccionar</option>{AREAS.map(a => <option key={a}>{a}</option>)}</select></div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div><label style={lbl}>Tipo</label><select style={inp} value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })}>{TIPOS.map(t => <option key={t}>{t}</option>)}</select></div>
@@ -386,7 +508,7 @@ export default function TrabajadoresPage() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div><label style={lbl}>Fecha ingreso</label><input style={inp} type="date" value={form.fecha_ingreso} onChange={e => setForm({ ...form, fecha_ingreso: e.target.value })} /></div>
-                  <div><label style={lbl}>Sistema pension</label><select style={inp} value={form.sistema_pension} onChange={e => setForm({ ...form, sistema_pension: e.target.value })}>{PENSIONES.map(p => <option key={p}>{p}</option>)}</select></div>
+                  <div><label style={lbl}>Sistema pensión</label><select style={inp} value={form.sistema_pension} onChange={e => setForm({ ...form, sistema_pension: e.target.value })}>{PENSIONES.map(p => <option key={p}>{p}</option>)}</select></div>
                 </div>
                 {puedeVerSueldo && <div><label style={lbl}>Sueldo base</label><input style={inp} type="number" value={form.sueldo_base} onChange={e => setForm({ ...form, sueldo_base: parseFloat(e.target.value) || 0 })} /></div>}
               </div>
@@ -399,7 +521,7 @@ export default function TrabajadoresPage() {
                   <div><label style={lbl}>Tipo cuenta</label><select style={inp} value={form.tipo_cuenta} onChange={e => setForm({ ...form, tipo_cuenta: e.target.value })}><option value="">Seleccionar</option>{TIPOS_CUENTA.map(t => <option key={t}>{t}</option>)}</select></div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div><label style={lbl}>N cuenta</label><input style={inp} value={form.numero_cuenta} onChange={e => setForm({ ...form, numero_cuenta: e.target.value })} /></div>
+                  <div><label style={lbl}>N° cuenta</label><input style={inp} value={form.numero_cuenta} onChange={e => setForm({ ...form, numero_cuenta: e.target.value })} /></div>
                   <div><label style={lbl}>CCI</label><input style={inp} value={form.cci} onChange={e => setForm({ ...form, cci: e.target.value })} /></div>
                 </div>
               </div>
@@ -407,13 +529,13 @@ export default function TrabajadoresPage() {
 
             {tab === "docs" && (
               <div style={{ display: "grid", gap: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", paddingBottom: 8, borderBottom: "1px solid #f3f4f6" }}>Documentos</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)", paddingBottom: 8, borderBottom: "1px solid var(--v2-border)" }}>Documentos</div>
                 <div>
                   <label style={lbl}>Link CV (Google Drive)</label>
                   <input style={inp} value={form.cv_url} placeholder="https://drive.google.com/..." onChange={e => setForm({ ...form, cv_url: e.target.value })} />
-                  {form.cv_url && <a href={form.cv_url} target="_blank" style={{ fontSize: 12, color: "#1e40af", display: "inline-block", marginTop: 4 }}>Ver CV →</a>}
+                  {form.cv_url && <a href={form.cv_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#1e40af", display: "inline-block", marginTop: 4 }}>Ver CV →</a>}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", paddingBottom: 8, borderBottom: "1px solid #f3f4f6", marginTop: 8 }}>Contratos</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)", paddingBottom: 8, borderBottom: "1px solid var(--v2-border)", marginTop: 8 }}>Contratos</div>
                 <div style={{ display: "grid", gap: 12 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div><label style={lbl}>Tipo contrato</label><input style={inp} value={contratoForm.tipo_contrato} placeholder="Plazo fijo, indefinido..." onChange={e => setContratoForm({ ...contratoForm, tipo_contrato: e.target.value })} /></div>
@@ -424,16 +546,16 @@ export default function TrabajadoresPage() {
                     <div><label style={lbl}>Link Google Drive</label><input style={inp} value={contratoForm.link_google_drive} placeholder="https://drive.google.com/..." onChange={e => setContratoForm({ ...contratoForm, link_google_drive: e.target.value })} /></div>
                   </div>
                   <div><label style={lbl}>Notas</label><input style={inp} value={contratoForm.notas} onChange={e => setContratoForm({ ...contratoForm, notas: e.target.value })} /></div>
-                  {editando && <button onClick={() => { setTrabajadorSeleccionado(editando.id); guardarContrato() }} style={{ fontSize: 12, padding: "6px 14px", background: "#1D9E75", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, alignSelf: "start" }}>Agregar contrato</button>}
+                  {editando && <V2Button variant="primary" size="compact" onClick={() => { setTrabajadorSeleccionado(editando.id); guardarContrato() }}>Agregar contrato</V2Button>}
                 </div>
                 {contratos.length > 0 && (
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>CONTRATOS REGISTRADOS</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--v2-muted)", marginBottom: 8 }}>CONTRATOS REGISTRADOS</div>
                     {contratos.map(c => (
-                      <div key={c.id} style={{ background: "#f8fafc", borderRadius: 8, padding: 12, marginBottom: 8 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{c.tipo_contrato || "Sin tipo"}</div>
-                        <div style={{ fontSize: 12, color: "#6b7280" }}>{c.fecha_inicio} → {c.fecha_fin || "Indefinido"}</div>
-                        {c.link_google_drive && <a href={c.link_google_drive} target="_blank" style={{ fontSize: 12, color: "#1e40af" }}>Ver contrato →</a>}
+                      <div key={c.id} style={{ background: "var(--v2-surface-subtle)", borderRadius: 8, padding: 12, marginBottom: 8 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--v2-text)" }}>{c.tipo_contrato || "Sin tipo"}</div>
+                        <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>{c.fecha_inicio} → {c.fecha_fin || "Indefinido"}</div>
+                        {c.link_google_drive && <a href={c.link_google_drive} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#1e40af" }}>Ver contrato →</a>}
                       </div>
                     ))}
                   </div>
@@ -442,8 +564,8 @@ export default function TrabajadoresPage() {
             )}
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : editando ? "Actualizar" : "Crear"}</button>
+              <V2Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={guardar} disabled={saving}>{saving ? "Guardando..." : editando ? "Actualizar" : "Crear"}</V2Button>
             </div>
           </div>
         </div>
@@ -451,30 +573,30 @@ export default function TrabajadoresPage() {
 
       {showContrato && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 720, maxHeight: "90vh", overflowY: "auto", boxShadow: "var(--v2-shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Historial del trabajador</h2>
-              <button onClick={() => setShowContrato(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>Historial del trabajador</h2>
+              <button onClick={() => setShowContrato(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--v2-subtle)" }}>×</button>
             </div>
             {loadingHistorial ? (
-              <div style={{ color: "#6b7280", padding: 20 }}>Cargando historial...</div>
+              <div style={{ color: "var(--v2-muted)", padding: 20 }}>Cargando historial...</div>
             ) : historial && (
               <div style={{ display: "grid", gap: 20 }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                     <span>Vacaciones</span>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>Total dias: {historial.vacaciones.reduce((s: number, v: any) => s + (v.dias || 0), 0)}</span>
+                    <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>Total días: {historial.vacaciones.reduce((s: number, v: any) => s + (v.dias || 0), 0)}</span>
                   </div>
-                  {historial.vacaciones.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af" }}>Sin registros</div> : (
+                  {historial.vacaciones.length === 0 ? <div style={{ fontSize: 12, color: "var(--v2-subtle)" }}>Sin registros</div> : (
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                      <thead><tr style={{ background: "#f9fafb" }}>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Inicio</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Fin</th>
-                        <th style={{ textAlign: "center", padding: "6px 8px", color: "#6b7280" }}>Dias</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Estado</th>
+                      <thead><tr style={{ background: "var(--v2-surface-subtle)" }}>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Inicio</th>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Fin</th>
+                        <th style={{ textAlign: "center", padding: "6px 8px", color: "var(--v2-muted)" }}>Días</th>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Estado</th>
                       </tr></thead>
                       <tbody>{historial.vacaciones.map((v: any) => (
-                        <tr key={v.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                        <tr key={v.id} style={{ borderTop: "1px solid var(--v2-border)" }}>
                           <td style={{ padding: "6px 8px" }}>{v.fecha_inicio}</td>
                           <td style={{ padding: "6px 8px" }}>{v.fecha_fin}</td>
                           <td style={{ padding: "6px 8px", textAlign: "center" }}>{v.dias}</td>
@@ -485,20 +607,20 @@ export default function TrabajadoresPage() {
                   )}
                 </div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                     <span>Horas extras</span>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>Total: {historial.horas_extras.reduce((s: number, h: any) => s + (h.horas || 0), 0)}h</span>
+                    <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>Total: {historial.horas_extras.reduce((s: number, h: any) => s + (h.horas || 0), 0)}h</span>
                   </div>
-                  {historial.horas_extras.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af" }}>Sin registros</div> : (
+                  {historial.horas_extras.length === 0 ? <div style={{ fontSize: 12, color: "var(--v2-subtle)" }}>Sin registros</div> : (
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                      <thead><tr style={{ background: "#f9fafb" }}>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Fecha</th>
-                        <th style={{ textAlign: "center", padding: "6px 8px", color: "#6b7280" }}>Horas</th>
-                        <th style={{ textAlign: "right", padding: "6px 8px", color: "#6b7280" }}>Monto</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Estado</th>
+                      <thead><tr style={{ background: "var(--v2-surface-subtle)" }}>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Fecha</th>
+                        <th style={{ textAlign: "center", padding: "6px 8px", color: "var(--v2-muted)" }}>Horas</th>
+                        <th style={{ textAlign: "right", padding: "6px 8px", color: "var(--v2-muted)" }}>Monto</th>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Estado</th>
                       </tr></thead>
                       <tbody>{historial.horas_extras.map((h: any) => (
-                        <tr key={h.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                        <tr key={h.id} style={{ borderTop: "1px solid var(--v2-border)" }}>
                           <td style={{ padding: "6px 8px" }}>{h.fecha}</td>
                           <td style={{ padding: "6px 8px", textAlign: "center" }}>{h.horas}h</td>
                           <td style={{ padding: "6px 8px", textAlign: "right" }}>S/ {Number(h.monto_calculado || 0).toFixed(2)}</td>
@@ -509,23 +631,23 @@ export default function TrabajadoresPage() {
                   )}
                 </div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
                     <span>Permisos</span>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>Total: {historial.permisos.length}</span>
+                    <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>Total: {historial.permisos.length}</span>
                   </div>
-                  {historial.permisos.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af" }}>Sin registros</div> : (
+                  {historial.permisos.length === 0 ? <div style={{ fontSize: 12, color: "var(--v2-subtle)" }}>Sin registros</div> : (
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                      <thead><tr style={{ background: "#f9fafb" }}>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Fecha</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Tipo</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Motivo</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Estado</th>
+                      <thead><tr style={{ background: "var(--v2-surface-subtle)" }}>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Fecha</th>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Tipo</th>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Motivo</th>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Estado</th>
                       </tr></thead>
                       <tbody>{historial.permisos.map((p: any) => (
-                        <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                        <tr key={p.id} style={{ borderTop: "1px solid var(--v2-border)" }}>
                           <td style={{ padding: "6px 8px" }}>{p.fecha_inicio || p.fecha}</td>
                           <td style={{ padding: "6px 8px" }}>{p.tipo_permiso || p.tipo || "—"}</td>
-                          <td style={{ padding: "6px 8px", color: "#6b7280" }}>{p.motivo || "—"}</td>
+                          <td style={{ padding: "6px 8px", color: "var(--v2-muted)" }}>{p.motivo || "—"}</td>
                           <td style={{ padding: "6px 8px" }}><span style={{ background: p.estado === "aprobado" ? "#dcfce7" : "#fef9c3", color: p.estado === "aprobado" ? "#15803d" : "#92400e", padding: "1px 6px", borderRadius: 99, fontSize: 11 }}>{p.estado || "pendiente"}</span></td>
                         </tr>
                       ))}</tbody>
@@ -533,23 +655,23 @@ export default function TrabajadoresPage() {
                   )}
                 </div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
-                    <span>Faltas medicas</span>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>Total: {historial.faltas_medicas.length}</span>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+                    <span>Faltas médicas</span>
+                    <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>Total: {historial.faltas_medicas.length}</span>
                   </div>
-                  {historial.faltas_medicas.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af" }}>Sin registros</div> : (
+                  {historial.faltas_medicas.length === 0 ? <div style={{ fontSize: 12, color: "var(--v2-subtle)" }}>Sin registros</div> : (
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                      <thead><tr style={{ background: "#f9fafb" }}>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Inicio</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Fin</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Diagnostico</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", color: "#6b7280" }}>Estado</th>
+                      <thead><tr style={{ background: "var(--v2-surface-subtle)" }}>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Inicio</th>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Fin</th>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Diagnóstico</th>
+                        <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--v2-muted)" }}>Estado</th>
                       </tr></thead>
                       <tbody>{historial.faltas_medicas.map((f: any) => (
-                        <tr key={f.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                        <tr key={f.id} style={{ borderTop: "1px solid var(--v2-border)" }}>
                           <td style={{ padding: "6px 8px" }}>{f.fecha_inicio}</td>
                           <td style={{ padding: "6px 8px" }}>{f.fecha_fin || "—"}</td>
-                          <td style={{ padding: "6px 8px", color: "#6b7280" }}>{f.diagnostico || f.motivo || "—"}</td>
+                          <td style={{ padding: "6px 8px", color: "var(--v2-muted)" }}>{f.diagnostico || f.motivo || "—"}</td>
                           <td style={{ padding: "6px 8px" }}><span style={{ background: f.estado === "aprobado" ? "#dcfce7" : "#fef9c3", color: f.estado === "aprobado" ? "#15803d" : "#92400e", padding: "1px 6px", borderRadius: 99, fontSize: 11 }}>{f.estado || "pendiente"}</span></td>
                         </tr>
                       ))}</tbody>
@@ -561,6 +683,6 @@ export default function TrabajadoresPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

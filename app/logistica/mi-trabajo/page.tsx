@@ -1,10 +1,20 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { puedeAccederRuta } from "@/lib/permissions"
-import KpiCard from "@/components/ui/KpiCard"
-import SectionCard from "@/components/ui/SectionCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2KpiCard,
+  V2PageHeader,
+  V2SectionCard,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 const ESTADOS: Record<string, any> = {
   borrador: { label: "Borrador", type: "pendiente" },
@@ -30,8 +40,6 @@ export default function MiTrabajoLogisticaPage() {
   const [tareas, setTareas] = useState<any[]>([])
   const [filtroOrigen, setFiltroOrigen] = useState("")
   const [filtroEstado, setFiltroEstado] = useState("")
-
-  useEffect(() => { load() }, [])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -118,6 +126,8 @@ export default function MiTrabajoLogisticaPage() {
     setLoading(false)
   }
 
+  useEffect(() => { load() }, [])
+
   const filtradas = tareas.filter(t => {
     if (filtroOrigen && t.origen !== filtroOrigen) return false
     if (filtroEstado && t.estado !== filtroEstado) return false
@@ -128,162 +138,189 @@ export default function MiTrabajoLogisticaPage() {
   const entregados = tareas.filter(t => ["entregado","ejecutada","cerrada","retornado"].includes(t.estado)).length
   const observados = tareas.filter(t => t.estado === "observado").length
 
-  const inp: any = {
-    padding: "8px 10px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    fontSize: 13,
-    background: "#fff",
-    fontFamily: "inherit",
-    outline: "none",
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando trabajo logístico...
+      </div>
+    )
+  }
+  if (!autorizado) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-danger)", fontWeight: 700, fontSize: 13 }}>
+        Acceso no autorizado
+      </div>
+    )
   }
 
-  if (loading) return <div style={{ padding: 24, color: "#6b7280" }}>Cargando...</div>
-  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
+  const columns: V2TableColumn<any>[] = [
+    {
+      key: "origen",
+      header: "Origen",
+      render: (t) => <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--v2-text)" }}>{t.origenLabel}</span>,
+    },
+    {
+      key: "titulo",
+      header: "Tarea",
+      render: (t) => <span style={{ fontSize: 13, color: "var(--v2-text)" }}>{t.titulo}</span>,
+    },
+    {
+      key: "destino",
+      header: "Destino",
+      render: (t) => <span style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>{t.destino}</span>,
+    },
+    {
+      key: "contacto",
+      header: "Contacto",
+      render: (t) => <span style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>{t.contacto}</span>,
+    },
+    {
+      key: "fecha",
+      header: "Fecha",
+      render: (t) => <span style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>{t.fecha ? String(t.fecha).slice(0, 10) : "—"}</span>,
+    },
+    {
+      key: "estado",
+      header: "Estado",
+      render: (t) => {
+        const e = ESTADOS[t.estado] || { label: t.estado, type: "pendiente" }
+        return <StatusBadge label={e.label} type={e.type} />
+      },
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (t) => (
+        <a href={t.href} style={{ textDecoration: "none" }}>
+          <V2Button variant="secondary" size="compact">
+            Abrir
+          </V2Button>
+        </a>
+      ),
+    },
+  ]
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "#0f172a" }}>Mi Trabajo Logística</h1>
-          <p style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>Vista consolidada de órdenes, envíos y traslados pendientes de atención.</p>
+    <V2ListPageTemplate
+      header={
+        <V2PageHeader
+          eyebrow="Logística"
+          title="Mi Trabajo Logística"
+          subtitle="Vista consolidada de órdenes, envíos y traslados pendientes de atención"
+          actions={
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <a href="/inventario/ordenes" style={{ textDecoration: "none" }}>
+                <V2Button variant="secondary">Nueva orden</V2Button>
+              </a>
+              <a href="/envios-materiales" style={{ textDecoration: "none" }}>
+                <V2Button variant="secondary">Nuevo envío</V2Button>
+              </a>
+              <a href="/logistica/traslados" style={{ textDecoration: "none" }}>
+                <V2Button variant="primary">+ Nuevo traslado</V2Button>
+              </a>
+            </div>
+          }
+        />
+      }
+      summary={
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
+          <V2KpiCard label="Total tareas" value={String(tareas.length)} icon="folder" />
+          <V2KpiCard label="Pendientes / tránsito" value={String(pendientes)} icon="chart" />
+          <V2KpiCard label="En revisión / observadas" value={String(observados)} icon="file" />
+          <V2KpiCard label="Entregadas / cerradas" value={String(entregados)} icon="shield" />
         </div>
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <a href="/inventario/ordenes" className="btn-secondary" style={{ fontSize: 13, textDecoration: "none" }}>▤ Nueva orden</a>
-          <a href="/envios-materiales" className="btn-secondary" style={{ fontSize: 13, textDecoration: "none" }}>✈ Nuevo envío</a>
-          <a href="/logistica/traslados" className="btn-primary" style={{ fontSize: 13, textDecoration: "none" }}>＋ Nuevo traslado</a>
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>
-        <KpiCard icon="tasks" label="Total tareas" value={String(tareas.length)} sub="Órdenes, envíos y traslados" borderColor="#E2E8F0" valueColor="#0f172a" />
-        <KpiCard icon="truck" label="Pendientes / tránsito" value={String(pendientes)} sub="Por atender" borderColor="#F59E0B" valueColor="#92400e" />
-        <KpiCard icon="eye" label="En revisión / observadas" value={String(observados)} sub="Con incidencias" borderColor="#8B5CF6" valueColor="#6d28d9" />
-        <KpiCard icon="check" label="Entregadas / cerradas" value={String(entregados)} sub="Finalizadas" borderColor="#10B981" valueColor="#15803d" />
-      </div>
-
-      <SectionCard>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-          <select style={{ ...inp, minWidth: 220 }} value={filtroOrigen} onChange={e => setFiltroOrigen(e.target.value)}>
-            <option value="">Todos los orígenes</option>
-            <option value="orden">Órdenes</option>
-            <option value="envio">Envíos de materiales</option>
-            <option value="traslado">Traslados y movimientos</option>
-          </select>
-
-          <select style={{ ...inp, minWidth: 220 }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
-            <option value="">Todos los estados</option>
-            {Object.entries(ESTADOS).map(([k,v]: any) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-        </div>
-
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f8fafc" }}>
-                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>ORIGEN</th>
-                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>TAREA</th>
-                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>DESTINO</th>
-                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>CONTACTO</th>
-                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>FECHA</th>
-                <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#64748b" }}>ESTADO</th>
-                <th style={{ padding: "10px 12px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "#64748b" }}>ACCIÓN</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtradas.map(t => {
-                const e = ESTADOS[t.estado] || { label: t.estado, type: "pendiente" }
-                return (
-                  <tr key={t.origen + t.id} style={{ borderTop: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: "12px", fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{t.origenLabel}</td>
-                    <td style={{ padding: "12px", fontSize: 13, color: "#111827" }}>{t.titulo}</td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#475569" }}>{t.destino}</td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#475569" }}>{t.contacto}</td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#64748b" }}>{t.fecha ? String(t.fecha).slice(0,10) : "—"}</td>
-                    <td style={{ padding: "12px" }}>
-                      <StatusBadge label={e.label} type={e.type} />
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "right" }}>
-                      <a href={t.href} className="btn-secondary" style={{ fontSize: 12, textDecoration: "none" }}>Abrir</a>
-                    </td>
-                  </tr>
-                )
-              })}
-
-              {filtradas.length === 0 && (
-                <tr>
-                  <td colSpan={7} style={{ padding: 46, textAlign: "center", color: "#94a3b8" }}>
-                    <div style={{ fontSize: 40, marginBottom: 10 }}>▱</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#64748b" }}>No hay tareas logísticas con estos filtros</div>
-                    <div style={{ fontSize: 13, marginTop: 4 }}>Intenta cambiar los filtros o crea una nueva orden, envío o traslado.</div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
-
-      <div style={{ marginTop: 22 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, margin: "0 0 12px", color: "#0f172a" }}>Accesos rápidos</h2>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16 }}>
-          <SectionCard>
-            <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-              <div style={{ width: 54, height: 54, borderRadius: 14, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>
-                ▤
+      }
+      toolbar={
+        <V2FilterBar
+          searchValue=""
+          onSearchChange={() => {}}
+          activeFiltersCount={(filtroOrigen ? 1 : 0) + (filtroEstado ? 1 : 0)}
+          hideDrawerButton
+          onToggleDrawer={() => {}}
+          quickFilters={
+            <>
+              <div style={{ width: 220 }}>
+                <V2Select
+                  compact
+                  value={filtroOrigen}
+                  onChange={(e) => setFiltroOrigen(e.target.value)}
+                  options={[
+                    { label: "Todos los orígenes", value: "" },
+                    { label: "Órdenes", value: "orden" },
+                    { label: "Envíos de materiales", value: "envio" },
+                    { label: "Traslados y movimientos", value: "traslado" },
+                  ]}
+                />
               </div>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 6px", color: "#0f172a" }}>Órdenes de Inventario</h3>
-                <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 14px", lineHeight: 1.45 }}>
+              <div style={{ width: 200 }}>
+                <V2Select
+                  compact
+                  value={filtroEstado}
+                  onChange={(e) => setFiltroEstado(e.target.value)}
+                  options={[
+                    { label: "Todos los estados", value: "" },
+                    ...Object.entries(ESTADOS).map(([k, v]: any) => ({ label: v.label, value: k })),
+                  ]}
+                />
+              </div>
+            </>
+          }
+          showClearButton={Boolean(filtroOrigen || filtroEstado)}
+          onClearFilters={() => {
+            setFiltroOrigen("")
+            setFiltroEstado("")
+          }}
+        />
+      }
+      table={
+        <div style={{ display: "grid", gap: 20 }}>
+          <V2DataTable
+            columns={columns}
+            rows={filtradas}
+            getRowKey={(t) => t.origen + t.id}
+            empty={
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
+                No hay tareas logísticas con estos filtros.
+              </div>
+            }
+          />
+
+          <V2SectionCard title="Accesos rápidos">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginTop: 12 }}>
+              <div style={{ padding: 16, borderRadius: "var(--v2-radius)", border: "1px solid var(--v2-border)", background: "var(--v2-surface-subtle)" }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 6px", color: "var(--v2-text)" }}>Órdenes de Inventario</h3>
+                <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 12px", lineHeight: 1.45 }}>
                   Crea y gestiona órdenes de salida, ingreso, devolución y traslado.
                 </p>
-                <a href="/inventario/ordenes" style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", textDecoration: "none" }}>
+                <a href="/inventario/ordenes" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--v2-brand)", textDecoration: "none" }}>
                   Ir a órdenes →
                 </a>
               </div>
-            </div>
-          </SectionCard>
 
-          <SectionCard>
-            <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-              <div style={{ width: 54, height: 54, borderRadius: 14, background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>
-                ✈
-              </div>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 6px", color: "#0f172a" }}>Envíos de Materiales</h3>
-                <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 14px", lineHeight: 1.45 }}>
+              <div style={{ padding: 16, borderRadius: "var(--v2-radius)", border: "1px solid var(--v2-border)", background: "var(--v2-surface-subtle)" }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 6px", color: "var(--v2-text)" }}>Envíos de Materiales</h3>
+                <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 12px", lineHeight: 1.45 }}>
                   Gestiona envíos, retornos, entregas y seguimiento de materiales.
                 </p>
-                <a href="/envios-materiales" style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", textDecoration: "none" }}>
+                <a href="/envios-materiales" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--v2-brand)", textDecoration: "none" }}>
                   Ir a envíos →
                 </a>
               </div>
-            </div>
-          </SectionCard>
 
-          <SectionCard>
-            <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-              <div style={{ width: 54, height: 54, borderRadius: 14, background: "#f3e8ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>
-                ⇄
-              </div>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 6px", color: "#0f172a" }}>Traslados y Movimientos</h3>
-                <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 14px", lineHeight: 1.45 }}>
+              <div style={{ padding: 16, borderRadius: "var(--v2-radius)", border: "1px solid var(--v2-border)", background: "var(--v2-surface-subtle)" }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 6px", color: "var(--v2-text)" }}>Traslados y Movimientos</h3>
+                <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 12px", lineHeight: 1.45 }}>
                   Registra movimientos menores entre puntos, con o sin proyecto.
                 </p>
-                <a href="/logistica/traslados" style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", textDecoration: "none" }}>
+                <a href="/logistica/traslados" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--v2-brand)", textDecoration: "none" }}>
                   Ir a traslados →
                 </a>
               </div>
             </div>
-          </SectionCard>
+          </V2SectionCard>
         </div>
-      </div>
-    </div>
+      }
+    />
   )
 }
-
-
-

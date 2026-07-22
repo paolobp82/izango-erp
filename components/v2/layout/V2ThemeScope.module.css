@@ -106,9 +106,14 @@
   letter-spacing: 0;
 }
 
-.themeScope[data-v2-theme="dark"],
-.themeScope[data-v2-theme="light"] {
+.themeScope[data-v2-theme="dark"] {
   color-scheme: dark;
+  background: var(--v2-canvas);
+  color: var(--v2-text);
+}
+
+.themeScope[data-v2-theme="light"] {
+  color-scheme: light;
   background: var(--v2-canvas);
   color: var(--v2-text);
 }
@@ -1068,6 +1073,165 @@
 .badgeNeutral {
   background: rgba(100, 116, 139, 0.14);
   color: var(--v2-muted);
+}
+
+/* ======================================================
+   LIGHT THEME OVERRIDE
+   Se activa cuando el <html> tiene data-theme="light".
+   Sobreescribe los tokens oscuros definidos en .themeScope.
+   ====================================================== */
+:global([data-theme="light"]) .themeScope {
+  color-scheme: light;
+
+  /* Superficies */
+  --v2-background:                  #F6F8FB;
+  --v2-surface-container-lowest:    #FFFFFF;
+  --v2-surface-container-low:       #F2F4F8;
+  --v2-surface-container:           #FFFFFF;
+  --v2-surface-container-high:      #EEF1F5;
+  --v2-surface-container-highest:   #E5E9EF;
+
+  /* Aliases de Superficies */
+  --v2-canvas:           #F6F8FB;
+  --v2-surface:          #FFFFFF;
+  --v2-surface-muted:    #F2F4F8;
+  --v2-surface-soft:     #EEF1F5;
+  --v2-sidebar-bg:       #FFFFFF;
+  --v2-sidebar-panel:    #F2F4F8;
+  --v2-sidebar-border:   #E5E7EB;
+  --v2-sidebar-muted:    #64748B;
+  --v2-topbar:           #FFFFFF;
+  --v2-topbar-border:    #E5E7EB;
+
+  /* Brand & Primary */
+  --v2-primary:           #03E373;
+  --v2-primary-container: #00C665;
+  --v2-on-primary:        #03372A;
+  --v2-accent:            #0F6E56;
+  --v2-accent-hover:      #0D5C48;
+  --v2-accent-ink:        #FFFFFF;
+  --v2-brand-primary:     #03E373;
+
+  /* Text */
+  --v2-on-surface:         #0F172A;
+  --v2-on-surface-variant: #64748B;
+  --v2-text:               #0F172A;
+  --v2-text-primary:       #0F172A;
+  --v2-text-secondary:     #475569;
+  --v2-muted:              #64748B;
+  --v2-subtle:             #94A3B8;
+
+  /* Borders & Outlines */
+  --v2-outline:         #CBD5E1;
+  --v2-outline-variant: #E5E7EB;
+  --v2-border:          #E5E7EB;
+  --v2-border-soft:     #F1F5F9;
+  --v2-focus-ring:      rgba(15, 110, 86, 0.2);
+
+  /* Semantic States */
+  --v2-success:    #168A4A;
+  --v2-warning:    #B77905;
+  --v2-error:      #DC2626;
+  --v2-danger:     #DC2626;
+  --v2-info:       #2563EB;
+  --v2-information:#2563EB;
+  --v2-success-bg: rgba(22, 138, 74, 0.08);
+  --v2-warning-bg: rgba(183, 121, 5, 0.08);
+  --v2-danger-bg:  rgba(220, 38, 38, 0.08);
+  --v2-info-bg:    rgba(37, 99, 235, 0.08);
+  --v2-neutral-bg: rgba(100, 116, 139, 0.08);
+
+  /* Shadows */
+  --v2-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --v2-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --v2-shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.12);
+  --v2-shadow:    var(--v2-shadow-md);
+}
+
+/* Scrollbar claro para contenido en modo light */
+:global([data-theme="light"]) .nav::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+}
+
+:global([data-theme="light"]) .contentScroll::-webkit-scrollbar-thumb {
+  background: #94A3B8;
+}
+
+/* Sidebar item activo en light: fondo sutil verde, no indigo */
+:global([data-theme="light"]) .navItemActive {
+  border-left-color: #0F6E56;
+  background: rgba(3, 227, 115, 0.10);
+  color: #0F6E56;
+}
+
+/* Section title del sidebar en light */
+:global([data-theme="light"]) .navSectionTitle {
+  color: #94A3B8;
+}
+
+/* Profile footer en light */
+:global([data-theme="light"]) .profilePill {
+  background: #F2F4F8;
+}
+
+:global([data-theme="light"]) .avatar,
+:global([data-theme="light"]) .avatarCollapsed {
+  background: #E5E9EF;
+  color: #475569;
+}
+
+:global([data-theme="light"]) .profileName {
+  color: #0F172A;
+}
+
+:global([data-theme="light"]) .profileRole {
+  color: #64748B;
+}
+
+:global([data-theme="light"]) .logoutButton {
+  color: #94A3B8;
+}
+
+:global([data-theme="light"]) .logoutButton:hover {
+  color: #475569;
+}
+
+/* NavItem hover en light: fondo claro, texto oscuro */
+:global([data-theme="light"]) .navItem {
+  color: #475569;
+}
+
+:global([data-theme="light"]) .navItem:hover {
+  background: #F2F4F8;
+  color: #0F172A;
+}
+
+/* Badge colors en modo light con mejor contraste */
+:global([data-theme="light"]) .badgeSuccess {
+  background: rgba(22, 138, 74, 0.10);
+  color: #168A4A;
+}
+
+:global([data-theme="light"]) .badgeWarning {
+  background: rgba(183, 121, 5, 0.10);
+  color: #B77905;
+}
+
+:global([data-theme="light"]) .badgeInfo {
+  background: rgba(37, 99, 235, 0.10);
+  color: #1D4ED8;
+}
+
+:global([data-theme="light"]) .badgeNeutral {
+  background: rgba(100, 116, 139, 0.10);
+  color: #475569;
+}
+
+/* demoTag en light */
+:global([data-theme="light"]) .demoTag {
+  border-color: rgba(15, 110, 86, 0.24);
+  background: rgba(15, 110, 86, 0.08);
+  color: #0F6E56;
 }
 
 @media (max-width: 1180px) {

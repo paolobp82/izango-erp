@@ -1,6 +1,16 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2PageHeader,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 export default function PermisosPage() {
   const supabase = createClient()
@@ -77,90 +87,175 @@ export default function PermisosPage() {
     tardanza: { bg: "#fef3c7", color: "#92400e" },
   }
 
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
+  const inp: any = { padding: "8px 12px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius)", fontSize: 13, fontFamily: "inherit", background: "var(--v2-surface)", width: "100%", outline: "none", boxSizing: "border-box" as const }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", marginBottom: 6, textTransform: "uppercase" as const }
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando permisos...
+      </div>
+    )
+  }
+
+  const columns: V2TableColumn<any>[] = [
+    ...(esAdmin
+      ? [
+          {
+            key: "trabajador",
+            header: "Trabajador",
+            render: (r: any) => (
+              <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--v2-text)" }}>
+                {r.trabajador?.apellido}, {r.trabajador?.nombre}
+              </span>
+            ),
+          },
+        ]
+      : []),
+    {
+      key: "tipo",
+      header: "Tipo",
+      render: (r) => {
+        const tc = TIPO_COLOR[r.tipo] || TIPO_COLOR.permiso
+        return (
+          <span style={{ background: tc.bg, color: tc.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+            {r.tipo}
+          </span>
+        )
+      },
+    },
+    {
+      key: "fecha",
+      header: "Fecha",
+      render: (r) => <span style={{ fontSize: 13, color: "var(--v2-text)" }}>{r.fecha}</span>,
+    },
+    {
+      key: "horas",
+      header: "Horas",
+      align: "center",
+      render: (r) => <span style={{ fontSize: 13, color: "var(--v2-text)" }}>{r.horas ? `${r.horas}h` : "—"}</span>,
+    },
+    {
+      key: "motivo",
+      header: "Motivo",
+      render: (r) => <span style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>{r.motivo || "—"}</span>,
+    },
+    {
+      key: "estado",
+      header: "Estado",
+      align: "center",
+      render: (r) =>
+        r.aprobado ? (
+          <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+            ✓ Aprobado
+          </span>
+        ) : (
+          <span style={{ background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+            Pendiente
+          </span>
+        ),
+    },
+    ...(esAdmin
+      ? [
+          {
+            key: "acciones",
+            header: "",
+            align: "right" as const,
+            render: (r: any) => (
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                {!r.aprobado && (
+                  <V2Button variant="ghost" size="compact" onClick={() => aprobar(r.id)}>
+                    Aprobar
+                  </V2Button>
+                )}
+                <V2Button variant="destructive" size="compact" onClick={() => eliminar(r.id)}>
+                  ×
+                </V2Button>
+              </div>
+            ),
+          },
+        ]
+      : []),
+  ]
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Permisos y Tardanzas</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{registrosFiltrados.length} registros</p>
-        </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Registrar</button>
-      </div>
-
-      {esAdmin && (
-        <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-          <select style={{ ...inp, maxWidth: 200 }} value={filtroTrabajador} onChange={e => setFiltroTrabajador(e.target.value)}>
-            <option value="">Todos los trabajadores</option>
-            {trabajadores.map(t => <option key={t.id} value={t.id}>{t.apellido}, {t.nombre}</option>)}
-          </select>
-          <select style={{ ...inp, maxWidth: 160 }} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
-            <option value="">Todos los tipos</option>
-            <option value="permiso">Permiso</option>
-            <option value="tardanza">Tardanza</option>
-          </select>
-        </div>
-      )}
-
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {registrosFiltrados.length === 0 ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "#9ca3af" }}>No hay registros.</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                {esAdmin && <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TRABAJADOR</th>}
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FECHA</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>HORAS</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MOTIVO</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-                {esAdmin && <th style={{ padding: "10px 20px", width: 120 }}></th>}
-              </tr>
-            </thead>
-            <tbody>
-              {registrosFiltrados.map((r, idx) => {
-                const tc = TIPO_COLOR[r.tipo] || TIPO_COLOR.permiso
-                return (
-                  <tr key={r.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                    {esAdmin && <td style={{ padding: "12px 20px", fontSize: 13, fontWeight: 600 }}>{r.trabajador?.apellido}, {r.trabajador?.nombre}</td>}
-                    <td style={{ padding: "12px" }}>
-                      <span style={{ background: tc.bg, color: tc.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{r.tipo}</span>
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{r.fecha}</td>
-                    <td style={{ padding: "12px", textAlign: "center", fontSize: 13, color: "#374151" }}>{r.horas ? `${r.horas}h` : "—"}</td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{r.motivo || "—"}</td>
-                    <td style={{ padding: "12px", textAlign: "center" }}>
-                      {r.aprobado
-                        ? <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>✓ Aprobado</span>
-                        : <span style={{ background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>Pendiente</span>}
-                    </td>
-                    {esAdmin && (
-                      <td style={{ padding: "12px 20px" }}>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                          {!r.aprobado && <button onClick={() => aprobar(r.id)} style={{ fontSize: 12, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Aprobar</button>}
-                          <button onClick={() => eliminar(r.id)} style={{ fontSize: 12, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            eyebrow="Recursos Humanos"
+            title="Permisos y Tardanzas"
+            subtitle={`${registrosFiltrados.length} registros registrados`}
+            actions={
+              <V2Button variant="primary" onClick={() => setShowForm(true)}>
+                + Registrar
+              </V2Button>
+            }
+          />
+        }
+        toolbar={
+          esAdmin ? (
+            <V2FilterBar
+              searchValue=""
+              onSearchChange={() => {}}
+              activeFiltersCount={0}
+              hideDrawerButton
+              onToggleDrawer={() => {}}
+              quickFilters={
+                <>
+                  <div style={{ width: 220 }}>
+                    <V2Select
+                      compact
+                      value={filtroTrabajador}
+                      onChange={(e) => setFiltroTrabajador(e.target.value)}
+                      options={[
+                        { label: "Todos los trabajadores", value: "" },
+                        ...trabajadores.map((t) => ({ label: `${t.apellido}, ${t.nombre}`, value: t.id })),
+                      ]}
+                    />
+                  </div>
+                  <div style={{ width: 160 }}>
+                    <V2Select
+                      compact
+                      value={filtroTipo}
+                      onChange={(e) => setFiltroTipo(e.target.value)}
+                      options={[
+                        { label: "Todos los tipos", value: "" },
+                        { label: "Permiso", value: "permiso" },
+                        { label: "Tardanza", value: "tardanza" },
+                      ]}
+                    />
+                  </div>
+                </>
+              }
+              showClearButton={Boolean(filtroTrabajador || filtroTipo)}
+              onClearFilters={() => {
+                setFiltroTrabajador("")
+                setFiltroTipo("")
+              }}
+            />
+          ) : undefined
+        }
+        table={
+          <V2DataTable
+            columns={columns}
+            rows={registrosFiltrados}
+            getRowKey={(r) => r.id}
+            empty={
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
+                No hay registros.
+              </div>
+            }
+          />
+        }
+      />
 
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 440 }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 440, boxShadow: "var(--v2-shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Registrar permiso / tardanza</h2>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>×</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>Registrar permiso / tardanza</h2>
+              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--v2-subtle)" }}>×</button>
             </div>
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -174,15 +269,15 @@ export default function PermisosPage() {
                 <div><label style={lbl}>Fecha *</label><input style={inp} type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} /></div>
               </div>
               <div><label style={lbl}>Horas</label><input style={inp} type="number" min="0.5" step="0.5" value={form.horas} placeholder="Ej: 2" onChange={e => setForm({ ...form, horas: e.target.value })} /></div>
-              <div><label style={lbl}>Motivo</label><textarea style={{ ...inp, height: 70, resize: "vertical" }} value={form.motivo} placeholder="Descripcion del permiso o tardanza" onChange={e => setForm({ ...form, motivo: e.target.value })} /></div>
+              <div><label style={lbl}>Motivo</label><textarea style={{ ...inp, height: 70, resize: "vertical" }} value={form.motivo} placeholder="Descripción del permiso o tardanza" onChange={e => setForm({ ...form, motivo: e.target.value })} /></div>
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : "Registrar"}</button>
+              <V2Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={guardar} disabled={saving}>{saving ? "Guardando..." : "Registrar"}</V2Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

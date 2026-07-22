@@ -1,8 +1,18 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/purity, react-hooks/immutability, react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2PageHeader,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 const DEPARTAMENTOS_PERU = [
   "Amazonas","Ancash","Apurimac","Arequipa","Ayacucho","Cajamarca","Callao","Cusco",
@@ -19,7 +29,7 @@ const TIPOS: Record<string, any> = {
 const ESTADOS: Record<string, any> = {
   borrador:    { label: "Borrador",    bg: "#f3f4f6", color: "#6b7280" },
   aprobado:    { label: "Aprobado",    bg: "#dbeafe", color: "#1e40af" },
-  en_transito: { label: "En transito", bg: "#fef9c3", color: "#92400e" },
+  en_transito: { label: "En tránsito", bg: "#fef9c3", color: "#92400e" },
   entregado:   { label: "Entregado",   bg: "#dcfce7", color: "#15803d" },
   retornado:   { label: "Retornado",   bg: "#f5f3ff", color: "#6d28d9" },
   cancelado:   { label: "Cancelado",   bg: "#fee2e2", color: "#991b1b" },
@@ -48,7 +58,6 @@ export default function EnviosMaterialesPage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState<any>(null)
-  const [envioItems, setEnvioItems] = useState<any[]>([])
   const [filtroTipo, setFiltroTipo] = useState("")
   const [filtroEstado, setFiltroEstado] = useState("")
   const [filtroDept, setFiltroDept] = useState("")
@@ -103,7 +112,7 @@ export default function EnviosMaterialesPage() {
 
   async function guardar() {
     if (!form.tipo || !form.direccion_destino) { alert("Tipo y dirección de destino son obligatorios"); return }
-    if (lineas.filter(l => l.item_id).length === 0) { alert("Agrega al menos un item"); return }
+    if (lineas.filter(l => l.item_id).length === 0) { alert("Agrega al menos un ítem"); return }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { data: envio } = await supabase.from("envios_materiales").insert({
@@ -161,7 +170,7 @@ export default function EnviosMaterialesPage() {
   async function registrarRetorno() {
     for (const [itemId, cant] of Object.entries(retornoCantidades)) {
       if (cant > 0) {
-        await supabase.from("envio_items").update({ cantidad_retornada: cant }).eq("id", itemId)
+        await supabase.from("envio_items").update({ cantidad_retornada: cant }).eq("id", selected.id)
       }
     }
     await cambiarEstado(selected.id, "retornado")
@@ -298,414 +307,315 @@ export default function EnviosMaterialesPage() {
     <div class="firma">
       <div>
         _______________________<br/>
-        Entregado por
+        Entregado por (Firma)
       </div>
       <div>
         _______________________<br/>
-        Recibido por
+        Recibido por (Firma y DNI)
       </div>
     </div>
   </body>
   </html>
-    `
-
+  `
     const w = window.open("", "_blank")
     if (!w) return
     w.document.write(html)
     w.document.close()
-    w.focus()
     w.print()
   }
-  async function abrirDetalle(envio: any) {
-    setSelected(envio)
-    const { data } = await supabase.from("envio_items").select("*, item:inventario_items(nombre), variante:inventario_variantes(nombre)").eq("envio_id", envio.id)
-    setEnvioItems(data || [])
-  }
 
-  const puedeAprobar = perfil && ROLES_APROBADOR.includes(perfil.perfil)
-  const enviosFiltrados = envios.filter(e => {
+  const esAprobador = ROLES_APROBADOR.includes(perfil?.perfil)
+  const filtrados = envios.filter(e => {
     if (filtroTipo && e.tipo !== filtroTipo) return false
     if (filtroEstado && e.estado !== filtroEstado) return false
     if (filtroDept && e.departamento !== filtroDept) return false
     return true
   })
 
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
+  const inp: any = { padding: "8px 12px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius)", fontSize: 13, fontFamily: "inherit", background: "var(--v2-surface)", width: "100%", outline: "none", boxSizing: "border-box" as const }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", marginBottom: 6, textTransform: "uppercase" as const }
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando envíos de materiales...
+      </div>
+    )
+  }
+
+  const columns: V2TableColumn<any>[] = [
+    {
+      key: "tipo",
+      header: "Tipo",
+      render: (e) => {
+        const tp = TIPOS[e.tipo] || TIPOS.salida
+        return (
+          <span style={{ background: tp.bg, color: tp.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+            {tp.icon} {tp.label}
+          </span>
+        )
+      },
+    },
+    {
+      key: "proyecto",
+      header: "Proyecto",
+      render: (e) => <span style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)" }}>{e.proyecto?.codigo || "—"}</span>,
+    },
+    {
+      key: "destino",
+      header: "Destino",
+      render: (e) => (
+        <div>
+          <div style={{ fontSize: 13, color: "var(--v2-text)" }}>{e.direccion_destino}</div>
+          <div style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{[e.distrito, e.provincia, e.departamento].filter(Boolean).join(", ")}</div>
+        </div>
+      ),
+    },
+    {
+      key: "items",
+      header: "Ítems",
+      align: "center",
+      render: (e) => <span style={{ fontWeight: 700, fontSize: 13, color: "var(--v2-text)" }}>{e.envio_items?.length || 0}</span>,
+    },
+    {
+      key: "estado",
+      header: "Estado",
+      render: (e) => {
+        const est = ESTADOS[e.estado] || ESTADOS.borrador
+        return (
+          <select
+            value={e.estado}
+            onChange={(ev) => cambiarEstado(e.id, ev.target.value)}
+            disabled={!esAprobador && e.estado !== "borrador"}
+            style={{ padding: "4px 8px", borderRadius: "var(--v2-radius-sm)", border: "1px solid var(--v2-border)", background: est.bg, color: est.color, fontSize: 12, fontWeight: 700 }}
+          >
+            {Object.entries(ESTADOS).map(([k, v]: any) => (
+              <option key={k} value={k}>{v.label}</option>
+            ))}
+          </select>
+        )
+      },
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (e) => (
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          <V2Button variant="ghost" size="compact" onClick={() => setSelected(e)}>
+            Ver detalle
+          </V2Button>
+          <V2Button variant="ghost" size="compact" onClick={() => imprimirCargo(e)}>
+            Cargo PDF
+          </V2Button>
+          {["aprobado", "en_transito", "entregado"].includes(e.estado) && (
+            <V2Button variant="secondary" size="compact" onClick={() => registrarEntregaEnvio(e)}>
+              Entrega
+            </V2Button>
+          )}
+        </div>
+      ),
+    },
+  ]
 
   return (
-    <div style={{ display: "flex", gap: 20, height: "calc(100vh - 80px)" }}>
-
-      {/* ── PANEL IZQUIERDO ── */}
-      <div style={{ flex: 1, overflowY: "auto", paddingRight: 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Envíos de Materiales</h1>
-            <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{envios.length} envíos registrados</p>
-          </div>
-          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo envío</button>
-        </div>
-
-        {/* Filtros */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-          <select style={{ ...inp, width: "auto" }} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
-            <option value="">Todos los tipos</option>
-            {Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
-          </select>
-          <select style={{ ...inp, width: "auto" }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
-            <option value="">Todos los estados</option>
-            {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-          <select style={{ ...inp, width: "auto" }} value={filtroDept} onChange={e => setFiltroDept(e.target.value)}>
-            <option value="">Todos los departamentos</option>
-            {DEPARTAMENTOS_PERU.map(d => <option key={d}>{d}</option>)}
-          </select>
-        </div>
-
-        {/* Tabla */}
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          {enviosFiltrados.length === 0 ? (
-            <div style={{ padding: "40px", textAlign: "center", color: "#9ca3af" }}>No hay envíos registrados</div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "#f9fafb" }}>
-                  <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>N° ENVÍO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESTINO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FECHAS</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-                  <th style={{ padding: "10px 16px", width: 200 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {enviosFiltrados.map((e, idx) => {
-                  const tipo = TIPOS[e.tipo] || TIPOS.salida
-                  const estado = ESTADOS[e.estado] || ESTADOS.borrador
-                  const activo = selected?.id === e.id
-                  return (
-                    <tr key={e.id} onClick={() => abrirDetalle(e)}
-                      style={{ borderTop: "1px solid #f3f4f6", background: activo ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" }}>
-                      <td style={{ padding: "12px 16px" }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "#111827", fontFamily: "monospace" }}>{e.numero_envio}</div>
-                        <div style={{ fontSize: 11, color: "#9ca3af" }}>{new Date(e.created_at).toLocaleDateString("es-PE")}</div>
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        <span style={{ background: tipo.bg, color: tipo.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
-                          {tipo.icon} {tipo.label}
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{e.departamento || "—"}{e.provincia ? ` / ${e.provincia}` : ""}</div>
-                        <div style={{ fontSize: 11, color: "#9ca3af" }}>{e.direccion_destino}</div>
-                        {e.contacto_receptor && <div style={{ fontSize: 11, color: "#6b7280" }}>👤 {e.contacto_receptor}</div>}
-                      </td>
-                      <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
-                        {e.proyecto ? `${e.proyecto.codigo}` : "—"}
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        {e.fecha_salida && <div style={{ fontSize: 11, color: "#6b7280" }}>Salida: {e.fecha_salida}</div>}
-                        {e.fecha_entrega_estimada && <div style={{ fontSize: 11, color: "#6b7280" }}>Entrega est.: {e.fecha_entrega_estimada}</div>}
-                        {e.fecha_retorno_estimada && <div style={{ fontSize: 11, color: "#6b7280" }}>Retorno est.: {e.fecha_retorno_estimada}</div>}
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        <span style={{ background: estado.bg, color: estado.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{estado.label}</span>
-                      </td>
-                      <td style={{ padding: "12px 16px" }} onClick={ev => ev.stopPropagation()}>
-                        <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                          <button onClick={() => imprimirCargo(e)}
-                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer" }}>PDF</button>
-                          {["aprobado", "en_transito", "entregado"].includes(e.estado) && (
-                            <button onClick={() => registrarEntregaEnvio(e)}
-                              style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Entrega</button>
-                          )}
-                          {["aprobado", "en_transito", "entregado"].includes(e.estado) && (
-                            <button onClick={() => registrarEntregaEnvio(e)}
-                              style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Entrega</button>
-                          )}
-                          {puedeAprobar && e.estado === "borrador" && (
-                            <button onClick={() => cambiarEstado(e.id, "aprobado")}
-                              style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", color: "#1e40af", cursor: "pointer" }}>Aprobar</button>
-                          )}
-                          {e.estado === "aprobado" && (
-                            <button onClick={() => cambiarEstado(e.id, "en_transito")}
-                              style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fde68a", borderRadius: 6, background: "#fff", color: "#92400e", cursor: "pointer" }}>En transito</button>
-                          )}
-                          {e.estado === "en_transito" && (
-                            <button onClick={() => cambiarEstado(e.id, "entregado")}
-                              style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Entregado</button>
-                          )}
-                          {e.estado === "entregado" && e.tipo !== "salida" && (
-                            <button onClick={() => { abrirDetalle(e); setShowRetorno(true) }}
-                              style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #e9d5ff", borderRadius: 6, background: "#fff", color: "#6d28d9", cursor: "pointer" }}>Retorno</button>
-                          )}
-                          {["borrador", "aprobado"].includes(e.estado) && puedeAprobar && (
-                            <button onClick={() => cambiarEstado(e.id, "cancelado")}
-                              style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-
-      {/* ── PANEL DERECHO (detalle) ── */}
-      {selected && (
-        <div style={{ width: 360, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, overflowY: "auto", flexShrink: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: "#111827", fontFamily: "monospace" }}>{selected.numero_envio}</div>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>{TIPOS[selected.tipo]?.icon} {TIPOS[selected.tipo]?.label}</div>
-            </div>
-            <button onClick={() => { setSelected(null); setShowRetorno(false) }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 20 }}>×</button>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-            {[
-              { label: "Estado", value: ESTADOS[selected.estado]?.label || selected.estado },
-              { label: "Departamento", value: selected.departamento || "—" },
-              { label: "Provincia", value: selected.provincia || "—" },
-              { label: "Distrito", value: selected.distrito || "—" },
-              { label: "Dirección", value: selected.direccion_destino || "—" },
-              { label: "Contacto", value: selected.contacto_receptor || "—" },
-              { label: "DNI receptor", value: selected.dni_receptor || "—" },
-              { label: "Teléfono", value: selected.telefono_receptor || "—" },
-              { label: "Transportista", value: selected.transportista || "—" },
-              { label: "Placa", value: selected.vehiculo_placa || "—" },
-              { label: "Origen", value: selected.ubicacion_origen?.nombre || "—" },
-              { label: "Proyecto", value: selected.proyecto ? `${selected.proyecto.codigo} — ${selected.proyecto.nombre}` : "—" },
-              { label: "Fecha salida", value: selected.fecha_salida || "—" },
-              { label: "Entrega estimada", value: selected.fecha_entrega_estimada || "—" },
-              { label: "Entrega real", value: selected.fecha_entrega_real || "—" },
-              { label: "Retorno estimado", value: selected.fecha_retorno_estimada || "—" },
-              { label: "Retorno real", value: selected.fecha_retorno_real || "—" },
-              { label: "Solicitado por", value: selected.solicitante ? `${selected.solicitante.nombre} ${selected.solicitante.apellido}` : "—" },
-              { label: "Aprobado por", value: selected.aprobador ? `${selected.aprobador.nombre} ${selected.aprobador.apellido}` : "—" },
-            ].map(r => (
-              <div key={r.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, paddingBottom: 6, borderBottom: "1px solid #f9fafb" }}>
-                <span style={{ color: "#9ca3af", fontWeight: 600 }}>{r.label}</span>
-                <span style={{ color: "#374151", textAlign: "right", maxWidth: 200 }}>{r.value}</span>
-              </div>
-            ))}
-          </div>
-
-          {selected.notas && (
-            <div style={{ marginBottom: 16, padding: 10, background: "#f9fafb", borderRadius: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }}>NOTAS</div>
-              <div style={{ fontSize: 12, color: "#374151" }}>{selected.notas}</div>
-            </div>
-          )}
-
-          {/* Items del envío */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>MATERIALES ({envioItems.length})</div>
-            {envioItems.map(it => (
-              <div key={it.id} style={{ background: "#f9fafb", borderRadius: 8, padding: "8px 10px", marginBottom: 6 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{it.item?.nombre}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>× {it.cantidad_enviada}</span>
-                </div>
-                {it.variante && <div style={{ fontSize: 11, color: "#9ca3af" }}>{it.variante.nombre}</div>}
-                {it.observacion && <div style={{ fontSize: 11, color: "#6b7280" }}>{it.observacion}</div>}
-                {it.cantidad_retornada > 0 && (
-                  <div style={{ fontSize: 11, color: "#6d28d9", fontWeight: 600 }}>Retornado: {it.cantidad_retornada}</div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Formulario retorno */}
-          {showRetorno && selected.estado === "entregado" && (
-            <div style={{ marginTop: 16, padding: 14, background: "#f5f3ff", border: "1px solid #e9d5ff", borderRadius: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6d28d9", marginBottom: 10 }}>Registrar retorno de materiales</div>
-              {envioItems.map(it => (
-                <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
-                  <span style={{ fontSize: 12, color: "#374151", flex: 1 }}>{it.item?.nombre} (enviado: {it.cantidad_enviada})</span>
-                  <input type="number" min="0" max={it.cantidad_enviada}
-                    style={{ ...inp, width: 70, textAlign: "center" }}
-                    value={retornoCantidades[it.id] ?? 0}
-                    onChange={e => setRetornoCantidades(prev => ({ ...prev, [it.id]: parseInt(e.target.value) || 0 }))}
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            eyebrow="Logística"
+            title="Envíos de Materiales"
+            subtitle={`${filtrados.length} envíos a provincia y locales registrados`}
+            actions={
+              <V2Button variant="primary" onClick={() => { setForm({ ...formVacio }); setShowForm(true) }}>
+                + Nuevo envío
+              </V2Button>
+            }
+          />
+        }
+        toolbar={
+          <V2FilterBar
+            searchValue=""
+            onSearchChange={() => {}}
+            activeFiltersCount={(filtroTipo ? 1 : 0) + (filtroEstado ? 1 : 0) + (filtroDept ? 1 : 0)}
+            hideDrawerButton
+            onToggleDrawer={() => {}}
+            quickFilters={
+              <>
+                <div style={{ width: 160 }}>
+                  <V2Select
+                    compact
+                    value={filtroTipo}
+                    onChange={(e) => setFiltroTipo(e.target.value)}
+                    options={[
+                      { label: "Todos los tipos", value: "" },
+                      { label: "Salida", value: "salida" },
+                      { label: "Retorno", value: "retorno" },
+                      { label: "Traslado", value: "traslado" },
+                    ]}
                   />
                 </div>
-              ))}
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <button onClick={() => setShowRetorno(false)} className="btn-secondary" style={{ fontSize: 12, flex: 1 }}>Cancelar</button>
-                <button onClick={registrarRetorno}
-                  style={{ flex: 1, padding: "7px", background: "#6d28d9", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-                  Confirmar retorno
-                </button>
+                <div style={{ width: 160 }}>
+                  <V2Select
+                    compact
+                    value={filtroEstado}
+                    onChange={(e) => setFiltroEstado(e.target.value)}
+                    options={[
+                      { label: "Todos los estados", value: "" },
+                      ...Object.entries(ESTADOS).map(([k, v]: any) => ({ label: v.label, value: k })),
+                    ]}
+                  />
+                </div>
+                <div style={{ width: 180 }}>
+                  <V2Select
+                    compact
+                    value={filtroDept}
+                    onChange={(e) => setFiltroDept(e.target.value)}
+                    options={[
+                      { label: "Todos los depto.", value: "" },
+                      ...DEPARTAMENTOS_PERU.map((d) => ({ label: d, value: d })),
+                    ]}
+                  />
+                </div>
+              </>
+            }
+            showClearButton={Boolean(filtroTipo || filtroEstado || filtroDept)}
+            onClearFilters={() => {
+              setFiltroTipo("")
+              setFiltroEstado("")
+              setFiltroDept("")
+            }}
+          />
+        }
+        table={
+          <V2DataTable
+            columns={columns}
+            rows={filtrados}
+            getRowKey={(e) => e.id}
+            empty={
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
+                No hay envíos registrados.
               </div>
+            }
+          />
+        }
+      />
+
+      {/* Detalle modal */}
+      {selected && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 720, maxHeight: "90vh", overflowY: "auto", boxShadow: "var(--v2-shadow-lg)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>Detalle del envío #{selected.numero_envio || selected.id.slice(0, 8)}</h2>
+              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--v2-subtle)" }}>×</button>
             </div>
-          )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+              <div><label style={lbl}>Proyecto</label><div style={{ fontSize: 13, color: "var(--v2-text)" }}>{selected.proyecto?.nombre || "Sin proyecto"}</div></div>
+              <div><label style={lbl}>Destino</label><div style={{ fontSize: 13, color: "var(--v2-text)" }}>{selected.direccion_destino}</div></div>
+              <div><label style={lbl}>Receptor</label><div style={{ fontSize: 13, color: "var(--v2-text)" }}>{selected.contacto_receptor || "—"} ({selected.telefono_receptor || "—"})</div></div>
+              <div><label style={lbl}>Transportista</label><div style={{ fontSize: 13, color: "var(--v2-text)" }}>{selected.transportista || "—"} / {selected.vehiculo_placa || "—"}</div></div>
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--v2-muted)", marginBottom: 8, textTransform: "uppercase" }}>Ítems enviados ({selected.envio_items?.length || 0})</div>
+            <div style={{ display: "grid", gap: 6, marginBottom: 20 }}>
+              {(selected.envio_items || []).map((it: any) => (
+                <div key={it.id} style={{ background: "var(--v2-surface-subtle)", padding: "8px 12px", borderRadius: "var(--v2-radius-sm)", display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+                  <span>{it.item?.nombre} {it.variante ? `(${it.variante.nombre})` : ""}</span>
+                  <span style={{ fontWeight: 700 }}>{it.cantidad_enviada} unid. {it.cantidad_retornada > 0 ? `(Retornadas: ${it.cantidad_retornada})` : ""}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              {selected.tipo === "salida" && selected.estado === "entregado" && (
+                <V2Button variant="secondary" onClick={() => setShowRetorno(true)}>Registrar retorno</V2Button>
+              )}
+              <V2Button variant="ghost" onClick={() => setSelected(null)}>Cerrar</V2Button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── MODAL NUEVO ENVÍO ── */}
+      {/* Modal nuevo envío */}
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 680, maxHeight: "92vh", overflowY: "auto" }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 780, maxHeight: "92vh", overflowY: "auto", boxShadow: "var(--v2-shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>Nuevo envío de materiales</h2>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>Nuevo envío de materiales</h2>
+              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--v2-subtle)" }}>×</button>
             </div>
-
             <div style={{ display: "grid", gap: 14 }}>
-              {/* Tipo */}
-              <div style={{ display: "flex", gap: 8 }}>
-                {Object.entries(TIPOS).map(([k, v]) => (
-                  <button key={k} type="button" onClick={() => setForm({ ...form, tipo: k })}
-                    style={{ flex: 1, padding: "8px", borderRadius: 8, border: form.tipo === k ? `2px solid ${v.color}` : "1px solid #e5e7eb", background: form.tipo === k ? v.bg : "#fff", color: form.tipo === k ? v.color : "#6b7280", fontWeight: form.tipo === k ? 700 : 400, cursor: "pointer", fontSize: 13 }}>
-                    {v.icon} {v.label}
-                  </button>
-                ))}
-              </div>
-
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>PROYECTO (opcional)</label>
-                  <select style={inp} value={form.proyecto_id} onChange={e => setForm({ ...form, proyecto_id: e.target.value })}>
-                    <option value="">Sin proyecto</option>
-                    {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} — {p.nombre}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>ALMACÉN ORIGEN</label>
-                  <select style={inp} value={form.ubicacion_origen_id} onChange={e => setForm({ ...form, ubicacion_origen_id: e.target.value })}>
-                    <option value="">Seleccionar almacén</option>
-                    {ubicaciones.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                  </select>
-                </div>
+                <div><label style={lbl}>Tipo *</label><select style={inp} value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })}><option value="salida">Salida a provincia / obra</option><option value="retorno">Retorno a almacén</option><option value="traslado">Traslado entre sedes</option></select></div>
+                <div><label style={lbl}>Proyecto</label><select style={inp} value={form.proyecto_id} onChange={e => setForm({ ...form, proyecto_id: e.target.value })}><option value="">Sin proyecto</option>{proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} — {p.nombre}</option>)}</select></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div><label style={lbl}>Departamento</label><select style={inp} value={form.departamento} onChange={e => setForm({ ...form, departamento: e.target.value })}><option value="">Seleccionar</option>{DEPARTAMENTOS_PERU.map(d => <option key={d}>{d}</option>)}</select></div>
+                <div><label style={lbl}>Provincia</label><input style={inp} value={form.provincia} onChange={e => setForm({ ...form, provincia: e.target.value })} /></div>
+                <div><label style={lbl}>Distrito</label><input style={inp} value={form.distrito} onChange={e => setForm({ ...form, distrito: e.target.value })} /></div>
+              </div>
+              <div><label style={lbl}>Dirección de destino *</label><input style={inp} value={form.direccion_destino} placeholder="Dirección exacta de la obra o almacén" onChange={e => setForm({ ...form, direccion_destino: e.target.value })} /></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div><label style={lbl}>Contacto receptor</label><input style={inp} value={form.contacto_receptor} onChange={e => setForm({ ...form, contacto_receptor: e.target.value })} /></div>
+                <div><label style={lbl}>DNI receptor</label><input style={inp} value={form.dni_receptor} onChange={e => setForm({ ...form, dni_receptor: e.target.value })} /></div>
+                <div><label style={lbl}>Teléfono receptor</label><input style={inp} value={form.telefono_receptor} onChange={e => setForm({ ...form, telefono_receptor: e.target.value })} /></div>
               </div>
 
-              {/* Destino */}
-              <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 10 }}>📍 Destino</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)", marginTop: 8 }}>Ítems a enviar</div>
+              {lineas.map((l, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 1fr auto", gap: 8, alignItems: "end" }}>
                   <div>
-                    <label style={lbl}>DEPARTAMENTO</label>
-                    <select style={inp} value={form.departamento} onChange={e => setForm({ ...form, departamento: e.target.value })}>
-                      <option value="">Seleccionar</option>
-                      {DEPARTAMENTOS_PERU.map(d => <option key={d}>{d}</option>)}
+                    <select style={inp} value={l.item_id} onChange={e => updateLinea(i, "item_id", e.target.value)}>
+                      <option value="">Seleccionar ítem</option>
+                      {items.map(it => <option key={it.id} value={it.id}>{it.nombre}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label style={lbl}>PROVINCIA</label>
-                    <input style={inp} value={form.provincia} placeholder="Provincia" onChange={e => setForm({ ...form, provincia: e.target.value })} />
+                    <select style={inp} value={l.variante_id} onChange={e => updateLinea(i, "variante_id", e.target.value)} disabled={!l.item_id}>
+                      <option value="">Sin variante</option>
+                      {(variantes[l.item_id] || []).map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+                    </select>
                   </div>
-                  <div>
-                    <label style={lbl}>DISTRITO</label>
-                    <input style={inp} value={form.distrito} placeholder="Distrito" onChange={e => setForm({ ...form, distrito: e.target.value })} />
-                  </div>
+                  <div><input style={inp} type="number" min="1" value={l.cantidad_enviada} onChange={e => updateLinea(i, "cantidad_enviada", e.target.value)} /></div>
+                  <div><input style={inp} placeholder="Observaciones" value={l.observacion} onChange={e => updateLinea(i, "observacion", e.target.value)} /></div>
+                  <button onClick={() => removeLinea(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--v2-danger)", fontSize: 18 }}>×</button>
                 </div>
-                <div>
-                  <label style={lbl}>DIRECCIÓN EXACTA *</label>
-                  <input style={inp} value={form.direccion_destino} placeholder="Av., calle, número, referencia..." onChange={e => setForm({ ...form, direccion_destino: e.target.value })} />
-                </div>
-              </div>
-
-              {/* Receptor */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>CONTACTO RECEPTOR</label>
-                  <input style={inp} value={form.contacto_receptor} placeholder="Nombre completo" onChange={e => setForm({ ...form, contacto_receptor: e.target.value })} />
-                </div>
-                <div>
-                  <label style={lbl}>DNI RECEPTOR</label>
-                  <input style={inp} value={form.dni_receptor} placeholder="DNI" onChange={e => setForm({ ...form, dni_receptor: e.target.value })} />
-                </div>
-                <div>
-                  <label style={lbl}>TELÉFONO RECEPTOR</label>
-                  <input style={inp} value={form.telefono_receptor} placeholder="9xxxxxxxx" onChange={e => setForm({ ...form, telefono_receptor: e.target.value })} />
-                </div>
-              </div>
-
-              {/* Transporte */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>TRANSPORTISTA</label>
-                  <input style={inp} value={form.transportista} placeholder="Nombre o empresa" onChange={e => setForm({ ...form, transportista: e.target.value })} />
-                </div>
-                <div>
-                  <label style={lbl}>PLACA VEHÍCULO</label>
-                  <input style={inp} value={form.vehiculo_placa} placeholder="ABC-123" onChange={e => setForm({ ...form, vehiculo_placa: e.target.value })} />
-                </div>
-              </div>
-
-              {/* Fechas */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>FECHA SALIDA</label>
-                  <input type="date" style={inp} value={form.fecha_salida} onChange={e => setForm({ ...form, fecha_salida: e.target.value })} />
-                </div>
-                <div>
-                  <label style={lbl}>ENTREGA ESTIMADA</label>
-                  <input type="date" style={inp} value={form.fecha_entrega_estimada} onChange={e => setForm({ ...form, fecha_entrega_estimada: e.target.value })} />
-                </div>
-                {form.tipo !== "salida" && (
-                  <div>
-                    <label style={lbl}>RETORNO ESTIMADO</label>
-                    <input type="date" style={inp} value={form.fecha_retorno_estimada} onChange={e => setForm({ ...form, fecha_retorno_estimada: e.target.value })} />
-                  </div>
-                )}
-              </div>
-
-              {/* Items */}
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <label style={lbl}>MATERIALES *</label>
-                  <button onClick={agregarLinea} style={{ fontSize: 11, color: "#0F6E56", background: "none", border: "1px dashed #1D9E75", borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>+ Agregar</button>
-                </div>
-                {lineas.map((l, i) => (
-                  <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px auto", gap: 8, marginBottom: 8, alignItems: "end" }}>
-                    <div>
-                      <label style={lbl}>ITEM</label>
-                      <select style={inp} value={l.item_id} onChange={e => updateLinea(i, "item_id", e.target.value)}>
-                        <option value="">Seleccionar</option>
-                        {items.map(it => <option key={it.id} value={it.id}>{it.nombre}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={lbl}>VARIANTE</label>
-                      <select style={inp} value={l.variante_id} onChange={e => updateLinea(i, "variante_id", e.target.value)} disabled={!l.item_id}>
-                        <option value="">Sin variante</option>
-                        {(variantes[l.item_id] || []).map((v: any) => <option key={v.id} value={v.id}>{v.nombre}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={lbl}>CANT.</label>
-                      <input type="number" min="1" style={inp} value={l.cantidad_enviada} onChange={e => updateLinea(i, "cantidad_enviada", e.target.value)} />
-                    </div>
-                    <button onClick={() => removeLinea(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 18, paddingBottom: 4 }}>×</button>
-                  </div>
-                ))}
-              </div>
-
-              <div>
-                <label style={lbl}>NOTAS</label>
-                <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={form.notas} placeholder="Instrucciones especiales, observaciones..." onChange={e => setForm({ ...form, notas: e.target.value })} />
-              </div>
+              ))}
+              <V2Button variant="ghost" size="compact" onClick={agregarLinea}>+ Agregar ítem</V2Button>
             </div>
-
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
-                {saving ? "Guardando..." : "Crear envío"}
-              </button>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+              <V2Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={guardar} disabled={saving}>{saving ? "Guardando..." : "Crear envío"}</V2Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+
+      {/* Modal retorno */}
+      {showRetorno && selected && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 560, boxShadow: "var(--v2-shadow-lg)" }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 16px", color: "var(--v2-text)" }}>Registrar retorno de materiales</h3>
+            <div style={{ display: "grid", gap: 12, marginBottom: 20 }}>
+              {(selected.envio_items || []).map((it: any) => (
+                <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13 }}>{it.item?.nombre} (Enviados: {it.cantidad_enviada})</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max={it.cantidad_enviada}
+                    style={{ ...inp, width: 90 }}
+                    value={retornoCantidades[it.id] || 0}
+                    onChange={e => setRetornoCantidades({ ...retornoCantidades, [it.id]: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <V2Button variant="ghost" onClick={() => setShowRetorno(false)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={registrarRetorno}>Confirmar retorno</V2Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
-
-
-

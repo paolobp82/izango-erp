@@ -1,7 +1,8 @@
 "use client"
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
-import type { IzangoThemeName } from "./tokens"
+// Type definition for theme names (light/dark)
+type IzangoThemeName = "light" | "dark";
 
 type ThemeContextValue = {
   theme: IzangoThemeName
@@ -16,7 +17,8 @@ function preferredTheme(): IzangoThemeName {
   if (typeof window === "undefined") return "light"
   const stored = window.localStorage.getItem(STORAGE_KEY)
   if (stored === "light" || stored === "dark") return stored
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+  // Default to "light" for legibility — system preference intentionally ignored
+  return "light"
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

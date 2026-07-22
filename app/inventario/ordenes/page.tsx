@@ -1,11 +1,29 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/purity, react-hooks/immutability, react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2PageHeader,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 const TIPOS = ["salida", "ingreso", "devolucion", "traslado"]
 const ESTADOS = ["borrador", "aprobada", "ejecutada", "cerrada", "cancelada"]
+
+const ESTADO_COLOR: Record<string, { bg: string; color: string }> = {
+  borrador: { bg: "#f3f4f6", color: "#6b7280" },
+  aprobada: { bg: "#dbeafe", color: "#1e40af" },
+  ejecutada: { bg: "#d1fae5", color: "#065f46" },
+  cerrada: { bg: "#e0e7ff", color: "#3730a3" },
+  cancelada: { bg: "#fee2e2", color: "#dc2626" },
+}
 
 export default function OrdenesInventarioPage() {
   const supabase = createClient()
@@ -65,164 +83,145 @@ export default function OrdenesInventarioPage() {
   }
 
   async function guardar() {
-    if (!form.tipo) { alert("Tipo es obligatorio"); return }
-    if (ordenItems.filter(oi => oi.item_id).length === 0) { alert("Agrega al menos un item"); return }
+    if (ordenItems.filter(i => i.item_id).length === 0) { alert("Agrega al menos un ítem"); return }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    const payload = {
-      ...form,
+
+    const { data: orden } = await supabase.from("inventario_ordenes").insert({
+      tipo: form.tipo,
       proyecto_id: form.proyecto_id || null,
       ubicacion_origen_id: form.ubicacion_origen_id || null,
       ubicacion_destino_id: form.ubicacion_destino_id || null,
+      direccion_destino: form.direccion_destino || null,
+      contacto_receptor: form.contacto_receptor || null,
+      dni_receptor: form.dni_receptor || null,
+      telefono_receptor: form.telefono_receptor || null,
+      transportista: form.transportista || null,
+      vehiculo_placa: form.vehiculo_placa || null,
+      fecha_entrega: form.fecha_entrega || null,
+      fecha_retorno_esperada: form.fecha_retorno_esperada || null,
       solicitado_por: user?.id,
-      estado: "borrador"
-    }
-    const { data: orden } = await supabase.from("inventario_ordenes").insert(payload).select().single()
+      estado: "borrador",
+      notas: form.notas || null,
+      entidad: "peru",
+    }).select().single()
+
     if (orden) {
-      const ois = ordenItems.filter(oi => oi.item_id).map(oi => ({
+      const ois = ordenItems.filter(i => i.item_id).map(i => ({
         orden_id: orden.id,
-        item_id: oi.item_id,
-        variante_id: oi.variante_id || null,
-        cantidad_solicitada: parseInt(oi.cantidad_solicitada) || 1,
-        cantidad_despachada: 0,
-        cantidad_devuelta: 0,
+        item_id: i.item_id,
+        variante_id: i.variante_id || null,
+        cantidad_solicitada: parseInt(i.cantidad_solicitada) || 1,
+        cantidad_atendida: 0,
       }))
       await supabase.from("inventario_orden_items").insert(ois)
     }
+
     setSaving(false)
     setShowForm(false)
+    setForm({
+      tipo: "salida", proyecto_id: "", ubicacion_origen_id: "", ubicacion_destino_id: "",
+      direccion_destino: "", contacto_receptor: "", dni_receptor: "", telefono_receptor: "",
+      transportista: "", vehiculo_placa: "", fecha_entrega: "", fecha_retorno_esperada: "", notas: ""
+    })
     setOrdenItems([{ item_id: "", variante_id: "", cantidad_solicitada: 1 }])
     load()
   }
 
   async function cambiarEstado(id: string, estado: string) {
-    await supabase.from("inventario_ordenes").update({ estado, updated_at: new Date().toISOString() }).eq("id", id)
-    if (estado === "ejecutada") await ejecutarOrden(id)
+    const { data: { user } } = await supabase.auth.getUser()
+    const update: any = { estado, updated_at: new Date().toISOString() }
+
+    if (estado === "aprobada") update.aprobada_por = user?.id
+    if (estado === "ejecutada") update.ejecutada_por = user?.id
+    if (estado === "cerrada") update.cerrada_por = user?.id
+
+    await supabase.from("inventario_ordenes").update(update).eq("id", id)
+
+    if (estado === "ejecutada") {
+      const { data: ord } = await supabase
+        .from("inventario_ordenes")
+        .select("*, inventario_orden_items(*)")
+        .eq("id", id)
+        .single()
+
+      if (ord) {
+        for (const item of ord.inventario_orden_items) {
+          const cantidad = Number(item.cantidad_solicitada || 0)
+          if (!cantidad) continue
+
+          if (ord.tipo === "salida" && ord.ubicacion_origen_id) {
+            await actualizarStock(item.item_id, item.variante_id, ord.ubicacion_origen_id, -cantidad)
+          }
+
+          if (ord.tipo === "ingreso" && ord.ubicacion_destino_id) {
+            await actualizarStock(item.item_id, item.variante_id, ord.ubicacion_destino_id, cantidad)
+          }
+
+          if (ord.tipo === "devolucion" && ord.ubicacion_destino_id) {
+            await actualizarStock(item.item_id, item.variante_id, ord.ubicacion_destino_id, cantidad)
+          }
+
+          if (ord.tipo === "traslado") {
+            if (ord.ubicacion_origen_id) {
+              await actualizarStock(item.item_id, item.variante_id, ord.ubicacion_origen_id, -cantidad)
+            }
+            if (ord.ubicacion_destino_id) {
+              await actualizarStock(item.item_id, item.variante_id, ord.ubicacion_destino_id, cantidad)
+            }
+          }
+        }
+      }
+    }
+
     load()
   }
 
-  async function ejecutarOrden(ordenId: string) {
-    const { data: orden } = await supabase.from("inventario_ordenes").select("*, inventario_orden_items(*)").eq("id", ordenId).single()
-    if (!orden) return
-    const { data: { user } } = await supabase.auth.getUser()
-    for (const oi of orden.inventario_orden_items) {
-      if (orden.tipo === "salida" || orden.tipo === "devolucion" || orden.tipo === "traslado") {
-        const { data: stock } = await supabase.from("inventario_stock_sin_variante").select("*").eq("item_id", oi.item_id).eq("ubicacion_id", orden.ubicacion_origen_id).single()
-        if (stock) {
-          await supabase.from("inventario_stock_sin_variante").update({ cantidad: Math.max(0, stock.cantidad - oi.cantidad_solicitada) }).eq("id", stock.id)
-        }
+  async function actualizarStock(itemId: string, varianteId: string | null, ubicacionId: string, delta: number) {
+    if (varianteId) {
+      const { data: actual } = await supabase
+        .from("inventario_stock_variante")
+        .select("id, cantidad")
+        .eq("variante_id", varianteId)
+        .eq("ubicacion_id", ubicacionId)
+        .single()
+
+      if (actual) {
+        await supabase
+          .from("inventario_stock_variante")
+          .update({ cantidad: Math.max(0, Number(actual.cantidad || 0) + delta) })
+          .eq("id", actual.id)
+      } else if (delta > 0) {
+        await supabase.from("inventario_stock_variante").insert({
+          variante_id: varianteId,
+          ubicacion_id: ubicacionId,
+          cantidad: delta,
+        })
       }
-      if (orden.tipo === "ingreso" || orden.tipo === "traslado") {
-        const { data: stock } = await supabase.from("inventario_stock_sin_variante").select("*").eq("item_id", oi.item_id).eq("ubicacion_id", orden.ubicacion_destino_id).single()
-        if (stock) {
-          await supabase.from("inventario_stock_sin_variante").update({ cantidad: stock.cantidad + oi.cantidad_solicitada }).eq("id", stock.id)
-        } else {
-          await supabase.from("inventario_stock_sin_variante").insert({ item_id: oi.item_id, ubicacion_id: orden.ubicacion_destino_id, cantidad: oi.cantidad_solicitada })
-        }
+    } else {
+      const { data: actual } = await supabase
+        .from("inventario_stock_sin_variante")
+        .select("id, cantidad")
+        .eq("item_id", itemId)
+        .eq("ubicacion_id", ubicacionId)
+        .single()
+
+      if (actual) {
+        await supabase
+          .from("inventario_stock_sin_variante")
+          .update({ cantidad: Math.max(0, Number(actual.cantidad || 0) + delta) })
+          .eq("id", actual.id)
+      } else if (delta > 0) {
+        await supabase.from("inventario_stock_sin_variante").insert({
+          item_id: itemId,
+          ubicacion_id: ubicacionId,
+          cantidad: delta,
+        })
       }
-      await supabase.from("inventario_movimientos").insert({
-        item_id: oi.item_id, variante_id: oi.variante_id || null,
-        ubicacion_origen_id: orden.ubicacion_origen_id, ubicacion_destino_id: orden.ubicacion_destino_id,
-        orden_id: ordenId, tipo: orden.tipo, cantidad: oi.cantidad_solicitada,
-        proyecto_id: orden.proyecto_id || null, usuario_id: user?.id,
-      })
     }
-    await supabase.from("inventario_ordenes").update({ cantidad_despachada: orden.inventario_orden_items[0]?.cantidad_solicitada }).eq("id", ordenId)
   }
 
-  function escapeHtml(value: any) {
-    return String(value ?? "-")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;")
-  }
-
-  function imprimirCargoInventario(orden: any) {
-    const filas = (orden.inventario_orden_items || []).map((oi: any) => `
-      <tr>
-        <td>${escapeHtml(oi.item?.nombre)}</td>
-        <td>${escapeHtml(oi.cantidad_solicitada || 0)}</td>
-        <td>${escapeHtml(oi.observacion || "")}</td>
-      </tr>
-    `).join("")
-
-    const html = `
-  <html>
-  <head>
-    <title>Cargo Orden Inventario</title>
-    <style>
-      body{font-family:Arial;padding:30px;color:#111}
-      h1{margin:0 0 6px;font-size:22px}
-      .sub{font-size:12px;color:#555;margin-bottom:22px}
-      table{width:100%;border-collapse:collapse;margin-top:20px}
-      th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:12px}
-      th{background:#f3f4f6}
-      .box{margin-bottom:20px;line-height:1.7;font-size:13px}
-      .firma{margin-top:80px;display:flex;justify-content:space-between}
-      .firma div{width:40%;text-align:center;font-size:12px}
-    </style>
-  </head>
-  <body>
-    <h1>CARGO DE ENTREGA - ORDEN DE INVENTARIO</h1>
-    <div class="sub">Documento de control logístico Izango 360</div>
-
-    <div class="box">
-      <b>N° Orden:</b> ${escapeHtml(orden.numero_orden)}<br/>
-      <b>Tipo:</b> ${escapeHtml(orden.tipo)}<br/>
-      <b>Proyecto:</b> ${escapeHtml(orden.proyecto ? `${orden.proyecto.codigo} - ${orden.proyecto.nombre}` : "Sin proyecto")}<br/>
-      <b>Origen:</b> ${escapeHtml(orden.ubicacion_origen?.nombre)}<br/>
-      <b>Destino:</b> ${escapeHtml(orden.direccion_destino || orden.ubicacion_destino?.nombre)}<br/>
-      <b>Receptor:</b> ${escapeHtml(orden.contacto_receptor)}<br/>
-      <b>DNI:</b> ${escapeHtml(orden.dni_receptor)}<br/>
-      <b>Teléfono:</b> ${escapeHtml(orden.telefono_receptor)}<br/>
-      <b>Transportista:</b> ${escapeHtml(orden.transportista)}<br/>
-      <b>Placa:</b> ${escapeHtml(orden.vehiculo_placa)}<br/>
-      <b>Fecha programada:</b> ${escapeHtml(orden.fecha_entrega)}<br/>
-      <b>Notas:</b> ${escapeHtml(orden.notas)}
-    </div>
-
-    <p>Se deja constancia de la entrega/recepción de los materiales detallados en la presente orden logística.</p>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Material</th>
-          <th>Cantidad</th>
-          <th>Observaciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${filas || `<tr><td colspan="3">Sin items registrados</td></tr>`}
-      </tbody>
-    </table>
-
-    <div class="firma">
-      <div>
-        _______________________<br/>
-        Entrega<br/>
-        Nombre / DNI
-      </div>
-      <div>
-        _______________________<br/>
-        Recibe<br/>
-        Nombre / DNI
-      </div>
-    </div>
-  </body>
-  </html>
-    `
-
-    const w = window.open("", "_blank")
-    if (!w) return
-    w.document.write(html)
-    w.document.close()
-    w.focus()
-    w.print()
-  }
-
-  function seleccionarArchivo(accept: string) {
+  function seleccionarArchivoEntrega(accept: string) {
     return new Promise<File | null>((resolve) => {
       const input = document.createElement("input")
       input.type = "file"
@@ -249,11 +248,11 @@ export default function OrdenesInventarioPage() {
     if (!fechaReal) return
 
     alert("Selecciona el cargo firmado en PDF/JPG/PNG.")
-    const cargoFirmado = await seleccionarArchivo(".pdf,.jpg,.jpeg,.png")
+    const cargoFirmado = await seleccionarArchivoEntrega(".pdf,.jpg,.jpeg,.png")
     if (!cargoFirmado) return
 
     alert("Selecciona la evidencia fotográfica o archivo adicional. Puedes cancelar si no aplica.")
-    const evidencia = await seleccionarArchivo(".pdf,.jpg,.jpeg,.png")
+    const evidencia = await seleccionarArchivoEntrega(".pdf,.jpg,.jpeg,.png")
 
     try {
       const cargoUrl = await subirArchivoOrden(cargoFirmado, "cargos-firmados")
@@ -262,9 +261,9 @@ export default function OrdenesInventarioPage() {
       const { error } = await supabase.from("inventario_ordenes").update({
         cargo_firmado_url: cargoUrl,
         evidencia_url: evidenciaUrl,
-        fecha_entrega_real: fechaReal,
         recibido_por: recibidoPor,
-        estado: "cerrada",
+        fecha_entrega_real: fechaReal,
+        estado: orden.tipo === "salida" ? "cerrada" : orden.estado,
         updated_at: new Date().toISOString(),
       }).eq("id", orden.id)
 
@@ -273,158 +272,285 @@ export default function OrdenesInventarioPage() {
         return
       }
 
-      alert("Entrega registrada y orden cerrada correctamente.")
+      alert("Entrega registrada correctamente.")
       load()
     } catch (error: any) {
       alert("Error subiendo evidencia: " + (error?.message || error))
     }
   }
 
-  const ESTADO_COLOR: any = {
-    borrador: { bg: "#f3f4f6", color: "#6b7280" },
-    aprobada: { bg: "#dbeafe", color: "#1e40af" },
-    ejecutada: { bg: "#d1fae5", color: "#065f46" },
-    cerrada: { bg: "#f0fdf4", color: "#15803d" },
-    cancelada: { bg: "#fee2e2", color: "#dc2626" },
+  function imprimirCargoInventario(orden: any) {
+    const html = `
+  <html>
+  <head>
+    <title>Cargo de Orden ${orden.codigo || ""}</title>
+    <style>
+      body{font-family:Arial;padding:30px;color:#111}
+      h1{margin:0 0 20px}
+      table{width:100%;border-collapse:collapse;margin-top:20px}
+      th,td{border:1px solid #ddd;padding:8px;text-align:left}
+      .box{margin-bottom:20px;line-height:1.7}
+      .firma{margin-top:80px;display:flex;justify-content:space-between}
+      .firma div{width:40%;text-align:center}
+    </style>
+  </head>
+  <body>
+    <h1>CARGO DE MOVIMIENTO DE INVENTARIO</h1>
+
+    <div class="box">
+      <b>Código:</b> ${orden.codigo || "-"}<br/>
+      <b>Tipo:</b> ${orden.tipo || "-"}<br/>
+      <b>Proyecto:</b> ${orden.proyecto ? orden.proyecto.codigo + " — " + orden.proyecto.nombre : "-"}<br/>
+      <b>Origen:</b> ${orden.ubicacion_origen?.nombre || "-"}<br/>
+      <b>Destino:</b> ${orden.ubicacion_destino?.nombre || orden.direccion_destino || "-"}<br/>
+      <b>Receptor:</b> ${orden.contacto_receptor || "-"}<br/>
+      <b>DNI:</b> ${orden.dni_receptor || "-"}<br/>
+      <b>Teléfono:</b> ${orden.telefono_receptor || "-"}<br/>
+      <b>Fecha:</b> ${orden.fecha_entrega || "-"}
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Cantidad solicitada</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(orden.inventario_orden_items || []).map((i:any)=>`
+          <tr>
+            <td>${i.item?.nombre || "-"}</td>
+            <td>${i.cantidad_solicitada || 0}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+
+    <div class="firma">
+      <div>
+        _______________________<br/>
+        Entrega (Almacén)
+      </div>
+      <div>
+        _______________________<br/>
+        Recibe (Responsable)
+      </div>
+    </div>
+  </body>
+  </html>
+  `
+    const w = window.open("", "_blank")
+    if (!w) return
+    w.document.write(html)
+    w.document.close()
+    w.print()
   }
 
-  const TIPO_ICON: any = { salida: "📤", ingreso: "📥", devolucion: "🔄", traslado: "🚚" }
-
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
-
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
-
   const ordenesFiltradas = ordenes.filter(o => {
-    const matchTipo = !filtroTipo || o.tipo === filtroTipo
-    const matchEstado = !filtroEstado || o.estado === filtroEstado
-    return matchTipo && matchEstado
+    if (filtroTipo && o.tipo !== filtroTipo) return false
+    if (filtroEstado && o.estado !== filtroEstado) return false
+    return true
   })
 
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+  const inp: any = { padding: "8px 12px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius)", fontSize: 13, fontFamily: "inherit", background: "var(--v2-surface)", width: "100%", outline: "none", boxSizing: "border-box" as const }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", marginBottom: 6, textTransform: "uppercase" as const }
+
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando órdenes de inventario...
+      </div>
+    )
+  }
+
+  const columns: V2TableColumn<any>[] = [
+    {
+      key: "codigo",
+      header: "Código",
+      render: (o) => (
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Órdenes de Inventario</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{ordenes.length} órdenes registradas</p>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--v2-text)" }}>{o.codigo}</div>
+          <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>{new Date(o.created_at).toLocaleDateString()}</div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <a href="/inventario" className="btn-secondary" style={{ fontSize: 13, textDecoration: "none", padding: "7px 14px", borderRadius: 7 }}>← Inventario</a>
-          <ImportExport
-            modulo="inventario_ordenes"
-            campos={[
-              {key:"numero_orden",label:"N Orden"},
-              {key:"tipo",label:"Tipo"},
-              {key:"estado",label:"Estado"},
-              {key:"direccion_destino",label:"Direccion destino"},
-              {key:"contacto_receptor",label:"Contacto receptor"},
-              {key:"dni_receptor",label:"DNI receptor"},
-              {key:"telefono_receptor",label:"Telefono receptor"},
-              {key:"transportista",label:"Transportista"},
-              {key:"vehiculo_placa",label:"Placa"},
-              {key:"fecha_entrega",label:"Fecha entrega"},
-              {key:"fecha_retorno_esperada",label:"Fecha retorno esperada"},
-              {key:"notas",label:"Notas"},
-            ]}
-            datos={ordenes}
-            onImportar={async (registros) => {
-              let exitosos=0; const errores: string[]=[];
-              for(const r of registros){
-                const {error}=await supabase.from("inventario_ordenes").insert({...r,estado:r.estado||"borrador"});
-                if(error)errores.push((r.numero_orden||"?")+": "+error.message); else exitosos++;
-              }
-              load(); return{exitosos,errores};
+      ),
+    },
+    {
+      key: "tipo",
+      header: "Tipo",
+      render: (o) => <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--v2-text)", textTransform: "capitalize" }}>{o.tipo}</span>,
+    },
+    {
+      key: "proyecto",
+      header: "Proyecto / Destino",
+      render: (o) => (
+        <div>
+          <div style={{ fontSize: 13, color: "var(--v2-text)" }}>{o.proyecto ? o.proyecto.codigo : o.ubicacion_destino?.nombre || o.direccion_destino || "—"}</div>
+          <div style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>De: {o.ubicacion_origen?.nombre || "—"}</div>
+        </div>
+      ),
+    },
+    {
+      key: "solicitado",
+      header: "Solicitante",
+      render: (o) => <span style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{o.solicitado ? `${o.solicitado.nombre} ${o.solicitado.apellido}` : "—"}</span>,
+    },
+    {
+      key: "items",
+      header: "Ítems",
+      align: "center",
+      render: (o) => <span style={{ fontWeight: 700, fontSize: 13, color: "var(--v2-text)" }}>{o.inventario_orden_items?.length || 0}</span>,
+    },
+    {
+      key: "estado",
+      header: "Estado",
+      align: "center",
+      render: (o) => {
+        const ec = ESTADO_COLOR[o.estado] || ESTADO_COLOR.borrador
+        return (
+          <span style={{ background: ec.bg, color: ec.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+            {o.estado}
+          </span>
+        )
+      },
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (o) => (
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <V2Button variant="ghost" size="compact" onClick={() => imprimirCargoInventario(o)}>
+            Cargo PDF
+          </V2Button>
+          {o.estado === "ejecutada" && (
+            <V2Button variant="secondary" size="compact" onClick={() => registrarEntregaOrden(o)}>
+              Entrega
+            </V2Button>
+          )}
+          {o.estado === "borrador" && (
+            <V2Button variant="ghost" size="compact" onClick={() => cambiarEstado(o.id, "aprobada")}>
+              Aprobar
+            </V2Button>
+          )}
+          {o.estado === "aprobada" && (
+            <V2Button variant="ghost" size="compact" onClick={() => cambiarEstado(o.id, "ejecutada")}>
+              Ejecutar
+            </V2Button>
+          )}
+          {o.estado === "ejecutada" && o.tipo === "salida" && (
+            <V2Button variant="ghost" size="compact" onClick={() => cambiarEstado(o.id, "cerrada")}>
+              Cerrar
+            </V2Button>
+          )}
+          {o.estado === "borrador" && (
+            <V2Button variant="destructive" size="compact" onClick={() => cambiarEstado(o.id, "cancelada")}>
+              Cancelar
+            </V2Button>
+          )}
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            eyebrow="Inventario"
+            title="Órdenes de Movimiento"
+            subtitle={`${ordenesFiltradas.length} órdenes de ingreso, salida y devolución`}
+            actions={
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <ImportExport
+                  modulo="inventario_ordenes"
+                  campos={[
+                    { key: "codigo", label: "Código", requerido: true },
+                    { key: "tipo", label: "Tipo", requerido: true },
+                    { key: "estado", label: "Estado" },
+                    { key: "direccion_destino", label: "Dirección destino" },
+                    { key: "contacto_receptor", label: "Contacto receptor" },
+                  ]}
+                  datos={ordenesFiltradas}
+                  onImportar={async (registros) => {
+                    let exitosos = 0
+                    const errores: string[] = []
+                    for (const r of registros) {
+                      const { error } = await supabase.from("inventario_ordenes").insert({ ...r, estado: r.estado || "borrador" })
+                      if (error) errores.push(r.codigo + ": " + error.message)
+                      else exitosos++
+                    }
+                    load()
+                    return { exitosos, errores }
+                  }}
+                />
+                <V2Button variant="primary" onClick={() => setShowForm(true)}>
+                  + Nueva orden
+                </V2Button>
+              </div>
+            }
+          />
+        }
+        toolbar={
+          <V2FilterBar
+            searchValue=""
+            onSearchChange={() => {}}
+            activeFiltersCount={(filtroTipo ? 1 : 0) + (filtroEstado ? 1 : 0)}
+            hideDrawerButton
+            onToggleDrawer={() => {}}
+            quickFilters={
+              <>
+                <div style={{ width: 160 }}>
+                  <V2Select
+                    compact
+                    value={filtroTipo}
+                    onChange={(e) => setFiltroTipo(e.target.value)}
+                    options={[
+                      { label: "Todos los tipos", value: "" },
+                      ...TIPOS.map((t) => ({ label: t, value: t })),
+                    ]}
+                  />
+                </div>
+                <div style={{ width: 160 }}>
+                  <V2Select
+                    compact
+                    value={filtroEstado}
+                    onChange={(e) => setFiltroEstado(e.target.value)}
+                    options={[
+                      { label: "Todos los estados", value: "" },
+                      ...ESTADOS.map((e) => ({ label: e, value: e })),
+                    ]}
+                  />
+                </div>
+              </>
+            }
+            showClearButton={Boolean(filtroTipo || filtroEstado)}
+            onClearFilters={() => {
+              setFiltroTipo("")
+              setFiltroEstado("")
             }}
           />
-          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva orden</button>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-        <select style={{ ...inp, maxWidth: 160 }} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
-          <option value="">Todos los tipos</option>
-          {TIPOS.map(t => <option key={t}>{t}</option>)}
-        </select>
-        <select style={{ ...inp, maxWidth: 160 }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
-          <option value="">Todos los estados</option>
-          {ESTADOS.map(t => <option key={t}>{t}</option>)}
-        </select>
-      </div>
-
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {ordenesFiltradas.length === 0 ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "#9ca3af" }}>No hay órdenes. Crea la primera.</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ORDEN</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TIPO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>DESTINO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ITEMS</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-                <th style={{ padding: "10px 20px", width: 180 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordenesFiltradas.map((orden, idx) => {
-                const ec = ESTADO_COLOR[orden.estado] || ESTADO_COLOR.borrador
-                return (
-                  <tr key={orden.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                    <td style={{ padding: "12px 20px" }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: "#111827", fontFamily: "monospace" }}>{orden.numero_orden}</div>
-                      <div style={{ fontSize: 11, color: "#9ca3af" }}>{new Date(orden.created_at).toLocaleDateString("es-PE")}</div>
-                      {orden.fecha_entrega && <div style={{ fontSize: 11, color: "#6b7280" }}>Entrega: {orden.fecha_entrega}</div>}
-                      {orden.fecha_entrega_real && <div style={{ fontSize: 11, color: "#15803d" }}>Real: {orden.fecha_entrega_real}</div>}
-                      {orden.recibido_por && <div style={{ fontSize: 11, color: "#15803d" }}>Recibió: {orden.recibido_por}</div>}
-                      <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
-                        {orden.cargo_firmado_url && <a href={orden.cargo_firmado_url} target="_blank" style={{ fontSize: 11, color: "#2563eb", textDecoration: "none" }}>Cargo firmado</a>}
-                        {orden.evidencia_url && <a href={orden.evidencia_url} target="_blank" style={{ fontSize: 11, color: "#2563eb", textDecoration: "none" }}>Evidencia</a>}
-                      </div>
-                    </td>
-                    <td style={{ padding: "12px" }}>
-                      <span style={{ fontSize: 13 }}>{TIPO_ICON[orden.tipo]} {orden.tipo}</span>
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
-                      {orden.proyecto ? `${orden.proyecto.codigo} — ${orden.proyecto.nombre}` : "—"}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
-                      <div>{orden.direccion_destino || orden.ubicacion_destino?.nombre || "—"}</div>
-                      {orden.contacto_receptor && <div style={{ fontSize: 11 }}>Recibe: {orden.contacto_receptor}</div>}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
-                      {orden.inventario_orden_items?.map((oi: any) => (
-                        <div key={oi.id}>{oi.item?.nombre} × {oi.cantidad_solicitada}</div>
-                      ))}
-                    </td>
-                    <td style={{ padding: "12px" }}>
-                      <span style={{ background: ec.bg, color: ec.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{orden.estado}</span>
-                    </td>
-                    <td style={{ padding: "12px 20px" }}>
-                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                        <button onClick={() => imprimirCargoInventario(orden)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer" }}>Cargo</button>
-                        {orden.estado === "ejecutada" && <button onClick={() => registrarEntregaOrden(orden)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Entrega</button>}
-                        {orden.estado === "borrador" && <button onClick={() => cambiarEstado(orden.id, "aprobada")} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", color: "#1e40af", cursor: "pointer" }}>Aprobar</button>}
-                        {orden.estado === "aprobada" && <button onClick={() => cambiarEstado(orden.id, "ejecutada")} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Ejecutar</button>}
-                        {orden.estado === "ejecutada" && orden.tipo === "salida" && <button onClick={() => cambiarEstado(orden.id, "cerrada")} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#15803d", cursor: "pointer" }}>Cerrar</button>}
-                        {orden.estado === "borrador" && <button onClick={() => cambiarEstado(orden.id, "cancelada")} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>Cancelar</button>}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+        }
+        table={
+          <V2DataTable
+            columns={columns}
+            rows={ordenesFiltradas}
+            getRowKey={(o) => o.id}
+            empty={
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
+                No hay órdenes de inventario registradas.
+              </div>
+            }
+          />
+        }
+      />
 
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 680, maxHeight: "92vh", overflowY: "auto" }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 680, maxHeight: "92vh", overflowY: "auto", boxShadow: "var(--v2-shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Nueva orden</h2>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>×</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>Nueva orden</h2>
+              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--v2-subtle)" }}>×</button>
             </div>
             <div style={{ display: "grid", gap: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -495,18 +621,17 @@ export default function OrdenesInventarioPage() {
                 <input style={inp} type="date" value={form.fecha_retorno_esperada} onChange={e => setForm({ ...form, fecha_retorno_esperada: e.target.value })} />
               </div>
 
-              {/* Items */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <label style={lbl}>Items *</label>
-                  <button onClick={agregarItem} style={{ fontSize: 11, color: "#0F6E56", background: "none", border: "1px dashed #1D9E75", borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>+ Agregar</button>
+                  <label style={lbl}>Ítems *</label>
+                  <V2Button variant="ghost" size="compact" onClick={agregarItem}>+ Agregar ítem</V2Button>
                 </div>
                 {ordenItems.map((oi, i) => (
                   <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px auto", gap: 8, marginBottom: 8, alignItems: "end" }}>
                     <div>
-                      <label style={lbl}>Item</label>
+                      <label style={lbl}>Ítem</label>
                       <select style={inp} value={oi.item_id} onChange={e => updateOrdenItem(i, "item_id", e.target.value)}>
-                        <option value="">Seleccionar item</option>
+                        <option value="">Seleccionar ítem</option>
                         {items.map(it => <option key={it.id} value={it.id}>{it.nombre}</option>)}
                       </select>
                     </div>
@@ -521,7 +646,7 @@ export default function OrdenesInventarioPage() {
                       <label style={lbl}>Cant.</label>
                       <input style={inp} type="number" min="1" value={oi.cantidad_solicitada} onChange={e => updateOrdenItem(i, "cantidad_solicitada", e.target.value)} />
                     </div>
-                    <button onClick={() => removeOrdenItem(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 18, paddingBottom: 4 }}>×</button>
+                    <button onClick={() => removeOrdenItem(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--v2-danger)", fontSize: 18, paddingBottom: 4 }}>×</button>
                   </div>
                 ))}
               </div>
@@ -532,13 +657,12 @@ export default function OrdenesInventarioPage() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : "Crear orden"}</button>
+              <V2Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={guardar} disabled={saving}>{saving ? "Guardando..." : "Crear orden"}</V2Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
-
