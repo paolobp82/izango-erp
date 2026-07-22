@@ -20,7 +20,10 @@ import {
   V2Badge,
   V2Button,
   V2DataTable,
+  V2Dropdown,
   V2EmptyState,
+  V2FormField,
+  V2IconButton,
   V2Input,
   V2KpiCard,
   V2LoadingState,
@@ -31,8 +34,8 @@ import {
   V2StatusDot,
   type V2DataTableColumn,
 } from "@/components/v2/system"
-import { V2ActiveFilterChip } from "@/components/v2/filters"
-import { Clock, ShieldCheck, CalendarClock, Wallet, Search } from "lucide-react"
+import { V2ActiveFilterChip, V2FilterBar, V2FilterDrawer } from "@/components/v2/filters"
+import { Clock, ShieldCheck, CalendarClock, Wallet, MoreVertical } from "lucide-react"
 import { RQForm } from "./components/RQForm"
 import {
   BANCOS_PAGO,
@@ -159,7 +162,13 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   })
   const [guardandoRendicion, setGuardandoRendicion] = useState(false)
   const [pagina, setPagina] = useState(1)
-  const [avanzadosAbiertos, setAvanzadosAbiertos] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [tempTipoPago, setTempTipoPago] = useState("")
+  const [tempEstadoPago, setTempEstadoPago] = useState("")
+  const [tempFechaNecesidadDesde, setTempFechaNecesidadDesde] = useState("")
+  const [tempFechaNecesidadHasta, setTempFechaNecesidadHasta] = useState("")
+  const [tempExcepcion, setTempExcepcion] = useState("todos")
+  const [tempIncluirProyectosEliminados, setTempIncluirProyectosEliminados] = useState(false)
   const POR_PAGINA = 50
 
   useEffect(() => { load() }, [])
@@ -874,6 +883,42 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     setIncluirProyectosEliminados(false)
   }
 
+  function limpiarTodoToolbar() {
+    limpiarFiltros()
+    setBusquedaRQ("")
+  }
+
+  function abrirFiltrosAvanzados() {
+    setTempTipoPago(filtroTipoPago)
+    setTempEstadoPago(filtroEstadoPago)
+    setTempFechaNecesidadDesde(filtroFechaNecesidadDesde)
+    setTempFechaNecesidadHasta(filtroFechaNecesidadHasta)
+    setTempExcepcion(filtroExcepcion)
+    setTempIncluirProyectosEliminados(incluirProyectosEliminados)
+    setDrawerOpen(true)
+  }
+
+  function aplicarFiltrosAvanzados() {
+    setFiltroTipoPago(tempTipoPago)
+    setFiltroEstadoPago(tempEstadoPago)
+    setFiltroFechaNecesidadDesde(tempFechaNecesidadDesde)
+    setFiltroFechaNecesidadHasta(tempFechaNecesidadHasta)
+    setFiltroExcepcion(tempExcepcion)
+    setIncluirProyectosEliminados(tempIncluirProyectosEliminados)
+    setDrawerOpen(false)
+  }
+
+  function limpiarFiltrosAvanzados() {
+    limpiarFiltros()
+    setTempTipoPago("")
+    setTempEstadoPago("")
+    setTempFechaNecesidadDesde("")
+    setTempFechaNecesidadHasta("")
+    setTempExcepcion("todos")
+    setTempIncluirProyectosEliminados(false)
+    setDrawerOpen(false)
+  }
+
   const activeFiltersCount =
     (filtroEstados.length > 0 ? 1 : 0) +
     (filtroProveedor ? 1 : 0) +
@@ -883,6 +928,15 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     (filtroFechaNecesidadHasta ? 1 : 0) +
     (filtroExcepcion !== "todos" ? 1 : 0) +
     (filtroProyecto ? 1 : 0) +
+    (incluirProyectosEliminados ? 1 : 0) +
+    (busquedaRQ.trim() ? 1 : 0)
+
+  const advancedFiltersCount =
+    (filtroTipoPago ? 1 : 0) +
+    (filtroEstadoPago ? 1 : 0) +
+    (filtroFechaNecesidadDesde ? 1 : 0) +
+    (filtroFechaNecesidadHasta ? 1 : 0) +
+    (filtroExcepcion !== "todos" ? 1 : 0) +
     (incluirProyectosEliminados ? 1 : 0)
 
   const proyectoFiltradoActual = proyectos.find((p: any) => p.id === filtroProyecto)
@@ -930,7 +984,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "codigo",
       header: "N° RQ",
-      minWidth: "130px",
+      minWidth: "110px",
       cell: (rq) => (
         <div>
           <div style={{ fontWeight: 800, color: "var(--v2-text)" }}>{rqCodigo(rq)}</div>
@@ -941,7 +995,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "proyecto",
       header: "PROYECTO",
-      minWidth: "170px",
+      minWidth: "150px",
       cell: (rq) => {
         const proyectoEliminado = rqPerteneceAProyectoEliminado(rq)
         if (proyectoEliminado) {
@@ -971,7 +1025,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "proveedor",
       header: "PROVEEDOR",
-      minWidth: "160px",
+      minWidth: "140px",
       cell: (rq) => (
         <div>
           <div style={{ color: "var(--v2-text)", fontWeight: 600 }}>{rq.proveedor_nombre || rq.proveedor?.nombre || "—"}</div>
@@ -982,9 +1036,9 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "descripcion",
       header: "DESCRIPCIÓN",
-      minWidth: "180px",
+      minWidth: "150px",
       cell: (rq) => (
-        <div style={{ fontSize: 12, color: "var(--v2-muted)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div className={styles.descripcionCell}>
           {rq.descripcion || "—"}
         </div>
       ),
@@ -993,7 +1047,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       id: "monto",
       header: "MONTO",
       align: "right",
-      minWidth: "140px",
+      minWidth: "115px",
       cell: (rq) => {
         const igv = detalleIgv(rq)
         return (
@@ -1008,7 +1062,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "condicion",
       header: "CONDICIÓN",
-      minWidth: "130px",
+      minWidth: "110px",
       cell: (rq) => {
         const condicion = condicionComercialRQ(rq)
         if (!condicion) return "—"
@@ -1023,7 +1077,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "fechas",
       header: "FECHAS",
-      minWidth: "150px",
+      minWidth: "125px",
       cell: (rq) => (
         <div className={styles.fechasCell}>
           <div>Necesidad: {fmtFecha(fechaNecesidadRQ(rq))}</div>
@@ -1035,7 +1089,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "estadoPago",
       header: "ESTADO PAGO",
-      minWidth: "130px",
+      minWidth: "110px",
       cell: (rq) => {
         const pago = estadoPagoRQ(rq)
         return (
@@ -1051,7 +1105,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "estadoRQ",
       header: "ESTADO RQ",
-      minWidth: "150px",
+      minWidth: "120px",
       cell: (rq) => {
         const ec = ESTADOS[rq.estado] || { label: rq.estado }
         return (
@@ -1066,8 +1120,8 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     },
     {
       id: "migracion",
-      header: "MIGRACIÓN",
-      minWidth: "120px",
+      header: "MIGR.",
+      minWidth: "90px",
       cell: (rq) => {
         const migracion = estadoMigracionRQ(rq, migrationLogs)
         return (
@@ -1081,19 +1135,29 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       id: "acciones",
       header: "",
       align: "right",
-      minWidth: "150px",
+      minWidth: "120px",
       cell: (rq) => {
         const accion = getSiguienteAccion(rq)
+        const puedeEditar = puedeEditarRQ(rq)
+        const puedeCancelar = puedeCancelarRQ(rq)
+        const menuItems = [
+          ...(puedeEditar ? [{ label: "Editar", onSelect: () => { setSelected(rq); abrirEditarRQ(rq) } }] : []),
+          ...(puedeCancelar ? [{ label: "Cancelar", onSelect: () => cancelarRQ(rq) }] : []),
+        ]
         return (
-          <div className={styles.rowActions}>
-            {puedeEditarRQ(rq) && (
-              <V2Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); setSelected(rq); abrirEditarRQ(rq) }}>Editar</V2Button>
-            )}
+          <div className={styles.rowActions} onClick={(e) => e.stopPropagation()}>
             {accion && (
-              <V2Button variant="primary" size="sm" onClick={(e) => { e.stopPropagation(); cambiarEstado(rq.id, accion.nextEstado) }}>{accion.label}</V2Button>
+              <V2Button variant="primary" size="sm" onClick={() => cambiarEstado(rq.id, accion.nextEstado)}>{accion.label}</V2Button>
             )}
-            {puedeCancelarRQ(rq) && (
-              <V2Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); cancelarRQ(rq) }}>Cancelar</V2Button>
+            {menuItems.length > 0 && (
+              <V2Dropdown
+                trigger={
+                  <V2IconButton label="Más acciones" size="sm">
+                    <MoreVertical size={14} />
+                  </V2IconButton>
+                }
+                items={menuItems}
+              />
             )}
           </div>
         )
@@ -1113,8 +1177,82 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     </div>
   )
 
+  const estadoQuickFilter = (
+    <div className={styles.toolbarField}>
+      <V2Popover
+        ariaLabel="Filtrar por estado RQ"
+        trigger={
+          <V2Button variant="secondary" size="compact" style={{ width: "100%" }}>
+            {filtroEstados.length === 0 ? "Todos los estados" : `${filtroEstados.length} estado${filtroEstados.length > 1 ? "s" : ""}`}
+          </V2Button>
+        }
+      >
+        <div className={styles.estadosPopover}>
+          {Object.entries(ESTADOS).map(([k, v]: any) => {
+            const activo = filtroEstados.includes(k)
+            return (
+              <label className={styles.estadoCheckboxRow} key={k}>
+                <input
+                  type="checkbox"
+                  checked={activo}
+                  onChange={() => setFiltroEstados(prev => activo ? prev.filter(e => e !== k) : [...prev, k])}
+                />
+                <V2StatusDot tone={estadoRQDotTone(k)} />
+                <span>{v.label}</span>
+              </label>
+            )
+          })}
+        </div>
+      </V2Popover>
+    </div>
+  )
+
+  const proveedorQuickFilter = (
+    <div className={styles.toolbarField}>
+      <V2Select
+        compact
+        value={filtroProveedor}
+        onChange={e => setFiltroProveedor(e.target.value)}
+        options={[{ label: "Todos los proveedores", value: "" }, ...proveedores.map(p => ({ label: p.nombre, value: p.id }))]}
+      />
+    </div>
+  )
+
+  const kpiSection = (
+    <div className={styles.kpiGrid}>
+      <V2KpiCard
+        icon={<Clock size={20} />}
+        label="Pendientes"
+        value={fmt(totalPendiente)}
+        description={`${rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").length} RQs`}
+        tone="warning"
+      />
+      <V2KpiCard
+        icon={<ShieldCheck size={20} />}
+        label="En aprobación"
+        value={fmt(totalAprobado)}
+        description={`${rqsVistaActiva.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length} RQs`}
+        tone="primary"
+      />
+      <V2KpiCard
+        icon={<CalendarClock size={20} />}
+        label="Programados"
+        value={fmt(totalProgramado)}
+        description={`${rqsVistaActiva.filter(r => r.estado === "programado").length} RQs`}
+        tone="neutral"
+      />
+      <V2KpiCard
+        icon={<Wallet size={20} />}
+        label="Pagados"
+        value={fmt(totalPagado)}
+        description={`${rqsVistaActiva.filter(r => r.estado === "pagado").length} RQs`}
+        tone="success"
+      />
+    </div>
+  )
+
   return (
-    <div>
+    <>
       {toastMsg && (
         <div style={{
           position: "fixed",
@@ -1132,185 +1270,53 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
           {toastMsg}
         </div>
       )}
-      <V2PageHeader
-        eyebrow="Tesorería & Pagos"
-        title="Requerimientos de Pago (RQ)"
-        subtitle={`${rqsVistaActiva.length} RQs activos · ${perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}`}
-        actions={
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            {puedeAccionRQ("crear") && (
-              <V2Button variant="primary" onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo"); setProyectos(filtrarPorAlcance(projs || [], perfil, "proyectos", { usuarioId: perfil?.id })); setShowNuevoRQ(true) }}>
-                + Nuevo RQ
-              </V2Button>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            eyebrow="Tesorería & Pagos"
+            title="Requerimientos de Pago (RQ)"
+            subtitle={`${rqsVistaActiva.length} RQs activos · ${perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}`}
+            actions={
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                {puedeAccionRQ("crear") && (
+                  <V2Button variant="primary" onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo"); setProyectos(filtrarPorAlcance(projs || [], perfil, "proyectos", { usuarioId: perfil?.id })); setShowNuevoRQ(true) }}>
+                    + Nuevo RQ
+                  </V2Button>
+                )}
+                <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
+              </div>
+            }
+          />
+        }
+        summary={kpiSection}
+        toolbar={
+          <div className={styles.toolbarWrap}>
+            <V2FilterBar
+              searchValue={busquedaRQ}
+              onSearchChange={setBusquedaRQ}
+              searchPlaceholder="Buscar RQ, número, proyecto, proveedor o concepto..."
+              activeFiltersCount={advancedFiltersCount}
+              onToggleDrawer={abrirFiltrosAvanzados}
+              quickFilters={<>{estadoQuickFilter}{proveedorQuickFilter}</>}
+              showClearButton={activeFiltersCount > 0}
+              onClearFilters={limpiarTodoToolbar}
+            />
+
+            {filtrosActivosChips.length > 0 && (
+              <div className={styles.chipsRow}>
+                {filtrosActivosChips.map(chip => (
+                  <V2ActiveFilterChip key={chip.id} id={chip.id} label={chip.label} valueLabel={chip.valueLabel} onRemove={quitarFiltro} />
+                ))}
+              </div>
             )}
-            <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
+
+            <div className={styles.resultsSummary}>
+              {filtrados.length} requerimiento{filtrados.length === 1 ? "" : "s"} encontrado{filtrados.length === 1 ? "" : "s"}
+              {activeFiltersCount > 0 ? ` · ${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}` : ""}
+            </div>
           </div>
         }
-      />
-
-      <div className={styles.kpiGrid}>
-        <V2KpiCard
-          icon={<Clock size={20} />}
-          label="Pendientes"
-          value={fmt(totalPendiente)}
-          description={`${rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").length} RQs`}
-          tone="warning"
-        />
-        <V2KpiCard
-          icon={<ShieldCheck size={20} />}
-          label="En aprobación"
-          value={fmt(totalAprobado)}
-          description={`${rqsVistaActiva.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length} RQs`}
-          tone="primary"
-        />
-        <V2KpiCard
-          icon={<CalendarClock size={20} />}
-          label="Programados"
-          value={fmt(totalProgramado)}
-          description={`${rqsVistaActiva.filter(r => r.estado === "programado").length} RQs`}
-          tone="neutral"
-        />
-        <V2KpiCard
-          icon={<Wallet size={20} />}
-          label="Pagados"
-          value={fmt(totalPagado)}
-          description={`${rqsVistaActiva.filter(r => r.estado === "pagado").length} RQs`}
-          tone="success"
-        />
-      </div>
-
-      <div className={styles.toolbarWrap}>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ flex: "2 1 260px", minWidth: 220 }}>
-            <V2Input
-              compact
-              icon={<Search size={14} />}
-              placeholder="Buscar RQ, número, proyecto, proveedor o concepto..."
-              value={busquedaRQ}
-              onChange={e => setBusquedaRQ(e.target.value)}
-            />
-          </div>
-          <div className={styles.toolbarField}>
-            <V2Popover
-              ariaLabel="Filtrar por estado RQ"
-              trigger={
-                <V2Button variant="secondary" size="compact" style={{ width: "100%" }}>
-                  {filtroEstados.length === 0 ? "Todos los estados" : `${filtroEstados.length} estado${filtroEstados.length > 1 ? "s" : ""}`}
-                </V2Button>
-              }
-            >
-              <div className={styles.estadosPopover}>
-                {Object.entries(ESTADOS).map(([k, v]: any) => {
-                  const activo = filtroEstados.includes(k)
-                  return (
-                    <label className={styles.estadoCheckboxRow} key={k}>
-                      <input
-                        type="checkbox"
-                        checked={activo}
-                        onChange={() => setFiltroEstados(prev => activo ? prev.filter(e => e !== k) : [...prev, k])}
-                      />
-                      <V2StatusDot tone={estadoRQDotTone(k)} />
-                      <span>{v.label}</span>
-                    </label>
-                  )
-                })}
-              </div>
-            </V2Popover>
-          </div>
-          <div className={styles.toolbarField}>
-            <V2Select
-              compact
-              value={filtroProveedor}
-              onChange={e => setFiltroProveedor(e.target.value)}
-              options={[{ label: "Todos los proveedores", value: "" }, ...proveedores.map(p => ({ label: p.nombre, value: p.id }))]}
-            />
-          </div>
-          <V2Button variant="ghost" size="compact" onClick={() => setAvanzadosAbiertos(v => !v)}>
-            {avanzadosAbiertos ? "Menos filtros" : "Más filtros"}
-          </V2Button>
-          {activeFiltersCount > 0 && (
-            <V2Button variant="ghost" size="compact" style={{ color: "var(--v2-muted)" }} onClick={limpiarFiltros}>
-              Limpiar filtros
-            </V2Button>
-          )}
-        </div>
-
-        {avanzadosAbiertos && (
-          <div className={styles.toolbarAdvancedRow}>
-            <div className={styles.toolbarField}>
-              <V2Select
-                compact
-                label="Condición comercial"
-                value={filtroTipoPago}
-                onChange={e => setFiltroTipoPago(e.target.value)}
-                options={[
-                  { label: "Todas las condiciones", value: "" },
-                  { label: "Contado", value: "contado" },
-                  { label: "Adelanto", value: "adelanto" },
-                  { label: "Credito", value: "credito" },
-                ]}
-              />
-            </div>
-            <div className={styles.toolbarField}>
-              <V2Select
-                compact
-                label="Estado de pago"
-                value={filtroEstadoPago}
-                onChange={e => setFiltroEstadoPago(e.target.value)}
-                options={[
-                  { label: "Todos los estados de pago", value: "" },
-                  { label: "Sin programar", value: "sin_programar" },
-                  { label: "Programado", value: "programado" },
-                  { label: "Vence hoy", value: "vence_hoy" },
-                  { label: "Vencido", value: "vencido" },
-                  { label: "Pagado", value: "pagado" },
-                  { label: "Anulado", value: "anulado" },
-                ]}
-              />
-            </div>
-            <div className={styles.toolbarField}>
-              <V2Input compact type="date" label="F. necesidad desde" value={filtroFechaNecesidadDesde} onChange={e => setFiltroFechaNecesidadDesde(e.target.value)} />
-            </div>
-            <div className={styles.toolbarField}>
-              <V2Input compact type="date" label="F. necesidad hasta" value={filtroFechaNecesidadHasta} onChange={e => setFiltroFechaNecesidadHasta(e.target.value)} />
-            </div>
-            <div className={styles.toolbarField}>
-              <V2Select
-                compact
-                label="Excepciones"
-                value={filtroExcepcion}
-                onChange={e => setFiltroExcepcion(e.target.value)}
-                options={[
-                  { label: "Todas las solicitudes", value: "todos" },
-                  { label: "🚩 Solo excepciones", value: "solo" },
-                  { label: "Sin excepción", value: "sin" },
-                ]}
-              />
-            </div>
-            <label className={styles.toolbarCheckboxField}>
-              <input type="checkbox" checked={incluirProyectosEliminados} onChange={e => setIncluirProyectosEliminados(e.target.checked)} />
-              Incluir proyectos eliminados
-            </label>
-            {filtroProyecto && (
-              <V2Badge variant="primary" size="sm">Proyecto filtrado: {proyectoFiltradoActual?.codigo || filtroProyecto}</V2Badge>
-            )}
-          </div>
-        )}
-
-        {filtrosActivosChips.length > 0 && (
-          <div className={styles.chipsRow}>
-            {filtrosActivosChips.map(chip => (
-              <V2ActiveFilterChip key={chip.id} id={chip.id} label={chip.label} valueLabel={chip.valueLabel} onRemove={quitarFiltro} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className={styles.resultsSummary}>
-        {filtrados.length} requerimiento{filtrados.length === 1 ? "" : "s"} encontrado{filtrados.length === 1 ? "" : "s"}
-        {activeFiltersCount > 0 ? ` · ${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}` : ""}
-      </div>
-
+        table={
       <div className={styles.layoutGrid} style={{ gridTemplateColumns: selected ? "1fr 420px" : "1fr" }}>
         <div className={styles.tableWrap}>
           <V2DataTable
@@ -1623,6 +1629,80 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
           </div>
         )}
       </div>
+        }
+      />
+
+      <V2FilterDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        activeChips={filtrosActivosChips}
+        onRemoveChip={quitarFiltro}
+        onApply={aplicarFiltrosAvanzados}
+        onClearAll={limpiarFiltrosAvanzados}
+      >
+        <div style={{ display: "grid", gap: 16 }}>
+          <V2FormField label="Condición comercial">
+            <V2Select
+              value={tempTipoPago}
+              onChange={e => setTempTipoPago(e.target.value)}
+              options={[
+                { label: "Todas las condiciones", value: "" },
+                { label: "Contado", value: "contado" },
+                { label: "Adelanto", value: "adelanto" },
+                { label: "Credito", value: "credito" },
+              ]}
+            />
+          </V2FormField>
+
+          <V2FormField label="Estado de pago">
+            <V2Select
+              value={tempEstadoPago}
+              onChange={e => setTempEstadoPago(e.target.value)}
+              options={[
+                { label: "Todos los estados de pago", value: "" },
+                { label: "Sin programar", value: "sin_programar" },
+                { label: "Programado", value: "programado" },
+                { label: "Vence hoy", value: "vence_hoy" },
+                { label: "Vencido", value: "vencido" },
+                { label: "Pagado", value: "pagado" },
+                { label: "Anulado", value: "anulado" },
+              ]}
+            />
+          </V2FormField>
+
+          <V2FormField label="Fecha necesidad desde">
+            <V2Input type="date" value={tempFechaNecesidadDesde} onChange={e => setTempFechaNecesidadDesde(e.target.value)} />
+          </V2FormField>
+
+          <V2FormField label="Fecha necesidad hasta">
+            <V2Input type="date" value={tempFechaNecesidadHasta} onChange={e => setTempFechaNecesidadHasta(e.target.value)} />
+          </V2FormField>
+
+          <V2FormField label="Excepciones">
+            <V2Select
+              value={tempExcepcion}
+              onChange={e => setTempExcepcion(e.target.value)}
+              options={[
+                { label: "Todas las solicitudes", value: "todos" },
+                { label: "🚩 Solo excepciones", value: "solo" },
+                { label: "Sin excepción", value: "sin" },
+              ]}
+            />
+          </V2FormField>
+
+          <V2FormField label="Proyectos eliminados">
+            <label className={styles.toolbarCheckboxField}>
+              <input type="checkbox" checked={tempIncluirProyectosEliminados} onChange={e => setTempIncluirProyectosEliminados(e.target.checked)} />
+              Incluir proyectos eliminados
+            </label>
+          </V2FormField>
+
+          {filtroProyecto && (
+            <V2Badge variant="primary" size="sm">Proyecto filtrado: {proyectoFiltradoActual?.codigo || filtroProyecto}</V2Badge>
+          )}
+        </div>
+      </V2FilterDrawer>
+
       {showEditarRQ && selected && (
         <div onClick={() => setShowEditarRQ(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 520 }}>
@@ -1735,7 +1815,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
           </div>
         </div>
 )}
-    </div>
+    </>
   )
 }
 

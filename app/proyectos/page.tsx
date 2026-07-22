@@ -405,7 +405,13 @@ export default function ProyectosPage() {
     pndLiquidacion: proyectos.filter(p => p.estado === "terminado").length,
   }
 
-  const montoAprobadoTotal = proyectos.reduce((sum, p: any) => sum + Number(p?.cotizacion_aprobada?.total_cliente || 0), 0)
+  // "Monto aprobado" solo debe reflejar proyectos vigentes: cotizacion_aprobada_id apunta a la
+  // version aprobada por el cliente, pero rechazar/cancelar un proyecto no limpia ese FK — sin este
+  // filtro, proyectos ya rechazados/cancelados seguian sumando su cotizacion aprobada historica.
+  const ESTADOS_EXCLUIDOS_MONTO_APROBADO = ["rechazado", "cancelado"]
+  const montoAprobadoTotal = proyectos
+    .filter((p: any) => !ESTADOS_EXCLUIDOS_MONTO_APROBADO.includes(p.estado))
+    .reduce((sum, p: any) => sum + Number(p?.cotizacion_aprobada?.total_cliente || 0), 0)
 
   // Unique clients and producers for filter dropdowns
   const clientesUnicos = Array.from(
@@ -866,7 +872,7 @@ export default function ProyectosPage() {
               <>
                 {/* Desktop Table View */}
                 <div className={styles.tableContainer}>
-                  <V2DataTable columns={tableColumns} rows={paginados} getRowKey={(p) => p.id} />
+                  <V2DataTable columns={tableColumns} rows={paginados} getRowKey={(p) => p.id} stickyHeader />
                 </div>
 
                 {/* Mobile Card View */}

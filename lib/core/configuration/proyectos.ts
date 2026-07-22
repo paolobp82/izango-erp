@@ -9,7 +9,8 @@ const FALLBACK = {
   en_curso:{label:"En curso"},
   terminado:{label:"Terminado"},
   liquidado:{label:"Liquidado"},
-  cerrado_financiero:{label:"Cerrado Financiero"}
+  cerrado_financiero:{label:"Cerrado Financiero"},
+  rechazado:{label:"Rechazado"}
 }
 
 export function getProyectoEstadosVisuales(){
