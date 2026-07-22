@@ -206,10 +206,40 @@
 }
 
 /* ProjectInfoCardV2 */
+/* align-items: start es la correccion de un bug real: por defecto (stretch), cuando
+   una celda de la fila envuelve a 2 lineas, TODAS las celdas de esa fila se estiran a
+   esa altura, y al ser .infoRow un grid interno de 2 filas (label/valor) esa altura
+   extra se reparte entre ambas, separando el valor de su label. Afecta a Resumen y a
+   Cliente por igual; con align-items:start cada fila mide solo su propio contenido. */
 .infoGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(var(--v2-info-cols, auto-fit), minmax(140px, 1fr));
+  align-items: start;
   gap: 10px;
+}
+
+/* density="compact" (ProjectInfoCardV2): mas espacio entre campos para paneles de
+   columnas fijas y valores largos (ficha rapida de Cliente). No se usa en Resumen. */
+.infoGridCompact {
+  gap: 20px 24px;
+}
+
+@media (max-width: 1024px) {
+  .infoGridCompact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .infoGridCompact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .infoGridCompact {
+    grid-template-columns: 1fr;
+  }
 }
 
 .infoRow {
@@ -300,10 +330,13 @@
 
 /* Cliente tab: ficha rapida mas ancha que la columna lateral (acciones +
    proyectos relacionados), para que el grid interno de ProjectInfoCardV2
-   pueda mostrar 4 columnas en desktop en vez de 2. */
+   pueda mostrar mas columnas en desktop. align-items: start evita que el
+   grid estire la columna lateral a la altura de la ficha rapida (eso
+   generaba espacio vacio debajo de "Proyectos relacionados"). */
 .clienteGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr);
+  align-items: start;
   gap: 16px;
 }
 
@@ -313,32 +346,7 @@
   }
 }
 
-.clienteActionsGrid {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.clienteActionButton,
-.clientePrimaryAction {
-  width: fit-content;
-  max-width: 100%;
-}
-
-@media (max-width: 420px) {
-  .clienteActionsGrid {
-    align-items: stretch;
-  }
-
-  .clienteActionButton {
-    width: 100%;
-  }
-}
-
-@media (max-width: 640px) {
-  .clientePrimaryAction {
-    width: 100%;
-  }
-}
+/* Acciones del cliente ahora usa el primitive V2QuickActions (ver page.tsx) en vez de
+   un grid propio: se elimino .infoGridCliente/.clienteActionsGrid/.clienteActionButton/
+   .clientePrimaryAction, que duplicaban capacidades ya cubiertas por ProjectInfoCardV2
+   (columns/density) y V2QuickActions. */

@@ -2023,13 +2023,16 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             </thead>
             <tbody>
               {cotizaciones.map((cot, idx) => {
-                const esAprobada = (cot.id === proyecto?.cotizacion_aprobada_id || cot.estado === "aprobada_cliente") && ["en_curso","terminado","liquidado","pendiente_facturacion","facturado","cerrado_financiero"].includes(proyecto?.estado)
+                // Cada fila se resuelve unicamente con el dato real de esa cotizacion
+                // (no con el estado general del proyecto ni con versionAprobar/cotizacion_aprobada_id,
+                // que pueden desincronizarse del estado real de la version).
+                const isClientApproved = cot.estado === "aprobada_cliente"
                 return (
-                  <tr style={{ background: esAprobada ? "var(--v2-success-bg)" : idx % 2 === 0 ? "var(--v2-surface)" : "var(--v2-surface-soft)" }} key={cot.id}>
+                  <tr style={{ background: isClientApproved ? "var(--v2-success-bg)" : idx % 2 === 0 ? "var(--v2-surface)" : "var(--v2-surface-soft)" }} key={cot.id}>
                     <td style={{ padding: "10px 16px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontWeight: 700, fontSize: 15, color: "var(--v2-text)" }}>V{cot.version}</span>
-                        {esAprobada && <V2StatusBadge size="sm" tone="success">Aprobada</V2StatusBadge>}
+                        {isClientApproved && <V2StatusBadge size="sm" tone="success">Aprobada</V2StatusBadge>}
                       </div>
                     </td>
                     <td style={{ padding: "10px 12px", verticalAlign: "middle" }}>
@@ -2087,12 +2090,16 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         <V2Button leadingIcon={<Eye size={13} />} onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} size="sm" variant="secondary">
                           Vista previa
                         </V2Button>
-                        {puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cot.estado !== "aprobada_cliente" && (
-                          <V2Button leadingIcon={<CheckCircle2 size={13} />} onClick={() => marcarCotizacionAprobadaCliente(cot)} size="sm" variant="success">
+                        {isClientApproved ? (
+                          <V2Button disabled leadingIcon={<CheckCircle2 size={13} />} size="sm" variant="success">
                             Aprobado cliente
                           </V2Button>
-                        )}
-                        {!esAprobada && puedeEliminarProforma && (
+                        ) : puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) ? (
+                          <V2Button leadingIcon={<CheckCircle2 size={13} />} onClick={() => marcarCotizacionAprobadaCliente(cot)} size="sm" variant="successSoft">
+                            Aprobado cliente
+                          </V2Button>
+                        ) : null}
+                        {!isClientApproved && puedeEliminarProforma && (
                           <V2Button leadingIcon={<Trash2 size={13} />} onClick={() => eliminarVersion(cot.id, cot.version)} size="sm" variant="danger">
                             Borrar
                           </V2Button>
@@ -2470,6 +2477,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
         <div className={styles.clienteGrid} style={{ marginTop: 16 }}>
           <ProjectInfoCardV2
+            columns={4}
+            density="compact"
             rows={[
               { label: "Razón social", value: clienteNombre },
               { label: "Nombre comercial", value: clienteProyecto.nombre_comercial || "No disponible en esta vista" },
@@ -2485,20 +2494,20 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
           <div style={{ display: "grid", gap: 12 }}>
             <V2SectionCard title="Acciones del cliente">
-              <div className={styles.clienteActionsGrid}>
-                <V2Button className={styles.clienteActionButton} disabled={!clienteId} leadingIcon={<Eye size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
+              <V2QuickActions cols={4}>
+                <V2Button disabled={!clienteId} leadingIcon={<Eye size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
                   Ver ficha completa
                 </V2Button>
-                <V2Button className={styles.clienteActionButton} disabled={!clienteId} leadingIcon={<Pencil size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
+                <V2Button disabled={!clienteId} leadingIcon={<Pencil size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
                   Editar cliente
                 </V2Button>
-                <V2Button className={styles.clienteActionButton} disabled={!clienteId} leadingIcon={<FolderOpen size={15} />} onClick={() => clienteId && router.push(`/proyectos?cliente_id=${clienteId}`)} variant="secondary">
+                <V2Button disabled={!clienteId} leadingIcon={<FolderOpen size={15} />} onClick={() => clienteId && router.push(`/proyectos?cliente_id=${clienteId}`)} variant="secondary">
                   Ver proyectos del cliente
                 </V2Button>
-              </div>
-              <V2Button className={styles.clientePrimaryAction} disabled={!clienteId} leadingIcon={<FilePlus2 size={15} />} onClick={() => clienteId && router.push(`/proyectos/nuevo?cliente_id=${clienteId}`)} variant="primary">
-                Crear nuevo proyecto
-              </V2Button>
+                <V2Button disabled={!clienteId} leadingIcon={<FilePlus2 size={15} />} onClick={() => clienteId && router.push(`/proyectos/nuevo?cliente_id=${clienteId}`)} variant="primary">
+                  Crear nuevo proyecto
+                </V2Button>
+              </V2QuickActions>
             </V2SectionCard>
 
             <V2SectionCard title="Proyectos relacionados">

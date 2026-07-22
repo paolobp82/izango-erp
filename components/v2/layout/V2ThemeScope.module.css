@@ -45,6 +45,7 @@
 
   /* Normative Semantic States */
   --v2-success: #00e676;
+  --v2-on-success: #000000;
   --v2-warning: #f59e0b;
   --v2-error: #ffb4ab;
   --v2-danger: #ffb4ab;
@@ -1133,6 +1134,7 @@
 
   /* Semantic States */
   --v2-success:    #168A4A;
+  --v2-on-success: #FFFFFF;
   --v2-warning:    #B77905;
   --v2-error:      #DC2626;
   --v2-danger:     #DC2626;

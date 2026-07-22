@@ -211,11 +211,20 @@
 }
 
 .buttonSuccess {
+  background: var(--v2-success);
+  color: var(--v2-on-success);
+}
+
+.buttonSuccess:hover {
+  filter: brightness(1.1);
+}
+
+.buttonSuccessSoft {
   background: var(--v2-success-bg);
   color: var(--v2-success);
 }
 
-.buttonSuccess:hover {
+.buttonSuccessSoft:hover {
   filter: brightness(1.15);
 }
 
@@ -1808,7 +1817,21 @@
 /* 11. V2QuickActions */
 .quickActionsGrid {
   display: grid;
+  grid-template-columns: repeat(var(--v2-quick-cols, 2), minmax(0, 1fr));
+  align-items: start;
   gap: var(--v2-space-3);
+}
+
+@media (max-width: 720px) {
+  .quickActionsGrid {
+    --v2-quick-cols: 2;
+  }
+}
+
+@media (max-width: 420px) {
+  .quickActionsGrid {
+    --v2-quick-cols: 1;
+  }
 }
 
 /* 12. V2Drawer */

@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react"
 import styles from "./V2System.module.css"
 
-export type V2ButtonVariant = "primary" | "secondary" | "ghost" | "success" | "danger" | "destructive"
+export type V2ButtonVariant = "primary" | "secondary" | "ghost" | "success" | "successSoft" | "danger" | "destructive"
 export type V2ButtonSize = "sm" | "md" | "lg" | "compact" | "normal"
 
 export type V2ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -21,6 +21,7 @@ const variantClass: Record<V2ButtonVariant, string> = {
   secondary: styles.buttonSecondary,
   ghost: styles.buttonGhost,
   success: styles.buttonSuccess,
+  successSoft: styles.buttonSuccessSoft,
   danger: styles.buttonDestructive,
   destructive: styles.buttonDestructive,
 }
