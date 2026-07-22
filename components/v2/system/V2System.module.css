@@ -364,6 +364,52 @@
   font-size: 12px;
 }
 
+.statusSelectWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.statusSelect {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--v2-radius-sm);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  padding: 4px 24px 4px 10px;
+  transition: filter 0.16s ease, box-shadow 0.16s ease;
+}
+
+.statusSelect:hover {
+  filter: brightness(1.08);
+}
+
+.statusSelect:focus-visible {
+  box-shadow: 0 0 0 3px var(--v2-focus-ring);
+}
+
+.statusSelect:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.statusSelectChevron {
+  position: absolute;
+  right: 8px;
+  color: var(--v2-subtle);
+  font-size: 9px;
+  pointer-events: none;
+}
+
+.statusSelectNeutral { background: var(--v2-neutral-bg); color: var(--v2-muted); }
+.statusSelectInfo { background: var(--v2-info-bg); color: var(--v2-info); }
+.statusSelectWarning { background: var(--v2-warning-bg); color: var(--v2-warning); }
+.statusSelectSuccess { background: var(--v2-success-bg); color: var(--v2-success); }
+.statusSelectDanger { background: var(--v2-danger-bg); color: var(--v2-danger); }
+
 .fieldHint {
   color: var(--v2-subtle);
   font-size: 11px;
@@ -1072,7 +1118,7 @@
   font-size: 9px;
   font-weight: 900;
   background: var(--v2-primary);
-  color: #000000;
+  color: var(--v2-on-primary);
   padding: 3px 6px;
   border-radius: var(--v2-radius-sm);
   text-transform: uppercase;

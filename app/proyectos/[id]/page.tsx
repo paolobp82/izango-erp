@@ -16,7 +16,7 @@ import { esFacturaAnulada, totalFactura } from "@/lib/finance"
 import { puedeCerrarFinancieramenteProyecto } from "@/lib/proyecto-cierre-financiero"
 import { RQ_MIGRATION_SUCCESS_ACTIONS } from "@/lib/rq-migracion"
 import { V2DetailPageTemplate } from "@/components/v2/templates"
-import { V2AlertCard, V2ActivityTimeline, V2Button, V2ErrorState, V2QuickActions, V2SectionCard, V2SectionHeader, V2Select, V2StatusBadge } from "@/components/v2/system"
+import { V2AlertCard, V2ActivityTimeline, V2Button, V2ErrorState, V2QuickActions, V2SectionCard, V2SectionHeader, V2Select, V2StatusBadge, V2StatusSelect } from "@/components/v2/system"
 import type { V2TimelineItem } from "@/components/v2/system/V2ActivityTimeline"
 import { ProjectDetailShellV2 } from "@/components/v2/projects/ProjectDetailShellV2"
 import { ProjectDetailHeaderV2, estadoTone } from "@/components/v2/projects/ProjectDetailHeaderV2"
@@ -1487,11 +1487,12 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     proyecto?.estado === "terminado" ? { label: "Pendiente de liquidación", detalle: "El proyecto está terminado y debe pasar por liquidación." } : null,
   ].filter(Boolean) as any[]
 
-  const ecCot: any = {
-    borrador: { bg: "#fef9c3", color: "#92400e" },
-    enviada_cliente: { bg: "#dbeafe", color: "#1e40af" },
-    aprobada_cliente: { bg: "#dcfce7", color: "#15803d" },
-    rechazada: { bg: "#fee2e2", color: "#991b1b" },
+  const ecCotTone: Record<string, "neutral" | "info" | "warning" | "success" | "danger"> = {
+    borrador: "warning",
+    enviada_cliente: "info",
+    pendiente: "neutral",
+    aprobada_cliente: "success",
+    rechazada: "danger",
   }
 
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
@@ -2022,7 +2023,6 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             </thead>
             <tbody>
               {cotizaciones.map((cot, idx) => {
-                const e = ecCot[cot.estado] || { bg: "#f3f4f6", color: "#6b7280" }
                 const esAprobada = (cot.id === proyecto?.cotizacion_aprobada_id || cot.estado === "aprobada_cliente") && ["en_curso","terminado","liquidado","pendiente_facturacion","facturado","cerrado_financiero"].includes(proyecto?.estado)
                 return (
                   <tr key={cot.id} style={{ background: esAprobada ? "var(--v2-success-bg)" : idx % 2 === 0 ? "var(--v2-surface)" : "var(--v2-surface-soft)" }}>
@@ -2033,22 +2033,26 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       </div>
                     </td>
                     <td style={{ padding: "12px" }}>
-                      <select value={cot.estado || "borrador"} onChange={async ev => {
-                        const nuevoEstado = ev.target.value
-                        if (nuevoEstado === "aprobada_cliente") {
-                          alert("Usa la acción independiente para marcar aprobado por cliente")
-                          return
-                        }
-                        await supabase.from("cotizaciones").update({ estado: nuevoEstado }).eq("id", cot.id)
-                        load()
-                      }}
-                        style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "1px solid " + e.color, background: e.bg, color: e.color, cursor: "pointer", fontFamily: "inherit", outline: "none" }}>
-                        <option value="borrador">Borrador</option>
-                        <option value="enviada_cliente">Enviada</option>
-                        <option value="pendiente">Pendiente</option>
-                        {cot.estado === "aprobada_cliente" && <option value="aprobada_cliente">Aprobada</option>}
-                        <option value="rechazada">Rechazada</option>
-                      </select>
+                      <V2StatusSelect
+                        onChange={async (ev) => {
+                          const nuevoEstado = ev.target.value
+                          if (nuevoEstado === "aprobada_cliente") {
+                            alert("Usa la acción independiente para marcar aprobado por cliente")
+                            return
+                          }
+                          await supabase.from("cotizaciones").update({ estado: nuevoEstado }).eq("id", cot.id)
+                          load()
+                        }}
+                        options={[
+                          { label: "Borrador", value: "borrador" },
+                          { label: "Enviada", value: "enviada_cliente" },
+                          { label: "Pendiente", value: "pendiente" },
+                          ...(cot.estado === "aprobada_cliente" ? [{ label: "Aprobada", value: "aprobada_cliente" }] : []),
+                          { label: "Rechazada", value: "rechazada" },
+                        ]}
+                        tone={ecCotTone[cot.estado] || "neutral"}
+                        value={cot.estado || "borrador"}
+                      />
                     </td>
                     <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "var(--v2-accent)" }}>
                       {cot.total_cliente > 0 ? fmt(cot.total_cliente) : "—"}
@@ -2074,14 +2078,14 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       )}
                     </td>
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
                         {puedeEditarProforma && (
                           <V2Button leadingIcon={<Pencil size={13} />} onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}`)} size="sm" variant="secondary">
                             Editar
                           </V2Button>
                         )}
                         <V2Button leadingIcon={<Eye size={13} />} onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} size="sm" variant="secondary">
-                          Preview
+                          Vista previa
                         </V2Button>
                         {puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cot.estado !== "aprobada_cliente" && (
                           <V2Button leadingIcon={<CheckCircle2 size={13} />} onClick={() => marcarCotizacionAprobadaCliente(cot)} size="sm" variant="secondary">
@@ -2457,68 +2461,58 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       </ProjectDetailSection>
 
       <ProjectDetailSection activeTab={activeTab} tab="cliente">
-      <section id="tab-cliente" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Cliente</div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>{clienteNombre}</h2>
-            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-              Contexto comercial y datos principales del cliente asociados a este proyecto.
-            </p>
-          </div>
-          {clienteId && (
-            <span style={{ background: "#f3f4f6", color: "#374151", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
-              1 proyecto en esta vista
-            </span>
-          )}
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(260px, 0.8fr)", gap: 16 }}>
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fff" }}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Ficha rapida</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Razon social</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteNombre}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Nombre comercial</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.nombre_comercial || "No disponible en esta vista"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>RUC</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.ruc || "-"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Direccion principal</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.direccion || "Sin direccion"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Contacto principal</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteContacto}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Correo</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteEmail}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Telefono</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteTelefono}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Responsable comercial</span><div style={{ fontSize: 13, color: "#374151" }}>{productorNombre}</div></div>
-              </div>
-            </div>
+      <section id="tab-cliente" style={{ scrollMarginTop: 120 }}>
+        <V2SectionHeader
+          actions={clienteId && <V2StatusBadge tone="neutral">1 proyecto en esta vista</V2StatusBadge>}
+          description="Contexto comercial y datos principales del cliente asociados a este proyecto."
+          title={clienteNombre}
+        />
 
-            <div style={{ display: "grid", gap: 12 }}>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fff" }}>
-                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Acciones del cliente</h3>
-                <div style={{ display: "grid", gap: 8 }}>
-                  <button onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
-                    Ver ficha completa
-                  </button>
-                  <button onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
-                    Editar cliente
-                  </button>
-                  <button onClick={() => clienteId && router.push(`/proyectos?cliente_id=${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
-                    Ver proyectos del cliente
-                  </button>
-                  <button onClick={() => clienteId && router.push(`/proyectos/nuevo?cliente_id=${clienteId}`)} disabled={!clienteId} className="btn-primary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
-                    Crear nuevo proyecto
-                  </button>
+        <div className={styles.summaryGrid} style={{ marginTop: 16 }}>
+          <ProjectInfoCardV2
+            rows={[
+              { label: "Razón social", value: clienteNombre },
+              { label: "Nombre comercial", value: clienteProyecto.nombre_comercial || "No disponible en esta vista" },
+              { label: "RUC", value: clienteProyecto.ruc || "-" },
+              { label: "Dirección principal", value: clienteProyecto.direccion || "Sin dirección" },
+              { label: "Contacto principal", value: clienteContacto },
+              { label: "Correo", value: clienteEmail },
+              { label: "Teléfono", value: clienteTelefono },
+              { label: "Responsable comercial", value: productorNombre },
+            ]}
+            title="Ficha rápida"
+          />
+
+          <div style={{ display: "grid", gap: 12 }}>
+            <V2SectionCard title="Acciones del cliente">
+              <div style={{ display: "grid", gap: 8 }}>
+                <V2Button disabled={!clienteId} fullWidth leadingIcon={<Eye size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
+                  Ver ficha completa
+                </V2Button>
+                <V2Button disabled={!clienteId} fullWidth leadingIcon={<Pencil size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
+                  Editar cliente
+                </V2Button>
+                <V2Button disabled={!clienteId} fullWidth leadingIcon={<FolderOpen size={15} />} onClick={() => clienteId && router.push(`/proyectos?cliente_id=${clienteId}`)} variant="secondary">
+                  Ver proyectos del cliente
+                </V2Button>
+                <V2Button disabled={!clienteId} fullWidth leadingIcon={<FilePlus2 size={15} />} onClick={() => clienteId && router.push(`/proyectos/nuevo?cliente_id=${clienteId}`)} variant="primary">
+                  Crear nuevo proyecto
+                </V2Button>
+              </div>
+            </V2SectionCard>
+
+            <V2SectionCard title="Proyectos relacionados">
+              <div className={styles.relatedProjectCard}>
+                <div className={styles.relatedProjectCode}>{proyecto?.codigo || "Proyecto actual"}</div>
+                <div className={styles.relatedProjectName}>{proyecto?.nombre || "-"}</div>
+                <div style={{ marginTop: 6 }}>
+                  <V2StatusBadge size="sm" tone={estadoTone(proyecto?.estado)}>{estadoInfo.label}</V2StatusBadge>
                 </div>
               </div>
-
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fafafa" }}>
-                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 10px" }}>Proyectos relacionados</h3>
-                <div style={{ padding: "10px 12px", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{proyecto?.codigo || "Proyecto actual"}</div>
-                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{proyecto?.nombre || "-"}</div>
-                  <div style={{ fontSize: 11, color: estadoInfo.color, fontWeight: 700, marginTop: 6 }}>{estadoInfo.label}</div>
-                </div>
-                <p style={{ fontSize: 12, color: "#9ca3af", margin: "10px 0 0" }}>
-                  El listado completo se mantiene en Proyectos para evitar consultas adicionales en este tab.
-                </p>
-              </div>
-            </div>
+              <p className={styles.relatedProjectHint}>
+                El listado completo se mantiene en Proyectos para evitar consultas adicionales en este tab.
+              </p>
+            </V2SectionCard>
           </div>
         </div>
       </section>

@@ -1,6 +1,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&display=swap");
 @import "../components/design-system/theme/theme.css";
 *, *::before, *::after { box-sizing: border-box; }
+/* Fuente de verdad tipografica: los controles de formulario no heredan
+   font-family del documento por defecto en los navegadores (bug historico de
+   CSS). Sin este reset, cualquier <button>/<select>/<input>/<textarea> crudo
+   cae al font del sistema operativo en vez de Hanken Grotesk. */
+button, input, select, textarea { font: inherit; }
 
 :root {
   color-scheme: light;

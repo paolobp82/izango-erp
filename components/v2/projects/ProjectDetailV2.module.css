@@ -251,6 +251,32 @@
   gap: 8px;
 }
 
+/* Cliente tab composition */
+.relatedProjectCard {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface-muted);
+}
+
+.relatedProjectCode {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-text);
+}
+
+.relatedProjectName {
+  font-size: 12px;
+  color: var(--v2-muted);
+}
+
+.relatedProjectHint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--v2-subtle);
+}
+
 .alertsEmpty {
   font-size: 12px;
   font-weight: 700;
