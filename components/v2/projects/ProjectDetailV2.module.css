@@ -350,10 +350,15 @@
    proyectos relacionados), para que el grid interno de ProjectInfoCardV2
    pueda mostrar mas columnas en desktop. align-items: start evita que el
    grid estire la columna lateral a la altura de la ficha rapida (eso
-   generaba espacio vacio debajo de "Proyectos relacionados"). */
+   generaba espacio vacio debajo de "Proyectos relacionados").
+   La columna derecha usa minmax(0, 1fr) — no minmax(240px, 1fr) — porque un
+   piso fijo en el track no evita que un hijo con un minimo de contenido mayor
+   (ej. un grid interno con varias columnas de ancho fijo) fuerce el track a
+   crecer mas alla de esa proporcion y desborde el contenedor. El "0" delega
+   el minimo real al contenido de esa columna (ver .clienteRightColumn). */
 .clienteGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr);
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   align-items: start;
   gap: 16px;
 }
@@ -362,6 +367,16 @@
   .clienteGrid {
     grid-template-columns: 1fr;
   }
+}
+
+/* min-width: 0 es necesario porque, por defecto, un hijo de grid no se
+   contrae por debajo del ancho minimo de su propio contenido — sin esto,
+   cualquier contenido interno con un minimo grande (botones, grids fijos)
+   puede desbordar esta columna hacia la derecha del shell. */
+.clienteRightColumn {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
 }
 
 /* Acciones del cliente ahora usa el primitive V2QuickActions (ver page.tsx) en vez de

@@ -2475,9 +2475,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             title="Ficha rápida"
           />
 
-          <div style={{ display: "grid", gap: 12 }}>
+          <div className={styles.clienteRightColumn}>
             <V2SectionCard title="Acciones del cliente">
-              <V2QuickActions layout="weighted">
+              <V2QuickActions layout="auto">
                 <V2Button disabled={!clienteId} leadingIcon={<Eye size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
                   Ver ficha completa
                 </V2Button>
