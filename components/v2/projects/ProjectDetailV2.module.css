@@ -107,3 +107,152 @@
   display: grid;
   gap: 16px;
 }
+
+/* ProjectActionToolbarV2 */
+.actionToolbar {
+  display: grid;
+  gap: 10px;
+}
+
+.actionToolbarEyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--v2-muted);
+}
+
+.actionToolbarRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ProjectWorkflowCardV2 */
+.stepperRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stepperItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stepperDot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0;
+}
+
+.stepperDot:disabled {
+  cursor: default;
+}
+
+.stepperDot:not(:disabled) {
+  cursor: pointer;
+}
+
+.stepperLabel {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nextActionBlock {
+  display: grid;
+  gap: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--v2-border-soft);
+}
+
+.nextActionEyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--v2-subtle);
+}
+
+.nextActionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--v2-text);
+}
+
+.nextActionDescription {
+  font-size: 13px;
+  color: var(--v2-muted);
+  margin: 0;
+}
+
+.nextActionResponsible {
+  font-size: 13px;
+  color: var(--v2-text-secondary);
+  margin: 0 0 8px;
+}
+
+.nextActionButtons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ProjectInfoCardV2 */
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.infoRow {
+  display: grid;
+  gap: 4px;
+}
+
+.infoLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--v2-subtle);
+}
+
+.infoValue {
+  font-size: 13px;
+  color: var(--v2-text-secondary);
+}
+
+.infoValueEmphasis {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--v2-text);
+}
+
+/* Resumen tab composition */
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.summaryGridFull {
+  grid-column: 1 / -1;
+}
+
+.alertsList {
+  display: grid;
+  gap: 8px;
+}
+
+.alertsEmpty {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-success);
+}

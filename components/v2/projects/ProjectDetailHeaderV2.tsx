@@ -8,7 +8,8 @@ type EntidadOption = { value: string; label: string }
 
 // Mismo mapeo de tono usado en app/proyectos/page.tsx (estadoTone) para consistencia visual
 // entre el listado y el detalle. No representa ni modifica reglas de negocio de transicion.
-const ESTADO_TONE: Record<string, "info" | "success" | "warning" | "danger" | "neutral"> = {
+// Exportado para reutilizar el mismo tono en ProjectWorkflowCardV2 (badge de estado del stepper).
+export const ESTADO_TONE: Record<string, "info" | "success" | "warning" | "danger" | "neutral"> = {
   pendiente_aprobacion: "warning",
   aprobado_produccion: "warning",
   aprobado_gerencia: "warning",
@@ -24,7 +25,7 @@ const ESTADO_TONE: Record<string, "info" | "success" | "warning" | "danger" | "n
   cancelado: "danger",
 }
 
-function estadoTone(estado?: string | null): "info" | "success" | "warning" | "danger" | "neutral" {
+export function estadoTone(estado?: string | null): "info" | "success" | "warning" | "danger" | "neutral" {
   return ESTADO_TONE[estado || ""] || "neutral"
 }
 

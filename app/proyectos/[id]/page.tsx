@@ -16,11 +16,17 @@ import { esFacturaAnulada, totalFactura } from "@/lib/finance"
 import { puedeCerrarFinancieramenteProyecto } from "@/lib/proyecto-cierre-financiero"
 import { RQ_MIGRATION_SUCCESS_ACTIONS } from "@/lib/rq-migracion"
 import { V2DetailPageTemplate } from "@/components/v2/templates"
-import { V2ErrorState } from "@/components/v2/system"
+import { V2AlertCard, V2ActivityTimeline, V2Button, V2ErrorState, V2QuickActions, V2SectionCard, V2SectionHeader, V2StatusBadge } from "@/components/v2/system"
+import type { V2TimelineItem } from "@/components/v2/system/V2ActivityTimeline"
 import { ProjectDetailShellV2 } from "@/components/v2/projects/ProjectDetailShellV2"
-import { ProjectDetailHeaderV2 } from "@/components/v2/projects/ProjectDetailHeaderV2"
+import { ProjectDetailHeaderV2, estadoTone } from "@/components/v2/projects/ProjectDetailHeaderV2"
 import { ProjectDetailSection } from "@/components/v2/projects/ProjectDetailContentV2"
 import { DEFAULT_PROJECT_DETAIL_TAB, isProjectDetailTabId, type ProjectDetailTabId } from "@/components/v2/projects/ProjectDetailTabsV2"
+import { ProjectActionToolbarV2, type ProjectToolbarAction } from "@/components/v2/projects/ProjectActionToolbarV2"
+import { ProjectWorkflowCardV2, type ProjectWorkflowStep } from "@/components/v2/projects/ProjectWorkflowCardV2"
+import { ProjectInfoCardV2 } from "@/components/v2/projects/ProjectInfoCardV2"
+import styles from "@/components/v2/projects/ProjectDetailV2.module.css"
+import { FilePlus2, FileText, ClipboardList, Video, Receipt, FileCheck2, FolderOpen, Pencil, Eye, Trash2, RotateCcw, CheckCircle2 } from "lucide-react"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
@@ -1636,8 +1642,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             </table>
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", borderTop: "1px solid #f3f4f6", paddingTop: 16 }}>
-              <button onClick={() => { setShowMigracionRQ(false); setComparacionPendiente(null); setCotizacionPendienteAprobar(null) }} style={{ padding: "8px 16px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer" }}>Cancelar</button>
-              <button onClick={() => {
+              <V2Button onClick={() => { setShowMigracionRQ(false); setComparacionPendiente(null); setCotizacionPendienteAprobar(null) }} variant="secondary">Cancelar</V2Button>
+              <V2Button onClick={() => {
                 setShowMigracionRQ(false)
                 if (cotizacionPendienteAprobar) {
                   const pendiente = cotizacionPendienteAprobar
@@ -1645,9 +1651,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   setCotizacionPendienteAprobar(null)
                   ejecutarMigracionRQVersion(comparacionPendiente, pendiente)
                 }
-              }} style={{ padding: "8px 20px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              }} variant="primary">
                 Continuar aprobación
-              </button>
+              </V2Button>
             </div>
           </div>
         </div>
@@ -1775,11 +1781,10 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               + Agregar item imprevisto
             </button>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", borderTop: "1px solid #f3f4f6", paddingTop: 16 }}>
-              <button onClick={() => setShowPreCuadre(false)} style={{ padding: "8px 16px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer" }}>Cancelar</button>
-              <button onClick={confirmarPreCuadre} disabled={guardandoPreCuadre}
-                style={{ padding: "8px 20px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: guardandoPreCuadre ? 0.7 : 1 }}>
+              <V2Button onClick={() => setShowPreCuadre(false)} variant="secondary">Cancelar</V2Button>
+              <V2Button loading={guardandoPreCuadre} onClick={confirmarPreCuadre} variant="primary">
                 {guardandoPreCuadre ? "Generando RQs..." : "Confirmar y generar RQs"}
-              </button>
+              </V2Button>
             </div>
           </div>
         </div>
@@ -1804,156 +1809,110 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
         onTabChange={handleTabChange}
         tabCounts={tabCounts}
         actionsBar={
-          <div className="card" style={{ marginBottom: 24, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>Acciones del proyecto</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {puedeCrearProforma && (
-              <button onClick={() => {
+          <ProjectActionToolbarV2
+            primary={puedeCrearProforma ? {
+              key: "crear-cotizacion",
+              label: creando ? "Creando..." : "Crear cotización",
+              icon: <FilePlus2 size={15} />,
+              loading: creando,
+              onClick: () => {
                 const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
                 const val = sel?.value
                 nuevaVersion(val && val !== "" ? val : undefined)
-              }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
-                {creando ? "Creando..." : "Crear cotización"}
-              </button>
-              )}
-              {puedeCrearRQ && (
-              <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-                Crear RQ
-              </button>
-              )}
-              <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-                Crear tarea
-              </button>
-              <button onClick={() => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-                Solicitar audiovisual
-              </button>
-              {puedeVerFacturacionProyecto && (
-              <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-                Emitir factura
-              </button>
-              )}
-              <button onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-                Ver liquidación
-              </button>
-              {puedeExportarProyecto && (
-                <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
-                  style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-                  Ver documentos
-                </a>
-              )}
-            </div>
-          </div>
+              },
+            } : undefined}
+            secondary={([
+              puedeCrearRQ ? { key: "crear-rq", label: "Crear RQ", icon: <FileText size={15} />, onClick: () => router.push(`/rq?proyecto_id=${id}`) } : null,
+              { key: "crear-tarea", label: "Crear tarea", icon: <ClipboardList size={15} />, onClick: () => router.push(`/tareas?proyecto_id=${id}`) },
+              { key: "solicitar-audiovisual", label: "Solicitar audiovisual", icon: <Video size={15} />, onClick: () => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`) },
+              puedeVerFacturacionProyecto ? { key: "emitir-factura", label: "Emitir factura", icon: <Receipt size={15} />, onClick: () => router.push(`/facturacion?proyecto_id=${id}`) } : null,
+              { key: "ver-liquidacion", label: "Ver liquidación", icon: <FileCheck2 size={15} />, onClick: () => router.push(`/liquidaciones?proyecto_id=${id}`) },
+              puedeExportarProyecto ? { key: "ver-documentos", label: "Ver documentos", icon: <FolderOpen size={15} />, href: "/api/reporte-pdf?proyecto_id=" + id } : null,
+            ].filter(Boolean)) as ProjectToolbarAction[]}
+          />
         }
       >
-      <section id="estado-proyecto" className="card" style={{ marginBottom: 16, padding: 16, scrollMarginTop: 120 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "#111827" }}>Estado del proyecto</h2>
-            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-              Flujo operativo del proyecto y siguiente acción disponible.
-            </p>
-          </div>
-          <span style={{ background: estadoInfo.bg, color: estadoInfo.color, padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
-            {estadoInfo.label}
-          </span>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          {FLUJO_BREADCRUMB.map((estado, idx) => {
+      <section id="estado-proyecto" style={{ scrollMarginTop: 120 }}>
+        <ProjectWorkflowCardV2
+          estadoLabel={estadoInfo.label}
+          estadoTone={estadoTone(proyecto?.estado)}
+          steps={FLUJO_BREADCRUMB.map((estado, idx) => {
             const info = FLUJO[estado]
             const idxActual = FLUJO_BREADCRUMB.indexOf(proyecto?.estado)
             const completado = idx <= idxActual
             const actual = estado === proyecto?.estado
-            return (
-              <div key={estado} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div
-                  onClick={async () => {
-                    if (!puedeReabrirProyecto) return
-                    if (actual) return
-                    if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
-                    const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id, estado").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
-                    const nRqs = rqsPendientes?.length || 0
-                    const msgRqs = nRqs > 0 ? `\n\nSe cancelarán ${nRqs} RQ(s) pendientes automáticamente.` : ""
-                    if (confirm(`¿Regresar el proyecto al estado "${info.label}"?${msgRqs}`)) {
-                      if (nRqs > 0) {
-                        await supabase.from("requerimientos_pago").update({ estado: "rechazado" }).eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
-                      }
-                      cambiarEstado(estado)
-                    }
-                  }}
-                  style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: puedeReabrirProyecto && !actual && idx < FLUJO_BREADCRUMB.indexOf(proyecto?.estado) ? "pointer" : "default" }}>
-                  <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{idx + 1}</span>
-                </div>
-                {actual && <span style={{ fontSize: 11, fontWeight: 700, color: info.color }}>{info.label}</span>}
-              </div>
-            )
+            const clickable = Boolean(puedeReabrirProyecto) && !actual && idx < idxActual
+            return {
+              key: estado,
+              index: idx,
+              label: info.label,
+              color: info.color,
+              completed: completado,
+              current: actual,
+              clickable,
+              onClick: clickable ? async () => {
+                const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id, estado").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
+                const nRqs = rqsPendientes?.length || 0
+                const msgRqs = nRqs > 0 ? `\n\nSe cancelarán ${nRqs} RQ(s) pendientes automáticamente.` : ""
+                if (confirm(`¿Regresar el proyecto al estado "${info.label}"?${msgRqs}`)) {
+                  if (nRqs > 0) {
+                    await supabase.from("requerimientos_pago").update({ estado: "rechazado" }).eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
+                  }
+                  cambiarEstado(estado)
+                }
+              } : undefined,
+            } as ProjectWorkflowStep
           })}
-        </div>
-
-        {(() => {
-          const roles = estadoInfo.roles || []
-          const rolLabels: Record<string, string> = {
-            superadmin: "Superadmin",
-            gerente_general: "Gerente General",
-            gerente_produccion: "Gerente de Producción",
-            controller: "Controller",
-            productor: "Productor",
-            comercial: "Comercial",
-            logistica: "Logística",
-            audiovisual: "Audiovisual",
-            administrador: "Administrador",
+          nextActionTitle={proyecto?.estado === "aprobado_gerencia" ? "Aprobación desde cotización" : puedeAvanzar && estadoInfo.accion ? estadoInfo.accion : esEstadoFinal ? "Sin acciones pendientes" : "Sin acción disponible"}
+          nextActionDescription={
+            proyecto?.estado === "aprobado_gerencia"
+              ? "Esperando aprobación del cliente desde la cotización."
+              : proyecto?.estado === "aprobado_cliente"
+                ? "Abre el pre-cuadre para revisar proveedores, costos y generar los RQs iniciales."
+                : estadoInfo.accion
+                  ? "Avanza el proyecto al siguiente estado del flujo."
+                  : esEstadoFinal
+                    ? "El proyecto no tiene acciones pendientes."
+                    : "No hay acción disponible para tu rol."
           }
-          const rolResponsable = proyecto?.estado === "aprobado_cliente" && roles.includes("productor")
-            ? "productor"
-            : roles.find((rol: string) => rol !== "superadmin") || roles[0]
-          const nombreResponsable = rolResponsable === "productor" && proyecto?.productor
-            ? `${proyecto.productor.nombre} ${proyecto.productor.apellido}`.trim()
-            : ""
-          const responsableTexto = rolResponsable
-            ? `Responsable del siguiente paso: ${rolLabels[rolResponsable] || rolResponsable}${nombreResponsable ? ` (${nombreResponsable})` : ""}`
-            : "Responsable del siguiente paso: Sin responsable asignado"
-          const descripcionAccion = proyecto?.estado === "aprobado_gerencia"
-            ? "Esperando aprobación del cliente desde la cotización."
-            : proyecto?.estado === "aprobado_cliente"
-              ? "Abre el pre-cuadre para revisar proveedores, costos y generar los RQs iniciales."
-              : estadoInfo.accion
-                ? "Avanza el proyecto al siguiente estado del flujo."
-                : esEstadoFinal
-                  ? "El proyecto no tiene acciones pendientes."
-                  : "No hay acción disponible para tu rol."
-
-          return (
-            <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
-              <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Siguiente acción disponible</div>
-              <div style={{ fontSize: 14, color: "#111827", fontWeight: 700, marginBottom: 4 }}>
-                {proyecto?.estado === "aprobado_gerencia" ? "Aprobación desde cotización" : puedeAvanzar && estadoInfo.accion ? estadoInfo.accion : esEstadoFinal ? "Sin acciones pendientes" : "Sin acción disponible"}
-              </div>
-              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 6 }}>{descripcionAccion}</div>
-              <div style={{ fontSize: 13, color: "#374151", marginBottom: 12 }}>{responsableTexto}</div>
-
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {puedeAvanzar && estadoInfo.siguiente  && (
-                  <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando}
-                    style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: cambiando ? 0.7 : 1 }}>
-                    {cambiando ? "..." : estadoInfo.accion}
-                  </button>
-                )}
-                {proyecto?.estado === "pendiente_facturacion" && (
-                  <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)}
-                    style={{ padding: "8px 16px", border: "1px solid #bbf7d0", borderRadius: 8, background: "#fff", color: "#0F6E56", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                    Ir a Facturación
-                  </button>
-                )}
-                {puedeRechazar && (
-                  <button onClick={rechazar} disabled={cambiando}
-                    style={{ padding: "8px 16px", border: "1px solid #fde8d8", borderRadius: 8, background: "#fff", color: "#c2410c", cursor: "pointer", fontSize: 13 }}>
-                    Rechazar proyecto
-                  </button>
-                )}
-              </div>
-            </div>
-          )
-        })()}
+          responsibleText={(() => {
+            const roles = estadoInfo.roles || []
+            const rolLabels: Record<string, string> = {
+              superadmin: "Superadmin",
+              gerente_general: "Gerente General",
+              gerente_produccion: "Gerente de Producción",
+              controller: "Controller",
+              productor: "Productor",
+              comercial: "Comercial",
+              logistica: "Logística",
+              audiovisual: "Audiovisual",
+              administrador: "Administrador",
+            }
+            const rolResponsable = proyecto?.estado === "aprobado_cliente" && roles.includes("productor")
+              ? "productor"
+              : roles.find((rol: string) => rol !== "superadmin") || roles[0]
+            const nombreResponsable = rolResponsable === "productor" && proyecto?.productor
+              ? `${proyecto.productor.nombre} ${proyecto.productor.apellido}`.trim()
+              : ""
+            return rolResponsable
+              ? `Responsable del siguiente paso: ${rolLabels[rolResponsable] || rolResponsable}${nombreResponsable ? ` (${nombreResponsable})` : ""}`
+              : "Responsable del siguiente paso: Sin responsable asignado"
+          })()}
+          primaryAction={puedeAvanzar && estadoInfo.siguiente ? {
+            label: estadoInfo.accion,
+            loading: cambiando,
+            onClick: () => cambiarEstado(estadoInfo.siguiente),
+          } : undefined}
+          secondaryAction={proyecto?.estado === "pendiente_facturacion" ? {
+            label: "Ir a Facturación",
+            onClick: () => router.push(`/facturacion?proyecto_id=${id}`),
+          } : undefined}
+          dangerAction={puedeRechazar ? {
+            label: "Rechazar proyecto",
+            disabled: cambiando,
+            onClick: rechazar,
+          } : undefined}
+        />
       </section>
       <ProjectDetailSection activeTab={activeTab} tab="cotizaciones">
       <section id="tab-proformas" style={{ scrollMarginTop: 120 }}>
@@ -2013,10 +1972,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                       {cot.total_cliente > 0 && <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 8 }}>{fmt(cot.total_cliente)}</span>}
                       <span style={{ fontSize: 11, color: "#dc2626", marginLeft: 8 }}>Expira en {horasRestantes}h</span>
                     </div>
-                    <button onClick={() => recuperarVersion(cot.id)}
-                      style={{ fontSize: 12, padding: "3px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontWeight: 600 }}>
+                    <V2Button leadingIcon={<RotateCcw size={13} />} onClick={() => recuperarVersion(cot.id)} size="sm" variant="secondary">
                       Recuperar
-                    </button>
+                    </V2Button>
                   </div>
                 )
               })}
@@ -2057,7 +2015,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                     <td style={{ padding: "12px 20px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>V{cot.version}</span>
-                        {esAprobada && <span style={{ fontSize: 10, background: "#dcfce7", color: "#15803d", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>✓ Aprobada</span>}
+                        {esAprobada && <V2StatusBadge size="sm" tone="success">Aprobada</V2StatusBadge>}
                       </div>
                     </td>
                     <td style={{ padding: "12px" }}>
@@ -2104,23 +2062,22 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                     <td style={{ padding: "12px 20px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                         {puedeEditarProforma && (
-                          <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>
+                          <V2Button leadingIcon={<Pencil size={13} />} onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}`)} size="sm" variant="secondary">
                             Editar
-                          </button>
+                          </V2Button>
                         )}
-                        <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>
+                        <V2Button leadingIcon={<Eye size={13} />} onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} size="sm" variant="secondary">
                           Preview
-                        </button>
+                        </V2Button>
                         {puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cot.estado !== "aprobada_cliente" && (
-                          <button onClick={() => marcarCotizacionAprobadaCliente(cot)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#15803d", cursor: "pointer", fontWeight: 600 }}>
+                          <V2Button leadingIcon={<CheckCircle2 size={13} />} onClick={() => marcarCotizacionAprobadaCliente(cot)} size="sm" variant="secondary">
                             Marcar aprobado por cliente
-                          </button>
+                          </V2Button>
                         )}
                         {!esAprobada && puedeEliminarProforma && (
-                          <button onClick={() => eliminarVersion(cot.id, cot.version)}
-                            style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
+                          <V2Button leadingIcon={<Trash2 size={13} />} onClick={() => eliminarVersion(cot.id, cot.version)} size="sm" variant="danger">
                             Borrar
-                          </button>
+                          </V2Button>
                         )}
                       </div>
                     </td>
@@ -2367,7 +2324,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                           </td>
                           <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
                             {fila.estadoVista === "pendiente" && (
-                              <button onClick={() => abrirPreCuadreDesdeItem(fila.item)} style={{ padding: "7px 12px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Generar</button>
+                              <V2Button onClick={() => abrirPreCuadreDesdeItem(fila.item)} size="sm" variant="primary">Generar</V2Button>
                             )}
                             {fila.estadoVista === "cancelado" && (
                               <button onClick={() => abrirPreCuadreDesdeItem(fila.item)} style={{ padding: "7px 12px", border: "1px solid #bfdbfe", borderRadius: 8, background: "#eff6ff", color: "#1e40af", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Regenerar</button>
@@ -2390,71 +2347,96 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
       <ProjectDetailSection activeTab={activeTab} tab="resumen">
       <section id="tab-resumen" style={{ scrollMarginTop: 120 }}>
-        <div className="card" style={{ marginBottom: 24, padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Resumen</div>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Resumen ejecutivo</h2>
-              <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-                Vista rapida del proyecto, estado, economia base y alertas operativas.
-              </p>
-            </div>
-            <span style={{ background: estadoInfo.bg, color: estadoInfo.color, padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
-              {estadoInfo.label}
-            </span>
+        <V2SectionHeader
+          actions={<V2StatusBadge tone={estadoTone(proyecto?.estado)}>{estadoInfo.label}</V2StatusBadge>}
+          description="Vista rapida del proyecto, estado, economia base y alertas operativas."
+          title="Resumen ejecutivo"
+        />
+
+        <div className={styles.summaryGrid} style={{ marginTop: 16 }}>
+          <ProjectInfoCardV2
+            rows={[
+              { label: "Codigo", value: proyecto?.codigo || "-" },
+              { label: "Nombre", value: proyecto?.nombre || "-" },
+              { label: "Cliente", value: proyecto?.cliente?.razon_social || "Sin cliente" },
+              { label: "Productor", value: productorNombre },
+              { label: "Entidad", value: entidadLabel },
+              { label: "Inicio", value: proyecto?.fecha_inicio || "-" },
+              { label: "Fin estimado", value: proyecto?.fecha_fin_estimada || "-" },
+            ]}
+            title="Datos base del proyecto"
+          />
+
+          <ProjectInfoCardV2
+            rows={[
+              { label: "Presupuesto referencial", value: proyecto?.presupuesto_referencial ? fmt(proyecto.presupuesto_referencial) : "-", emphasis: true },
+              { label: "Version aprobada", value: cotAprobada ? `V${cotAprobada.version}` : "Sin version aprobada" },
+              { label: "Monto aprobado", value: montoAprobado ? fmt(montoAprobado) : "-" },
+            ]}
+            title="Informacion economica"
+          />
+
+          <div className={styles.summaryGridFull}>
+            <V2SectionCard description="Condiciones operativas que requieren atencion." title="Alertas del sistema">
+              {resumenAlertas.length === 0 ? (
+                <span className={styles.alertsEmpty}>Sin alertas operativas</span>
+              ) : (
+                <div className={styles.alertsList}>
+                  {resumenAlertas.map((alerta: any) => {
+                    const alertaAccion: Record<string, { actionLabel: string; onClick: () => void }> = {
+                      "Sin cotización": { actionLabel: "Ir a Cotizaciones", onClick: () => handleTabChange("cotizaciones") },
+                      "Sin version aprobada": { actionLabel: "Ir a Cotizaciones", onClick: () => handleTabChange("cotizaciones") },
+                      "Pendiente de RQ": { actionLabel: "Ir a Costos/RQ", onClick: () => handleTabChange("costos-rq") },
+                      "Pendiente de liquidacion": { actionLabel: "Ir a Liquidaciones", onClick: () => router.push(`/liquidaciones?proyecto_id=${id}`) },
+                    }
+                    const accion = alertaAccion[alerta.label]
+                    return (
+                      <V2AlertCard
+                        actionLabel={accion?.actionLabel}
+                        key={alerta.label}
+                        message={`${alerta.label}: ${alerta.detalle}`}
+                        onClick={accion?.onClick}
+                        tipo="warning"
+                      />
+                    )
+                  })}
+                </div>
+              )}
+            </V2SectionCard>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 16 }}>
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fff" }}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Datos base del proyecto</h3>
-              <div style={{ display: "grid", gap: 8 }}>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Codigo</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.codigo || "-"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Nombre</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.nombre || "-"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Cliente</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.cliente?.razon_social || "Sin cliente"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Productor</span><div style={{ fontSize: 13, color: "#374151" }}>{productorNombre}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Entidad</span><div style={{ fontSize: 13, color: "#374151" }}>{entidadLabel}</div></div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Inicio</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.fecha_inicio || "-"}</div></div>
-                  <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Fin estimado</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.fecha_fin_estimada || "-"}</div></div>
-                </div>
-              </div>
-            </div>
-
-
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fff" }}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Informacion economica basica</h3>
-              <div style={{ display: "grid", gap: 10 }}>
-                <div>
-                  <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Presupuesto referencial</span>
-                  <div style={{ fontSize: 18, color: "#111827", fontWeight: 700 }}>{proyecto?.presupuesto_referencial ? fmt(proyecto.presupuesto_referencial) : "-"}</div>
-                </div>
-                <div>
-                  <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Version aprobada</span>
-                  <div style={{ fontSize: 13, color: "#374151" }}>{cotAprobada ? `V${cotAprobada.version}` : "Sin version aprobada"}</div>
-                </div>
-                <div>
-                  <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Monto aprobado</span>
-                  <div style={{ fontSize: 13, color: "#374151" }}>{montoAprobado ? fmt(montoAprobado) : "-"}</div>
-                </div>
-              </div>
-            </div>
+          <div className={styles.summaryGridFull}>
+            <V2SectionCard description="Ultimos cambios registrados en las cotizaciones del proyecto." title="Actividad reciente">
+              <V2ActivityTimeline
+                items={Object.entries(historial)
+                  .flatMap(([cotId, entradas]: [string, any[]]) => {
+                    const cot = cotizaciones.find((c: any) => c.id === cotId)
+                    return entradas.map((h: any, i: number): V2TimelineItem => ({
+                      id: `${cotId}-${i}`,
+                      date: h.created_at ? new Date(h.created_at).toLocaleDateString("es-PE") : "-",
+                      title: cot ? `V${cot.version} - ${h.accion || "Actualizacion"}` : (h.accion || "Actualizacion"),
+                      subtitle: h.usuario_nombre || undefined,
+                    }))
+                  })
+                  .sort((a, b) => (a.date < b.date ? 1 : -1))
+                  .slice(0, 6)}
+              />
+            </V2SectionCard>
           </div>
 
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fafafa" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: resumenAlertas.length > 0 ? 10 : 0 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>Alertas simples</h3>
-              {resumenAlertas.length === 0 && <span style={{ fontSize: 12, color: "#15803d", fontWeight: 700 }}>Sin alertas operativas</span>}
-            </div>
-            {resumenAlertas.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-                {resumenAlertas.map((alerta: any) => (
-                  <div key={alerta.label} style={{ padding: "10px 12px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#9a3412", marginBottom: 3 }}>{alerta.label}</div>
-                    <div style={{ fontSize: 12, color: "#7c2d12" }}>{alerta.detalle}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className={styles.summaryGridFull}>
+            <V2SectionCard description="Accesos directos usados con frecuencia desde el Resumen." title="Acciones rapidas">
+              <V2QuickActions cols={2}>
+                <V2Button leadingIcon={<FileText size={15} />} onClick={() => handleTabChange("cotizaciones")} variant="secondary">
+                  Ver historial economico
+                </V2Button>
+                {puedeExportarProyecto && (
+                  <V2Button leadingIcon={<FolderOpen size={15} />} onClick={() => window.open(`/api/reporte-pdf?proyecto_id=${id}`, "_blank")} variant="secondary">
+                    Ver documentos
+                  </V2Button>
+                )}
+              </V2QuickActions>
+            </V2SectionCard>
           </div>
         </div>
       </section>

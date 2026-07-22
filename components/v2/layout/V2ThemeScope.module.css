@@ -23,7 +23,7 @@
   /* Normative Primary & Brand */
   --v2-primary: #75ff9e;
   --v2-primary-container: #00e676;
-  --v2-on-primary: #003918;
+  --v2-on-primary: #000000;
   --v2-accent: var(--v2-primary);
   --v2-accent-hover: #5aff89;
   --v2-accent-ink: var(--v2-on-primary);
@@ -1106,10 +1106,10 @@
   /* Brand & Primary */
   --v2-primary:           #03E373;
   --v2-primary-container: #00C665;
-  --v2-on-primary:        #03372A;
+  --v2-on-primary:        #FFFFFF;
   --v2-accent:            #03E373;
   --v2-accent-hover:      #02C764;
-  --v2-accent-ink:        #03372A;
+  --v2-accent-ink:        #FFFFFF;
   --v2-brand-primary:     #03E373;
 
   /* Text */

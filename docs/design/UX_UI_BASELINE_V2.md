@@ -58,3 +58,40 @@ Para eliminar la duplicidad del DOM y resolver el parpadeo de Sidebars/Headers:
    - Cabecera contextual + Secciones agrupadas + Barra fija inferior de acciones.
 4. **Dashboard de Analítica (`V2DashboardPageTemplate`)**:
    - KPIs en grilla + visualizaciones principales + sidebar secundario opcional.
+
+---
+
+## 6. REGLAS OBLIGATORIAS DE RECONEXIÓN CON LA CAPA MADRE
+
+Formalizadas tras el sprint de reconexión del detalle de Proyecto (`app/proyectos/[id]/page.tsx`) con `components/v2/system` y `components/v2/projects`:
+
+1. **Las acciones primarias cambian de color según el tema** (Dark: verde limón de marca + texto/icono negro; Light: verde oscuro institucional + texto/icono blanco). Se resuelve exclusivamente vía `--v2-primary`/`--v2-on-primary` (alias `--v2-accent`/`--v2-accent-ink`) en `V2ThemeScope.module.css`. Ningún componente ni pantalla define estos colores de forma local.
+2. **Los estados semánticos no cambian según el tema.** `success`/`warning`/`danger`/`info` (badges, `V2AlertCard`, `V2StatusBadge`) conservan su significado y paleta en Dark y Light.
+3. **El workflow conserva su paleta propia.** Los círculos/steppers de flujo de negocio (p. ej. `FLUJO` en Proyectos: naranja, morado, azul, gris) no se sustituyen por el verde primario del tema ni se unifican con los badges de estado.
+4. **No se permiten bordes estructurales permanentes** en cards, paneles, toolbars, tablas, drawers, modales, filtros, shell, header o tabs. La separación visual se resuelve con superficie, spacing, sombra sutil, jerarquía tipográfica y hover. Excepción: `focus-visible`, error/warning, selección, drag-and-drop y demás indicadores semánticos puntuales.
+5. **No se permiten colores de acción definidos inline.** Ningún `style={{ background: "#..." }}` ni `color: "#..."` en botones o CTAs; siempre `V2Button` (o `.btn-primary`/`.btn-secondary`, que ya leen de los mismos tokens).
+6. **No se permiten nuevos botones primarios fuera del primitive `V2Button`.** Cualquier CTA principal (Crear Proyecto, Nueva Cotización, Preparar pre-cuadre, Resumen Estratégico, Confirmar, Guardar, Aprobar) usa `variant="primary"`.
+7. **El CSS de módulo (`*.module.css` de una pantalla o dominio) solo define composición** (grid, layout, responsive, gaps, distribución) cuando ya existe un primitive global equivalente para color/tipografía/sombra/foco. No debe redefinir colores de botón, texto global, radios, bordes, focus ring ni estados semánticos — eso vive únicamente en `V2System.module.css` / `V2ThemeScope.module.css`.
+8. **Una pantalla no se considera migrada si su contenido sigue siendo visualmente legacy**, aunque esté envuelta por un shell V2 (`V2AppShell`/`V2DetailPageTemplate`). Envolver contenido legacy sin adoptar los primitives (`V2SectionCard`, `V2Button`, `V2Badge`, etc.) no cuenta como migración.
+
+### Anti-patrones (rechazar en revisión)
+
+```tsx
+// ❌ Color de acción inline — no responde al tema
+<button style={{ background: "#0F6E56", color: "#fff" }}>Confirmar</button>
+
+// ✅ Usa el primitive; el color sigue la regla de tema automáticamente
+<V2Button variant="primary">Confirmar</V2Button>
+```
+
+```css
+/* ❌ Borde estructural permanente en una card en estado normal */
+.miCard { border: 1px solid #e5e7eb; }
+
+/* ✅ Separación por superficie + sombra sutil, sin borde */
+.miCard { background: var(--v2-surface); box-shadow: var(--v2-shadow-sm); }
+```
+
+- Colores de estado (success/warning/danger/info) reutilizados como color de una acción/CTA (confunde "esto es un estado" con "esto es un botón").
+- Duplicar tokens de color/radio/sombra dentro del CSS de un módulo cuando el primitive ya los expone vía `var(--v2-...)`.
+- Envolver una tabla, select o card legacy en un componente V2 sin adoptar sus estilos internos ("migración de contenedor" disfrazada de migración completa).

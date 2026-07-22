@@ -82,6 +82,21 @@ Para mantener el sistema mantenible y escalable, se definen dos categorías de c
 
 ---
 
+## 1.1 Componentes de Proyectos V2 (`components/v2/projects/`)
+
+Añadidos durante la reconexión del detalle de Proyecto con la capa madre. Son presentacionales: la lógica de negocio, permisos y mutaciones Supabase permanecen en `app/proyectos/[id]/page.tsx`, que las pasa via props/callbacks.
+
+* **`ProjectDetailShellV2` / `ProjectDetailHeaderV2` / `ProjectDetailTabsV2` / `ProjectDetailContentV2`**: Shell del detalle (Lote 1), envuelve `V2DetailPageTemplate`.
+* **`ProjectActionToolbarV2`**: Clasifica la botonera de "Acciones del proyecto" en `primary` (un único CTA, `V2Button variant="primary"`) y `secondary[]`, evitando que el CTA principal compita visualmente con el resto.
+* **`ProjectWorkflowCardV2`**: Presenta el stepper de 10 estados (`FLUJO`) y la "siguiente acción disponible". Recibe los pasos ya resueltos (color, completado, clickable) y los callbacks (`primaryAction`, `secondaryAction`, `dangerAction`) — nunca calcula permisos ni ejecuta mutaciones por sí mismo. Preserva la paleta semántica de `FLUJO`, no la sustituye por `--v2-primary`.
+* **`ProjectInfoCardV2`**: Tarjeta genérica de hechos label/value sobre `V2SectionCard`. Reutilizada para "Datos base del proyecto" e "Información económica" en Resumen; candidata para la ficha rápida de Cliente en un lote posterior.
+
+**Deliberadamente NO creados** (para no duplicar primitives ya existentes en `components/v2/system`, ver Criterio A): `ProjectAlertsCardV2` (se usa `V2AlertCard` directamente), `ProjectActivityCardV2` (se usa `V2ActivityTimeline`), `ProjectSummaryGridV2` (grid de composición pura, resuelta como clase CSS `.summaryGrid` en `ProjectDetailV2.module.css`, no amerita un componente).
+
+`ProjectDetailV2.module.css` contiene únicamente composición (grid, spacing, layout) — cero colores de botón, texto global, radios o sombras redefinidos; todo eso se lee de `var(--v2-...)`.
+
+---
+
 ## 3. Patrón CRM V2 y su Aplicación en Clientes V2
 
 ### Patrón CRM Aplicado

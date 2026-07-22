@@ -116,8 +116,8 @@ body { margin: 0; font-family: var(--iz-font-sans); background: var(--iz-color-b
 }
 
 .btn-primary {
-  background: var(--v2-brand);
-  color: #fff;
+  background: var(--v2-primary, var(--v2-brand));
+  color: var(--v2-on-primary, #fff);
   padding: 8px 16px;
   border-radius: var(--v2-radius);
   font-size: 13px;
@@ -129,7 +129,7 @@ body { margin: 0; font-family: var(--iz-font-sans); background: var(--iz-color-b
 }
 
 .btn-primary:hover {
-  background: var(--v2-brand-darken);
+  background: var(--v2-accent-hover, var(--v2-brand));
 }
 
 .btn-secondary {
@@ -147,7 +147,7 @@ body { margin: 0; font-family: var(--iz-font-sans); background: var(--iz-color-b
 .btn-secondary:hover {
   background: var(--v2-surface-soft);
 }
-.card { background: var(--v2-surface); border-radius: var(--v2-radius); border: 1px solid var(--v2-border); padding: 20px; }
+.card { background: var(--v2-surface); border-radius: var(--v2-radius); box-shadow: var(--v2-shadow-sm, var(--iz-shadow-sm)); padding: 20px; }
 .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 11px; font-weight: 500; }
 .badge-success { background: var(--v2-success); color: var(--v2-text); }
 .badge-warning { background: var(--v2-warning); color: var(--v2-text); }

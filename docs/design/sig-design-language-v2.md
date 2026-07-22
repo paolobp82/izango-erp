@@ -27,15 +27,26 @@ El lenguaje visual de Izango SIG V2 adopta como estándar exclusivo el **Dark Mo
 
 ## 3. SEMÁNTICA DE COLOR Y TOKENS DE ESTADO
 
-* **Marca Primaria (`primary`):** `#75ff9e` (Verde esmeralda técnico de alto rendimiento).
+* **Marca Primaria (`primary`):** `#75ff9e` en Dark / `#03E373` en Light (ver Regla de Acciones Primarias abajo).
 * **Contenedor Primario (`primary-container`):** `#00e676` (Fondo para botones de acción principal y estados activos).
-* **Texto sobre Primario (`on-primary`):** `#003918` (Verde oscuro de alto contraste para legibilidad).
+* **Texto sobre Primario (`on-primary`):** `#000000` en Dark / `#FFFFFF` en Light (ver Regla de Acciones Primarias abajo).
 * **Borde Principal (`outline`):** `#859585` (Línea de contención sutil de 1px).
 * **Borde Secundario (`outline-variant`):** `#3b4a3d` (Divisor de celdas y rejillas internas).
 * **Éxito (`success`):** `#00e676` (Proyectos activos, cobros completados, RQs pagados).
 * **Advertencia (`warning`):** `#f59e0b` (Aprobaciones pendientes, montos en revisión).
 * **Peligro / Error (`error` / `danger`):** `#ffb4ab` / `#93000a` (Alertas críticas, RQs rechazados, desvíos presupuestales).
 * **Información (`info`):** `#2563eb` (Estados intermedios, notas informativas).
+
+### 3.1 Regla de Acciones Primarias y CTAs (obligatoria)
+
+El color de fondo y de texto/ícono de toda acción primaria o CTA (p. ej. Crear Proyecto, Nueva Cotización, Preparar pre-cuadre, Resumen Estratégico, Confirmar, Guardar, Aprobar) depende del tema activo:
+
+| Tema  | Background (`primary` / `accent`) | Texto (`on-primary` / `accent-ink`) | Ícono |
+|-------|------------------------------------|--------------------------------------|-------|
+| Dark  | Brand Lime `#75ff9e`               | Negro `#000000`                      | Negro `#000000` |
+| Light | Brand Green `#03E373`              | Blanco `#FFFFFF`                     | Blanco `#FFFFFF` |
+
+Esta regla **no aplica** a los círculos de estado del workflow ni a los badges de estado (success/warning/danger/info), que conservan sus colores semánticos definidos arriba. Toda pantalla nueva y toda migración a V2 debe respetar esta tabla automáticamente vía los tokens `--v2-primary`/`--v2-on-primary` (o sus alias `--v2-accent`/`--v2-accent-ink`) — no se deben hardcodear colores de CTA.
 
 ---
 
