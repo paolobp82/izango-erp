@@ -1928,7 +1928,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       </section>
       <ProjectDetailSection activeTab={activeTab} tab="cotizaciones">
       <section id="tab-proformas" style={{ scrollMarginTop: 120 }}>
-      <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+      <div className="card" style={{ marginBottom: 12, padding: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 4 }}>Tab Cotizaciones</div>
@@ -1999,7 +1999,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "var(--v2-text)" }}>Versiones</h2>
           <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>{cotizaciones.length} {cotizaciones.length === 1 ? "versión" : "versiones"}</span>
         </div>
@@ -2012,27 +2012,27 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--v2-surface-muted)" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>VERSIÓN</th>
+                <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>VERSIÓN</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>ESTADO</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>TOTAL CLIENTE</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>MARGEN</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>TOTAL CLIENTE</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>MARGEN</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>CONDICIÓN DE PAGO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>HISTORIAL</th>
-                <th style={{ textAlign: "right", padding: "10px 20px", width: 200, fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>ACCIONES</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>HISTORIAL</th>
+                <th style={{ textAlign: "right", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>ACCIONES</th>
               </tr>
             </thead>
             <tbody>
               {cotizaciones.map((cot, idx) => {
                 const esAprobada = (cot.id === proyecto?.cotizacion_aprobada_id || cot.estado === "aprobada_cliente") && ["en_curso","terminado","liquidado","pendiente_facturacion","facturado","cerrado_financiero"].includes(proyecto?.estado)
                 return (
-                  <tr key={cot.id} style={{ background: esAprobada ? "var(--v2-success-bg)" : idx % 2 === 0 ? "var(--v2-surface)" : "var(--v2-surface-soft)" }}>
-                    <td style={{ padding: "12px 20px" }}>
+                  <tr style={{ background: esAprobada ? "var(--v2-success-bg)" : idx % 2 === 0 ? "var(--v2-surface)" : "var(--v2-surface-soft)" }} key={cot.id}>
+                    <td style={{ padding: "10px 16px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontWeight: 700, fontSize: 15, color: "var(--v2-text)" }}>V{cot.version}</span>
                         {esAprobada && <V2StatusBadge size="sm" tone="success">Aprobada</V2StatusBadge>}
                       </div>
                     </td>
-                    <td style={{ padding: "12px" }}>
+                    <td style={{ padding: "10px 12px", verticalAlign: "middle" }}>
                       <V2StatusSelect
                         onChange={async (ev) => {
                           const nuevoEstado = ev.target.value
@@ -2054,16 +2054,16 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         value={cot.estado || "borrador"}
                       />
                     </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "var(--v2-accent)" }}>
+                    <td style={{ padding: "10px 12px", textAlign: "right", verticalAlign: "middle", whiteSpace: "nowrap", fontSize: 14, fontWeight: 700, color: "var(--v2-accent)" }}>
                       {cot.total_cliente > 0 ? fmt(cot.total_cliente) : "—"}
                     </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: (cot.margen_pct || 0) >= 35 ? "var(--v2-accent)" : "var(--v2-muted)" }}>
+                    <td style={{ padding: "10px 12px", textAlign: "right", verticalAlign: "middle", whiteSpace: "nowrap", fontSize: 13, fontWeight: 600, color: (cot.margen_pct || 0) >= 35 ? "var(--v2-accent)" : "var(--v2-muted)" }}>
                       {cot.margen_pct > 0 ? cot.margen_pct.toFixed(1) + "%" : "—"}
                     </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "var(--v2-muted)" }}>{cot.condicion_pago || "—"}</td>
-                    <td style={{ padding: "12px" }}>
+                    <td style={{ padding: "10px 12px", verticalAlign: "middle", fontSize: 12, color: "var(--v2-muted)" }}>{cot.condicion_pago || "—"}</td>
+                    <td style={{ padding: "10px 12px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                       {historial[cot.id] && historial[cot.id].length > 0 && (
-                        <div style={{ marginTop: 4 }}>
+                        <div style={{ display: "grid", gap: 2 }}>
                           {historial[cot.id].slice(0, 3).map((h: any, i: number) => (
                             <div key={i} style={{ fontSize: 10, color: "var(--v2-subtle)", display: "flex", gap: 4, alignItems: "center" }}>
                               <span style={{ color: h.accion === "aprobada_cliente" ? "var(--v2-success)" : "var(--v2-muted)" }}>
@@ -2077,8 +2077,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                    <td style={{ padding: "10px 16px", textAlign: "right", verticalAlign: "middle" }}>
+                      <div className={styles.rowActions}>
                         {puedeEditarProforma && (
                           <V2Button leadingIcon={<Pencil size={13} />} onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}`)} size="sm" variant="secondary">
                             Editar
@@ -2088,7 +2088,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                           Vista previa
                         </V2Button>
                         {puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cot.estado !== "aprobada_cliente" && (
-                          <V2Button leadingIcon={<CheckCircle2 size={13} />} onClick={() => marcarCotizacionAprobadaCliente(cot)} size="sm" variant="secondary">
+                          <V2Button leadingIcon={<CheckCircle2 size={13} />} onClick={() => marcarCotizacionAprobadaCliente(cot)} size="sm" variant="success">
                             Aprobado cliente
                           </V2Button>
                         )}
@@ -2468,7 +2468,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           title={clienteNombre}
         />
 
-        <div className={styles.summaryGrid} style={{ marginTop: 16 }}>
+        <div className={styles.clienteGrid} style={{ marginTop: 16 }}>
           <ProjectInfoCardV2
             rows={[
               { label: "Razón social", value: clienteNombre },
@@ -2485,20 +2485,20 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
           <div style={{ display: "grid", gap: 12 }}>
             <V2SectionCard title="Acciones del cliente">
-              <div style={{ display: "grid", gap: 8 }}>
-                <V2Button disabled={!clienteId} fullWidth leadingIcon={<Eye size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
+              <div className={styles.clienteActionsGrid}>
+                <V2Button className={styles.clienteActionButton} disabled={!clienteId} leadingIcon={<Eye size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
                   Ver ficha completa
                 </V2Button>
-                <V2Button disabled={!clienteId} fullWidth leadingIcon={<Pencil size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
+                <V2Button className={styles.clienteActionButton} disabled={!clienteId} leadingIcon={<Pencil size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
                   Editar cliente
                 </V2Button>
-                <V2Button disabled={!clienteId} fullWidth leadingIcon={<FolderOpen size={15} />} onClick={() => clienteId && router.push(`/proyectos?cliente_id=${clienteId}`)} variant="secondary">
+                <V2Button className={styles.clienteActionButton} disabled={!clienteId} leadingIcon={<FolderOpen size={15} />} onClick={() => clienteId && router.push(`/proyectos?cliente_id=${clienteId}`)} variant="secondary">
                   Ver proyectos del cliente
                 </V2Button>
-                <V2Button disabled={!clienteId} fullWidth leadingIcon={<FilePlus2 size={15} />} onClick={() => clienteId && router.push(`/proyectos/nuevo?cliente_id=${clienteId}`)} variant="primary">
-                  Crear nuevo proyecto
-                </V2Button>
               </div>
+              <V2Button className={styles.clientePrimaryAction} disabled={!clienteId} leadingIcon={<FilePlus2 size={15} />} onClick={() => clienteId && router.push(`/proyectos/nuevo?cliente_id=${clienteId}`)} variant="primary">
+                Crear nuevo proyecto
+              </V2Button>
             </V2SectionCard>
 
             <V2SectionCard title="Proyectos relacionados">

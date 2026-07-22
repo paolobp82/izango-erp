@@ -254,8 +254,8 @@
 /* Cliente tab composition */
 .relatedProjectCard {
   display: grid;
-  gap: 2px;
-  padding: 10px 12px;
+  gap: 4px;
+  padding: 8px 10px;
   border-radius: var(--v2-radius);
   background: var(--v2-surface-muted);
 }
@@ -272,7 +272,7 @@
 }
 
 .relatedProjectHint {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   font-size: 12px;
   color: var(--v2-subtle);
 }
@@ -281,4 +281,64 @@
   font-size: 12px;
   font-weight: 700;
   color: var(--v2-success);
+}
+
+/* Cotizaciones: densidad de la tabla de versiones */
+.rowActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--v2-space-2);
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 900px) {
+  .rowActions {
+    flex-wrap: wrap;
+  }
+}
+
+/* Cliente tab: ficha rapida mas ancha que la columna lateral (acciones +
+   proyectos relacionados), para que el grid interno de ProjectInfoCardV2
+   pueda mostrar 4 columnas en desktop en vez de 2. */
+.clienteGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 860px) {
+  .clienteGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.clienteActionsGrid {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.clienteActionButton,
+.clientePrimaryAction {
+  width: fit-content;
+  max-width: 100%;
+}
+
+@media (max-width: 420px) {
+  .clienteActionsGrid {
+    align-items: stretch;
+  }
+
+  .clienteActionButton {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .clientePrimaryAction {
+    width: 100%;
+  }
 }

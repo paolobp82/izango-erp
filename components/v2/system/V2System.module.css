@@ -210,6 +210,15 @@
   background: #ff8c94;
 }
 
+.buttonSuccess {
+  background: var(--v2-success-bg);
+  color: var(--v2-success);
+}
+
+.buttonSuccess:hover {
+  filter: brightness(1.15);
+}
+
 .button:active,
 .iconButton:active {
   transform: translateY(1px);
@@ -372,14 +381,17 @@
 
 .statusSelect {
   appearance: none;
+  height: var(--v2-control-sm);
+  min-width: 112px;
   border: 1px solid transparent;
   border-radius: var(--v2-radius-sm);
   font: inherit;
   font-size: 11px;
   font-weight: 700;
+  line-height: var(--v2-control-sm);
   cursor: pointer;
   outline: none;
-  padding: 4px 24px 4px 10px;
+  padding: 0 28px 0 12px;
   transition: filter 0.16s ease, box-shadow 0.16s ease;
 }
 
@@ -398,10 +410,12 @@
 
 .statusSelectChevron {
   position: absolute;
-  right: 8px;
+  top: 50%;
+  right: 10px;
   color: var(--v2-subtle);
   font-size: 9px;
   pointer-events: none;
+  transform: translateY(-50%);
 }
 
 .statusSelectNeutral { background: var(--v2-neutral-bg); color: var(--v2-muted); }
