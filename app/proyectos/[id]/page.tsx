@@ -16,7 +16,7 @@ import { esFacturaAnulada, totalFactura } from "@/lib/finance"
 import { puedeCerrarFinancieramenteProyecto } from "@/lib/proyecto-cierre-financiero"
 import { RQ_MIGRATION_SUCCESS_ACTIONS } from "@/lib/rq-migracion"
 import { V2DetailPageTemplate } from "@/components/v2/templates"
-import { V2AlertCard, V2ActivityTimeline, V2Button, V2ErrorState, V2QuickActions, V2SectionCard, V2SectionHeader, V2Select, V2StatusBadge, V2StatusSelect } from "@/components/v2/system"
+import { V2AlertCard, V2ActivityTimeline, V2Button, V2EmptyState, V2ErrorState, V2MetricCard, V2QuickActions, V2SectionCard, V2SectionHeader, V2Select, V2StatusBadge, V2StatusSelect } from "@/components/v2/system"
 import type { V2TimelineItem } from "@/components/v2/system/V2ActivityTimeline"
 import { ProjectDetailShellV2 } from "@/components/v2/projects/ProjectDetailShellV2"
 import { ProjectDetailHeaderV2, estadoTone } from "@/components/v2/projects/ProjectDetailHeaderV2"
@@ -2117,255 +2117,240 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       </ProjectDetailSection>
 
       <ProjectDetailSection activeTab={activeTab} tab="costos-rq">
-      <section id="tab-costos-rq" className="card" style={{ marginTop: 24, marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Costos / RQ</div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Costos y requerimientos de pago</h2>
-            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-              Ordena pre-cuadre, proveedores y RQs del proyecto sin cambiar la logica actual.
-            </p>
-          </div>
-          <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver módulo RQ</button>
+      <section id="tab-costos-rq" style={{ scrollMarginTop: 120 }}>
+        <V2SectionHeader
+          actions={
+            <V2Button leadingIcon={<Receipt size={15} />} onClick={() => router.push(`/rq?proyecto_id=${id}`)} size="sm" variant="secondary">
+              Ver módulo RQ
+            </V2Button>
+          }
+          description="Ordena pre-cuadre, proveedores y RQs del proyecto sin cambiar la lógica actual."
+          title="Costos y requerimientos de pago"
+        />
+
+        <div className={styles.metricsRow} style={{ marginTop: 16 }}>
+          <V2MetricCard
+            label="Versión aprobada"
+            subtext={cotAprobada?.total_cliente ? fmt(cotAprobada.total_cliente) : "Se define desde Cotizaciones / aprobación"}
+            value={cotAprobada ? `V${cotAprobada.version}` : "Pendiente"}
+          />
+          <V2MetricCard
+            label="Pre-cuadre"
+            subtext="Usa el flujo actual de proveedores y costos."
+            value={proyecto?.estado === "en_curso" ? "Disponible" : "Según estado"}
+          />
+          <V2MetricCard
+            label="RQs del proyecto"
+            subtext={rqsProyecto.length ? `${fmt(totalRqs)} activos` : "Sin requerimientos vinculados"}
+            value={rqsProyecto.length}
+          />
         </div>
-        <div style={{ padding: 20, display: "grid", gap: 12 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>Versión aprobada</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: cotAprobada ? "#15803d" : "#9ca3af" }}>
-                {cotAprobada ? `V${cotAprobada.version}` : "Pendiente"}
-              </div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                {cotAprobada?.total_cliente ? fmt(cotAprobada.total_cliente) : "Se define desde Cotizaciones / aprobación"}
-              </div>
-            </div>
-            <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>Pre-cuadre</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: proyecto?.estado === "en_curso" ? "#92400e" : "#9ca3af" }}>
-                {proyecto?.estado === "en_curso" ? "Disponible" : "Segun estado"}
-              </div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Usa el flujo actual de proveedores y costos.</div>
-            </div>
-            <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>RQs del proyecto</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: rqsProyecto.length ? "#0F6E56" : "#9ca3af" }}>
-                {rqsProyecto.length}
-              </div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                {rqsProyecto.length ? `${fmt(totalRqs)} activos` : "Sin requerimientos vinculados"}
-              </div>
-            </div>
-          </div>
 
-          <div style={{ padding: 16, border: "1px solid #fcd34d", borderRadius: 10, background: "#fffbeb" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ marginTop: 12 }}>
+          <V2AlertCard
+            actionLabel={proyecto?.estado === "en_curso" && puedeCrearRQ ? "+ Generar RQs adicionales" : "No disponible"}
+            message="Pre-cuadre y RQs adicionales: mantiene el flujo actual — selecciona proveedores, costos finales y genera requerimientos de pago adicionales."
+            onClick={proyecto?.estado === "en_curso" && puedeCrearRQ ? async () => {
+              const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
+              setProveedores(provs || [])
+              setPreCuadreItems([{ id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, esAdicional: true, tipo_pago: "contado", tratamiento_igv: tratamientoIgvDefaultProyecto }])
+              setShowPreCuadre(true)
+            } : undefined}
+            tipo="warning"
+          />
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <V2SectionHeader
+            actions={
+              <V2Button leadingIcon={<Receipt size={15} />} onClick={() => router.push(`/rq?proyecto_id=${id}`)} size="sm" variant="secondary">
+                Ver en módulo RQ
+              </V2Button>
+            }
+            description={`${rqsProyecto.length} RQs · ${rqsPendientes.length} pendientes · ${rqsPagados.length} pagados · ${fmt(totalRqsPendientes)} por gestionar`}
+            title="Ejecución de RQs del proyecto"
+          />
+
+          {requiereMigracionRQ && cotAprobada && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: 16,
+                borderRadius: 10,
+                borderLeft: "3px solid var(--v2-warning)",
+                background: "var(--v2-warning-bg)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 20,
+                flexWrap: "wrap",
+              }}
+            >
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#92400e", marginBottom: 4 }}>Pre-cuadre y RQs adicionales</div>
-                <div style={{ fontSize: 12, color: "#92400e" }}>
-                  Mantiene el flujo actual: selecciona proveedores, costos finales y genera requerimientos de pago adicionales.
+                <div
+                  style={{
+                    fontWeight: 700,
+                    color: "var(--v2-warning)",
+                    marginBottom: 4,
+                  }}
+                >
+                  ⚠ Hay requerimientos asociados a una versión anterior.
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: "var(--v2-text-secondary)",
+                  }}
+                >
+                  Se detectaron <b>{rqsVersionAnterior.length}</b> RQs que aún apuntan a una versión anterior de la cotización. Se recomienda ejecutar la migración antes de continuar.
                 </div>
               </div>
-              {proyecto?.estado === "en_curso" && puedeCrearRQ ? (
-                <button onClick={async () => {
-                  const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
-                  setProveedores(provs || [])
-                  setPreCuadreItems([{ id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, esAdicional: true, tipo_pago: "contado", tratamiento_igv: tratamientoIgvDefaultProyecto }])
-                  setShowPreCuadre(true)
-                }} style={{ padding: "8px 16px", border: "1px dashed #f59e0b", borderRadius: 8, background: "#fff", color: "#92400e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  + Generar RQs adicionales
-                </button>
-              ) : (
-                <span style={{ fontSize: 12, color: "#92400e", fontWeight: 600 }}>Disponible cuando el proyecto este en curso y el rol lo permita</span>
-              )}
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <select
+                  value={cotizacionDestinoMigracionId || proyecto?.cotizacion_aprobada_id || ""}
+                  onChange={(e) => setCotizacionDestinoMigracionId(e.target.value)}
+                  style={{ padding: "8px 10px", border: "1px solid var(--v2-border)", borderRadius: 8, fontSize: 13, background: "var(--v2-surface)", color: "var(--v2-text)" }}
+                >
+                  <option value="">Seleccionar versión destino</option>
+                  {[...cotizaciones]
+                    .sort((a: any, b: any) => (b.version || 0) - (a.version || 0))
+                    .map((cot: any) => (
+                      <option key={cot.id} value={cot.id}>
+                        V{cot.version} {cot.id === proyecto?.cotizacion_aprobada_id ? "(actual aprobada)" : ""}
+                      </option>
+                    ))}
+                </select>
+
+                <V2Button
+                  onClick={async () => {
+                    const destinoId =
+                      cotizacionDestinoMigracionId ||
+                      proyecto?.cotizacion_aprobada_id ||
+                      cotizaciones.sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0]?.id
+
+                    const cotizacionDestino = cotizaciones.find((cot: any) => cot.id === destinoId)
+
+                    if (!cotizacionDestino) {
+                      alert("Selecciona una versión destino para migrar los RQs.")
+                      return
+                    }
+
+                    const comparacion = await compararRQsContraVersionDestino(cotizacionDestino)
+
+                    if (!comparacion) {
+                      alert("No fue posible calcular la migración hacia la versión seleccionada.")
+                      return
+                    }
+
+                    setComparacionPendiente(comparacion)
+                    setCotizacionPendienteAprobar(cotizacionDestino)
+                    setShowMigracionRQ(true)
+                  }}
+                  size="sm"
+                  variant="primary"
+                >
+                  Migrar RQs
+                </V2Button>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Ejecución de RQs del proyecto</div>
-                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                  {rqsProyecto.length} RQs · {rqsPendientes.length} pendientes · {rqsPagados.length} pagados · {fmt(totalRqsPendientes)} por gestionar
-                </div>
-              </div>
-              <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver en módulo RQ</button>
+          {rqsProyecto.length === 0 ? (
+            <div style={{ marginTop: 16 }}>
+              <V2EmptyState
+                compact
+                description="Este proyecto todavía no tiene requerimientos de pago vinculados."
+                title="Sin requerimientos vinculados"
+              />
             </div>
-            {requiereMigracionRQ && cotAprobada && (
-              <div
-                style={{
-                  margin: 16,
-                  padding: 16,
-                  borderRadius: 10,
-                  border: "1px solid #FACC15",
-                  background: "#FEFCE8",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 20,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      color: "#92400E",
-                      marginBottom: 4,
-                    }}
-                  >
-                    ⚠ Hay requerimientos asociados a una versión anterior.
-                  </div>
+          ) : (
+            <div style={{ marginTop: 16, overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "var(--v2-surface-muted)" }}>
+                    <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>ORIGEN</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>ESTADO</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>ÍTEM DEL PRESUPUESTO</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>RQ</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>PROVEEDOR</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>FECHA SOLICITUD</th>
+                    <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>PRESUP.</th>
+                    <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>FINAL RQ</th>
+                    <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>VARIACIÓN</th>
+                    <th style={{ padding: "10px 16px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>ACCIÓN</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filasEjecucionRqs.map((fila: any, idx: number) => {
+                    const estilosEstadoRQ: Record<string, any> = {
+                      generado: { dot: "var(--v2-success)", label: "Generado", color: "var(--v2-success)", bg: "var(--v2-success-bg)" },
+                      pendiente: { dot: "var(--v2-warning)", label: "Pendiente", color: "var(--v2-warning)", bg: "var(--v2-warning-bg)" },
+                      cancelado: { dot: "var(--v2-info)", label: "Cancelado", color: "var(--v2-info)", bg: "var(--v2-info-bg)" },
+                      adicional: { dot: "var(--v2-indigo)", label: "Adicional", color: "var(--v2-indigo)", bg: "var(--v2-indigo-bg)" },
+                    }
+                    const estadoStyle = estilosEstadoRQ[String(fila.estadoVista)] || { dot: "var(--v2-subtle)", label: String(fila.estadoVista || "Sin estado"), color: "var(--v2-text-secondary)", bg: "var(--v2-neutral-bg)" }
 
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "#78350F",
-                    }}
-                  >
-                    Se detectaron <b>{rqsVersionAnterior.length}</b> RQs que aún apuntan a una versión anterior de la cotización. Se recomienda ejecutar la migración antes de continuar.
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <select
-                    value={cotizacionDestinoMigracionId || proyecto?.cotizacion_aprobada_id || ""}
-                    onChange={(e) => setCotizacionDestinoMigracionId(e.target.value)}
-                    style={{ padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 13, background: "#fff" }}
-                  >
-                    <option value="">Seleccionar versión destino</option>
-                    {[...cotizaciones]
-                      .sort((a: any, b: any) => (b.version || 0) - (a.version || 0))
-                      .map((cot: any) => (
-                        <option key={cot.id} value={cot.id}>
-                          V{cot.version} {cot.id === proyecto?.cotizacion_aprobada_id ? "(actual aprobada)" : ""}
-                        </option>
-                      ))}
-                  </select>
-
-                  <button
-                    className="btn-primary"
-                    onClick={async () => {
-                      const destinoId =
-                        cotizacionDestinoMigracionId ||
-                        proyecto?.cotizacion_aprobada_id ||
-                        cotizaciones.sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0]?.id
-
-                      const cotizacionDestino = cotizaciones.find((cot: any) => cot.id === destinoId)
-
-                      if (!cotizacionDestino) {
-                        alert("Selecciona una versión destino para migrar los RQs.")
-                        return
-                      }
-
-                      const comparacion = await compararRQsContraVersionDestino(cotizacionDestino)
-
-                      if (!comparacion) {
-                        alert("No fue posible calcular la migración hacia la versión seleccionada.")
-                        return
-                      }
-
-                      setComparacionPendiente(comparacion)
-                      setCotizacionPendienteAprobar(cotizacionDestino)
-                      setShowMigracionRQ(true)
-                    }}
-                  >
-                    Migrar RQs
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {rqsProyecto.length === 0 ? (
-              <div style={{ padding: 20, color: "#9ca3af", fontSize: 13, textAlign: "center" }}>
-                Este proyecto todavia no tiene requerimientos de pago vinculados.
-              </div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ background: "#f9fafb" }}>
-                      <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ORIGEN</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ESTADO</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ÍTEM DEL PRESUPUESTO</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>RQ</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PROVEEDOR</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>FECHA SOLICITUD</th>
-                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PRESUP.</th>
-                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>FINAL RQ</th>
-                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>VARIACIÓN</th>
-                      <th style={{ padding: "10px 16px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ACCIÓN</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filasEjecucionRqs.map((fila: any, idx: number) => {
-                      const estilosEstadoRQ: Record<string, any> = {
-                        generado: { dot: "#22c55e", label: "Generado", color: "#166534", bg: "#dcfce7" },
-                        pendiente: { dot: "#f59e0b", label: "Pendiente", color: "#92400e", bg: "#fef3c7" },
-                        cancelado: { dot: "#3b82f6", label: "Cancelado", color: "#1e40af", bg: "#dbeafe" },
-                        adicional: { dot: "#8b5cf6", label: "Adicional", color: "#5b21b6", bg: "#ede9fe" },
-                      }
-                      const estadoStyle = estilosEstadoRQ[String(fila.estadoVista)] || { dot: "#9ca3af", label: String(fila.estadoVista || "Sin estado"), color: "#374151", bg: "#f3f4f6" }
-
-                      return (
-                        <tr key={fila.key} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                          <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700, color: fila.origen === "adicional" ? "#5b21b6" : "#374151", whiteSpace: "nowrap" }}>
-                            {fila.origen === "adicional" ? "➕ Adicional" : fila.legacy ? "📋 Proyecto legacy" : "📋 Proyecto"}
-                          </td>
-                          <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, background: estadoStyle.bg, color: estadoStyle.color, padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
-                              <span style={{ width: 9, height: 9, borderRadius: "50%", background: estadoStyle.dot, display: "inline-block" }} />
-                              {estadoStyle.label}
-                            </span>
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 12, color: "#374151", minWidth: 240 }}>{fila.descripcion}</td>
-                          <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, color: fila.rq ? "#0F6E56" : "#9ca3af", whiteSpace: "nowrap" }}>
-                            {fila.rq ? rqCodigo(fila.rq) : "—"}
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", minWidth: 160 }}>{fila.proveedor}</td>
-                          <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>
-                            {fila.fecha ? new Date(fila.fecha).toLocaleDateString("es-PE") : "—"}
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, color: "#374151", textAlign: "right", whiteSpace: "nowrap" }}>
-                            {fmt(fila.montoPresupuestado)}
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 13, fontWeight: 900, color: "#0F6E56", textAlign: "right", whiteSpace: "nowrap" }}>
-                            {fmt(fila.montoFinal)}
-                            {fila.rq && <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600 }}>{rqTratamientoIgvLabel(fila.rq)}</div>}
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, textAlign: "right", whiteSpace: "nowrap" }}>
-                            {(() => {
-                              const presup = Number(fila.montoPresupuestado || 0)
-                              const final = Number(fila.montoFinal || 0)
-                              const diff = final - presup
-                              const pct = presup > 0 ? (diff / presup) * 100 : 0
-                              const color = Math.abs(diff) < 0.01 ? "#6b7280" : diff > 0 ? "#dc2626" : "#15803d"
-                              return (
-                                <div style={{ color }}>
-                                  {Math.abs(diff) < 0.01 ? "S/ 0.00" : `${diff > 0 ? "+" : "-"}${fmt(Math.abs(diff))}`}
-                                  {presup > 0 && <div style={{ fontSize: 10, fontWeight: 700 }}>{Math.abs(pct).toFixed(1)}%</div>}
-                                </div>
-                              )
-                            })()}
-                          </td>
-                          <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
-                            {fila.estadoVista === "pendiente" && (
-                              <V2Button onClick={() => abrirPreCuadreDesdeItem(fila.item)} size="sm" variant="primary">Generar</V2Button>
-                            )}
-                            {fila.estadoVista === "cancelado" && (
-                              <button onClick={() => abrirPreCuadreDesdeItem(fila.item)} style={{ padding: "7px 12px", border: "1px solid #bfdbfe", borderRadius: 8, background: "#eff6ff", color: "#1e40af", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Regenerar</button>
-                            )}
-                            {(fila.estadoVista === "generado" || fila.estadoVista === "adicional") && fila.rq && (
-                              <button onClick={() => router.push(`/rq?proyecto_id=${id}&rq_id=${fila.rq.id}&view=list`)} className="btn-secondary" style={{ fontSize: 11 }}>Abrir</button>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                    return (
+                      <tr key={fila.key} style={{ borderTop: "1px solid var(--v2-border-soft)", background: idx % 2 === 0 ? "var(--v2-surface)" : "var(--v2-surface-soft)" }}>
+                        <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700, color: fila.origen === "adicional" ? "var(--v2-indigo)" : "var(--v2-text-secondary)", whiteSpace: "nowrap" }}>
+                          {fila.origen === "adicional" ? "➕ Adicional" : fila.legacy ? "📋 Proyecto legacy" : "📋 Proyecto"}
+                        </td>
+                        <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, background: estadoStyle.bg, color: estadoStyle.color, padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
+                            <span style={{ width: 9, height: 9, borderRadius: "50%", background: estadoStyle.dot, display: "inline-block" }} />
+                            {estadoStyle.label}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px", fontSize: 12, color: "var(--v2-text-secondary)", minWidth: 240 }}>{fila.descripcion}</td>
+                        <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, color: fila.rq ? "var(--v2-accent)" : "var(--v2-subtle)", whiteSpace: "nowrap" }}>
+                          {fila.rq ? rqCodigo(fila.rq) : "—"}
+                        </td>
+                        <td style={{ padding: "12px", fontSize: 12, color: "var(--v2-muted)", minWidth: 160 }}>{fila.proveedor}</td>
+                        <td style={{ padding: "12px", fontSize: 12, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>
+                          {fila.fecha ? new Date(fila.fecha).toLocaleDateString("es-PE") : "—"}
+                        </td>
+                        <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, color: "var(--v2-text-secondary)", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {fmt(fila.montoPresupuestado)}
+                        </td>
+                        <td style={{ padding: "12px", fontSize: 13, fontWeight: 900, color: "var(--v2-accent)", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {fmt(fila.montoFinal)}
+                          {fila.rq && <div style={{ fontSize: 10, color: "var(--v2-muted)", fontWeight: 600 }}>{rqTratamientoIgvLabel(fila.rq)}</div>}
+                        </td>
+                        <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, textAlign: "right", whiteSpace: "nowrap" }}>
+                          {(() => {
+                            const presup = Number(fila.montoPresupuestado || 0)
+                            const final = Number(fila.montoFinal || 0)
+                            const diff = final - presup
+                            const pct = presup > 0 ? (diff / presup) * 100 : 0
+                            const color = Math.abs(diff) < 0.01 ? "var(--v2-muted)" : diff > 0 ? "var(--v2-danger)" : "var(--v2-success)"
+                            return (
+                              <div style={{ color }}>
+                                {Math.abs(diff) < 0.01 ? "S/ 0.00" : `${diff > 0 ? "+" : "-"}${fmt(Math.abs(diff))}`}
+                                {presup > 0 && <div style={{ fontSize: 10, fontWeight: 700 }}>{Math.abs(pct).toFixed(1)}%</div>}
+                              </div>
+                            )
+                          })()}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {fila.estadoVista === "pendiente" && (
+                            <V2Button onClick={() => abrirPreCuadreDesdeItem(fila.item)} size="sm" variant="primary">Generar</V2Button>
+                          )}
+                          {fila.estadoVista === "cancelado" && (
+                            <V2Button onClick={() => abrirPreCuadreDesdeItem(fila.item)} size="sm" variant="secondary">Regenerar</V2Button>
+                          )}
+                          {(fila.estadoVista === "generado" || fila.estadoVista === "adicional") && fila.rq && (
+                            <V2Button onClick={() => router.push(`/rq?proyecto_id=${id}&rq_id=${fila.rq.id}&view=list`)} size="sm" variant="secondary">Abrir</V2Button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </section>
       </ProjectDetailSection>
@@ -2451,7 +2436,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
           <div className={styles.summaryGridFull}>
             <V2SectionCard description="Accesos directos usados con frecuencia desde el Resumen." title="Acciones rápidas">
-              <V2QuickActions cols={2}>
+              <V2QuickActions layout="auto">
                 <V2Button leadingIcon={<FileText size={15} />} onClick={() => handleTabChange("cotizaciones")} variant="secondary">
                   Ver historial económico
                 </V2Button>
@@ -2494,7 +2479,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
 
           <div style={{ display: "grid", gap: 12 }}>
             <V2SectionCard title="Acciones del cliente">
-              <V2QuickActions cols={4}>
+              <V2QuickActions layout="weighted">
                 <V2Button disabled={!clienteId} leadingIcon={<Eye size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
                   Ver ficha completa
                 </V2Button>

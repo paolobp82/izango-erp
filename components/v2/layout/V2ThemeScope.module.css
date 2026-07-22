@@ -51,6 +51,14 @@
   --v2-danger: #ffb4ab;
   --v2-information: #2563eb;
   --v2-info: #2563eb;
+  /* --v2-indigo estaba referenciado en ~10 consumidores (KPI trend dot, alert card
+     action text, admin/design-system-v2, badge-purple, "Adicional" en RQ) pero nunca
+     definido dentro de .themeScope: heredaba por cascada el --v2-indigo de
+     components/design-system/theme/theme.css (:root), que por error usa un verde de
+     marca (#0F6E56/#71F1B3) en vez de un indigo real. Se define aqui la familia
+     correcta, distinguible de --v2-info (azul) y de success/brand (verde). */
+  --v2-indigo: #818cf8;
+  --v2-indigo-bg: rgba(129, 140, 248, 0.18);
   --v2-success-bg: rgba(0, 230, 118, 0.14);
   --v2-warning-bg: rgba(245, 158, 11, 0.14);
   --v2-danger-bg: rgba(255, 180, 171, 0.14);
@@ -1140,6 +1148,10 @@
   --v2-danger:     #DC2626;
   --v2-info:       #2563EB;
   --v2-information:#2563EB;
+  /* Ver nota en el bloque Dark: --v2-indigo no estaba definido aqui y heredaba por
+     cascada un verde de marca desde theme.css (:root). Se corrige con un indigo real. */
+  --v2-indigo:     #6366F1;
+  --v2-indigo-bg:  rgba(99, 102, 241, 0.10);
   --v2-success-bg: rgba(22, 138, 74, 0.08);
   --v2-warning-bg: rgba(183, 121, 5, 0.08);
   --v2-danger-bg:  rgba(220, 38, 38, 0.08);

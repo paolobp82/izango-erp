@@ -1817,20 +1817,20 @@
 /* 11. V2QuickActions */
 .quickActionsGrid {
   display: grid;
-  grid-template-columns: repeat(var(--v2-quick-cols, 2), minmax(0, 1fr));
+  grid-template-columns: var(--v2-quick-template, repeat(2, minmax(0, 1fr)));
   align-items: start;
   gap: var(--v2-space-3);
 }
 
 @media (max-width: 720px) {
   .quickActionsGrid {
-    --v2-quick-cols: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 420px) {
   .quickActionsGrid {
-    --v2-quick-cols: 1;
+    grid-template-columns: 1fr;
   }
 }
 

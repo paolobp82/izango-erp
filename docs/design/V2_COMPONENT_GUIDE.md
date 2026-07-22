@@ -233,3 +233,33 @@ export default function EditarClientePage() {
   )
 }
 ```
+
+---
+
+## 5. Hardening Transversal V2 (Sprint 3)
+
+### 5.1 `V2QuickActions` — API `layout` semántica
+
+Antes de este sprint, pantallas distintas escribían `grid-template-columns` a mano (`minmax(...)`, `repeat(auto-fit, ...)`) cada vez que `cols` (columnas iguales) no encajaba. Ahora `V2QuickActions` acepta `layout?: "equal" | "auto" | "weighted"`:
+
+* `"equal"` (default): `cols` columnas de igual ancho. Uso: toolbars donde todas las acciones pesan igual.
+* `"auto"`: cada acción ocupa solo el ancho de su propio contenido — usado en "Acciones rápidas" de Resumen (1-3 botones cortos en una card ancha; forzar columnas iguales dejaba espacio vacío flotando).
+* `"weighted"`: columnas con `min-width` creciente, más peso hacia el final — usado en "Acciones del cliente" (4 acciones, la última es el CTA primario con texto más largo).
+
+`cols` y `columnTemplate` (escape hatch de plantilla literal) se mantienen — `layout` es azúcar sobre el mismo mecanismo (`--v2-quick-template`), no lo reemplaza. No se agregó `"compact"` (mencionado como candidato) porque no hay hoy un consumidor real que lo necesite distinto de `"auto"`.
+
+### 5.2 `ProjectInfoCardV2` — API `columns`/`density`
+
+`columns?: number` fija el número de columnas de escritorio vía una custom property (`--v2-info-cols`), sin afectar el `auto-fit` por defecto que usa Resumen. `density?: "default" | "compact"` (usado por Cliente) amplía el `gap` para paneles de columnas fijas con valores largos — Resumen sigue sin pasar ninguna de las dos props y no cambia.
+
+### 5.3 Duplicación confirmada: dos `V2FilterBar` distintos (no resuelta este sprint)
+
+Existen **dos componentes con el mismo nombre exportado `V2FilterBar`**, con APIs completamente distintas:
+* `components/v2/filters/V2FilterBar.tsx` (`searchValue`, `onSearchChange`, `quickFilters`, `onToggleDrawer`...) — el realmente usado: 14+ pantallas lo importan desde `@/components/v2/filters` (Proveedores, Clientes, Proyectos, RQ-adyacentes, RRHH, etc.).
+* `components/v2/system/V2FilterBar.tsx` (`children`/`primary`, `actions`/`secondary`, `activeCount`) — exportado también desde `@/components/v2/system`, con el alias `V2Toolbar`. Ningún consumidor real lo importa como `V2FilterBar`; sí se usa vía su alias `V2Toolbar` (Dashboard, `/admin/ui-v2-shell`).
+
+Riesgo: cualquiera que escriba `import { V2FilterBar } from "@/components/v2/system"` obtiene silenciosamente el componente equivocado (TS lo detectaría por props faltantes, pero es una trampa de arquitectura). Además, `components/v2/system/V2Toolbar.tsx` es un **archivo huérfano**: define su propia función `V2Toolbar`, pero `system/index.ts` reexporta el nombre `V2Toolbar` desde `V2FilterBar.tsx` (que soporta `primary`/`secondary` como alias retrocompatibles), así que el archivo `V2Toolbar.tsx` nunca se ejecuta en la práctica. No se resolvió en este sprint (requiere decidir un rename/merge que toca imports en múltiples módulos — fuera del criterio de "cambio mínimo justificado"). Registrado en `UX_UI_BACKLOG.md` (DSV2-DUP-01).
+
+### 5.4 Familia `--v2-indigo`
+
+Ver `UX_UI_BASELINE_V2.md` §7.2 — token oficializado con valor indigo real (antes heredaba un verde de marca por un `:root` sin sincronizar). `V2AlertCard`, KPIs con `indicatorColor`, y el estado "Adicional" de RQs en Proyecto ahora son consistentes entre sí y entre Light/Dark.

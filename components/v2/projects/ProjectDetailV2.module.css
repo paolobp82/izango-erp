@@ -3,6 +3,21 @@
   gap: 6px;
 }
 
+/* Costos/RQ: fila ligera de metricas (V2MetricCard), sin igualar alturas mas alla
+   del contenido (cada card crece segun su propio label/value/subtext). */
+.metricsRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .metricsRow {
+    grid-template-columns: 1fr;
+  }
+}
+
 .breadcrumb {
   display: flex;
   align-items: center;
@@ -266,9 +281,12 @@
 }
 
 /* Resumen tab composition */
+/* align-items: start evita que "Informacion economica" (3 filas) se estire a la
+   altura de "Datos base del proyecto" (7 filas) por el stretch por defecto de grid. */
 .summaryGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
   gap: 16px;
 }
 
