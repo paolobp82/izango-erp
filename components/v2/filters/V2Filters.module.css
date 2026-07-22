@@ -5,9 +5,10 @@
   gap: 8px;
   padding: 6px 10px;
   background: var(--v2-surface);
-  border: none;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   border-radius: var(--v2-radius-lg);
-  box-shadow: var(--v2-shadow-sm);
   margin-bottom: 12px;
   min-height: 44px;
 }
