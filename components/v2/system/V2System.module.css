@@ -37,10 +37,7 @@
   justify-content: space-between;
   gap: var(--v2-space-6);
   padding-bottom: 0;
-  border: none !important;
-  border-bottom: none !important;
-  outline: none !important;
-  box-shadow: none !important;
+  border-bottom: none;
 }
 
 .eyebrow,
@@ -103,7 +100,7 @@
   border: none;
   border-radius: var(--v2-radius-lg);
   background: var(--v2-surface);
-  box-shadow: var(--v2-shadow-sm);
+  box-shadow: none;
 }
 
 .sectionCard {
@@ -187,7 +184,7 @@
 .buttonPrimary:hover { background: var(--v2-accent-hover); }
 
 .buttonSecondary {
-  border-color: var(--v2-border);
+  border-color: transparent;
   background: var(--v2-surface);
   color: var(--v2-text);
 }
@@ -305,7 +302,7 @@
 .input,
 .select {
   width: 100%;
-  border: 1px solid var(--v2-border);
+  border: 1px solid transparent;
   border-radius: var(--v2-radius);
   background: var(--v2-surface-muted);
   color: var(--v2-text);
@@ -345,7 +342,6 @@
 
 .input:hover,
 .select:hover {
-  border-color: var(--v2-outline);
   background: var(--v2-surface-soft);
 }
 
@@ -506,10 +502,10 @@
   gap: 7px;
   min-width: 0;
   min-height: 82px;
-  border: 1px solid var(--v2-border);
+  border: none;
   border-radius: var(--v2-radius);
   background: var(--v2-surface);
-  box-shadow: var(--v2-shadow-sm);
+  box-shadow: none;
   padding: 11px 12px;
 }
 
@@ -570,7 +566,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--v2-space-3);
-  border: 1px solid var(--v2-border);
+  border: none;
   border-radius: var(--v2-radius-lg);
   background: var(--v2-surface);
   padding: var(--v2-space-3);
@@ -608,9 +604,8 @@
 
 .tableShell {
   overflow: hidden;
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
+  border: none;
+  box-shadow: none;
   border-radius: var(--v2-radius-lg);
   background: var(--v2-surface);
 }
@@ -715,7 +710,7 @@
 .paginationButton {
   min-width: 32px;
   height: 32px;
-  border: 1px solid var(--v2-border);
+  border: 1px solid transparent;
   border-radius: var(--v2-radius);
   background: var(--v2-surface);
   color: var(--v2-muted);
@@ -772,7 +767,7 @@
   min-height: var(--v2-control);
   gap: var(--v2-space-2);
   padding: 0 13px;
-  border: 1px solid var(--v2-border);
+  border: 1px solid transparent;
   border-radius: var(--v2-radius);
   background: var(--v2-surface);
   color: var(--v2-text);
@@ -822,10 +817,10 @@
   z-index: 12;
   display: grid;
   min-width: 190px;
-  border: 1px solid var(--v2-border);
+  border: none;
   border-radius: var(--v2-radius-lg);
   background: var(--v2-surface);
-  box-shadow: var(--v2-shadow-md);
+  box-shadow: none;
   padding: var(--v2-space-1);
 }
 
@@ -1103,13 +1098,8 @@
 
 .premiumKpiCard {
   background: var(--v2-surface);
-  border: none !important;
-  border-top: none !important;
-  border-right: none !important;
-  border-bottom: none !important;
-  border-left: none !important;
-  outline: none !important;
-  box-shadow: none !important;
+  border: none;
+  box-shadow: none;
   border-radius: var(--v2-radius-lg);
   padding: var(--v2-space-3);
   display: flex;
@@ -1123,7 +1113,7 @@
 
 .premiumKpiCard:hover {
   transform: translateY(-2px);
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
 .premiumKpiCardCompact {
@@ -1352,7 +1342,7 @@
 /* 4. V2MetricCard */
 .metricCard {
   background: var(--v2-surface);
-  border: 1px solid var(--v2-border);
+  border: none;
   border-radius: var(--v2-radius);
   padding: var(--v2-space-3);
   display: flex;
@@ -1781,11 +1771,11 @@
 .drawerContainer {
   width: 420px;
   background: var(--v2-surface);
-  border-left: 1px solid var(--v2-border);
+  border-left: none;
   height: 100%;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--v2-shadow-lg);
+  box-shadow: none;
   animation: slideInDrawer 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -1864,7 +1854,7 @@
 /* SPRINT 5.2 DATA COMPONENTS ISOLATED STYLES */
 .tableStateWrapper {
   padding: var(--v2-space-4);
-  border: 1px solid var(--v2-border);
+  border: none;
   border-radius: var(--v2-radius);
   background: var(--v2-surface);
 }
@@ -1913,7 +1903,7 @@
   justify-content: space-between;
   gap: var(--v2-space-3);
   padding: var(--v2-space-3);
-  border: 1px solid var(--v2-border);
+  border: none;
   border-radius: var(--v2-radius);
   background: var(--v2-surface-container-low);
 }
@@ -1935,7 +1925,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid var(--v2-border);
+  border: 1px solid transparent;
   border-radius: var(--v2-radius);
   background: transparent;
   color: var(--v2-muted);
@@ -1948,7 +1938,6 @@
 
 .filterBarClearBtn:hover {
   color: var(--v2-text);
-  border-color: var(--v2-outline);
 }
 
 .filterBarBadge {

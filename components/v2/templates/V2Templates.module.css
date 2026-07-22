@@ -3,9 +3,6 @@
   flex-direction: column;
   width: 100%;
   box-sizing: border-box;
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
 }
 
 .densityComfortable {
@@ -50,32 +47,21 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--v2-space-3, 12px);
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
 }
 
 .filtersArea {
   width: 100%;
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
 }
 
 .contentArea {
   width: 100%;
   min-width: 0;
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
 }
 
 .stateWrapper {
   width: 100%;
   padding: var(--v2-space-4, 16px);
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
+  border: none;
   border-radius: var(--v2-radius);
   background: var(--v2-surface);
 }
