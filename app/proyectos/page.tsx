@@ -54,6 +54,22 @@ function estadoTone(estado?: string | null): "info" | "success" | "warning" | "d
   return ESTADO_TONE[estado || ""] || "neutral"
 }
 
+// Labels/tonos reales de estado de cotizacion (mismos valores que /proyectos/[id]), usados
+// unicamente para mostrar el fallback de Subtotal (ultima cotizacion no aprobada por cliente).
+const COTIZACION_ESTADO_LABEL: Record<string, string> = {
+  borrador: "Borrador",
+  enviada_cliente: "Enviada cliente",
+  aprobada_cliente: "Aprobada cliente",
+  rechazada: "Rechazada",
+}
+
+const COTIZACION_ESTADO_TONE: Record<string, "info" | "success" | "warning" | "danger" | "neutral"> = {
+  borrador: "warning",
+  enviada_cliente: "info",
+  aprobada_cliente: "success",
+  rechazada: "danger",
+}
+
 function productorInitials(productor?: { nombre?: string | null; apellido?: string | null } | null) {
   if (!productor) return "—"
   return `${productor.nombre?.[0] || ""}${productor.apellido?.[0] || ""}`.toUpperCase() || "—"
@@ -215,7 +231,7 @@ export default function ProyectosPage() {
     const { data } = await supabase
       .from("proyectos")
       .select(
-        "*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente)"
+        "*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente), cotizaciones_proyecto:cotizaciones!cotizaciones_proyecto_id_fkey(id, version, estado, total_cliente, deleted_at)"
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -327,6 +343,20 @@ export default function ProyectosPage() {
   }
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  // Fallback de Subtotal: si el proyecto no tiene cotizacion_aprobada_id (nunca aprobado por
+  // cliente), se muestra la cotizacion de mayor version no eliminada como referencia, dejando
+  // claro con su estado real que no es un monto aprobado. La cotizacion aprobada (cuando existe)
+  // siempre tiene prioridad, sin importar si hay versiones posteriores sin aprobar.
+  function getMontoProyecto(p: any): { total: number | null; version: number | string | null; estado: string | null; esAprobada: boolean } {
+    if (p.cotizacion_aprobada) {
+      return { total: p.cotizacion_aprobada.total_cliente, version: p.cotizacion_aprobada.version, estado: "aprobada_cliente", esAprobada: true }
+    }
+    const candidatas = (p.cotizaciones_proyecto || []).filter((c: any) => !c.deleted_at)
+    if (candidatas.length === 0) return { total: null, version: null, estado: null, esAprobada: false }
+    const ultima = candidatas.reduce((max: any, c: any) => (c.version > max.version ? c : max), candidatas[0])
+    return { total: ultima.total_cliente, version: ultima.version, estado: ultima.estado, esAprobada: false }
+  }
 
   // Helper para calcular horas restantes (fuera de render para evitar impure function)
   const getHorasRestantes = (deletedAt: string): number => {
@@ -591,29 +621,44 @@ export default function ProyectosPage() {
       key: "subtotal",
       header: "SUBTOTAL",
       align: "right",
-      render: (p) =>
-        p.cotizacion_aprobada ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <span
-              style={{
-                fontSize: "10.5px",
-                fontWeight: 800,
-                color: "var(--v2-brand-primary)",
-                background: "var(--v2-brand-primary-light)",
-                padding: "1px 6px",
-                borderRadius: "99px",
-                width: "fit-content",
-              }}
-            >
-              V{p.cotizacion_aprobada.version}
+      render: (p) => {
+        const monto = getMontoProyecto(p)
+        if (monto.total == null) {
+          return <span style={{ color: "var(--v2-muted)" }}>—</span>
+        }
+        if (monto.esAprobada) {
+          return (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+              <span
+                style={{
+                  fontSize: "10.5px",
+                  fontWeight: 800,
+                  color: "var(--v2-brand-primary)",
+                  background: "var(--v2-brand-primary-light)",
+                  padding: "1px 6px",
+                  borderRadius: "99px",
+                  width: "fit-content",
+                }}
+              >
+                V{monto.version}
+              </span>
+              <span style={{ fontWeight: 800, color: "var(--v2-text)", fontSize: "13px", marginTop: "2px" }}>
+                {fmt(monto.total)}
+              </span>
+            </div>
+          )
+        }
+        return (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px" }}>
+            <span style={{ fontWeight: 800, color: "var(--v2-text)", fontSize: "13px" }}>
+              {fmt(monto.total)}
             </span>
-            <span style={{ fontWeight: 800, color: "var(--v2-text)", fontSize: "13px", marginTop: "2px" }}>
-              {fmt(p.cotizacion_aprobada.total_cliente)}
-            </span>
+            <V2StatusBadge size="sm" tone={COTIZACION_ESTADO_TONE[monto.estado || ""] || "neutral"}>
+              V{monto.version} · {COTIZACION_ESTADO_LABEL[monto.estado || ""] || monto.estado}
+            </V2StatusBadge>
           </div>
-        ) : (
-          <span style={{ color: "var(--v2-muted)" }}>—</span>
-        ),
+        )
+      },
     },
     {
       key: "fecha",
@@ -904,7 +949,14 @@ export default function ProyectosPage() {
                         </div>
                         <div>
                           <span className={styles.cardLabel}>Subtotal:</span>
-                          {p.cotizacion_aprobada ? `${fmt(p.cotizacion_aprobada.total_cliente)} (V${p.cotizacion_aprobada.version})` : "—"}
+                          {(() => {
+                            const monto = getMontoProyecto(p)
+                            if (monto.total == null) return "—"
+                            const etiqueta = monto.esAprobada
+                              ? `V${monto.version}`
+                              : `V${monto.version} · ${COTIZACION_ESTADO_LABEL[monto.estado || ""] || monto.estado}`
+                            return `${fmt(monto.total)} (${etiqueta})`
+                          })()}
                         </div>
                       </div>
 
