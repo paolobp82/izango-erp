@@ -1073,18 +1073,13 @@
   font-size: 9px;
   font-weight: 900;
   background: var(--v2-primary);
-  color: #fff;
+  color: #000000;
   padding: 3px 6px;
   border-radius: var(--v2-radius-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   flex-shrink: 0;
   margin-top: 2px;
-}
-
-:global([data-theme="dark"]) .summaryBadge,
-:global(html:not([data-theme="light"])) .summaryBadge {
-  color: #000000;
 }
 
 .summaryText {
