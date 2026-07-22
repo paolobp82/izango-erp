@@ -6,7 +6,7 @@ import { notificarATodos } from "@/lib/notificaciones"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { cargarItemsAprobadosAlGestor } from "@/lib/gestor"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation"
 import { rqCodigo } from "@/lib/rq-code"
 import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 import { filtrarPorAlcance, puedeEjecutarAccion, puedeVerInformacionSensible, puedeVerModulo, type AccionPermiso } from "@/lib/permisos"
@@ -15,6 +15,12 @@ import { businessRuleEngine } from "@/lib/core/business-rules"
 import { esFacturaAnulada, totalFactura } from "@/lib/finance"
 import { puedeCerrarFinancieramenteProyecto } from "@/lib/proyecto-cierre-financiero"
 import { RQ_MIGRATION_SUCCESS_ACTIONS } from "@/lib/rq-migracion"
+import { V2DetailPageTemplate } from "@/components/v2/templates"
+import { V2ErrorState } from "@/components/v2/system"
+import { ProjectDetailShellV2 } from "@/components/v2/projects/ProjectDetailShellV2"
+import { ProjectDetailHeaderV2 } from "@/components/v2/projects/ProjectDetailHeaderV2"
+import { ProjectDetailSection } from "@/components/v2/projects/ProjectDetailContentV2"
+import { DEFAULT_PROJECT_DETAIL_TAB, isProjectDetailTabId, type ProjectDetailTabId } from "@/components/v2/projects/ProjectDetailTabsV2"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
@@ -52,8 +58,21 @@ const ESTADOS_RQ: Record<string, any> = {
 export default function ProyectoDetallePage() {
   const params = useParams()
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const id = params?.id as string
   const supabase = createClient()
+
+  // Pestana activa persistida en la URL (?tab=). Sin valor o valor invalido -> "resumen".
+  // Cambiar de pestana no vuelve a ejecutar load(): activeTab es independiente del estado de datos.
+  const tabParam = searchParams.get("tab")
+  const activeTab: ProjectDetailTabId = isProjectDetailTabId(tabParam) ? tabParam : DEFAULT_PROJECT_DETAIL_TAB
+
+  function handleTabChange(tab: ProjectDetailTabId) {
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.set("tab", tab)
+    router.push(`${pathname}?${nextParams.toString()}`, { scroll: false })
+  }
 
   const [proyecto, setProyecto] = useState<any>(null)
   const [cotizaciones, setCotizaciones] = useState<any[]>([])
@@ -1472,22 +1491,28 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
   const historialCount = Object.values(historial).reduce((total, items) => total + items.length, 0)
-  const tabsProyecto360 = [
-    { label: "Cotizaciones", href: "#tab-proformas", count: cotizaciones.length },
-    { label: "Costos / RQ", href: "#tab-costos-rq", count: rqsProyecto.length },
-    { label: "Resumen", href: "#tab-resumen" },
-    { label: "Cliente", href: "#tab-cliente", count: proyecto?.cliente ? 1 : 0 },
-    { label: "Tareas", href: "#tab-tareas" },
-    { label: "Logística", href: "#tab-logistica" },
-    { label: "Facturación", href: "#tab-facturacion" },
-    { label: "Liquidación", href: "#tab-liquidacion" },
-    { label: "Archivos", href: "#tab-archivos" },
-    { label: "Historial", href: "#tab-historial", count: historialCount },
-  ]
+  // Conteos por pestana de primer nivel (Lote 1). Mismos valores que antes mostraba
+  // tabsProyecto360 por ancla; "seguimiento" agrupa Tareas/Logistica/Facturacion/
+  // Liquidacion/Archivos/Historial y no tiene un conteo unico real, se deja sin badge.
+  const tabCounts: Partial<Record<ProjectDetailTabId, number>> = {
+    cotizaciones: cotizaciones.length,
+    "costos-rq": rqsProyecto.length,
+    cliente: proyecto?.cliente ? 1 : 0,
+  }
   const placeholderStyle = { padding: 16, border: "1px dashed #d1d5db", borderRadius: 10, background: "#fafafa", color: "#6b7280", fontSize: 13 }
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
-  if (accesoRestringido) return <div style={{ color: "#6b7280", padding: 24 }}>Acceso restringido</div>
+  if (loading) {
+    return <V2DetailPageTemplate state="loading" title="Cargando proyecto..." />
+  }
+  if (accesoRestringido) {
+    return (
+      <V2DetailPageTemplate
+        errorState={<V2ErrorState description="No tienes permiso para ver este proyecto." errorCode="403-PROYECTO" title="Acceso restringido" />}
+        state="error"
+        title="Proyecto"
+      />
+    )
+  }
 
   return (
     <div>
@@ -1759,111 +1784,67 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           </div>
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <a href="/proyectos" style={{ color: "#9ca3af", fontSize: 12 }}>Proyectos</a>
-            <span style={{ color: "#d1d5db" }}>/</span>
-            <span style={{ fontSize: 12, color: "#4b5563" }}>{proyecto?.codigo}</span>
-          </div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>{proyecto?.nombre}</h1>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 13, color: "#6b7280" }}>{proyecto?.cliente?.razon_social}</span>
-            {proyecto?.productor && <span style={{ color: "#9ca3af", fontSize: 13 }}>· Productor: {proyecto.productor.nombre} {proyecto.productor.apellido}</span>}
-            {cotAprobada && (
-              <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>
-                ✓ V{cotAprobada.version} aprobada
-              </span>
-            )}
-            {editandoEntidad ? (
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                {ENTIDADES.map(e => (
-                  <button key={e.value} onClick={() => cambiarEntidad(e.value)}
-                    style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, border: proyecto?.entidad === e.value ? "2px solid #0F6E56" : "1px solid #e5e7eb", background: proyecto?.entidad === e.value ? "#f0fdf4" : "#fff", color: proyecto?.entidad === e.value ? "#0F6E56" : "#6b7280", cursor: "pointer", fontWeight: proyecto?.entidad === e.value ? 700 : 400 }}>
-                    {e.label}
-                  </button>
-                ))}
-                <button onClick={() => setEditandoEntidad(false)} style={{ fontSize: 11, color: "#9ca3af", background: "none", border: "none", cursor: "pointer" }}>×</button>
-              </div>
-            ) : (
-              <button onClick={() => setEditandoEntidad(true)}
-                style={{ fontSize: 11, background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 99, padding: "2px 8px", cursor: "pointer" }}>
-                🏢 {ENTIDADES.find(e => e.value === proyecto?.entidad)?.label || proyecto?.entidad || "Sin entidad"}
+      <ProjectDetailShellV2
+        activeTab={activeTab}
+        header={
+          <ProjectDetailHeaderV2
+            cotAprobada={cotAprobada}
+            editandoEntidad={editandoEntidad}
+            entidades={ENTIDADES}
+            estadoLabel={estadoInfo.label}
+            onAbrirEditar={abrirEditar}
+            onCambiarEntidad={cambiarEntidad}
+            onToggleEditarEntidad={setEditandoEntidad}
+            proyecto={proyecto}
+            puedeEditar={puedeEditar}
+            puedeExportarProyecto={puedeExportarProyecto}
+            reportePdfHref={"/api/reporte-pdf?proyecto_id=" + id}
+          />
+        }
+        onTabChange={handleTabChange}
+        tabCounts={tabCounts}
+        actionsBar={
+          <div className="card" style={{ marginBottom: 24, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>Acciones del proyecto</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {puedeCrearProforma && (
+              <button onClick={() => {
+                const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
+                const val = sel?.value
+                nuevaVersion(val && val !== "" ? val : undefined)
+              }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
+                {creando ? "Creando..." : "Crear cotización"}
               </button>
-            )}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {puedeEditar && (
-            <button onClick={abrirEditar}
-              style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-              ✏️ Editar
-            </button>
-          )}
-          {puedeExportarProyecto && (
-            <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
-              style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#fff", color: "#0F6E56", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
-              📥 Reporte PDF
-            </a>
-          )}
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 24, padding: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>Acciones del proyecto</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {puedeCrearProforma && (
-          <button onClick={() => {
-            const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
-            const val = sel?.value
-            nuevaVersion(val && val !== "" ? val : undefined)
-          }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
-            {creando ? "Creando..." : "Crear cotización"}
-          </button>
-          )}
-          {puedeCrearRQ && (
-          <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-            Crear RQ
-          </button>
-          )}
-          <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-            Crear tarea
-          </button>
-          <button onClick={() => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-            Solicitar audiovisual
-          </button>
-          {puedeVerFacturacionProyecto && (
-          <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-            Emitir factura
-          </button>
-          )}
-          <button onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-            Ver liquidación
-          </button>
-          {puedeExportarProyecto && (
-            <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
-              style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-              Ver documentos
-            </a>
-          )}
-        </div>
-      </div>
-
-      <nav className="card" style={{ marginBottom: 16, padding: "10px 12px", position: "sticky", top: 57, zIndex: 40, overflowX: "auto" }}>
-        <div style={{ display: "flex", gap: 6, minWidth: "max-content" }}>
-          {tabsProyecto360.map(tab => (
-            <a key={tab.href} href={tab.href}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, color: "#374151", textDecoration: "none", fontSize: 12, fontWeight: 600, background: "#fff", whiteSpace: "nowrap" }}>
-              {tab.label}
-              {typeof tab.count === "number" && (
-                <span style={{ minWidth: 18, height: 18, padding: "0 6px", borderRadius: 99, background: tab.count > 0 ? "#dcfce7" : "#f3f4f6", color: tab.count > 0 ? "#15803d" : "#9ca3af", fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                  {tab.count}
-                </span>
               )}
-            </a>
-          ))}
-        </div>
-      </nav>
+              {puedeCrearRQ && (
+              <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
+                Crear RQ
+              </button>
+              )}
+              <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
+                Crear tarea
+              </button>
+              <button onClick={() => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
+                Solicitar audiovisual
+              </button>
+              {puedeVerFacturacionProyecto && (
+              <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
+                Emitir factura
+              </button>
+              )}
+              <button onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
+                Ver liquidación
+              </button>
+              {puedeExportarProyecto && (
+                <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
+                  style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+                  Ver documentos
+                </a>
+              )}
+            </div>
+          </div>
+        }
+      >
       <section id="estado-proyecto" className="card" style={{ marginBottom: 16, padding: 16, scrollMarginTop: 120 }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
           <div>
@@ -1974,6 +1955,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           )
         })()}
       </section>
+      <ProjectDetailSection activeTab={activeTab} tab="cotizaciones">
       <section id="tab-proformas" style={{ scrollMarginTop: 120 }}>
       <div className="card" style={{ marginBottom: 16, padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
@@ -2150,8 +2132,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
         )}
       </div>
       </section>
+      </ProjectDetailSection>
 
-
+      <ProjectDetailSection activeTab={activeTab} tab="costos-rq">
       <section id="tab-costos-rq" className="card" style={{ marginTop: 24, marginBottom: 24, scrollMarginTop: 120 }}>
         <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <div>
@@ -2403,8 +2386,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           </div>
         </div>
       </section>
+      </ProjectDetailSection>
 
-
+      <ProjectDetailSection activeTab={activeTab} tab="resumen">
       <section id="tab-resumen" style={{ scrollMarginTop: 120 }}>
         <div className="card" style={{ marginBottom: 24, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
@@ -2474,8 +2458,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           </div>
         </div>
       </section>
+      </ProjectDetailSection>
 
-
+      <ProjectDetailSection activeTab={activeTab} tab="cliente">
       <section id="tab-cliente" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <div>
@@ -2541,7 +2526,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           </div>
         </div>
       </section>
+      </ProjectDetailSection>
 
+      <ProjectDetailSection activeTab={activeTab} tab="seguimiento">
       <section id="tab-tareas" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
         <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Tareas</h2>
@@ -2651,6 +2638,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           </div>
         </div>
       </section>
+      </ProjectDetailSection>
+      </ProjectDetailShellV2>
 
       {showEditar && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
