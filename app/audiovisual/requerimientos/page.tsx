@@ -7,8 +7,9 @@ import { filtrarPorAlcance, filtrarRequerimientosAudiovisualesPorAlcance } from 
 import { esProductorAsignadoProyecto } from "@/lib/permisos/proyectos"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
+import { AudiovisualRequestForm } from "./components/AudiovisualRequestForm"
+import { cargarCotizacionesDelProyecto, guardarRequerimientoAudiovisualService, subirDocumentoAudiovisual } from "@/lib/services/audiovisual"
 
-const PIEZAS = ["Video", "3D", "Imagenes IA", "Dinamica", "Graficas", "Adaptacion", "Otros"]
 const PRIORIDADES: Record<string, any> = {
   alta: { label: "Alta", bg: "#fee2e2", color: "#991b1b" },
   media: { label: "Media", bg: "#fef9c3", color: "#92400e" },
@@ -21,12 +22,6 @@ const ESTADOS: Record<string, any> = {
   completado: { label: "Completado", bg: "#dcfce7", color: "#15803d" },
   cancelado: { label: "Cancelado", bg: "#fee2e2", color: "#991b1b" },
 }
-const AUDIOVISUAL_EMAILS = [
-  "pbastianelli@izango.com.pe",
-  "pcampos@izango.com.pe",
-  "aestupinan@izango.com.pe",
-  "gveliz@izango.com.pe",
-]
 const ROLES_GERENCIA = ["superadmin", "gerente_general", "gerente_produccion", "gerente_operaciones", "project_manager"]
 const ROLES_ELIMINACION = ["superadmin", "gerente_general", "gerente_produccion", "project_manager"]
 const ROLES_ELIMINACION_FINALIZADO = ["superadmin", "gerente_general"]
@@ -134,17 +129,7 @@ export default function AudiovisualRequerimientosPage() {
   }
 
   async function loadCotizaciones(proyectoId: string) {
-    if (!proyectoId || esOtroProyecto(proyectoId)) {
-      setCotizaciones([])
-      return
-    }
-    const { data } = await supabase
-      .from("cotizaciones")
-      .select("id,version,estado,total_cliente")
-      .eq("proyecto_id", proyectoId)
-      .is("deleted_at", null)
-      .order("version")
-    setCotizaciones(data || [])
+    setCotizaciones(await cargarCotizacionesDelProyecto(supabase, proyectoId))
   }
 
   async function loadComentarios(reqId: string) {
@@ -218,170 +203,45 @@ export default function AudiovisualRequerimientosPage() {
     await loadCotizaciones(proyectoId)
   }
 
-  function togglePieza(pieza: string) {
-    if (!puedeEditarPedidoFormulario) return
-    setForm(prev => ({
-      ...prev,
-      piezas: prev.piezas.includes(pieza) ? prev.piezas.filter(p => p !== pieza) : [...prev.piezas, pieza],
-      pieza_otros_descripcion: pieza === "Otros" && prev.piezas.includes(pieza) ? "" : prev.pieza_otros_descripcion,
-    }))
-  }
+  // togglePieza se movio dentro de AudiovisualRequestForm (usa form/onChange
+  // directamente) — se deja de necesitar como funcion de pagina.
 
   async function uploadDocumento(file: File) {
     if (!puedeEditarPedidoFormulario) return
     setUploading(true)
-    const path = `audiovisual/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "-")}`
-    const { error } = await supabase.storage.from("assets").upload(path, file, { upsert: true })
-    if (error) {
-      alert("Error subiendo archivo: " + error.message)
+    const resultado = await subirDocumentoAudiovisual(supabase, file)
+    if (!resultado.ok) {
+      alert(resultado.error)
       setUploading(false)
       return
     }
-    const { data } = supabase.storage.from("assets").getPublicUrl(path)
-    setForm(prev => ({ ...prev, documento_url: data.publicUrl }))
+    setForm(prev => ({ ...prev, documento_url: resultado.url }))
     setUploading(false)
   }
 
-  async function enviarCorreo(req: any) {
-    const proyecto = proyectos.find(p => p.id === req.proyecto_id)
-    const productor = productores.find(p => p.id === req.productor_id)
-    await fetch("/api/alertas", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tipo: "audiovisual_requerimiento_creado",
-        destinatarios: AUDIOVISUAL_EMAILS,
-        datos: {
-          proyecto: proyecto ? `${proyecto.codigo} - ${proyecto.nombre}` : (req.detalle_otro_proyecto || "OTRO / SIN PROYECTO"),
-          productor: productor ? `${productor.nombre} ${productor.apellido}` : "Sin productor",
-          prioridad: PRIORIDADES[req.prioridad]?.label || req.prioridad,
-          fecha_entrega_solicitada: req.fecha_entrega_solicitada || "-",
-          piezas: (req.piezas || []).join(", ") || "-",
-        },
-      }),
-    })
-  }
-
-
-  function estadoTareaDesdeAudiovisual(estado: string) {
-    if (estado === "completado") return "completada"
-    if (estado === "cancelado") return "cancelada"
-    if (estado === "en_revision") return "en_revision"
-    if (estado === "en_progreso") return "en_progreso"
-    return "pendiente"
-  }
-
-  async function sincronizarTareaAudiovisual(reqId: string, datos: any) {
-    const proyectoIdLimpio = uuidOrNull(datos.proyecto_id)
-    const proyectoTarea = proyectoIdLimpio ? proyectos.find(p => p.id === proyectoIdLimpio) : null
-    const tituloTarea = `Req. audiovisual - ${proyectoTarea?.codigo || datos.detalle_otro_proyecto || "Sin proyecto"}`
-
-    await supabase
-      .from("tareas")
-      .update({
-        titulo: tituloTarea,
-        descripcion: datos.brief || "Requerimiento audiovisual generado desde el modulo audiovisual.",
-        estado: estadoTareaDesdeAudiovisual(datos.estado || "pendiente"),
-        prioridad: datos.prioridad || "media",
-        proyecto_id: proyectoIdLimpio,
-        asignado_a: datos.responsable_audiovisual_id || datos.productor_id || perfil?.id || null,
-        fecha_limite: datos.fecha_entrega_solicitada || null,
-        origen_url: `/audiovisual/requerimientos?requerimiento_id=${reqId}`,
-        origen_label: "Req. Audiovisual",
-      })
-      .eq("origen", "audiovisual")
-      .eq("origen_id", reqId)
-  }
-
+  // enviarCorreo/sincronizarTareaAudiovisual/estadoTareaDesdeAudiovisual/guardar se
+  // movieron a lib/services/audiovisual/audiovisual.guardar.ts (importadas arriba) para
+  // que este modulo y el detalle de Proyecto usen la misma implementacion sin duplicarla.
   async function guardar() {
-    const esEdicion = Boolean(editando?.id)
-    if (esEdicion && !puedeAbrirEdicion(editando)) { alert("No tienes permiso para editar este requerimiento"); return }
-    if (esEdicion && ESTADOS_FINALIZADOS.includes(editando.estado) && !puedeEditarTodo(editando)) {
-      alert("Este requerimiento ya esta cerrado y solo gerencia puede modificarlo")
+    setSaving(true)
+    const resultado = await guardarRequerimientoAudiovisualService({
+      supabase,
+      form,
+      editando,
+      perfil,
+      proyectos,
+      productores,
+      puedeAbrirEdicionActual: editando ? puedeAbrirEdicion(editando) : true,
+      puedeEditarTodoActual: editando ? puedeEditarTodo(editando) : true,
+      puedeEditarPedidoFormulario,
+      puedeEditarAvanceFormulario,
+    })
+    if (!resultado.ok) {
+      alert(resultado.error)
+      setSaving(false)
       return
     }
-    if (!esEdicion || puedeEditarPedidoFormulario) {
-      if (!form.proyecto_id) { alert("Selecciona un proyecto u OTRO / SIN PROYECTO"); return }
-      if (form.proyecto_id === "__OTRO__" && !form.detalle_otro_proyecto.trim()) { alert("Escribe el detalle para OTRO / SIN PROYECTO"); return }
-      if (!form.fecha_entrega_solicitada) { alert("La fecha solicitada por produccion es obligatoria"); return }
-      if (form.piezas.length === 0) { alert("Selecciona al menos una pieza necesaria"); return }
-      if (form.piezas.includes("Otros") && !form.pieza_otros_descripcion.trim()) { alert("Describe la pieza requerida en Otros"); return }
-    }
-    setSaving(true)
-    const payload: any = { updated_at: new Date().toISOString() }
-    const proyectoIdLimpio = uuidOrNull(form.proyecto_id)
-    const cotizacionIdLimpio = esOtroProyecto(form.proyecto_id) ? null : uuidOrNull(form.cotizacion_id)
-
-    if (!esEdicion || puedeEditarPedidoFormulario) {
-      Object.assign(payload, {
-        proyecto_id: proyectoIdLimpio,
-        cotizacion_id: cotizacionIdLimpio,
-        detalle_otro_proyecto: esOtroProyecto(form.proyecto_id) ? form.detalle_otro_proyecto.trim() : null,
-        ubicacion: form.ubicacion || null,
-        productor_id: form.productor_id || null,
-        fecha_entrega_solicitada: form.fecha_entrega_solicitada || null,
-        piezas: form.piezas,
-        pieza_otros_descripcion: form.piezas.includes("Otros") ? form.pieza_otros_descripcion.trim() : null,
-        brief: form.brief || null,
-        prioridad: form.prioridad,
-        referencia_url: form.referencia_url || null,
-        documento_url: form.documento_url || null,
-      })
-    }
-    if (!esEdicion) {
-      payload.responsable_audiovisual_id = form.responsable_audiovisual_id || null
-      payload.artes_url = form.artes_url || null
-      payload.creado_por = perfil?.id || null
-    }
-    if (esEdicion && puedeEditarAvanceFormulario) {
-      payload.responsable_audiovisual_id = form.responsable_audiovisual_id || null
-      payload.avance = Number(form.avance) || 10
-      payload.estado = form.estado
-      payload.fecha_devolucion_audiovisual = form.fecha_devolucion_audiovisual || null
-      payload.artes_url = form.artes_url || null
-    } else if (!esEdicion) {
-      payload.avance = 10
-      payload.estado = "pendiente"
-    }
-
-    if (esEdicion) {
-      const { error } = await supabase.from("audiovisual_requerimientos").update(payload).eq("id", editando.id)
-      if (error) { alert("Error: " + error.message); setSaving(false); return }
-      await sincronizarTareaAudiovisual(editando.id, { ...editando, ...payload })
-      await registrarAccion({ accion: "editar", modulo: "audiovisual", entidad_tipo: "requerimiento_audiovisual", entidad_id: editando.id, descripcion: "Requerimiento audiovisual editado" })
-    } else {
-      const { data, error } = await supabase.from("audiovisual_requerimientos").insert(payload).select().single()
-      if (error) { alert("Error: " + error.message); setSaving(false); return }
-
-      const proyectoTareaId = uuidOrNull(payload.proyecto_id)
-      const proyectoTarea = proyectoTareaId ? proyectos.find(p => p.id === proyectoTareaId) : null
-      const tituloTarea = `Req. audiovisual - ${proyectoTarea?.codigo || payload.detalle_otro_proyecto || "Sin proyecto"}`
-
-      const { error: tareaError } = await supabase.from("tareas").insert({
-        titulo: tituloTarea,
-        descripcion: payload.brief || "Requerimiento audiovisual generado desde el modulo audiovisual.",
-        estado: "pendiente",
-        prioridad: payload.prioridad || "media",
-        proyecto_id: proyectoTareaId,
-        asignado_a: payload.responsable_audiovisual_id || payload.productor_id || perfil?.id || null,
-        creado_por: perfil?.id || null,
-        fecha_limite: payload.fecha_entrega_solicitada || null,
-        origen: "audiovisual",
-        origen_id: data.id,
-        origen_url: `/audiovisual/requerimientos?requerimiento_id=${data.id}`,
-        origen_label: "Req. Audiovisual",
-        mostrar_participantes_mi_trabajo: true,
-        permitir_comentarios: true,
-        recibir_correos_automaticos: true,
-      })
-
-      if (tareaError) {
-        alert("El requerimiento fue creado, pero no se pudo crear la tarea en Mi Trabajo: " + tareaError.message)
-      }
-
-      await registrarAccion({ accion: "crear", modulo: "audiovisual", entidad_tipo: "requerimiento_audiovisual", entidad_id: data?.id, descripcion: "Requerimiento audiovisual creado" })
-      await enviarCorreo(payload)
-    }
+    if (resultado.warning) alert(resultado.warning)
     setSaving(false)
     setShowForm(false)
     await load()
@@ -716,157 +576,20 @@ export default function AudiovisualRequerimientosPage() {
               <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>x</button>
             </div>
 
-            <div style={{ display: "grid", gap: 14 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>PROYECTO *</label>
-                  <select style={inp} value={form.proyecto_id} onChange={e => handleProyectoChange(e.target.value)} disabled={camposPedidoDeshabilitados}>
-                    <option value="">Seleccionar proyecto</option>
-<option value="__OTRO__">OTRO / SIN PROYECTO</option>
-                    {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>COTIZACIÓN</label>
-                  <select style={inp} value={form.cotizacion_id} onChange={e => setForm({ ...form, cotizacion_id: e.target.value })} disabled={camposPedidoDeshabilitados || form.proyecto_id === "__OTRO__"}>
-                    <option value="">Sin cotización específica</option>
-                    {cotizaciones.map(c => <option key={c.id} value={c.id}>V{c.version} - {c.estado}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {form.proyecto_id === "__OTRO__" && (
-                <div>
-                  <label style={lbl}>DETALLE DEL PROYECTO O SOLICITUD *</label>
-                  <input
-                    style={inp}
-                    value={form.detalle_otro_proyecto}
-                    onChange={e => setForm({ ...form, detalle_otro_proyecto: e.target.value })}
-                    placeholder="Ej: Video institucional, RRHH, redes sociales, propuesta comercial..."
-                  />
-                </div>
-              )}
-
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>UBICACION DEL PROYECTO</label>
-                  <input style={inp} value={form.ubicacion} placeholder="Sede, ciudad, venue o referencia" onChange={e => setForm({ ...form, ubicacion: e.target.value })} disabled={camposPedidoDeshabilitados} />
-                </div>
-                <div>
-                  <label style={lbl}>PRODUCTOR A CARGO</label>
-                  <select style={inp} value={form.productor_id} onChange={e => setForm({ ...form, productor_id: e.target.value })} disabled={camposPedidoDeshabilitados}>
-                    <option value="">Sin productor</option>
-                    {productores.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label style={lbl}>RESPONSABLE AUDIOVISUAL</label>
-                <select style={inp} value={form.responsable_audiovisual_id} onChange={e => setForm({ ...form, responsable_audiovisual_id: e.target.value })} disabled={esEdicionFormulario ? camposAvanceDeshabilitados : camposPedidoDeshabilitados}>
-                  <option value="">Sin responsable asignado</option>
-                  {productores.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label style={lbl}>FECHA DE ENTREGA SOLICITADA *</label>
-                <input style={inp} type="date" value={form.fecha_entrega_solicitada} onChange={e => setForm({ ...form, fecha_entrega_solicitada: e.target.value })} disabled={camposPedidoDeshabilitados} />
-              </div>
-
-              <div>
-                <label style={lbl}>PIEZAS NECESARIAS *</label>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {PIEZAS.map(pieza => (
-                    <button key={pieza} type="button" onClick={() => togglePieza(pieza)} disabled={camposPedidoDeshabilitados}
-                      style={{ padding: "6px 10px", borderRadius: 99, border: form.piezas.includes(pieza) ? "2px solid #0F6E56" : "1px solid #e5e7eb", background: form.piezas.includes(pieza) ? "#dcfce7" : "#fff", color: form.piezas.includes(pieza) ? "#15803d" : "#374151", fontSize: 12, fontWeight: form.piezas.includes(pieza) ? 700 : 500, cursor: camposPedidoDeshabilitados ? "not-allowed" : "pointer", opacity: camposPedidoDeshabilitados ? 0.7 : 1 }}>
-                      {pieza}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {form.piezas.includes("Otros") && (
-                <div>
-                  <label style={lbl}>DESCRIBE LA PIEZA REQUERIDA *</label>
-                  <input style={inp} value={form.pieza_otros_descripcion} placeholder="Ej. animacion especial, formato no estandar, pieza experimental..." onChange={e => setForm({ ...form, pieza_otros_descripcion: e.target.value })} disabled={camposPedidoDeshabilitados} />
-                </div>
-              )}
-
-              <div>
-                <label style={lbl}>INDICACIONES / BRIEF DEL REQUERIMIENTO</label>
-                <textarea style={{ ...inp, minHeight: 110, resize: "vertical" }} value={form.brief} placeholder="Detalle dinamica, estilo, referencias, formatos, restricciones, duracion, entregables o cualquier indicacion relevante." onChange={e => setForm({ ...form, brief: e.target.value })} disabled={camposPedidoDeshabilitados} />
-              </div>
-
-              {puedeEditarAvanceFormulario && (
-                <div style={{ padding: 12, border: "1px solid #bfdbfe", borderRadius: 8, background: "#eff6ff" }}>
-                  <label style={{ ...lbl, color: "#1e40af" }}>FECHA DE DEVOLUCION AUDIOVISUAL</label>
-                  <input style={inp} type="date" value={form.fecha_devolucion_audiovisual} onChange={e => setForm({ ...form, fecha_devolucion_audiovisual: e.target.value })} />
-                  <div style={{ fontSize: 11, color: "#1e40af", marginTop: 6 }}>
-                    Este campo solo aparece al editar un requerimiento asumido por audiovisual o roles autorizados.
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: "grid", gridTemplateColumns: puedeEditarAvanceFormulario ? "1fr 1fr 1fr" : "1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>PRIORIDAD</label>
-                  <select style={inp} value={form.prioridad} onChange={e => setForm({ ...form, prioridad: e.target.value })} disabled={camposPedidoDeshabilitados}>
-                    <option value="alta">Alta</option>
-                    <option value="media">Media</option>
-                    <option value="baja">Baja</option>
-                  </select>
-                </div>
-                {puedeEditarAvanceFormulario && (
-                  <>
-                    <div>
-                      <label style={lbl}>AVANCE AUDIOVISUAL</label>
-                      <select style={inp} value={form.avance} onChange={e => setForm({ ...form, avance: e.target.value })}>
-                        {[10,20,30,40,50,60,70,80,90,100].map(n => <option key={n} value={n}>{n}%</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={lbl}>ESTADO</label>
-                      <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
-                        {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                      </select>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {form.proyecto_id === "__OTRO__" && (
-                <div>
-                  <label style={lbl}>DETALLE DEL PROYECTO O SOLICITUD *</label>
-                  <input
-                    style={inp}
-                    value={form.detalle_otro_proyecto}
-                    onChange={e => setForm({ ...form, detalle_otro_proyecto: e.target.value })}
-                    placeholder="Ej: Video institucional, RRHH, redes sociales, propuesta comercial..."
-                  />
-                </div>
-              )}
-
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>REFERENCIAS / DOCUMENTOS (LINK)</label>
-                  <input style={inp} value={form.referencia_url} placeholder="https://..." onChange={e => setForm({ ...form, referencia_url: e.target.value })} disabled={camposPedidoDeshabilitados} />
-                </div>
-                <div>
-                  <label style={lbl}>ARTES RELACIONADOS</label>
-                  <input style={inp} value={form.artes_url} placeholder="https://..." onChange={e => setForm({ ...form, artes_url: e.target.value })} disabled={esEdicionFormulario ? camposAvanceDeshabilitados : camposPedidoDeshabilitados} />
-                </div>
-              </div>
-
-              <div>
-                <label style={lbl}>ADJUNTAR ARCHIVO</label>
-                <input style={inp} type="file" onChange={e => e.target.files?.[0] && uploadDocumento(e.target.files[0])} disabled={camposPedidoDeshabilitados} />
-                {uploading && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>Subiendo archivo...</div>}
-                {form.documento_url && <a href={form.documento_url} target="_blank" style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: "#0F6E56" }}>Archivo adjunto cargado</a>}
-              </div>
-            </div>
+            <AudiovisualRequestForm
+              camposAvanceDeshabilitados={camposAvanceDeshabilitados}
+              camposPedidoDeshabilitados={camposPedidoDeshabilitados}
+              cotizaciones={cotizaciones}
+              editando={esEdicionFormulario}
+              form={form}
+              onChange={setForm}
+              onProyectoChange={handleProyectoChange}
+              onUploadDocumento={uploadDocumento}
+              productores={productores}
+              proyectos={proyectos}
+              puedeEditarAvanceFormulario={puedeEditarAvanceFormulario}
+              uploading={uploading}
+            />
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
               <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>

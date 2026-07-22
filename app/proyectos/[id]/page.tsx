@@ -16,7 +16,13 @@ import { esFacturaAnulada, totalFactura } from "@/lib/finance"
 import { puedeCerrarFinancieramenteProyecto } from "@/lib/proyecto-cierre-financiero"
 import { RQ_MIGRATION_SUCCESS_ACTIONS } from "@/lib/rq-migracion"
 import { V2DetailPageTemplate } from "@/components/v2/templates"
-import { V2AlertCard, V2ActivityTimeline, V2Button, V2EmptyState, V2ErrorState, V2MetricCard, V2QuickActions, V2SectionCard, V2SectionHeader, V2Select, V2StatusBadge, V2StatusSelect } from "@/components/v2/system"
+import { V2AlertCard, V2ActivityTimeline, V2Button, V2Drawer, V2EmptyState, V2ErrorState, V2MetricCard, V2QuickActions, V2SectionCard, V2SectionHeader, V2Select, V2StatusBadge, V2StatusSelect } from "@/components/v2/system"
+import { crearRQManualService, type FormRQManual } from "@/lib/services/rqp"
+import { RQForm } from "@/app/rq/components/RQForm"
+import { guardarTareaService, type FormTarea } from "@/lib/services/tareas"
+import { TaskForm } from "@/app/tareas/components/TaskForm"
+import { cargarCotizacionesDelProyecto, guardarRequerimientoAudiovisualService, subirDocumentoAudiovisual, type FormAudiovisual } from "@/lib/services/audiovisual"
+import { AudiovisualRequestForm } from "@/app/audiovisual/requerimientos/components/AudiovisualRequestForm"
 import type { V2TimelineItem } from "@/components/v2/system/V2ActivityTimeline"
 import { ProjectDetailShellV2 } from "@/components/v2/projects/ProjectDetailShellV2"
 import { ProjectDetailHeaderV2, estadoTone } from "@/components/v2/projects/ProjectDetailHeaderV2"
@@ -92,6 +98,21 @@ export default function ProyectoDetallePage() {
   const [cambiando, setCambiando] = useState(false)
   const [showPreCuadre, setShowPreCuadre] = useState(false)
   const [preCuadreItems, setPreCuadreItems] = useState<any[]>([])
+  const [scrollTargetId, setScrollTargetId] = useState<string | null>(null)
+  // Launcher contextual: que Drawer de accion del proyecto esta abierto. Un solo estado
+  // en vez de un booleano por accion (isRqOpen/isTaskOpen/...), extensible a futuro.
+  const [activeProjectAction, setActiveProjectAction] = useState<"rq" | "task" | "audiovisual" | null>(null)
+  const [rqForm, setRqForm] = useState<FormRQManual | null>(null)
+  const [rqError, setRqError] = useState("")
+  const [rqGuardando, setRqGuardando] = useState(false)
+  const [taskForm, setTaskForm] = useState<FormTarea | null>(null)
+  const [usuariosTarea, setUsuariosTarea] = useState<any[]>([])
+  const [taskGuardando, setTaskGuardando] = useState(false)
+  const [audiovisualForm, setAudiovisualForm] = useState<FormAudiovisual | null>(null)
+  const [productoresAudiovisual, setProductoresAudiovisual] = useState<any[]>([])
+  const [cotizacionesAudiovisual, setCotizacionesAudiovisual] = useState<any[]>([])
+  const [audiovisualGuardando, setAudiovisualGuardando] = useState(false)
+  const [audiovisualUploading, setAudiovisualUploading] = useState(false)
   const [itemsCotizadosPresupuesto, setItemsCotizadosPresupuesto] = useState<any[]>([])
   const [showMigracionRQ, setShowMigracionRQ] = useState(false)
   const [comparacionPendiente, setComparacionPendiente] = useState<any>(null)
@@ -110,6 +131,19 @@ export default function ProyectoDetallePage() {
   const [accesoRestringido, setAccesoRestringido] = useState(false)
 
   useEffect(() => { load() }, [id])
+
+  // Acciones "Ver liquidacion"/"Ver documentos" cambian de pestana (handleTabChange)
+  // y piden un scroll a la seccion correspondiente via scrollTargetId. El scroll se
+  // hace aqui, despues de que activeTab efectivamente cambio y esa seccion ya esta
+  // en el DOM (ProjectDetailSection no renderiza pestanas inactivas).
+  useEffect(() => {
+    if (!scrollTargetId) return
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(scrollTargetId)?.scrollIntoView({ behavior: "smooth", block: "start" })
+      setScrollTargetId(null)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [activeTab, scrollTargetId])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -1342,6 +1376,142 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     if (nueva) router.push(`/proyectos/${id}/cotizaciones/${nueva.id}`)
   }
 
+  // Mismo flujo que usa el boton "+ Generar RQs adicionales" de Costos/RQ — se extrajo
+  // aqui para que la accion "Crear RQ" de la barra superior del proyecto pueda reutilizarlo
+  // sin duplicar logica ni navegar fuera del detalle del proyecto.
+  async function abrirGenerarRQAdicional() {
+    const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
+    setProveedores(provs || [])
+    setPreCuadreItems([{ id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, esAdicional: true, tipo_pago: "contado", tratamiento_igv: tratamientoIgvDefaultProyecto }])
+    setShowPreCuadre(true)
+  }
+
+  // Formulario general de "Crear RQ" (mismo RQForm/crearRQManualService que /rq) abierto
+  // desde el proyecto, con proyecto_id precargado y bloqueado. No decide aqui si el
+  // proyecto esta "en curso": esa regla vive dentro de crearRQManualService, igual que
+  // cuando se crea desde /rq directamente.
+  function abrirCrearRQGeneral() {
+    setRqError("")
+    setRqForm({
+      descripcion: "", proveedor_id: "", monto_solicitado: "", tratamiento_igv: "incluye_igv",
+      proyecto_id: String(id), tipo_pago: "contado", condicion_comercial: "contado", medio_pago: "Transferencia",
+      es_excepcion: false, motivo_excepcion: "", dias_credito: "", fecha_necesidad_pago: "",
+      fecha_pago: "", voucher_url: "", nota_pago: "", numero_operacion: "", banco_pago: "", tipo_transferencia: "Transferencia",
+    })
+    if (proveedores.length === 0) {
+      supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
+        .then(({ data }) => setProveedores(data || []))
+    }
+    setActiveProjectAction("rq")
+  }
+
+  async function guardarRQGeneral() {
+    if (!rqForm) return
+    setRqError("")
+    setRqGuardando(true)
+    const resultado = await crearRQManualService({ supabase, formRQ: rqForm, proyectos: proyecto ? [proyecto] : [], proveedoresTodos: proveedores, perfil })
+    if (!resultado.ok) {
+      setRqError(resultado.error)
+      setRqGuardando(false)
+      return
+    }
+    setActiveProjectAction(null)
+    await load()
+    setRqGuardando(false)
+  }
+
+  // Formulario general de "Crear tarea" (mismo TaskForm/guardarTareaService que /tareas)
+  // abierto desde el proyecto, con proyecto_id y cliente_id precargados y bloqueados.
+  // Solo creacion (editando=null) — editar tareas desde Proyecto no esta en alcance.
+  function abrirCrearTarea() {
+    setTaskForm({
+      titulo: "", descripcion: "", estado: "pendiente", prioridad: "media",
+      proyecto_id: String(id), cliente_id: clienteId || "", asignado_a: "",
+      fecha_limite: "", hora_inicio: "", hora_fin: "", participante_ids: [],
+      frecuencia: "no_repite", recurrencia_intervalo: 1, recurrencia_fecha_fin: "", recurrencia_max_repeticiones: "",
+      link_inicial: "", notificar_participantes: true, mostrar_participantes_mi_trabajo: true, permitir_comentarios: true, recibir_correos_automaticos: true,
+    })
+    if (usuariosTarea.length === 0) {
+      supabase.from("perfiles").select("id, nombre, apellido, perfil").order("nombre")
+        .then(({ data }: any) => setUsuariosTarea(data || []))
+    }
+    setActiveProjectAction("task")
+  }
+
+  async function guardarTareaProyecto() {
+    if (!taskForm) return
+    setTaskGuardando(true)
+    const resultado = await guardarTareaService({ supabase, form: taskForm, editando: null, perfil })
+    if (!resultado.ok) {
+      alert(resultado.error)
+      setTaskGuardando(false)
+      return
+    }
+    setActiveProjectAction(null)
+    handleTabChange("seguimiento")
+    setScrollTargetId("tab-tareas")
+    await load()
+    setTaskGuardando(false)
+  }
+
+  // Formulario general de "Solicitar audiovisual" (mismo AudiovisualRequestForm/
+  // guardarRequerimientoAudiovisualService que /audiovisual/requerimientos) abierto
+  // desde el proyecto, con proyecto_id precargado y bloqueado (sin opcion OTRO / SIN
+  // PROYECTO) y sus cotizaciones ya cargadas. Solo creacion (editando=null).
+  async function abrirSolicitarAudiovisual() {
+    setAudiovisualForm({
+      proyecto_id: String(id), cotizacion_id: "", detalle_otro_proyecto: "", ubicacion: "",
+      productor_id: proyecto?.productor_id || "", responsable_audiovisual_id: "",
+      fecha_entrega_solicitada: "", fecha_devolucion_audiovisual: "", piezas: [],
+      pieza_otros_descripcion: "", brief: "", prioridad: "media", avance: "10",
+      referencia_url: "", documento_url: "", artes_url: "", estado: "pendiente",
+    })
+    if (productoresAudiovisual.length === 0) {
+      supabase.from("perfiles").select("id,nombre,apellido,perfil").eq("activo", true).order("nombre")
+        .then(({ data }: any) => setProductoresAudiovisual(data || []))
+    }
+    setCotizacionesAudiovisual(await cargarCotizacionesDelProyecto(supabase, String(id)))
+    setActiveProjectAction("audiovisual")
+  }
+
+  async function subirDocumentoAudiovisualProyecto(file: File) {
+    setAudiovisualUploading(true)
+    const resultado = await subirDocumentoAudiovisual(supabase, file)
+    if (!resultado.ok) {
+      alert(resultado.error)
+      setAudiovisualUploading(false)
+      return
+    }
+    setAudiovisualForm((prev) => (prev ? { ...prev, documento_url: resultado.url } : prev))
+    setAudiovisualUploading(false)
+  }
+
+  async function guardarAudiovisualProyecto() {
+    if (!audiovisualForm) return
+    setAudiovisualGuardando(true)
+    const resultado = await guardarRequerimientoAudiovisualService({
+      supabase,
+      form: audiovisualForm,
+      editando: null,
+      perfil,
+      proyectos: proyecto ? [proyecto] : [],
+      productores: productoresAudiovisual,
+      puedeEditarPedidoFormulario: true,
+      puedeEditarAvanceFormulario: false,
+    })
+    if (!resultado.ok) {
+      alert(resultado.error)
+      setAudiovisualGuardando(false)
+      return
+    }
+    if (resultado.warning) alert(resultado.warning)
+    setActiveProjectAction(null)
+    handleTabChange("seguimiento")
+    setScrollTargetId("tab-tareas")
+    await load()
+    setAudiovisualGuardando(false)
+  }
+
   async function abrirPreCuadreDesdeItem(item: any) {
     if (!puedeAccionRQ("crear")) {
       alert("No tienes permiso para realizar esta acción.")
@@ -1821,12 +1991,32 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               },
             } : undefined}
             secondary={([
-              puedeCrearRQ ? { key: "crear-rq", label: "Crear RQ", icon: <FileText size={15} />, onClick: () => router.push(`/rq?proyecto_id=${id}`) } : null,
-              { key: "crear-tarea", label: "Crear tarea", icon: <ClipboardList size={15} />, onClick: () => router.push(`/tareas?proyecto_id=${id}`) },
-              { key: "solicitar-audiovisual", label: "Solicitar audiovisual", icon: <Video size={15} />, onClick: () => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`) },
-              puedeVerFacturacionProyecto ? { key: "emitir-factura", label: "Emitir factura", icon: <Receipt size={15} />, onClick: () => router.push(`/facturacion?proyecto_id=${id}`) } : null,
-              { key: "ver-liquidacion", label: "Ver liquidación", icon: <FileCheck2 size={15} />, onClick: () => router.push(`/liquidaciones?proyecto_id=${id}`) },
-              puedeExportarProyecto ? { key: "ver-documentos", label: "Ver documentos", icon: <FolderOpen size={15} />, href: "/api/reporte-pdf?proyecto_id=" + id } : null,
+              // Crear RQ: abre el formulario general (RQForm, el mismo que usa /rq), con
+              // el proyecto precargado y bloqueado. La regla de "solo se puede si el
+              // proyecto esta en_curso" vive dentro de crearRQManualService — el proyecto
+              // no decide reglas funcionales, solo abre el formulario correcto.
+              puedeCrearRQ ? {
+                key: "crear-rq",
+                label: "Crear RQ",
+                icon: <FileText size={15} />,
+                onClick: abrirCrearRQGeneral,
+              } : null,
+              // Crear tarea: abre el formulario general (TaskForm, el mismo que usa
+              // /tareas), con proyecto y cliente precargados y bloqueados.
+              { key: "crear-tarea", label: "Crear tarea", icon: <ClipboardList size={15} />, onClick: abrirCrearTarea },
+              // Solicitar audiovisual: abre el formulario general (AudiovisualRequestForm,
+              // el mismo que usa /audiovisual/requerimientos), con proyecto precargado y
+              // bloqueado y sus cotizaciones ya cargadas.
+              { key: "solicitar-audiovisual", label: "Solicitar audiovisual", icon: <Video size={15} />, onClick: abrirSolicitarAudiovisual },
+              // Emitir factura: flujo fiscal (detraccion/retencion/pronto pago) demasiado
+              // acoplado a /facturacion para integrarlo sin riesgo este sprint. Se usa href
+              // (abre en pestana nueva) en vez de onClick+router.push para no perder el
+              // detalle del proyecto abierto — distincion visual/funcional de accion externa.
+              puedeVerFacturacionProyecto ? { key: "emitir-factura", label: "Emitir factura", icon: <Receipt size={15} />, href: `/facturacion?proyecto_id=${id}` } : null,
+              // Ver liquidacion / Ver documentos: ya viven dentro de Seguimiento (Sprint 3.1),
+              // asi que activar la pestana y hacer scroll reemplaza la navegacion externa.
+              { key: "ver-liquidacion", label: "Ver liquidación", icon: <FileCheck2 size={15} />, onClick: () => { handleTabChange("seguimiento"); setScrollTargetId("tab-liquidacion") } },
+              puedeExportarProyecto ? { key: "ver-documentos", label: "Ver documentos", icon: <FolderOpen size={15} />, onClick: () => { handleTabChange("seguimiento"); setScrollTargetId("tab-archivos") } } : null,
             ].filter(Boolean)) as ProjectToolbarAction[]}
           />
         }
@@ -2148,12 +2338,7 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
           <V2AlertCard
             actionLabel={proyecto?.estado === "en_curso" && puedeCrearRQ ? "+ Generar RQs adicionales" : "No disponible"}
             message="Pre-cuadre y RQs adicionales: mantiene el flujo actual — selecciona proveedores, costos finales y genera requerimientos de pago adicionales."
-            onClick={proyecto?.estado === "en_curso" && puedeCrearRQ ? async () => {
-              const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
-              setProveedores(provs || [])
-              setPreCuadreItems([{ id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, esAdicional: true, tipo_pago: "contado", tratamiento_igv: tratamientoIgvDefaultProyecto }])
-              setShowPreCuadre(true)
-            } : undefined}
+            onClick={proyecto?.estado === "en_curso" && puedeCrearRQ ? abrirGenerarRQAdicional : undefined}
             tipo="warning"
           />
         </div>
@@ -2356,7 +2541,6 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       <ProjectDetailSection activeTab={activeTab} tab="resumen">
       <section id="tab-resumen" style={{ scrollMarginTop: 120 }}>
         <V2SectionHeader
-          actions={<V2StatusBadge tone={estadoTone(proyecto?.estado)}>{estadoInfo.label}</V2StatusBadge>}
           description="Vista rápida del proyecto, estado, economía base y alertas operativas."
           title="Resumen ejecutivo"
         />
@@ -2516,10 +2700,10 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
         <V2SectionCard
           action={
             <V2QuickActions layout="auto">
-              <V2Button leadingIcon={<ClipboardList size={15} />} onClick={() => router.push(`/tareas?proyecto_id=${id}`)} size="sm" variant="secondary">
+              <V2Button leadingIcon={<ClipboardList size={15} />} onClick={abrirCrearTarea} size="sm" variant="secondary">
                 Crear tarea
               </V2Button>
-              <V2Button leadingIcon={<Video size={15} />} onClick={() => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`)} size="sm" variant="secondary">
+              <V2Button leadingIcon={<Video size={15} />} onClick={abrirSolicitarAudiovisual} size="sm" variant="secondary">
                 Solicitar audiovisual
               </V2Button>
             </V2QuickActions>
@@ -2650,6 +2834,99 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       </div>
       </ProjectDetailSection>
       </ProjectDetailShellV2>
+
+      <V2Drawer
+        description={proyecto ? `${proyecto.codigo} — ${proyecto.nombre}` : undefined}
+        footer={
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", width: "100%" }}>
+            {rqError && (
+              <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: "var(--v2-danger-bg)", color: "var(--v2-danger)", fontSize: 12, textAlign: "left" }}>
+                {rqError}
+              </div>
+            )}
+            <V2Button onClick={() => setActiveProjectAction(null)} variant="secondary">Cancelar</V2Button>
+            <V2Button disabled={rqGuardando} loading={rqGuardando} onClick={guardarRQGeneral} variant="primary">
+              {rqGuardando ? "Creando..." : "Crear RQ"}
+            </V2Button>
+          </div>
+        }
+        onClose={() => setActiveProjectAction(null)}
+        open={activeProjectAction === "rq"}
+        title="Nuevo requerimiento de pago"
+      >
+        {rqForm && (
+          <RQForm
+            formRQ={rqForm}
+            onChange={(next) => { setRqError(""); setRqForm(next) }}
+            proveedoresTodos={proveedores}
+            proyectoBloqueado
+            proyectos={proyecto ? [proyecto] : []}
+          />
+        )}
+      </V2Drawer>
+
+      <V2Drawer
+        description={proyecto ? `${proyecto.codigo} — ${proyecto.nombre}` : undefined}
+        footer={
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", width: "100%" }}>
+            <V2Button onClick={() => setActiveProjectAction(null)} variant="secondary">Cancelar</V2Button>
+            <V2Button disabled={taskGuardando} loading={taskGuardando} onClick={guardarTareaProyecto} variant="primary">
+              {taskGuardando ? "Guardando..." : "Delegar trabajo"}
+            </V2Button>
+          </div>
+        }
+        onClose={() => setActiveProjectAction(null)}
+        open={activeProjectAction === "task"}
+        size="lg"
+        title="Nueva tarea"
+      >
+        {taskForm && (
+          <TaskForm
+            clienteBloqueado
+            clientes={clienteId ? [{ id: clienteId, razon_social: clienteNombre }] : []}
+            editando={false}
+            form={taskForm}
+            onChange={setTaskForm}
+            proyectoBloqueado
+            proyectos={proyecto ? [proyecto] : []}
+            usuarios={usuariosTarea}
+          />
+        )}
+      </V2Drawer>
+
+      <V2Drawer
+        description={proyecto ? `${proyecto.codigo} — ${proyecto.nombre}` : undefined}
+        footer={
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", width: "100%" }}>
+            <V2Button onClick={() => setActiveProjectAction(null)} variant="secondary">Cancelar</V2Button>
+            <V2Button disabled={audiovisualGuardando || audiovisualUploading} loading={audiovisualGuardando} onClick={guardarAudiovisualProyecto} variant="primary">
+              {audiovisualGuardando ? "Creando..." : "Crear y alertar audiovisual"}
+            </V2Button>
+          </div>
+        }
+        onClose={() => setActiveProjectAction(null)}
+        open={activeProjectAction === "audiovisual"}
+        size="lg"
+        title="Nuevo requerimiento audiovisual"
+      >
+        {audiovisualForm && (
+          <AudiovisualRequestForm
+            camposAvanceDeshabilitados={false}
+            camposPedidoDeshabilitados={false}
+            cotizaciones={cotizacionesAudiovisual}
+            editando={false}
+            form={audiovisualForm}
+            onChange={setAudiovisualForm}
+            onProyectoChange={() => {}}
+            onUploadDocumento={subirDocumentoAudiovisualProyecto}
+            productores={productoresAudiovisual}
+            proyectoBloqueado
+            proyectos={proyecto ? [proyecto] : []}
+            puedeEditarAvanceFormulario={false}
+            uploading={audiovisualUploading}
+          />
+        )}
+      </V2Drawer>
 
       {showEditar && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>

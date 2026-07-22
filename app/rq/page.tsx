@@ -16,9 +16,10 @@ import { estadoMigracionRQ, motivoEstadoMigracion } from "@/lib/rq-migracion"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import { SYSTEM_COLUMNS } from "@/lib/core/configuration"
-import { buildCreateRQPPayload, buildUpdateRQPFinancialPayload } from "@/lib/services/rqp"
+import { buildCreateRQPPayload, buildUpdateRQPFinancialPayload, crearRQManualService } from "@/lib/services/rqp"
 import { V2ListPageTemplate } from "@/components/v2/templates"
 import { V2Button, V2KpiCard, V2PageHeader, V2SectionCard } from "@/components/v2/system"
+import { RQForm } from "./components/RQForm"
 import {
   BANCOS_PAGO,
   MEDIOS_PAGO,
@@ -665,84 +666,28 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     load()
   }
 
-  function errorSupabaseRQ(error: any) {
-    const mensaje = String(error?.message || "")
-    if (mensaje.includes("tratamiento_igv") || mensaje.includes("schema cache")) {
-      return "No se pudo crear el RQ porque falta actualizar el esquema de Supabase. Verifica que la migracion RQ de tratamiento_igv/codigo_rq este aplicada y refresca el schema cache."
-    }
-    if (mensaje.includes("solicitado_por")) {
-      return "No se pudo crear el RQ porque falta el campo solicitado_por en la base de datos o no esta disponible en el schema cache."
-    }
-    if (mensaje.includes("codigo_rq") || mensaje.includes("rq_codigo")) {
-      return "No se pudo generar el codigo RQ. Verifica que la migracion de numeracion RQ y su trigger esten aplicados."
-    }
-    return mensaje || "No se pudo crear el RQ. Revisa los datos obligatorios e intenta nuevamente."
-  }
+  // El mapeo de mensajes de error de crearRQManual (antes aqui) se movio a
+  // lib/services/rqp/rqp.crear-manual.ts junto con el resto de esa funcion.
 
   async function crearRQManual() {
     setErrorNuevoRQ("")
-    if (!validarAccionRQ("crear", { proyecto_id: formRQ.proyecto_id, proyecto: proyectos.find((p: any) => p.id === formRQ.proyecto_id) || null })) return
-    const monto = Number(formRQ.monto_solicitado)
-    const proyecto = proyectos.find((p: any) => p.id === formRQ.proyecto_id)
-    if (!formRQ.proyecto_id) { setErrorNuevoRQ("Selecciona un proyecto para evitar crear un RQ huerfano."); return }
-    if (proyecto?.estado !== "en_curso") { setErrorNuevoRQ("Para generar RQs, el proyecto debe estar En curso."); return }
-    if (!formRQ.descripcion.trim()) { setErrorNuevoRQ("Ingresa la descripcion o concepto del RQ."); return }
-    if (!formRQ.proveedor_id) { setErrorNuevoRQ("Selecciona un proveedor."); return }
-    if (!Number.isFinite(monto) || monto <= 0) { setErrorNuevoRQ("Ingresa un monto valido mayor a cero."); return }
-    if (formRQ.es_excepcion && !String(formRQ.motivo_excepcion || "").trim()) {
-      setErrorNuevoRQ("El motivo de la excepción es obligatorio.")
+    setGuardandoRQ(true)
+    const resultado = await crearRQManualService({ supabase, formRQ, proyectos, proveedoresTodos, perfil })
+    if (!resultado.ok) {
+      setErrorNuevoRQ(resultado.error)
+      setGuardandoRQ(false)
       return
     }
-
-    setGuardandoRQ(true)
-    try {
-      const prov = proveedoresTodos.find((p: any) => p.id === formRQ.proveedor_id)
-      const payload = {
-        proyecto_id: formRQ.proyecto_id,
-        estado: "pendiente_aprobacion",
-        proveedor_id: formRQ.proveedor_id,
-        proveedor_nombre: prov?.nombre || "",
-        monto_solicitado: monto,
-        tratamiento_igv: formRQ.tratamiento_igv,
-        descripcion: formRQ.descripcion.trim(),
-        tipo_pago: formRQ.condicion_comercial || formRQ.tipo_pago,
-        dias_credito: (formRQ.condicion_comercial || formRQ.tipo_pago) === "credito" && formRQ.dias_credito ? Number(formRQ.dias_credito) : null,
-        condicion_comercial: formRQ.condicion_comercial || formRQ.tipo_pago,
-        medio_pago: formRQ.medio_pago || "Transferencia",
-        fecha_necesidad_pago: formRQ.fecha_necesidad_pago || null,
-        es_excepcion: Boolean(formRQ.es_excepcion),
-        motivo_excepcion: formRQ.es_excepcion
-          ? String(formRQ.motivo_excepcion || "").trim()
-          : null,
-        excepcion_solicitada_por: formRQ.es_excepcion
-          ? perfil?.id || null
-          : null,
-        excepcion_solicitada_at: formRQ.es_excepcion
-          ? new Date().toISOString()
-          : null,
-        es_adicional: true,
-        solicitado_por: perfil?.id || null,
-      }
-      const { data: creado, error } = await supabase.from("requerimientos_pago").insert(payload).select("id,codigo_rq,numero_rq").single()
-      if (error) throw error
-      console.info("RQ manual creado", {
-        proyecto_id: payload.proyecto_id,
-        proveedor_id: payload.proveedor_id,
-        proveedor_nombre: payload.proveedor_nombre,
-        solicitado_por: payload.solicitado_por,
-        rq_id: creado?.id,
-        codigo_rq: creado?.codigo_rq || creado?.numero_rq,
-      })
-      await registrarAccion({ accion: "crear", modulo: "rq", entidad_id: creado?.id, entidad_tipo: "rq", descripcion: "RQ manual creado: " + rqCodigo(creado), datos_nuevos: payload })
-      setShowNuevoRQ(false)
-      setFormRQ(FORM_RQ_VACIO)
-      await load()
-    } catch (error: any) {
-      console.error("Error creando RQ manual:", error)
-      setErrorNuevoRQ(errorSupabaseRQ(error))
-    } finally {
-      setGuardandoRQ(false)
-    }
+    console.info("RQ manual creado", {
+      proyecto_id: formRQ.proyecto_id,
+      proveedor_id: formRQ.proveedor_id,
+      rq_id: resultado.creado?.id,
+      codigo_rq: resultado.creado?.codigo_rq || resultado.creado?.numero_rq,
+    })
+    setShowNuevoRQ(false)
+    setFormRQ(FORM_RQ_VACIO)
+    await load()
+    setGuardandoRQ(false)
   }
 
   function getSiguienteAccion(rq: any) {
@@ -1602,94 +1547,12 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
               <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Nuevo Requerimiento de Pago</h2>
               <button onClick={() => setShowNuevoRQ(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
             </div>
-            <div style={{ display: "grid", gap: 12 }}>
-              <div>
-                <label style={lbl}>PROYECTO</label>
-                <select style={inp} value={formRQ.proyecto_id} onChange={e => { setErrorNuevoRQ(""); setFormRQ({ ...formRQ, proyecto_id: e.target.value }) }}>
-                  <option value="">Seleccionar proyecto</option>{proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}{p.estado !== "en_curso" ? " (no en curso)" : ""}</option>)}
-                </select>
-                {formRQ.proyecto_id && proyectos.find((p: any) => p.id === formRQ.proyecto_id)?.estado !== "en_curso" && (
-                  <div style={{ fontSize: 11, color: "#92400e", marginTop: 4 }}>Para generar RQs, el proyecto debe estar En curso.</div>
-                )}
-              </div>
-              <div><label style={lbl}>CONCEPTO</label><input style={inp} value={formRQ.descripcion} placeholder="Concepto del RQ..." onChange={e => setFormRQ({ ...formRQ, descripcion: e.target.value })} /></div>
-              <div><label style={lbl}>PROVEEDOR</label><select style={inp} value={formRQ.proveedor_id} onChange={e => setFormRQ({ ...formRQ, proveedor_id: e.target.value })}><option value="">Seleccionar proveedor</option>{proveedoresTodos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>
-              <div><label style={lbl}>MONTO (S/)</label><input type="number" style={inp} value={formRQ.monto_solicitado} placeholder="0.00" onChange={e => setFormRQ({ ...formRQ, monto_solicitado: e.target.value })} /></div>
-              <div><label style={lbl}>TRATAMIENTO IGV</label><select style={inp} value={formRQ.tratamiento_igv} onChange={e => setFormRQ({ ...formRQ, tratamiento_igv: e.target.value })}><option value="incluye_igv">Incluye IGV</option><option value="mas_igv">No incluye IGV</option><option value="no_aplica">No aplica</option></select></div>
-              {formRQ.monto_solicitado && (
-                <div style={{ padding: 10, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, color: "#374151" }}>
-                  {(() => {
-                    const igv = rqIgvDetalle({ monto_solicitado: formRQ.monto_solicitado, tratamiento_igv: formRQ.tratamiento_igv })
-                    return <>Subtotal {fmt(igv.subtotal)} · IGV {fmt(igv.igv)} · Total {fmt(igv.total)}</>
-                  })()}
-                </div>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>CONDICIÓN COMERCIAL</label><select style={inp} value={formRQ.condicion_comercial} onChange={e => setFormRQ({ ...formRQ, condicion_comercial: e.target.value, tipo_pago: e.target.value, dias_credito: e.target.value === "credito" ? formRQ.dias_credito : "" })}><option value="contado">Contado</option><option value="adelanto">Adelanto</option><option value="credito">Credito</option></select></div>
-                <div><label style={lbl}>MEDIO DE PAGO</label><select style={inp} value={formRQ.medio_pago} onChange={e => setFormRQ({ ...formRQ, medio_pago: e.target.value })}>{MEDIOS_PAGO.map(m => <option key={m}>{m}</option>)}</select></div>
-              </div>
-              {formRQ.condicion_comercial === "credito" && (
-                <div><label style={lbl}>DÍAS DE CRÉDITO</label><input type="number" style={inp} value={formRQ.dias_credito} placeholder="Ej: 30, 45, 60..." onChange={e => setFormRQ({ ...formRQ, dias_credito: e.target.value })} /></div>
-              )}
-              <div><label style={lbl}>FECHA DE NECESIDAD DE PAGO</label><input type="date" style={inp} value={formRQ.fecha_necesidad_pago} onChange={e => setFormRQ({ ...formRQ, fecha_necesidad_pago: e.target.value })} /></div>
-
-              <div style={{
-                padding: 12,
-                borderRadius: 10,
-                border: formRQ.es_excepcion
-                  ? "1px solid #fecaca"
-                  : "1px solid #e5e7eb",
-                background: formRQ.es_excepcion
-                  ? "#fef2f2"
-                  : "#f9fafb"
-              }}>
-                <label style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: formRQ.es_excepcion ? "#b91c1c" : "#374151",
-                  cursor: "pointer"
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(formRQ.es_excepcion)}
-                    onChange={e => setFormRQ({
-                      ...formRQ,
-                      es_excepcion: e.target.checked,
-                      motivo_excepcion: e.target.checked
-                        ? formRQ.motivo_excepcion
-                        : ""
-                    })}
-                  />
-                  🚩 Marcar como excepción de pago
-                </label>
-
-                {formRQ.es_excepcion && (
-                  <div style={{ marginTop: 10 }}>
-                    <label style={{ ...lbl, color: "#b91c1c" }}>
-                      MOTIVO DE LA EXCEPCIÓN *
-                    </label>
-
-                    <textarea
-                      rows={3}
-                      value={formRQ.motivo_excepcion}
-                      placeholder="Explica por qué este pago requiere una excepción..."
-                      onChange={e => setFormRQ({
-                        ...formRQ,
-                        motivo_excepcion: e.target.value
-                      })}
-                      style={{
-                        ...inp,
-                        resize: "vertical",
-                        borderColor: "#fca5a5"
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
+            <RQForm
+              formRQ={formRQ}
+              onChange={(next) => { setErrorNuevoRQ(""); setFormRQ(next) }}
+              proveedoresTodos={proveedoresTodos}
+              proyectos={proyectos}
+            />
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
               {errorNuevoRQ && (
                 <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: "#fef2f2", color: "#991b1b", fontSize: 12, textAlign: "left" }}>
