@@ -605,7 +605,7 @@
 
 .tableShell {
   overflow: hidden;
-  border: 1px solid var(--v2-border);
+  border: none;
   border-radius: var(--v2-radius-lg);
   background: var(--v2-surface);
   box-shadow: var(--v2-shadow-sm);
@@ -1099,7 +1099,7 @@
 
 .premiumKpiCard {
   background: var(--v2-surface);
-  border: 1px solid var(--v2-border);
+  border: none;
   border-radius: var(--v2-radius-lg);
   padding: var(--v2-space-3);
   display: flex;

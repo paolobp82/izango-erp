@@ -1,9 +1,9 @@
 "use client"
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { CircleDollarSign, Clock3, Copy, Eye, FolderKanban, Trash2, Zap } from "lucide-react"
+import { ChevronDown, CircleDollarSign, Clock3, Copy, Eye, FolderKanban, Trash2, Zap } from "lucide-react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { useRouter } from "next/navigation"
@@ -58,6 +58,100 @@ function productorInitials(productor?: { nombre?: string | null; apellido?: stri
   return `${productor.nombre?.[0] || ""}${productor.apellido?.[0] || ""}`.toUpperCase() || "—"
 }
 
+function EstadoMultiSelect({
+  selected,
+  onChange,
+  compact = false,
+}: {
+  selected: string[]
+  onChange: (selected: string[]) => void
+  compact?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const allKeys = Object.keys(ESTADO_LABEL)
+
+  const toggleAll = () => {
+    if (selected.length === allKeys.length) {
+      onChange([])
+    } else {
+      onChange(allKeys)
+    }
+  }
+
+  const toggleItem = (key: string) => {
+    if (selected.includes(key)) {
+      onChange(selected.filter((k) => k !== key))
+    } else {
+      onChange([...selected, key])
+    }
+  }
+
+  const buttonLabel =
+    selected.length === 0
+      ? "Todos los estados"
+      : selected.length === 1
+      ? ESTADO_LABEL[selected[0]] || selected[0]
+      : `${selected.length} estados sel.`
+
+  return (
+    <div className={styles.multiSelectWrapper} ref={containerRef}>
+      <button
+        type="button"
+        className={`${styles.multiSelectTrigger} ${compact ? styles.multiSelectTriggerCompact : ""}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((prev) => !prev)
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{buttonLabel}</span>
+        <ChevronDown size={12} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }} />
+      </button>
+
+      {open && (
+        <div className={styles.multiSelectDropdown} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.multiSelectHeader}>
+            <button type="button" className={styles.multiSelectActionBtn} onClick={toggleAll}>
+              {selected.length === allKeys.length ? "Desmarcar todos" : "Seleccionar todos"}
+            </button>
+            {selected.length > 0 && (
+              <button type="button" className={styles.multiSelectActionBtn} onClick={() => onChange([])}>
+                Limpiar ({selected.length})
+              </button>
+            )}
+          </div>
+          <div className={styles.multiSelectList}>
+            {Object.entries(ESTADO_LABEL).map(([key, label]) => {
+              const checked = selected.includes(key)
+              return (
+                <label key={key} className={styles.multiSelectItem}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleItem(key)}
+                  />
+                  <span>{label}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const POR_PAGINA = 50
 
 export default function ProyectosPage() {
@@ -72,6 +166,12 @@ export default function ProyectosPage() {
   const [filtroCliente, setFiltroCliente] = useState("")
   const [busqueda, setBusqueda] = useState("")
   const [pagina, setPagina] = useState(1)
+
+  // Filtros por columna de tabla
+  const [filtroCodigo, setFiltroCodigo] = useState("")
+  const [filtroProyecto, setFiltroProyecto] = useState("")
+  const [filtroSubtotal, setFiltroSubtotal] = useState("")
+  const [filtroFecha, setFiltroFecha] = useState("")
 
   // Filtros avanzados (Productor, Entidad, Estado multiple) - se aplican al confirmar en el drawer,
   // igual patron que CRMFilterSection.tsx (tempX mientras se edita, se confirma con "Aplicar filtros").
@@ -241,18 +341,52 @@ export default function ProyectosPage() {
     [eliminados]
   )
 
-  // Filters logic (sin cambios: filtrosEstado ya soportaba multiple seleccion via .includes)
-  const filtrados = proyectos.filter(p =>
-    (filtrosEstado.length === 0 || filtrosEstado.includes(p.estado)) &&
-    (!filtroProductor || p.productor_id === filtroProductor) &&
-    (!filtroCliente || p.cliente_id === filtroCliente) &&
-    (!filtroEntidad || p.entidad === filtroEntidad) &&
-    (!busqueda ||
-      p.codigo?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.cliente?.razon_social?.toLowerCase().includes(busqueda.toLowerCase())
-    )
-  )
+  // Filters logic - combinacion simultanea de todos los filtros por columna y globales (AND)
+  const filtrados = proyectos.filter((p) => {
+    if (filtroCodigo && !p.codigo?.toLowerCase().includes(filtroCodigo.toLowerCase())) return false
+    if (filtroProyecto) {
+      const pr = filtroProyecto.toLowerCase()
+      const matchName = p.nombre?.toLowerCase().includes(pr)
+      const matchEntidad = (p.entidad === "selva" ? "selva" : "peru").includes(pr)
+      if (!matchName && !matchEntidad) return false
+    }
+    if (filtroCliente) {
+      const cl = filtroCliente.toLowerCase()
+      const matchId = p.cliente_id === filtroCliente
+      const matchName = p.cliente?.razon_social?.toLowerCase().includes(cl)
+      if (!matchId && !matchName) return false
+    }
+    if (filtroProductor) {
+      const prod = filtroProductor.toLowerCase()
+      const matchId = p.productor_id === filtroProductor
+      const fullName = `${p.productor?.nombre || ""} ${p.productor?.apellido || ""}`.toLowerCase()
+      if (!matchId && !fullName.includes(prod)) return false
+    }
+    if (filtroEntidad && p.entidad !== filtroEntidad) return false
+    if (filtrosEstado.length > 0 && !filtrosEstado.includes(p.estado)) return false
+    if (filtroSubtotal) {
+      const sub = filtroSubtotal.toLowerCase()
+      const rawTotal = p.cotizacion_aprobada?.total_cliente != null ? String(p.cotizacion_aprobada.total_cliente) : ""
+      const fmtTotal = p.cotizacion_aprobada?.total_cliente != null ? fmt(p.cotizacion_aprobada.total_cliente).toLowerCase() : ""
+      if (!rawTotal.includes(sub) && !fmtTotal.includes(sub)) return false
+    }
+    if (filtroFecha) {
+      const f = filtroFecha.toLowerCase()
+      const fechaFormatted = p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE").toLowerCase() : ""
+      const rawFecha = p.fecha_inicio?.toLowerCase() || ""
+      if (!fechaFormatted.includes(f) && !rawFecha.includes(f)) return false
+    }
+    if (busqueda) {
+      const b = busqueda.toLowerCase()
+      const match =
+        p.codigo?.toLowerCase().includes(b) ||
+        p.nombre?.toLowerCase().includes(b) ||
+        p.cliente?.razon_social?.toLowerCase().includes(b) ||
+        `${p.productor?.nombre || ""} ${p.productor?.apellido || ""}`.toLowerCase().includes(b)
+      if (!match) return false
+    }
+    return true
+  })
 
   const totalPaginas = Math.ceil(filtrados.length / POR_PAGINA)
   const paginados = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
@@ -260,25 +394,18 @@ export default function ProyectosPage() {
   const puedeCrearProyecto = puedeEjecutarAccion(perfil, "proyectos", "crear", { usuarioId: perfil?.id, registro: { productor_id: perfil?.id, created_by: perfil?.id } })
   const puedeExportarProyectos = puedeEjecutarAccion(perfil, "proyectos", "exportar", { usuarioId: perfil?.id, registro: { productor_id: perfil?.id, created_by: perfil?.id } })
 
-  // KPIs universales sobre el alcance visible del usuario (mismas reglas de negocio previas)
+  // KPIs universales sobre el alcance visible del usuario
   const kpis = {
     enCurso: proyectos.filter(p => p.estado === "en_curso").length,
     pndLiquidacion: proyectos.filter(p => p.estado === "terminado").length,
   }
 
-  // Decision documentada (KPI "Facturado"): esta pagina no consulta facturas ni monto facturado real.
-  // El unico total monetario ya disponible sin agregar una consulta nueva es la suma de las cotizaciones
-  // aprobadas (cotizacion_aprobada.total_cliente) que ya se trae en el select de "proyectos" y ya se
-  // muestra por fila en la tabla. Se usa ese valor como KPI financiero mas cercano, rotulado honestamente
-  // como "Monto Aprobado" (no "Facturado", para no atribuir una cifra de facturacion que no se calcula aqui).
   const montoAprobadoTotal = proyectos.reduce((sum, p: any) => sum + Number(p?.cotizacion_aprobada?.total_cliente || 0), 0)
 
-  // Get unique clients and producers for filter dropdowns
+  // Unique clients and producers for filter dropdowns
   const clientesUnicos = Array.from(
     new Map(proyectos.filter((p: any) => p.cliente).map((p: any) => [p.cliente_id, p.cliente])).values()
   )
-  // Nota: productor viene del select "perfiles!productor_id(nombre,apellido)" sin id propio,
-  // por lo que "value: p.id" queda vacio (comportamiento preexistente, sin cambios en esta migracion visual).
   const productoresUnicos = Array.from(
     new Map(proyectos.filter((p: any) => p.productor).map((p: any) => [p.productor_id, p.productor])).values()
   )
@@ -310,8 +437,13 @@ export default function ProyectosPage() {
   }
 
   function quitarFiltroAvanzado(chipId: string) {
-    if (chipId === "productor") setFiltroProductor("")
+    if (chipId === "codigo") setFiltroCodigo("")
+    else if (chipId === "proyecto") setFiltroProyecto("")
+    else if (chipId === "cliente") setFiltroCliente("")
+    else if (chipId === "productor") setFiltroProductor("")
     else if (chipId === "entidad") setFiltroEntidad("")
+    else if (chipId === "subtotal") setFiltroSubtotal("")
+    else if (chipId === "fecha") setFiltroFecha("")
     else if (chipId.startsWith("estado:")) {
       const estado = chipId.slice("estado:".length)
       setFiltrosEstado((prev) => prev.filter((e) => e !== estado))
@@ -321,6 +453,16 @@ export default function ProyectosPage() {
 
   const activeChips = useMemo(() => {
     const chips: { id: string; label: string; valueLabel: string }[] = []
+    if (filtroCodigo) {
+      chips.push({ id: "codigo", label: "Código", valueLabel: filtroCodigo })
+    }
+    if (filtroProyecto) {
+      chips.push({ id: "proyecto", label: "Proyecto", valueLabel: filtroProyecto })
+    }
+    if (filtroCliente) {
+      const cl = clientesUnicos.find((c: any) => c.id === filtroCliente) as any
+      chips.push({ id: "cliente", label: "Cliente", valueLabel: cl ? cl.razon_social : "Seleccionado" })
+    }
     if (filtroProductor) {
       const prod = productoresUnicos.find((p: any) => p.id === filtroProductor) as any
       chips.push({ id: "productor", label: "Productor", valueLabel: prod ? `${prod.nombre} ${prod.apellido}` : "Asignado" })
@@ -331,24 +473,58 @@ export default function ProyectosPage() {
     filtrosEstado.forEach((estado) => {
       chips.push({ id: `estado:${estado}`, label: "Estado", valueLabel: ESTADO_LABEL[estado] || estado })
     })
+    if (filtroSubtotal) {
+      chips.push({ id: "subtotal", label: "Subtotal", valueLabel: filtroSubtotal })
+    }
+    if (filtroFecha) {
+      chips.push({ id: "fecha", label: "Fecha", valueLabel: filtroFecha })
+    }
     return chips
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroProductor, filtroEntidad, filtrosEstado])
+  }, [filtroCodigo, filtroProyecto, filtroCliente, filtroProductor, filtroEntidad, filtrosEstado, filtroSubtotal, filtroFecha, clientesUnicos, productoresUnicos])
 
-  const drawerActiveCount = (filtroProductor ? 1 : 0) + (filtroEntidad ? 1 : 0)
-  const totalFiltrosActivos = drawerActiveCount + filtrosEstado.length + (filtroCliente ? 1 : 0)
+  const totalFiltrosActivos =
+    activeChips.length + (busqueda ? 1 : 0)
 
-  // V2 Table columns definition - orden y encabezados alineados a la referencia
-  // "Gestion de Proyectos": Codigo, Proyecto, Cliente, Productor, Estado, Subtotal, Fecha, Acciones.
+  // Columnas filtrables por todos los encabezados visibles
   const tableColumns: V2TableColumn<any>[] = [
     {
       key: "codigo",
-      header: "CÓDIGO",
+      header: (
+        <div className={styles.headerFilterBox}>
+          <span>CÓDIGO</span>
+          <input
+            className={styles.columnFilterInput}
+            onChange={(e) => {
+              setFiltroCodigo(e.target.value)
+              setPagina(1)
+            }}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Filtrar..."
+            type="text"
+            value={filtroCodigo}
+          />
+        </div>
+      ),
       render: (p) => <span style={{ fontWeight: 800, color: "var(--v2-accent)", fontSize: "12px" }}>{p.codigo}</span>,
     },
     {
       key: "proyecto",
-      header: "PROYECTO",
+      header: (
+        <div className={styles.headerFilterBox}>
+          <span>PROYECTO</span>
+          <input
+            className={styles.columnFilterInput}
+            onChange={(e) => {
+              setFiltroProyecto(e.target.value)
+              setPagina(1)
+            }}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Filtrar..."
+            type="text"
+            value={filtroProyecto}
+          />
+        </div>
+      ),
       minWidth: 220,
       render: (p) => (
         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
@@ -373,12 +549,52 @@ export default function ProyectosPage() {
     },
     {
       key: "cliente",
-      header: "CLIENTE",
+      header: (
+        <div className={styles.headerFilterBox}>
+          <span>CLIENTE</span>
+          <select
+            className={styles.columnFilterSelect}
+            onChange={(e) => {
+              setFiltroCliente(e.target.value)
+              setPagina(1)
+            }}
+            onClick={(e) => e.stopPropagation()}
+            value={filtroCliente}
+          >
+            <option value="">Todos</option>
+            {clientesUnicos.map((c: any) => (
+              <option key={c.id || c.razon_social} value={c.id || ""}>
+                {c.razon_social}
+              </option>
+            ))}
+          </select>
+        </div>
+      ),
       render: (p) => p.cliente?.razon_social || "—",
     },
     {
       key: "productor",
-      header: "PRODUCTOR",
+      header: (
+        <div className={styles.headerFilterBox}>
+          <span>PRODUCTOR</span>
+          <select
+            className={styles.columnFilterSelect}
+            onChange={(e) => {
+              setFiltroProductor(e.target.value)
+              setPagina(1)
+            }}
+            onClick={(e) => e.stopPropagation()}
+            value={filtroProductor}
+          >
+            <option value="">Todos</option>
+            {productoresUnicos.map((p: any) => (
+              <option key={p.id || `${p.nombre}_${p.apellido}`} value={p.id || ""}>
+                {p.nombre} {p.apellido}
+              </option>
+            ))}
+          </select>
+        </div>
+      ),
       render: (p) =>
         p.productor ? (
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -407,16 +623,41 @@ export default function ProyectosPage() {
     },
     {
       key: "estado",
-      header: "ESTADO",
+      header: (
+        <div className={styles.headerFilterBox}>
+          <span>ESTADO</span>
+          <EstadoMultiSelect
+            compact
+            onChange={(estados) => {
+              setFiltrosEstado(estados)
+              setPagina(1)
+            }}
+            selected={filtrosEstado}
+          />
+        </div>
+      ),
       render: (p) => <V2StatusBadge tone={estadoTone(p.estado)}>{ESTADO_LABEL[p.estado] || p.estado || "—"}</V2StatusBadge>,
     },
     {
       key: "subtotal",
-      header: "SUBTOTAL",
+      header: (
+        <div className={styles.headerFilterBox} style={{ alignItems: "flex-end" }}>
+          <span>SUBTOTAL</span>
+          <input
+            className={styles.columnFilterInput}
+            onChange={(e) => {
+              setFiltroSubtotal(e.target.value)
+              setPagina(1)
+            }}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Filtrar..."
+            style={{ textAlign: "right" }}
+            type="text"
+            value={filtroSubtotal}
+          />
+        </div>
+      ),
       align: "right",
-      // Reutiliza cotizacion_aprobada.total_cliente (unico total monetario ya disponible por proyecto,
-      // igual dato que antes se mostraba como "Monto Aprobado"). No existe una consulta de subtotal
-      // pre-IGV independiente en esta vista sin agregar una consulta nueva.
       render: (p) =>
         p.cotizacion_aprobada ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
@@ -443,8 +684,22 @@ export default function ProyectosPage() {
     },
     {
       key: "fecha",
-      header: "FECHA",
-      // Muestra fecha_inicio, el unico campo de fecha ya usado en esta lista.
+      header: (
+        <div className={styles.headerFilterBox}>
+          <span>FECHA</span>
+          <input
+            className={styles.columnFilterInput}
+            onChange={(e) => {
+              setFiltroFecha(e.target.value)
+              setPagina(1)
+            }}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Filtrar..."
+            type="text"
+            value={filtroFecha}
+          />
+        </div>
+      ),
       render: (p) => (p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE") : "—"),
     },
     {
@@ -489,7 +744,6 @@ export default function ProyectosPage() {
   const rangoInicio = filtrados.length === 0 ? 0 : (pagina - 1) * POR_PAGINA + 1
   const rangoFin = Math.min(pagina * POR_PAGINA, filtrados.length)
 
-  // KPIs: TOTAL PROYECTOS, EN EJECUCIÓN, LIQ. PENDIENTES, MONTO APROBADO (ver decision documentada arriba).
   const kpiSection = (
     <div className={styles.kpiGrid}>
       <V2KpiCard
@@ -565,21 +819,14 @@ export default function ProyectosPage() {
                   />
                 </div>
 
-                <div className={filterStyles.estadoWrapper}>
-                  <V2Select
-                    options={[
-                      { label: "Todos los estados", value: "" },
-                      ...Object.entries(ESTADO_LABEL).map(([estado, label]) => ({
-                        label,
-                        value: estado,
-                      })),
-                    ]}
-                    value={filtrosEstado.length === 1 ? filtrosEstado[0] : ""}
-                    onChange={(e) => {
-                      setFiltrosEstado(e.target.value ? [e.target.value] : [])
+                <div className={filterStyles.estadoWrapper} style={{ minWidth: 160 }}>
+                  <EstadoMultiSelect
+                    compact
+                    onChange={(est) => {
+                      setFiltrosEstado(est)
                       setPagina(1)
                     }}
-                    compact
+                    selected={filtrosEstado}
                   />
                 </div>
 
@@ -616,12 +863,16 @@ export default function ProyectosPage() {
                 )}
               </>
             }
-            showClearButton={!!(busqueda || filtroCliente || filtroProductor || filtroEntidad || filtrosEstado.length)}
+            showClearButton={!!(busqueda || filtroCodigo || filtroProyecto || filtroCliente || filtroProductor || filtroEntidad || filtroSubtotal || filtroFecha || filtrosEstado.length)}
             onClearFilters={() => {
               setBusqueda("")
+              setFiltroCodigo("")
+              setFiltroProyecto("")
               setFiltroCliente("")
               setFiltroProductor("")
               setFiltroEntidad("")
+              setFiltroSubtotal("")
+              setFiltroFecha("")
               setFiltrosEstado([])
               setTempProductor("")
               setTempEntidad("")
