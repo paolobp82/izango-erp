@@ -13,12 +13,26 @@ import { getRQEstadosVisuales } from "@/lib/core/configuration"
 import { lifecycleEngine } from "@/lib/core/lifecycle"
 import { businessRuleEngine } from "@/lib/core/business-rules"
 import { estadoMigracionRQ, motivoEstadoMigracion } from "@/lib/rq-migracion"
-import KpiCard from "@/components/ui/KpiCard"
-import StatusBadge from "@/components/ui/StatusBadge"
 import { SYSTEM_COLUMNS } from "@/lib/core/configuration"
 import { buildCreateRQPPayload, buildUpdateRQPFinancialPayload, crearRQManualService } from "@/lib/services/rqp"
 import { V2ListPageTemplate } from "@/components/v2/templates"
-import { V2Button, V2KpiCard, V2PageHeader, V2SectionCard } from "@/components/v2/system"
+import {
+  V2Badge,
+  V2Button,
+  V2DataTable,
+  V2EmptyState,
+  V2Input,
+  V2KpiCard,
+  V2LoadingState,
+  V2PageHeader,
+  V2Pagination,
+  V2Popover,
+  V2Select,
+  V2StatusDot,
+  type V2DataTableColumn,
+} from "@/components/v2/system"
+import { V2ActiveFilterChip } from "@/components/v2/filters"
+import { Clock, ShieldCheck, CalendarClock, Wallet, Search } from "lucide-react"
 import { RQForm } from "./components/RQForm"
 import {
   BANCOS_PAGO,
@@ -26,6 +40,44 @@ import {
   ESTADOS_CANCELABLES_RQP,
   ROLES_CANCELAR_RQP,
 } from "./config/constants"
+import styles from "./RQ.module.css"
+
+function estadoRQVariant(estado: string): "warning" | "information" | "primary" | "success" | "danger" | "neutral" {
+  if (estado === "pendiente_aprobacion") return "warning"
+  if (estado === "aprobado_produccion") return "information"
+  if (estado === "aprobado" || estado === "programado") return "primary"
+  if (estado === "pagado") return "success"
+  if (estado === "rechazado") return "danger"
+  return "neutral"
+}
+
+function estadoRQDotTone(estado: string): "warning" | "info" | "success" | "danger" | "neutral" {
+  if (estado === "pendiente_aprobacion") return "warning"
+  if (estado === "pagado") return "success"
+  if (estado === "rechazado") return "danger"
+  if (estado === "cancelado") return "neutral"
+  return "info"
+}
+
+function estadoPagoVariant(key: string): "success" | "danger" | "warning" | "information" | "neutral" | "outlined" {
+  if (key === "pagado") return "success"
+  if (key === "vencido") return "danger"
+  if (key === "vence_hoy") return "warning"
+  if (key === "programado") return "information"
+  if (key === "anulado") return "outlined"
+  return "neutral"
+}
+
+const ESTADO_PAGO_LABELS: Record<string, string> = {
+  sin_programar: "Sin programar",
+  programado: "Programado",
+  vence_hoy: "Vence hoy",
+  vencido: "Vencido",
+  pagado: "Pagado",
+  anulado: "Anulado",
+}
+
+const CONDICION_LABELS: Record<string, string> = { contado: "Contado", credito: "Crédito", adelanto: "Adelanto" }
 
 
 const ESTADOS: Record<string, any> = getRQEstadosVisuales()
@@ -107,6 +159,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   })
   const [guardandoRendicion, setGuardandoRendicion] = useState(false)
   const [pagina, setPagina] = useState(1)
+  const [avanzadosAbiertos, setAvanzadosAbiertos] = useState(false)
   const POR_PAGINA = 50
 
   useEffect(() => { load() }, [])
@@ -809,9 +862,256 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3, display: "block" }
 
+  function limpiarFiltros() {
+    setFiltroEstados([])
+    setFiltroProveedor("")
+    setFiltroTipoPago("")
+    setFiltroEstadoPago("")
+    setFiltroFechaNecesidadDesde("")
+    setFiltroFechaNecesidadHasta("")
+    setFiltroExcepcion("todos")
+    setFiltroProyecto("")
+    setIncluirProyectosEliminados(false)
+  }
+
+  const activeFiltersCount =
+    (filtroEstados.length > 0 ? 1 : 0) +
+    (filtroProveedor ? 1 : 0) +
+    (filtroTipoPago ? 1 : 0) +
+    (filtroEstadoPago ? 1 : 0) +
+    (filtroFechaNecesidadDesde ? 1 : 0) +
+    (filtroFechaNecesidadHasta ? 1 : 0) +
+    (filtroExcepcion !== "todos" ? 1 : 0) +
+    (filtroProyecto ? 1 : 0) +
+    (incluirProyectosEliminados ? 1 : 0)
+
+  const proyectoFiltradoActual = proyectos.find((p: any) => p.id === filtroProyecto)
+
+  const filtrosActivosChips: Array<{ id: string; label: string; valueLabel: string }> = []
+  if (filtroEstados.length > 0) filtrosActivosChips.push({ id: "estados", label: "Estado RQ", valueLabel: filtroEstados.map(k => ESTADOS[k]?.label || k).join(", ") })
+  if (filtroProveedor) filtrosActivosChips.push({ id: "proveedor", label: "Proveedor", valueLabel: proveedores.find(p => p.id === filtroProveedor)?.nombre || filtroProveedor })
+  if (filtroTipoPago) filtrosActivosChips.push({ id: "condicion", label: "Condición", valueLabel: CONDICION_LABELS[filtroTipoPago] || filtroTipoPago })
+  if (filtroEstadoPago) filtrosActivosChips.push({ id: "estadoPago", label: "Estado pago", valueLabel: ESTADO_PAGO_LABELS[filtroEstadoPago] || filtroEstadoPago })
+  if (filtroFechaNecesidadDesde || filtroFechaNecesidadHasta) filtrosActivosChips.push({ id: "fechas", label: "F. necesidad", valueLabel: `${filtroFechaNecesidadDesde || "…"} → ${filtroFechaNecesidadHasta || "…"}` })
+  if (filtroExcepcion !== "todos") filtrosActivosChips.push({ id: "excepcion", label: "Excepción", valueLabel: filtroExcepcion === "solo" ? "Solo excepciones" : "Sin excepción" })
+  if (filtroProyecto) filtrosActivosChips.push({ id: "proyecto", label: "Proyecto", valueLabel: proyectoFiltradoActual?.codigo || "Filtrado" })
+  if (incluirProyectosEliminados) filtrosActivosChips.push({ id: "eliminados", label: "Proyectos eliminados", valueLabel: "Incluidos" })
+
+  function quitarFiltro(id: string) {
+    if (id === "estados") setFiltroEstados([])
+    if (id === "proveedor") setFiltroProveedor("")
+    if (id === "condicion") setFiltroTipoPago("")
+    if (id === "estadoPago") setFiltroEstadoPago("")
+    if (id === "fechas") { setFiltroFechaNecesidadDesde(""); setFiltroFechaNecesidadHasta("") }
+    if (id === "excepcion") setFiltroExcepcion("todos")
+    if (id === "proyecto") setFiltroProyecto("")
+    if (id === "eliminados") setIncluirProyectosEliminados(false)
+  }
+
+  function handleRowClick(rq: any) {
+    if (selected?.id === rq.id) { setSelected(null); return }
+    setSelected(rq)
+    setDatosPago({
+      voucher_url: rq.voucher_url || "",
+      numero_operacion: rq.numero_operacion || "",
+      banco_pago: rq.banco_pago || "",
+      tipo_transferencia: rq.tipo_transferencia || "Transferencia",
+      nota_pago: rq.nota_pago || "",
+    })
+    setDatosRendicion({
+      monto_rendido: rq.monto_rendido ? String(rq.monto_rendido) : "",
+      monto_devolucion: rq.monto_devolucion ? String(rq.monto_devolucion) : "",
+      fecha_rendicion: rq.fecha_rendicion || "",
+      observacion_rendicion: rq.observacion_rendicion || "",
+    })
+  }
+
+  const columns: V2DataTableColumn<any>[] = [
+    {
+      id: "codigo",
+      header: "N° RQ",
+      minWidth: "130px",
+      cell: (rq) => (
+        <div>
+          <div style={{ fontWeight: 800, color: "var(--v2-text)" }}>{rqCodigo(rq)}</div>
+          <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>Solicitado: {rq.created_at ? new Date(rq.created_at).toLocaleDateString("es-PE") : "—"}</div>
+        </div>
+      ),
+    },
+    {
+      id: "proyecto",
+      header: "PROYECTO",
+      minWidth: "170px",
+      cell: (rq) => {
+        const proyectoEliminado = rqPerteneceAProyectoEliminado(rq)
+        if (proyectoEliminado) {
+          return (
+            <div>
+              <div style={{ fontWeight: 800, color: "var(--v2-danger)" }}>{rq.proyecto?.codigo || "Proyecto eliminado"}</div>
+              <div style={{ fontSize: 11, color: "var(--v2-danger)" }}>{rq.proyecto?.nombre || "No disponible"} · Proyecto eliminado</div>
+            </div>
+          )
+        }
+        if (rq.proyecto_id) {
+          return (
+            <a href={`/proyectos/${rq.proyecto_id}`} onClick={(e) => e.stopPropagation()} style={{ textDecoration: "none", display: "inline-block" }}>
+              <div style={{ fontWeight: 700, color: "var(--v2-accent)" }}>{rq.proyecto?.codigo}</div>
+              <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>{rq.proyecto?.nombre}</div>
+            </a>
+          )
+        }
+        return (
+          <div>
+            <div style={{ color: "var(--v2-text)" }}>—</div>
+            <div style={{ fontSize: 11, color: "var(--v2-subtle)" }}>Sin proyecto</div>
+          </div>
+        )
+      },
+    },
+    {
+      id: "proveedor",
+      header: "PROVEEDOR",
+      minWidth: "160px",
+      cell: (rq) => (
+        <div>
+          <div style={{ color: "var(--v2-text)", fontWeight: 600 }}>{rq.proveedor_nombre || rq.proveedor?.nombre || "—"}</div>
+          <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>{rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : "—"}</div>
+        </div>
+      ),
+    },
+    {
+      id: "descripcion",
+      header: "DESCRIPCIÓN",
+      minWidth: "180px",
+      cell: (rq) => (
+        <div style={{ fontSize: 12, color: "var(--v2-muted)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {rq.descripcion || "—"}
+        </div>
+      ),
+    },
+    {
+      id: "monto",
+      header: "MONTO",
+      align: "right",
+      minWidth: "140px",
+      cell: (rq) => {
+        const igv = detalleIgv(rq)
+        return (
+          <div className={styles.montoCell}>
+            <span style={{ fontWeight: 800, color: "var(--v2-text)" }}>{fmt(igv.total)}</span>
+            <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>Base {fmt(igv.subtotal)}</span>
+            <span style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>{rqTratamientoIgvLabel(rq)}</span>
+          </div>
+        )
+      },
+    },
+    {
+      id: "condicion",
+      header: "CONDICIÓN",
+      minWidth: "130px",
+      cell: (rq) => {
+        const condicion = condicionComercialRQ(rq)
+        if (!condicion) return "—"
+        return (
+          <div className={styles.condicionCell}>
+            <V2Badge variant="neutral" size="sm">{condicionLabelRQ(rq)}{rq.dias_credito ? ` ${rq.dias_credito}d` : ""}</V2Badge>
+            {rq.es_excepcion && <V2Badge variant="danger" size="sm">🚩 Excepción</V2Badge>}
+          </div>
+        )
+      },
+    },
+    {
+      id: "fechas",
+      header: "FECHAS",
+      minWidth: "150px",
+      cell: (rq) => (
+        <div className={styles.fechasCell}>
+          <div>Necesidad: {fmtFecha(fechaNecesidadRQ(rq))}</div>
+          <div>Programada: {fmtFecha(fechaProgramadaRQ(rq))}</div>
+          <div>Pago real: {fmtFecha(fechaPagoRealRQ(rq))}</div>
+        </div>
+      ),
+    },
+    {
+      id: "estadoPago",
+      header: "ESTADO PAGO",
+      minWidth: "130px",
+      cell: (rq) => {
+        const pago = estadoPagoRQ(rq)
+        return (
+          <div>
+            <V2Badge variant={estadoPagoVariant(pago.key)} size="sm">{pago.label}</V2Badge>
+            {rq.estado === "pagado" && rq.numero_operacion && (
+              <div style={{ fontSize: 10, color: "var(--v2-subtle)", marginTop: 3 }}>Op: {rq.numero_operacion}</div>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: "estadoRQ",
+      header: "ESTADO RQ",
+      minWidth: "150px",
+      cell: (rq) => {
+        const ec = ESTADOS[rq.estado] || { label: rq.estado }
+        return (
+          <div>
+            <V2Badge variant={estadoRQVariant(rq.estado)} size="sm">{ec.label}</V2Badge>
+            {rqPerteneceAProyectoEliminado(rq) && (
+              <div style={{ fontSize: 10, color: "var(--v2-danger)", marginTop: 3, fontWeight: 700 }}>Proyecto eliminado</div>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: "migracion",
+      header: "MIGRACIÓN",
+      minWidth: "120px",
+      cell: (rq) => {
+        const migracion = estadoMigracionRQ(rq, migrationLogs)
+        return (
+          <span title={motivoEstadoMigracion(rq, migrationLogs)} style={{ display: "inline-flex", background: migracion.bg, color: migracion.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+            {migracion.label}
+          </span>
+        )
+      },
+    },
+    {
+      id: "acciones",
+      header: "",
+      align: "right",
+      minWidth: "150px",
+      cell: (rq) => {
+        const accion = getSiguienteAccion(rq)
+        return (
+          <div className={styles.rowActions}>
+            {puedeEditarRQ(rq) && (
+              <V2Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); setSelected(rq); abrirEditarRQ(rq) }}>Editar</V2Button>
+            )}
+            {accion && (
+              <V2Button variant="primary" size="sm" onClick={(e) => { e.stopPropagation(); cambiarEstado(rq.id, accion.nextEstado) }}>{accion.label}</V2Button>
+            )}
+            {puedeCancelarRQ(rq) && (
+              <V2Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); cancelarRQ(rq) }}>Cancelar</V2Button>
+            )}
+          </div>
+        )
+      },
+    },
+  ]
+
   const puedeEditarPago = selected ? puedeAccionRQ("pagar", selected) : puedeAccionRQ("pagar")
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
-  if (!puedeVerModulo(perfil, "rq")) return <div style={{ color: "#6b7280", padding: 24 }}>No tienes permiso para ver Requerimientos de Pago.</div>
+  if (loading) return (
+    <div style={{ padding: 24 }}>
+      <V2LoadingState rows={5} variant="table" title="Cargando requerimientos de pago..." />
+    </div>
+  )
+  if (!puedeVerModulo(perfil, "rq")) return (
+    <div style={{ padding: 24 }}>
+      <V2EmptyState title="Sin acceso" description="No tienes permiso para ver Requerimientos de Pago." />
+    </div>
+  )
 
   return (
     <div>
@@ -846,329 +1146,198 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
             <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
           </div>
         }
-      />      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-        <KpiCard
-          icon="money"
+      />
+
+      <div className={styles.kpiGrid}>
+        <V2KpiCard
+          icon={<Clock size={20} />}
           label="Pendientes"
           value={fmt(totalPendiente)}
-          sub={`${rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").length} RQs`}
-          borderColor="#F59E0B"
-          valueColor="#92400E"
+          description={`${rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").length} RQs`}
+          tone="warning"
         />
-
-        <KpiCard
-          icon="shield"
+        <V2KpiCard
+          icon={<ShieldCheck size={20} />}
           label="En aprobación"
           value={fmt(totalAprobado)}
-          sub={`${rqsVistaActiva.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length} RQs`}
-          borderColor="#3B82F6"
-          valueColor="#1E40AF"
+          description={`${rqsVistaActiva.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length} RQs`}
+          tone="primary"
         />
-
-        <KpiCard
-          icon="chart"
+        <V2KpiCard
+          icon={<CalendarClock size={20} />}
           label="Programados"
           value={fmt(totalProgramado)}
-          sub={`${rqsVistaActiva.filter(r => r.estado === "programado").length} RQs`}
-          borderColor="#06B6D4"
-          valueColor="#0E7490"
+          description={`${rqsVistaActiva.filter(r => r.estado === "programado").length} RQs`}
+          tone="neutral"
         />
-
-        <KpiCard
-          icon="wallet"
+        <V2KpiCard
+          icon={<Wallet size={20} />}
           label="Pagados"
           value={fmt(totalPagado)}
-          sub={`${rqsVistaActiva.filter(r => r.estado === "pagado").length} RQs`}
-          borderColor="#10B981"
-          valueColor="#166534"
+          description={`${rqsVistaActiva.filter(r => r.estado === "pagado").length} RQs`}
+          tone="success"
         />
       </div>
 
-      <div className="card" style={{ marginBottom: 16, padding: "12px 16px" }}>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <input
-  value={busquedaRQ}
-  onChange={e => setBusquedaRQ(e.target.value)}
-  placeholder="Buscar RQ, número, proyecto, proveedor o concepto..."
-  style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", minWidth: 360, flex: "1 1 360px" }}
-/>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-            {Object.entries(ESTADOS).map(([k, v]: any) => {
-              const activo = filtroEstados.includes(k)
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setFiltroEstados(prev => activo ? prev.filter(e => e !== k) : [...prev, k])}
-                  style={{
-                    fontSize: 12,
-                    padding: "6px 10px",
-                    borderRadius: 999,
-                    border: activo ? `1px solid ${v.color}` : "1px solid #e5e7eb",
-                    background: activo ? v.bg : "#fff",
-                    color: activo ? v.color : "#6b7280",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {activo ? "✓ " : ""}{v.label}
-                </button>
-              )
-            })}
-          </div>          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
-            value={filtroProveedor} onChange={e => setFiltroProveedor(e.target.value)}>
-            <option value="">Todos los proveedores</option>
-            {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </select>
-          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
-            value={filtroTipoPago} onChange={e => setFiltroTipoPago(e.target.value)}>
-            <option value="">Todas las condiciones</option>
-            <option value="contado">Contado</option>
-            <option value="adelanto">Adelanto</option>
-            <option value="credito">Credito</option>
-          </select>
-          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
-            value={filtroEstadoPago} onChange={e => setFiltroEstadoPago(e.target.value)}>
-            <option value="">Todos los estados de pago</option>
-            <option value="sin_programar">Sin programar</option>
-            <option value="programado">Programado</option>
-            <option value="vence_hoy">Vence hoy</option>
-            <option value="vencido">Vencido</option>
-            <option value="pagado">Pagado</option>
-            <option value="anulado">Anulado</option>
-          </select>
-          <input type="date" title="Fecha necesidad desde" value={filtroFechaNecesidadDesde} onChange={e => setFiltroFechaNecesidadDesde(e.target.value)}
-            style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }} />
-          <input type="date" title="Fecha necesidad hasta" value={filtroFechaNecesidadHasta} onChange={e => setFiltroFechaNecesidadHasta(e.target.value)}
-            style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }} />
-          <select
-            value={filtroExcepcion}
-            onChange={e => setFiltroExcepcion(e.target.value)}
-            style={{
-              padding: "7px 10px",
-              border: "1px solid #e5e7eb",
-              borderRadius: 7,
-              fontSize: 13,
-              fontFamily: "inherit",
-              background: "#fff"
-            }}
-          >
-            <option value="todos">Todas las solicitudes</option>
-            <option value="solo">🚩 Solo excepciones</option>
-            <option value="sin">Sin excepción</option>
-          </select>
-          {filtroProyecto && (
-            <span style={{ fontSize: 12, color: "#0F6E56", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 99, padding: "4px 10px", fontWeight: 700 }}>
-              Proyecto filtrado
-            </span>
-          )}
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280", fontWeight: 600 }}>
-            <input type="checkbox" checked={incluirProyectosEliminados} onChange={e => setIncluirProyectosEliminados(e.target.checked)} />
-            Incluir proyectos eliminados
-          </label>
-          {(filtroEstados.length > 0 || filtroProveedor || filtroTipoPago || filtroEstadoPago || filtroFechaNecesidadDesde || filtroFechaNecesidadHasta || filtroExcepcion !== "todos" || filtroProyecto || incluirProyectosEliminados) && (
-            <button onClick={() => { setFiltroEstados([]); setFiltroProveedor(""); setFiltroTipoPago(""); setFiltroEstadoPago(""); setFiltroFechaNecesidadDesde(""); setFiltroFechaNecesidadHasta(""); setFiltroExcepcion("todos"); setFiltroProyecto(""); setIncluirProyectosEliminados(false) }}
-              style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
+      <div className={styles.toolbarWrap}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ flex: "2 1 260px", minWidth: 220 }}>
+            <V2Input
+              compact
+              icon={<Search size={14} />}
+              placeholder="Buscar RQ, número, proyecto, proveedor o concepto..."
+              value={busquedaRQ}
+              onChange={e => setBusquedaRQ(e.target.value)}
+            />
+          </div>
+          <div className={styles.toolbarField}>
+            <V2Popover
+              ariaLabel="Filtrar por estado RQ"
+              trigger={
+                <V2Button variant="secondary" size="compact" style={{ width: "100%" }}>
+                  {filtroEstados.length === 0 ? "Todos los estados" : `${filtroEstados.length} estado${filtroEstados.length > 1 ? "s" : ""}`}
+                </V2Button>
+              }
+            >
+              <div className={styles.estadosPopover}>
+                {Object.entries(ESTADOS).map(([k, v]: any) => {
+                  const activo = filtroEstados.includes(k)
+                  return (
+                    <label className={styles.estadoCheckboxRow} key={k}>
+                      <input
+                        type="checkbox"
+                        checked={activo}
+                        onChange={() => setFiltroEstados(prev => activo ? prev.filter(e => e !== k) : [...prev, k])}
+                      />
+                      <V2StatusDot tone={estadoRQDotTone(k)} />
+                      <span>{v.label}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </V2Popover>
+          </div>
+          <div className={styles.toolbarField}>
+            <V2Select
+              compact
+              value={filtroProveedor}
+              onChange={e => setFiltroProveedor(e.target.value)}
+              options={[{ label: "Todos los proveedores", value: "" }, ...proveedores.map(p => ({ label: p.nombre, value: p.id }))]}
+            />
+          </div>
+          <V2Button variant="ghost" size="compact" onClick={() => setAvanzadosAbiertos(v => !v)}>
+            {avanzadosAbiertos ? "Menos filtros" : "Más filtros"}
+          </V2Button>
+          {activeFiltersCount > 0 && (
+            <V2Button variant="ghost" size="compact" style={{ color: "var(--v2-muted)" }} onClick={limpiarFiltros}>
               Limpiar filtros
-            </button>
+            </V2Button>
           )}
-          <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: "auto" }}>{filtrados.length} resultados</span>
         </div>
+
+        {avanzadosAbiertos && (
+          <div className={styles.toolbarAdvancedRow}>
+            <div className={styles.toolbarField}>
+              <V2Select
+                compact
+                label="Condición comercial"
+                value={filtroTipoPago}
+                onChange={e => setFiltroTipoPago(e.target.value)}
+                options={[
+                  { label: "Todas las condiciones", value: "" },
+                  { label: "Contado", value: "contado" },
+                  { label: "Adelanto", value: "adelanto" },
+                  { label: "Credito", value: "credito" },
+                ]}
+              />
+            </div>
+            <div className={styles.toolbarField}>
+              <V2Select
+                compact
+                label="Estado de pago"
+                value={filtroEstadoPago}
+                onChange={e => setFiltroEstadoPago(e.target.value)}
+                options={[
+                  { label: "Todos los estados de pago", value: "" },
+                  { label: "Sin programar", value: "sin_programar" },
+                  { label: "Programado", value: "programado" },
+                  { label: "Vence hoy", value: "vence_hoy" },
+                  { label: "Vencido", value: "vencido" },
+                  { label: "Pagado", value: "pagado" },
+                  { label: "Anulado", value: "anulado" },
+                ]}
+              />
+            </div>
+            <div className={styles.toolbarField}>
+              <V2Input compact type="date" label="F. necesidad desde" value={filtroFechaNecesidadDesde} onChange={e => setFiltroFechaNecesidadDesde(e.target.value)} />
+            </div>
+            <div className={styles.toolbarField}>
+              <V2Input compact type="date" label="F. necesidad hasta" value={filtroFechaNecesidadHasta} onChange={e => setFiltroFechaNecesidadHasta(e.target.value)} />
+            </div>
+            <div className={styles.toolbarField}>
+              <V2Select
+                compact
+                label="Excepciones"
+                value={filtroExcepcion}
+                onChange={e => setFiltroExcepcion(e.target.value)}
+                options={[
+                  { label: "Todas las solicitudes", value: "todos" },
+                  { label: "🚩 Solo excepciones", value: "solo" },
+                  { label: "Sin excepción", value: "sin" },
+                ]}
+              />
+            </div>
+            <label className={styles.toolbarCheckboxField}>
+              <input type="checkbox" checked={incluirProyectosEliminados} onChange={e => setIncluirProyectosEliminados(e.target.checked)} />
+              Incluir proyectos eliminados
+            </label>
+            {filtroProyecto && (
+              <V2Badge variant="primary" size="sm">Proyecto filtrado: {proyectoFiltradoActual?.codigo || filtroProyecto}</V2Badge>
+            )}
+          </div>
+        )}
+
+        {filtrosActivosChips.length > 0 && (
+          <div className={styles.chipsRow}>
+            {filtrosActivosChips.map(chip => (
+              <V2ActiveFilterChip key={chip.id} id={chip.id} label={chip.label} valueLabel={chip.valueLabel} onRemove={quitarFiltro} />
+            ))}
+          </div>
+        )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 420px" : "1fr", gap: 16 }}>
-        <div className="card" style={{ padding: 0, overflowX: "auto", border: "1px solid #E2E8F0", borderRadius: 18, background: "#fff", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
-          <table style={{ width: "100%", minWidth: 1560, borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("codigo_rq", "N RQ")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("proyecto", "PROYECTO")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("proveedor", "PROVEEDOR")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("productor", "PRODUCTOR")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("descripcion", "DESCRIPCION")}</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("monto_solicitado", "MONTO")}</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("tratamiento_igv", "IGV")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("tipo_pago", "CONDICIÓN COMERCIAL")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("fecha_solicitud", "F. SOLICITUD")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("fecha_necesidad_pago", "F. NECESIDAD")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("fecha_programada_pago", "F. PROGRAMADA")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("fecha_pago", "F. PAGO REAL")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO PAGO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("estado", "ESTADO RQ")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MIGRACIÓN</th>
-                <th style={{ padding: "10px 20px", width: 140 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginados.map((rq, idx) => {
-                const ec = ESTADOS[rq.estado] || { bg: "#f3f4f6", color: "#6b7280", label: rq.estado }
-                const accion = getSiguienteAccion(rq)
-                const igv = detalleIgv(rq)
-                const proyectoEliminado = rqPerteneceAProyectoEliminado(rq)
-                const pago = estadoPagoRQ(rq)
-                const migracion = estadoMigracionRQ(rq, migrationLogs)
-                return (
-                  <tr key={rq.id}
-                    style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === rq.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}
-                    onClick={() => {
-                      if (selected?.id === rq.id) { setSelected(null); return }
-                      setSelected(rq)
-                      setDatosPago({
-                        voucher_url: rq.voucher_url || "",
-                        numero_operacion: rq.numero_operacion || "",
-                        banco_pago: rq.banco_pago || "",
-                        tipo_transferencia: rq.tipo_transferencia || "Transferencia",
-                        nota_pago: rq.nota_pago || "",
-                      })
-                      setDatosRendicion({
-                        monto_rendido: rq.monto_rendido ? String(rq.monto_rendido) : "",
-                        monto_devolucion: rq.monto_devolucion ? String(rq.monto_devolucion) : "",
-                        fecha_rendicion: rq.fecha_rendicion || "",
-                        observacion_rendicion: rq.observacion_rendicion || "",
-                      })
-                    }}>
-                    <td style={{ padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#0F6E56" }}>{rqCodigo(rq)}</td>
-                    <td style={{ padding: "12px" }}>
-                      {proyectoEliminado ? (
-                        <>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>{rq.proyecto?.codigo || "Proyecto eliminado"}</div>
-                          <div style={{ fontSize: 11, color: "#b91c1c" }}>{rq.proyecto?.nombre || "No disponible"} · Proyecto eliminado</div>
-                        </>
-                      ) : rq.proyecto_id ? (
-                        <a href={`/proyectos/${rq.proyecto_id}`} onClick={e => e.stopPropagation()} style={{ textDecoration: "none", display: "inline-block" }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "#0F6E56" }}>{rq.proyecto?.codigo}</div>
-                          <div style={{ fontSize: 11, color: "#6b7280" }}>{rq.proyecto?.nombre}</div>
-                        </a>
-                      ) : (
-                        <>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>—</div>
-                          <div style={{ fontSize: 11, color: "#9ca3af" }}>Sin proyecto</div>
-                        </>
-                      )}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{rq.proveedor_nombre || rq.proveedor?.nombre || "—"}</td>
-                    <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>
-                      {rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : "—"}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {rq.descripcion || "—"}
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>
-                      {fmt(igv.total)}
-                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>Base {fmt(igv.subtotal)}</div>
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "center" }}>
-                      <span style={{ background: igv.tratamiento === "mas_igv" ? "#fef9c3" : igv.tratamiento === "no_aplica" ? "#f3f4f6" : "#f0fdf4", color: igv.tratamiento === "mas_igv" ? "#92400e" : igv.tratamiento === "no_aplica" ? "#374151" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
-                        {rqTratamientoIgvLabel(rq)}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12 }}>
-                      {condicionComercialRQ(rq) ? (
-                        <>
-                          <span style={{ background: condicionComercialRQ(rq) === "credito" ? "#dbeafe" : condicionComercialRQ(rq) === "adelanto" ? "#fef9c3" : "#f0fdf4", color: condicionComercialRQ(rq) === "credito" ? "#1e40af" : condicionComercialRQ(rq) === "adelanto" ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
-                            {condicionLabelRQ(rq)}{rq.dias_credito ? " " + rq.dias_credito + "d" : ""}
-                          </span>
+      <div className={styles.resultsSummary}>
+        {filtrados.length} requerimiento{filtrados.length === 1 ? "" : "s"} encontrado{filtrados.length === 1 ? "" : "s"}
+        {activeFiltersCount > 0 ? ` · ${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}` : ""}
+      </div>
 
-                          {rq.es_excepcion && (
-                            <div
-                              title={rq.motivo_excepcion || "Excepción de pago"}
-                              style={{
-                                marginTop: 4,
-                                color: "#dc2626",
-                                fontSize: 10,
-                                fontWeight: 800,
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              🚩 Excepción
-                            </div>
-                          )}
-                        </>
-                      ) : "—"}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
-                      {rq.created_at ? new Date(rq.created_at).toLocaleDateString("es-PE") : "—"}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>
-                      {fmtFecha(fechaNecesidadRQ(rq))}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>
-                      {fmtFecha(fechaProgramadaRQ(rq))}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>
-                      {fmtFecha(fechaPagoRealRQ(rq))}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12 }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: pago.bg, color: pago.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
-                        {pago.icon} {pago.label}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px" }}>
-                      <StatusBadge label={ec.label} type={rq.estado} />
-                      {rq.estado === "pagado" && rq.numero_operacion && (
-                        <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>Op: {rq.numero_operacion}</div>
-                      )}
-                      {proyectoEliminado && (
-                        <div style={{ fontSize: 10, color: "#991b1b", marginTop: 3, fontWeight: 700 }}>Proyecto eliminado</div>
-                      )}
-                    </td>
-                    <td style={{ padding: "12px" }}>
-                      <span title={motivoEstadoMigracion(rq, migrationLogs)} style={{ display: "inline-flex", background: migracion.bg, color: migracion.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
-                        {migracion.label}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px 20px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
-                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                      {puedeEditarRQ(rq) && (
-                        <button onClick={(e) => { e.stopPropagation(); setSelected(rq); abrirEditarRQ(rq) }}
-                          style={{ fontSize: 11, padding: "4px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
-                          Editar
-                        </button>
-                      )}
-                      {accion && (
-                        <button onClick={(e) => { e.stopPropagation(); cambiarEstado(rq.id, accion.nextEstado) }}
-                          style={{ fontSize: 11, padding: "4px 10px", border: "none", borderRadius: 6, background: accion.color, color: "#fff", cursor: "pointer", fontWeight: 600 }}>
-                          {accion.label}
-                        </button>
-                      )}
-                      {puedeCancelarRQ(rq) && (
-                        <button onClick={(e) => { e.stopPropagation(); cancelarRQ(rq) }}
-                          style={{ fontSize: 11, padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", color: "#4b5563", cursor: "pointer", fontWeight: 600 }}>
-                          Cancelar
-                        </button>
-                      )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-              {filtrados.length === 0 && (
-                <tr><td colSpan={16} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay requerimientos de pago</td></tr>
-              )}
-            </tbody>
-          </table>
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderTop: "1px solid #F1F5F9", background: "#fff", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>
-              Mostrando <strong style={{ color: "#111827" }}>{inicioPagina}</strong>–<strong style={{ color: "#111827" }}>{finPagina}</strong> de <strong style={{ color: "#111827" }}>{filtrados.length}</strong> RQs · 50 por página
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button onClick={() => setPagina(prev => Math.max(1, prev - 1))} disabled={paginaActual <= 1}
-                style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 7, background: paginaActual <= 1 ? "#f9fafb" : "#fff", color: paginaActual <= 1 ? "#9ca3af" : "#374151", cursor: paginaActual <= 1 ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600 }}>
-                ← Anterior
-              </button>
-
-              <span style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>
-                Página {paginaActual} de {totalPaginas}
-              </span>
-
-              <button onClick={() => setPagina(prev => Math.min(totalPaginas, prev + 1))} disabled={paginaActual >= totalPaginas}
-                style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 7, background: paginaActual >= totalPaginas ? "#f9fafb" : "#fff", color: paginaActual >= totalPaginas ? "#9ca3af" : "#374151", cursor: paginaActual >= totalPaginas ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600 }}>
-                Siguiente →
-              </button>
-            </div>
+      <div className={styles.layoutGrid} style={{ gridTemplateColumns: selected ? "1fr 420px" : "1fr" }}>
+        <div className={styles.tableWrap}>
+          <V2DataTable
+            columns={columns}
+            rows={paginados}
+            getRowId={(rq) => rq.id}
+            selectedRowId={selected?.id}
+            onRowClick={handleRowClick}
+            emptyState={
+              rqs.length === 0 ? (
+                <V2EmptyState title="No existen RQ" description="Aún no se han creado requerimientos de pago." />
+              ) : (
+                <V2EmptyState
+                  title="Sin resultados"
+                  description="No hay resultados para los filtros seleccionados."
+                  primaryAction={<V2Button variant="secondary" onClick={limpiarFiltros}>Limpiar filtros</V2Button>}
+                />
+              )
+            }
+          />
+          <div className={styles.paginationRow}>
+            <V2Pagination
+              page={paginaActual}
+              pageCount={totalPaginas}
+              onPageChange={setPagina}
+              summary={`Mostrando ${inicioPagina}–${finPagina} de ${filtrados.length} RQs · 50 por página`}
+            />
           </div>
         </div>
 
@@ -1453,6 +1622,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
             </div>
           </div>
         )}
+      </div>
       {showEditarRQ && selected && (
         <div onClick={() => setShowEditarRQ(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 520 }}>
@@ -1565,7 +1735,6 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
           </div>
         </div>
 )}
-    </div>
     </div>
   )
 }
