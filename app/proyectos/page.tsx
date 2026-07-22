@@ -17,6 +17,7 @@ import {
   V2DataTable,
   V2FormField,
   V2IconButton,
+  V2Input,
   V2KpiCard,
   V2PageHeader,
   V2Pagination,
@@ -173,13 +174,17 @@ export default function ProyectosPage() {
   const [filtroSubtotal, setFiltroSubtotal] = useState("")
   const [filtroFecha, setFiltroFecha] = useState("")
 
-  // Filtros avanzados (Productor, Entidad, Estado multiple) - se aplican al confirmar en el drawer,
-  // igual patron que CRMFilterSection.tsx (tempX mientras se edita, se confirma con "Aplicar filtros").
+  // Filtros avanzados (se editan en el drawer y se aplican al confirmar)
   const [filtroProductor, setFiltroProductor] = useState("")
   const [filtroEntidad, setFiltroEntidad] = useState("")
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [tempCodigo, setTempCodigo] = useState("")
+  const [tempProyecto, setTempProyecto] = useState("")
+  const [tempCliente, setTempCliente] = useState("")
   const [tempProductor, setTempProductor] = useState("")
   const [tempEntidad, setTempEntidad] = useState("")
+  const [tempSubtotal, setTempSubtotal] = useState("")
+  const [tempFecha, setTempFecha] = useState("")
   const [tempEstados, setTempEstados] = useState<string[]>([])
 
   const [perfil, setPerfil] = useState<any>(null)
@@ -411,26 +416,46 @@ export default function ProyectosPage() {
   )
 
   function abrirFiltrosAvanzados() {
+    setTempCodigo(filtroCodigo)
+    setTempProyecto(filtroProyecto)
+    setTempCliente(filtroCliente)
     setTempProductor(filtroProductor)
     setTempEntidad(filtroEntidad)
+    setTempSubtotal(filtroSubtotal)
+    setTempFecha(filtroFecha)
     setTempEstados(filtrosEstado)
     setDrawerOpen(true)
   }
 
   function aplicarFiltrosAvanzados() {
+    setFiltroCodigo(tempCodigo)
+    setFiltroProyecto(tempProyecto)
+    setFiltroCliente(tempCliente)
     setFiltroProductor(tempProductor)
     setFiltroEntidad(tempEntidad)
+    setFiltroSubtotal(tempSubtotal)
+    setFiltroFecha(tempFecha)
     setFiltrosEstado(tempEstados)
     setPagina(1)
     setDrawerOpen(false)
   }
 
   function limpiarFiltrosAvanzados() {
+    setFiltroCodigo("")
+    setFiltroProyecto("")
+    setFiltroCliente("")
     setFiltroProductor("")
     setFiltroEntidad("")
+    setFiltroSubtotal("")
+    setFiltroFecha("")
     setFiltrosEstado([])
+    setTempCodigo("")
+    setTempProyecto("")
+    setTempCliente("")
     setTempProductor("")
     setTempEntidad("")
+    setTempSubtotal("")
+    setTempFecha("")
     setTempEstados([])
     setPagina(1)
     setDrawerOpen(false)
@@ -485,46 +510,16 @@ export default function ProyectosPage() {
   const totalFiltrosActivos =
     activeChips.length + (busqueda ? 1 : 0)
 
-  // Columnas filtrables por todos los encabezados visibles
+  // V2 Table columns definition - Fila única de encabezados limpios
   const tableColumns: V2TableColumn<any>[] = [
     {
       key: "codigo",
-      header: (
-        <div className={styles.headerFilterBox}>
-          <span>CÓDIGO</span>
-          <input
-            className={styles.columnFilterInput}
-            onChange={(e) => {
-              setFiltroCodigo(e.target.value)
-              setPagina(1)
-            }}
-            onClick={(e) => e.stopPropagation()}
-            placeholder="Filtrar..."
-            type="text"
-            value={filtroCodigo}
-          />
-        </div>
-      ),
+      header: "CÓDIGO",
       render: (p) => <span style={{ fontWeight: 800, color: "var(--v2-accent)", fontSize: "12px" }}>{p.codigo}</span>,
     },
     {
       key: "proyecto",
-      header: (
-        <div className={styles.headerFilterBox}>
-          <span>PROYECTO</span>
-          <input
-            className={styles.columnFilterInput}
-            onChange={(e) => {
-              setFiltroProyecto(e.target.value)
-              setPagina(1)
-            }}
-            onClick={(e) => e.stopPropagation()}
-            placeholder="Filtrar..."
-            type="text"
-            value={filtroProyecto}
-          />
-        </div>
-      ),
+      header: "PROYECTO",
       minWidth: 220,
       render: (p) => (
         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
@@ -549,52 +544,12 @@ export default function ProyectosPage() {
     },
     {
       key: "cliente",
-      header: (
-        <div className={styles.headerFilterBox}>
-          <span>CLIENTE</span>
-          <select
-            className={styles.columnFilterSelect}
-            onChange={(e) => {
-              setFiltroCliente(e.target.value)
-              setPagina(1)
-            }}
-            onClick={(e) => e.stopPropagation()}
-            value={filtroCliente}
-          >
-            <option value="">Todos</option>
-            {clientesUnicos.map((c: any) => (
-              <option key={c.id || c.razon_social} value={c.id || ""}>
-                {c.razon_social}
-              </option>
-            ))}
-          </select>
-        </div>
-      ),
+      header: "CLIENTE",
       render: (p) => p.cliente?.razon_social || "—",
     },
     {
       key: "productor",
-      header: (
-        <div className={styles.headerFilterBox}>
-          <span>PRODUCTOR</span>
-          <select
-            className={styles.columnFilterSelect}
-            onChange={(e) => {
-              setFiltroProductor(e.target.value)
-              setPagina(1)
-            }}
-            onClick={(e) => e.stopPropagation()}
-            value={filtroProductor}
-          >
-            <option value="">Todos</option>
-            {productoresUnicos.map((p: any) => (
-              <option key={p.id || `${p.nombre}_${p.apellido}`} value={p.id || ""}>
-                {p.nombre} {p.apellido}
-              </option>
-            ))}
-          </select>
-        </div>
-      ),
+      header: "PRODUCTOR",
       render: (p) =>
         p.productor ? (
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -623,40 +578,12 @@ export default function ProyectosPage() {
     },
     {
       key: "estado",
-      header: (
-        <div className={styles.headerFilterBox}>
-          <span>ESTADO</span>
-          <EstadoMultiSelect
-            compact
-            onChange={(estados) => {
-              setFiltrosEstado(estados)
-              setPagina(1)
-            }}
-            selected={filtrosEstado}
-          />
-        </div>
-      ),
+      header: "ESTADO",
       render: (p) => <V2StatusBadge tone={estadoTone(p.estado)}>{ESTADO_LABEL[p.estado] || p.estado || "—"}</V2StatusBadge>,
     },
     {
       key: "subtotal",
-      header: (
-        <div className={styles.headerFilterBox} style={{ alignItems: "flex-end" }}>
-          <span>SUBTOTAL</span>
-          <input
-            className={styles.columnFilterInput}
-            onChange={(e) => {
-              setFiltroSubtotal(e.target.value)
-              setPagina(1)
-            }}
-            onClick={(e) => e.stopPropagation()}
-            placeholder="Filtrar..."
-            style={{ textAlign: "right" }}
-            type="text"
-            value={filtroSubtotal}
-          />
-        </div>
-      ),
+      header: "SUBTOTAL",
       align: "right",
       render: (p) =>
         p.cotizacion_aprobada ? (
@@ -684,22 +611,7 @@ export default function ProyectosPage() {
     },
     {
       key: "fecha",
-      header: (
-        <div className={styles.headerFilterBox}>
-          <span>FECHA</span>
-          <input
-            className={styles.columnFilterInput}
-            onChange={(e) => {
-              setFiltroFecha(e.target.value)
-              setPagina(1)
-            }}
-            onClick={(e) => e.stopPropagation()}
-            placeholder="Filtrar..."
-            type="text"
-            value={filtroFecha}
-          />
-        </div>
-      ),
+      header: "FECHA",
       render: (p) => (p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE") : "—"),
     },
     {
@@ -1040,6 +952,36 @@ export default function ProyectosPage() {
         onClearAll={limpiarFiltrosAvanzados}
       >
         <div style={{ display: "grid", gap: "16px" }}>
+          <V2FormField label="Código">
+            <V2Input
+              placeholder="Ej: IZ-26001..."
+              value={tempCodigo}
+              onChange={(e) => setTempCodigo(e.target.value)}
+            />
+          </V2FormField>
+
+          <V2FormField label="Proyecto">
+            <V2Input
+              placeholder="Nombre del proyecto..."
+              value={tempProyecto}
+              onChange={(e) => setTempProyecto(e.target.value)}
+            />
+          </V2FormField>
+
+          <V2FormField label="Cliente">
+            <V2Select
+              options={[
+                { label: "Todos los clientes", value: "" },
+                ...clientesUnicos.map((c: any) => ({
+                  label: c.razon_social,
+                  value: c.id || "",
+                })),
+              ]}
+              value={tempCliente}
+              onChange={(e) => setTempCliente(e.target.value)}
+            />
+          </V2FormField>
+
           <V2FormField label="Productor">
             <V2Select
               options={[
@@ -1066,8 +1008,48 @@ export default function ProyectosPage() {
             />
           </V2FormField>
 
-          <V2FormField label="Estado (selección múltiple)" help="Complementa el filtro rápido de la barra superior.">
+          <V2FormField label="Subtotal">
+            <V2Input
+              placeholder="Ej: 5000..."
+              value={tempSubtotal}
+              onChange={(e) => setTempSubtotal(e.target.value)}
+            />
+          </V2FormField>
+
+          <V2FormField label="Fecha">
+            <V2Input
+              placeholder="Ej: 2026-05..."
+              value={tempFecha}
+              onChange={(e) => setTempFecha(e.target.value)}
+            />
+          </V2FormField>
+
+          <V2FormField
+            label={`Estado (${tempEstados.length > 0 ? `${tempEstados.length} seleccionados` : "Todos"})`}
+            help="Selección múltiple de estados"
+          >
             <div className={styles.estadoChecklist}>
+              <div style={{ display: "flex", gap: 12, marginBottom: 4 }}>
+                <button
+                  type="button"
+                  style={{ background: "none", border: "none", color: "var(--v2-accent)", fontSize: 11, fontWeight: 800, cursor: "pointer", padding: 0 }}
+                  onClick={() => {
+                    const allKeys = Object.keys(ESTADO_LABEL)
+                    setTempEstados(tempEstados.length === allKeys.length ? [] : allKeys)
+                  }}
+                >
+                  {tempEstados.length === Object.keys(ESTADO_LABEL).length ? "Desmarcar todos" : "Seleccionar todos"}
+                </button>
+                {tempEstados.length > 0 && (
+                  <button
+                    type="button"
+                    style={{ background: "none", border: "none", color: "var(--v2-accent)", fontSize: 11, fontWeight: 800, cursor: "pointer", padding: 0 }}
+                    onClick={() => setTempEstados([])}
+                  >
+                    Limpiar ({tempEstados.length})
+                  </button>
+                )}
+              </div>
               {Object.entries(ESTADO_LABEL).map(([value, label]) => (
                 <label className={styles.estadoCheckboxRow} key={value}>
                   <input
