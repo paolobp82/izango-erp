@@ -1506,8 +1506,6 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     "costos-rq": rqsProyecto.length,
     cliente: proyecto?.cliente ? 1 : 0,
   }
-  const placeholderStyle = { padding: 16, border: "1px dashed #d1d5db", borderRadius: 10, background: "#fafafa", color: "#6b7280", fontSize: 13 }
-
   if (loading) {
     return <V2DetailPageTemplate state="loading" title="Cargando proyecto..." />
   }
@@ -2513,59 +2511,78 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       </ProjectDetailSection>
 
       <ProjectDetailSection activeTab={activeTab} tab="seguimiento">
-      <section id="tab-tareas" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Tareas</h2>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Crear tarea</button>
-            <button onClick={() => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Solicitar audiovisual</button>
-          </div>
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: placeholder para tareas vinculadas al proyecto, responsables, estados, fechas limite y comentarios recientes.
-          </div>
-        </div>
+      <div style={{ display: "grid", gap: 16 }}>
+      <section id="tab-tareas" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard
+          action={
+            <V2QuickActions layout="auto">
+              <V2Button leadingIcon={<ClipboardList size={15} />} onClick={() => router.push(`/tareas?proyecto_id=${id}`)} size="sm" variant="secondary">
+                Crear tarea
+              </V2Button>
+              <V2Button leadingIcon={<Video size={15} />} onClick={() => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`)} size="sm" variant="secondary">
+                Solicitar audiovisual
+              </V2Button>
+            </V2QuickActions>
+          }
+          title="Tareas"
+        >
+          <V2EmptyState
+            compact
+            description="Aquí se mostrarán las tareas vinculadas al proyecto: responsables, estados, fechas límite y comentarios recientes."
+            icon={<ClipboardList size={20} />}
+            title="No hay tareas ni solicitudes pendientes para este cliente"
+          />
+        </V2SectionCard>
       </section>
 
-      <section id="tab-logistica" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Logística</h2>
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: placeholder para envios de materiales, inventario, ordenes asociadas, responsables logisticos y estados de entrega.
-          </div>
-        </div>
+      <section id="tab-logistica" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard title="Logística">
+          <V2EmptyState
+            compact
+            description="Aquí se mostrarán los envíos de materiales, inventario, órdenes asociadas, responsables logísticos y estados de entrega."
+            icon={<FolderOpen size={20} />}
+            title="Sin movimientos logísticos registrados"
+          />
+        </V2SectionCard>
       </section>
 
-      <section id="tab-facturacion" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Facturación</h2>
-          {puedeVerFacturacionProyecto && (
-            <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Emitir factura</button>
+      <section id="tab-facturacion" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard
+          action={puedeVerFacturacionProyecto && (
+            <V2Button leadingIcon={<Receipt size={15} />} onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} size="sm" variant="secondary">
+              Emitir factura
+            </V2Button>
           )}
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: placeholder para facturas asociadas al proyecto, estado de cobro, detracciones, retenciones y documentos.
-          </div>
-        </div>
+          title="Facturación"
+        >
+          <V2EmptyState
+            compact
+            description="Aquí se mostrarán las facturas asociadas al proyecto: estado de cobro, detracciones, retenciones y documentos."
+            icon={<Receipt size={20} />}
+            title="Sin facturas registradas"
+          />
+        </V2SectionCard>
       </section>
 
-      <section id="tab-liquidacion" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Liquidación</h2>
-          <button onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver liquidación</button>
-        </div>
-        <div style={{ padding: 20 }}>
+      <section id="tab-liquidacion" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard
+          action={
+            <V2Button leadingIcon={<FileCheck2 size={15} />} onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} size="sm" variant="secondary">
+              Ver liquidación
+            </V2Button>
+          }
+          title="Liquidación"
+        >
           {!liquidacionProyecto ? (
-            <div style={placeholderStyle}>
-              Aún no existe liquidación registrada para este proyecto.
-            </div>
+            <V2EmptyState
+              compact
+              description="Aún no existe liquidación registrada para este proyecto."
+              icon={<FileCheck2 size={20} />}
+              title="Sin liquidación registrada"
+            />
           ) : (
-            <div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12 }}>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div className={styles.infoGrid}>
                 {[
                   { label: "Presupuesto aprobado", value: fmt(liquidacionProyecto.precio_cliente_presupuestado || 0) },
                   { label: "Costo real", value: fmt(liquidacionProyecto.costo_real || 0) },
@@ -2577,51 +2594,60 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   { label: "Estado", value: liquidacionProyecto.cerrada ? "Cerrada" : "Abierta" },
                   { label: "Controller", value: liquidacionProyecto.aprobado_controller ? "Aprobado" : "Pendiente" },
                 ].map((item: any) => (
-                  <div key={item.label} style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: 12, background: "#FFFFFF" }}>
-                    <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 800, textTransform: "uppercase" }}>{item.label}</div>
-                    <div style={{ fontSize: 14, color: "#111827", fontWeight: 800, marginTop: 4 }}>{item.value}</div>
+                  <div className={styles.infoRow} key={item.label}>
+                    <span className={styles.infoLabel}>{item.label}</span>
+                    <div className={styles.infoValueEmphasis}>{item.value}</div>
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {!liquidacionProyecto.aprobado_controller && (
-                  <span style={{ fontSize: 12, color: "#92400E", background: "#FEF3C7", borderRadius: 999, padding: "5px 10px", fontWeight: 700 }}>Pendiente aprobación Controller</span>
+                  <V2StatusBadge tone="warning">Pendiente aprobación Controller</V2StatusBadge>
                 )}
                 {Number(liquidacionProyecto.costo_real || 0) <= 0 && (
-                  <span style={{ fontSize: 12, color: "#991B1B", background: "#FEE2E2", borderRadius: 999, padding: "5px 10px", fontWeight: 700 }}>Costo real pendiente de consolidar</span>
+                  <V2StatusBadge tone="danger">Costo real pendiente de consolidar</V2StatusBadge>
                 )}
                 {Number(liquidacionProyecto.margen_real_pct || 0) < 0 && (
-                  <span style={{ fontSize: 12, color: "#991B1B", background: "#FEE2E2", borderRadius: 999, padding: "5px 10px", fontWeight: 700 }}>Rentabilidad negativa</span>
+                  <V2StatusBadge tone="danger">Rentabilidad negativa</V2StatusBadge>
                 )}
               </div>
             </div>
           )}
-        </div>
+        </V2SectionCard>
       </section>
 
-      <section id="tab-archivos" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Archivos</h2>
-          <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank" style={{ fontSize: 12, color: "#0F6E56", fontWeight: 600, textDecoration: "none" }}>Reporte PDF</a>
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: placeholder para reporte PDF, previews de cotización, facturas, vouchers, sustentos y enlaces externos del proyecto.
-          </div>
-        </div>
+      <section id="tab-archivos" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard
+          action={
+            <V2Button leadingIcon={<FileText size={15} />} onClick={() => window.open("/api/reporte-pdf?proyecto_id=" + id, "_blank")} size="sm" variant="secondary">
+              Reporte PDF
+            </V2Button>
+          }
+          title="Archivos"
+        >
+          <V2EmptyState
+            compact
+            description="Aquí se mostrarán el reporte PDF, previews de cotización, facturas, vouchers, sustentos y enlaces externos del proyecto."
+            icon={<FolderOpen size={20} />}
+            title="Sin archivos vinculados todavía"
+          />
+        </V2SectionCard>
       </section>
 
-      <section id="tab-historial" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Historial</h2>
-          <span style={{ fontSize: 12, color: "#9ca3af" }}>{historialCount} evento{historialCount !== 1 ? "s" : ""} de cotizaciones</span>
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: placeholder para trazabilidad consolidada del proyecto. Por ahora el historial visible se mantiene dentro de cada cotización.
-          </div>
-        </div>
+      <section id="tab-historial" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard
+          action={<span style={{ fontSize: 12, color: "var(--v2-subtle)" }}>{historialCount} evento{historialCount !== 1 ? "s" : ""} de cotizaciones</span>}
+          title="Historial"
+        >
+          <V2EmptyState
+            compact
+            description="Por ahora el historial visible se mantiene dentro de cada cotización (pestaña Cotizaciones)."
+            icon={<FileText size={20} />}
+            title="Trazabilidad consolidada pendiente"
+          />
+        </V2SectionCard>
       </section>
+      </div>
       </ProjectDetailSection>
       </ProjectDetailShellV2>
 

@@ -131,11 +131,16 @@ export function V2DetailPageTemplate({
 
       case "default":
       default:
+        // Solo reservamos la columna secundaria cuando existe un sidebar real.
+        // Sin este guard, el grid conserva 320px y su gap para un aside inexistente.
+        const sidebarLayoutClass = sidebar
+          ? sidebarPosition === "left"
+            ? styles.sidebarLeft
+            : styles.sidebarRight
+          : undefined
         return (
           <div
-            className={`${styles.detailLayoutGrid} ${
-              sidebarPosition === "left" ? styles.sidebarLeft : styles.sidebarRight
-            }`}
+            className={[styles.detailLayoutGrid, sidebarLayoutClass].filter(Boolean).join(" ")}
           >
             {sidebar && sidebarPosition === "left" ? (
               <aside className={styles.detailSidebar}>{sidebar}</aside>
