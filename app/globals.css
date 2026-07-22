@@ -237,12 +237,12 @@ tbody tr:hover td { background: var(--v2-surface-soft); }
 .text-base { font-size: 15px; }
 .text-xl { font-size: 20px; }
 .text-3xl { font-size: 30px; }
-.text-white { color: #fff; }
-.text-gray-400 { color: #9ca3af; }
-.text-gray-500 { color: #6b7280; }
-.text-gray-600 { color: #4b5563; }
-.text-gray-700 { color: #374151; }
-.text-gray-900 { color: #111827; }
+.text-white { color: var(--v2-accent-ink); }
+.text-gray-400 { color: var(--v2-subtle); }
+.text-gray-500 { color: var(--v2-muted); }
+.text-gray-600 { color: var(--v2-text-secondary); }
+.text-gray-700 { color: var(--v2-text-secondary); }
+.text-gray-900 { color: var(--v2-text); }
 .text-green-600 { color: #16a34a; }
 .text-yellow-600 { color: #ca8a04; }
 .text-red-600 { color: #dc2626; }
@@ -260,6 +260,6 @@ tbody tr:hover td { background: var(--v2-surface-soft); }
 .grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
 .grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
 .hover\:underline:hover { text-decoration: underline; }
-.hover\:text-izango-600:hover { color: #027a45; }
-.hover\:text-gray-600:hover { color: #4b5563; }
+.hover\:text-izango-600:hover { color: var(--v2-accent); }
+.hover\:text-gray-600:hover { color: var(--v2-text-secondary); }
 .transition-colors { transition: color .15s, background .15s; }

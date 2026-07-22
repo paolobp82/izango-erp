@@ -310,7 +310,7 @@
   padding: 2px;
   border: 0;
   background: transparent;
-  color: #64748b;
+  color: var(--v2-sidebar-muted);
   cursor: pointer;
   font-family: inherit;
   font-size: 9px;
@@ -357,7 +357,7 @@
   border-left: 4px solid transparent;
   border-radius: var(--v2-radius);
   background: transparent;
-  color: #94a3b8;
+  color: var(--v2-subtle);
   cursor: pointer;
   font-family: inherit;
   font-size: 12px;
@@ -370,7 +370,7 @@
 .navItem:hover {
   transform: translateX(4px);
   background: var(--v2-sidebar-panel);
-  color: #f8fafc;
+  color: var(--v2-text);
 }
 
 .navItemActive {
@@ -426,7 +426,7 @@
   place-items: center;
   border-radius: 999px;
   background: var(--v2-sidebar-panel);
-  color: #cbd5e1;
+  color: var(--v2-text-secondary);
   font-size: 11px;
   font-weight: 900;
 }
@@ -438,7 +438,7 @@
   place-items: center;
   border-radius: 999px;
   background: var(--v2-sidebar-panel);
-  color: #cbd5e1;
+  color: var(--v2-text-secondary);
   font-size: 11px;
   font-weight: 900;
   text-decoration: none;
@@ -451,7 +451,7 @@
 
 .profileName {
   overflow: hidden;
-  color: #cbd5e1;
+  color: var(--v2-text-secondary);
   font-size: 11px;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -461,7 +461,7 @@
 .profileRole {
   margin-top: 2px;
   overflow: hidden;
-  color: #64748b;
+  color: var(--v2-muted);
   font-size: 10px;
   font-weight: 700;
   text-overflow: ellipsis;
@@ -478,7 +478,7 @@
   border: 0;
   border-radius: var(--v2-radius);
   background: transparent;
-  color: #64748b;
+  color: var(--v2-muted);
   cursor: pointer;
   font-family: inherit;
   font-size: 11px;
@@ -486,7 +486,7 @@
 }
 
 .logoutButton:hover {
-  color: #cbd5e1;
+  color: var(--v2-text-secondary);
 }
 
 .logoutButton:focus-visible {
@@ -1057,17 +1057,17 @@
 
 .badgeSuccess {
   background: rgba(22, 163, 74, 0.14);
-  color: #22c55e;
+  color: var(--v2-success);
 }
 
 .badgeWarning {
   background: rgba(217, 119, 6, 0.14);
-  color: #f59e0b;
+  color: var(--v2-warning);
 }
 
 .badgeInfo {
   background: rgba(37, 99, 235, 0.14);
-  color: #60a5fa;
+  color: var(--v2-info);
 }
 
 .badgeNeutral {
@@ -1159,14 +1159,14 @@
 
 /* Sidebar item activo en light: fondo sutil verde, no indigo */
 :global([data-theme="light"]) .navItemActive {
-  border-left-color: #0F6E56;
+  border-left-color: var(--v2-accent);
   background: rgba(3, 227, 115, 0.10);
-  color: #0F6E56;
+  color: var(--v2-accent);
 }
 
 /* Section title del sidebar en light */
 :global([data-theme="light"]) .navSectionTitle {
-  color: #94A3B8;
+  color: var(--v2-subtle);
 }
 
 /* Profile footer en light */
@@ -1177,61 +1177,61 @@
 :global([data-theme="light"]) .avatar,
 :global([data-theme="light"]) .avatarCollapsed {
   background: #E5E9EF;
-  color: #475569;
+  color: var(--v2-text-secondary);
 }
 
 :global([data-theme="light"]) .profileName {
-  color: #0F172A;
+  color: var(--v2-text);
 }
 
 :global([data-theme="light"]) .profileRole {
-  color: #64748B;
+  color: var(--v2-muted);
 }
 
 :global([data-theme="light"]) .logoutButton {
-  color: #94A3B8;
+  color: var(--v2-subtle);
 }
 
 :global([data-theme="light"]) .logoutButton:hover {
-  color: #475569;
+  color: var(--v2-text-secondary);
 }
 
 /* NavItem hover en light: fondo claro, texto oscuro */
 :global([data-theme="light"]) .navItem {
-  color: #475569;
+  color: var(--v2-muted);
 }
 
 :global([data-theme="light"]) .navItem:hover {
   background: #F2F4F8;
-  color: #0F172A;
+  color: var(--v2-text);
 }
 
 /* Badge colors en modo light con mejor contraste */
 :global([data-theme="light"]) .badgeSuccess {
   background: rgba(22, 138, 74, 0.10);
-  color: #168A4A;
+  color: var(--v2-success);
 }
 
 :global([data-theme="light"]) .badgeWarning {
   background: rgba(183, 121, 5, 0.10);
-  color: #B77905;
+  color: var(--v2-warning);
 }
 
 :global([data-theme="light"]) .badgeInfo {
   background: rgba(37, 99, 235, 0.10);
-  color: #1D4ED8;
+  color: var(--v2-info);
 }
 
 :global([data-theme="light"]) .badgeNeutral {
   background: rgba(100, 116, 139, 0.10);
-  color: #475569;
+  color: var(--v2-muted);
 }
 
 /* demoTag en light */
 :global([data-theme="light"]) .demoTag {
   border-color: rgba(15, 110, 86, 0.24);
   background: rgba(15, 110, 86, 0.08);
-  color: #0F6E56;
+  color: var(--v2-accent);
 }
 
 @media (max-width: 1180px) {

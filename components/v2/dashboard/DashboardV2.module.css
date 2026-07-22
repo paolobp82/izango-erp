@@ -252,7 +252,7 @@
   font-size: 9px;
   font-weight: 900;
   background: var(--v2-indigo);
-  color: #fff;
+  color: var(--v2-accent-ink);
   padding: 3px 6px;
   border-radius: var(--v2-radius-sm);
   text-transform: uppercase;
@@ -641,7 +641,7 @@
   height: 26px;
   place-items: center;
   border-radius: var(--v2-radius-sm);
-  color: #fff;
+  color: var(--v2-accent-ink);
   flex-shrink: 0;
 }
 
