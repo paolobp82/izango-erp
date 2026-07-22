@@ -157,7 +157,7 @@ export default function ImportExport({ modulo, campos, datos, onImportar, varian
             isV2
               ? {
                   padding: "0 12px",
-                  border: "1px solid var(--v2-border)",
+                  border: "1px solid transparent",
                   borderRadius: "var(--v2-radius)",
                   background: "var(--v2-surface)",
                   fontSize: 12,
@@ -198,9 +198,9 @@ export default function ImportExport({ modulo, campos, datos, onImportar, varian
                     right: 0,
                     marginTop: 4,
                     background: "var(--v2-surface)",
-                    border: "1px solid var(--v2-border)",
+                    border: "none",
                     borderRadius: "var(--v2-radius)",
-                    boxShadow: "var(--v2-shadow-md)",
+                    boxShadow: "none",
                     zIndex: 100,
                     minWidth: 160,
                   }
@@ -300,7 +300,7 @@ export default function ImportExport({ modulo, campos, datos, onImportar, varian
           isV2
             ? {
                 padding: "0 12px",
-                border: "1px solid var(--v2-border)",
+                border: "1px solid transparent",
                 borderRadius: "var(--v2-radius)",
                 background: "var(--v2-surface)",
                 fontSize: 12,
@@ -364,7 +364,7 @@ export default function ImportExport({ modulo, campos, datos, onImportar, varian
               isV2
                 ? {
                     background: "var(--v2-surface)",
-                    border: "1px solid var(--v2-border)",
+                    border: "none",
                     borderRadius: "var(--v2-radius-lg)",
                     padding: 28,
                     width: "100%",
@@ -602,7 +602,7 @@ export default function ImportExport({ modulo, campos, datos, onImportar, varian
                     <div
                       style={{
                         overflowX: "auto",
-                        border: "1px solid var(--v2-border)",
+                        border: "none",
                         borderRadius: "var(--v2-radius)",
                       }}
                     >
@@ -637,7 +637,7 @@ export default function ImportExport({ modulo, campos, datos, onImportar, varian
                         </thead>
                         <tbody>
                           {preview.map((row, i) => (
-                            <tr key={i} style={{ borderTop: "1px solid " + (isV2 ? "var(--v2-border-soft)" : "#f3f4f6") }}>
+                            <tr key={i} style={{ borderTop: isV2 ? "none" : "1px solid #f3f4f6" }}>
                               {campos.slice(0, 4).map((c) => (
                                 <td
                                   key={c.key}
@@ -663,7 +663,7 @@ export default function ImportExport({ modulo, campos, datos, onImportar, varian
                           isV2
                             ? {
                                 padding: "8px 12px",
-                                border: "1px solid var(--v2-border)",
+                                border: "1px solid transparent",
                                 borderRadius: "var(--v2-radius)",
                                 background: "var(--v2-surface)",
                                 fontSize: 12,

@@ -134,7 +134,7 @@
   width: var(--v2-sidebar-width);
   height: 100vh;
   flex-direction: column;
-  border-right: 1px solid var(--v2-sidebar-border);
+  border-right: none;
   background: var(--v2-sidebar-bg);
   transition: width 0.2s ease;
 }
@@ -515,7 +515,7 @@
   height: var(--v2-topbar-height);
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--v2-topbar-border);
+  border-bottom: none;
   background: var(--v2-topbar);
   padding: 0 24px;
   transition: left 0.2s ease;
@@ -784,7 +784,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--v2-border);
+  border-bottom: none;
   background: var(--v2-surface);
   padding: 14px var(--v2-page-gutter-desktop, 24px);
 }
