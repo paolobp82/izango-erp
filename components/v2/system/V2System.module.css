@@ -36,8 +36,8 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--v2-space-6);
-  padding-bottom: var(--v2-space-3);
-  border-bottom: 1px solid var(--v2-border);
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .eyebrow,
@@ -97,10 +97,10 @@
 .card,
 .sectionCard,
 .modalSurface {
-  border: 1px solid var(--v2-border);
+  border: none;
   border-radius: var(--v2-radius-lg);
   background: var(--v2-surface);
-  box-shadow: var(--v2-shadow);
+  box-shadow: var(--v2-shadow-sm);
 }
 
 .sectionCard {
@@ -939,7 +939,7 @@
 /* 1. V2ExecutiveHeader */
 .executiveHeader {
   background: linear-gradient(135deg, var(--v2-surface-muted), var(--v2-surface));
-  border: 1px solid var(--v2-border);
+  border: none;
   border-radius: var(--v2-radius-lg);
   padding: var(--v2-space-5);
   display: grid;

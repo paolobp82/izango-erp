@@ -4,6 +4,18 @@ Esta guía documenta la infraestructura visual del **SIG Design Language V2** (R
 
 ---
 
+## Regla Visual Global de Contenedores V2 (Borderless Design System)
+
+> **Criterio Estándar de Diseño V2**: Los contenedores principales no utilizan bordes exteriores visibles. La separación se resuelve con superficie, espacio y sombra sutil. Solo se mantienen bordes funcionales o divisores internos.
+>
+> * **KPI Cards (`V2KpiCard`)**: Sin marco ni filo exterior.
+> * **Barra de Filtros (`V2FilterBar`)**: Sin recuadro ni contorno.
+> * **Contenedor de Tabla (`V2DataTable` / `.tableShell`)**: Sin caja exterior, manteniendo solo las líneas horizontales internas entre filas.
+> * **Encabezado de Página (`V2PageHeader`)**: Sin línea inferior decorativa ni separador con borde visible.
+> * **Paneles y Secciones (`V2SectionCard`, `.card`)**: Separación visual basada en contraste de superficie, relleno y box-shadow sutil.
+
+---
+
 ## 1. Catálogo de Componentes V2 Reutilizables
 
 ### A. V2KpiCard (Métricas y KPIs)
