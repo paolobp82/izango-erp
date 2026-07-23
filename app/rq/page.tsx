@@ -971,10 +971,10 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const proyectoFiltradoActual = proyectos.find((p: any) => p.id === filtroProyecto)
 
   const filtrosActivosChips: Array<{ id: string; label: string; valueLabel: string }> = []
-  if (filtroEstados.length > 0) filtrosActivosChips.push({ id: "estados", label: "Estado RQ", valueLabel: filtroEstados.map(k => ESTADOS[k]?.label || k).join(", ") })
+  if (filtroEstados.length > 0) filtrosActivosChips.push({ id: "estados", label: "Estado de aprobación", valueLabel: filtroEstados.map(k => ESTADOS[k]?.label || k).join(", ") })
   if (filtroProveedor) filtrosActivosChips.push({ id: "proveedor", label: "Proveedor", valueLabel: proveedores.find(p => p.id === filtroProveedor)?.nombre || filtroProveedor })
   if (filtroTipoPago) filtrosActivosChips.push({ id: "condicion", label: "Condición", valueLabel: CONDICION_LABELS[filtroTipoPago] || filtroTipoPago })
-  if (filtroEstadoPago) filtrosActivosChips.push({ id: "estadoPago", label: "Estado pago", valueLabel: ESTADO_PAGO_LABELS[filtroEstadoPago] || filtroEstadoPago })
+  if (filtroEstadoPago) filtrosActivosChips.push({ id: "estadoPago", label: "Estado de pago", valueLabel: ESTADO_PAGO_LABELS[filtroEstadoPago] || filtroEstadoPago })
   if (filtroFechaNecesidadDesde || filtroFechaNecesidadHasta) filtrosActivosChips.push({ id: "fechas", label: "F. necesidad", valueLabel: `${filtroFechaNecesidadDesde || "…"} → ${filtroFechaNecesidadHasta || "…"}` })
   if (filtroExcepcion !== "todos") filtrosActivosChips.push({ id: "excepcion", label: "Excepción", valueLabel: filtroExcepcion === "solo" ? "Solo excepciones" : "Sin excepción" })
   if (filtroProyecto) filtrosActivosChips.push({ id: "proyecto", label: "Proyecto", valueLabel: proyectoFiltradoActual?.codigo || "Filtrado" })
@@ -1076,6 +1076,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "descripcion",
       header: "DESCRIPCIÓN",
+      width: "150px",
       cell: (rq) => (
         rq.descripcion ? (
           <V2Tooltip content={rq.descripcion}>
@@ -1136,34 +1137,37 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       },
     },
     {
-      id: "estados",
-      header: "ESTADOS",
-      width: "135px",
+      id: "estadoPago",
+      header: "ESTADO DE PAGO",
+      width: "120px",
       cell: (rq) => {
         const pago = estadoPagoRQ(rq)
-        const ec = ESTADOS[rq.estado] || { label: rq.estado }
-        const migracion = estadoMigracionRQ(rq, migrationLogs)
         return (
-          <div className={styles.estadosCell}>
-            <div className={styles.truncateCell}>
-              <V2Badge variant={estadoRQVariant(rq.estado)} size="sm">{ec.label}</V2Badge>
-            </div>
+          <div className={styles.badgeStackCell}>
             <div className={styles.truncateCell}>
               <V2Badge variant={estadoPagoVariant(pago.key)} size="sm">{pago.label}</V2Badge>
             </div>
             {rq.estado === "pagado" && rq.numero_operacion && (
               <div className={styles.truncateCell} style={{ fontSize: 10, color: "var(--v2-subtle)" }}>Op: {rq.numero_operacion}</div>
             )}
+          </div>
+        )
+      },
+    },
+    {
+      id: "estadoAprobacion",
+      header: "ESTADO DE APROBACIÓN",
+      width: "145px",
+      cell: (rq) => {
+        const ec = ESTADOS[rq.estado] || { label: rq.estado }
+        return (
+          <div className={styles.badgeStackCell}>
+            <div className={styles.truncateCell}>
+              <V2Badge variant={estadoRQVariant(rq.estado)} size="sm">{ec.label}</V2Badge>
+            </div>
             {rqPerteneceAProyectoEliminado(rq) && (
               <div className={styles.truncateCell} style={{ fontSize: 10, color: "var(--v2-danger)", fontWeight: 700 }}>Proyecto eliminado</div>
             )}
-            <V2Tooltip content={motivoEstadoMigracion(rq, migrationLogs)}>
-              <div className={styles.truncateCell}>
-                <span style={{ display: "inline-flex", background: migracion.bg, color: migracion.color, padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 700, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {migracion.label}
-                </span>
-              </div>
-            </V2Tooltip>
           </div>
         )
       },
@@ -1172,7 +1176,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       id: "acciones",
       header: "",
       align: "right",
-      width: "175px",
+      width: "180px",
       cell: (rq) => {
         const accion = getSiguienteAccion(rq)
         const puedeEditar = puedeEditarRQ(rq)
@@ -1217,10 +1221,10 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const estadoQuickFilter = (
     <div className={styles.toolbarField}>
       <V2Popover
-        ariaLabel="Filtrar por estado RQ"
+        ariaLabel="Filtrar por estado de aprobación"
         trigger={
           <V2Button variant="secondary" size="compact" style={{ width: "100%" }}>
-            {filtroEstados.length === 0 ? "Todos los estados" : `${filtroEstados.length} estado${filtroEstados.length > 1 ? "s" : ""}`}
+            {filtroEstados.length === 0 ? "Estado de aprobación" : `${filtroEstados.length} estado${filtroEstados.length > 1 ? "s" : ""} de aprobación`}
           </V2Button>
         }
       >
@@ -1494,6 +1498,19 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
                     </div>
                   )
                 })}
+                {(() => {
+                  const migracion = estadoMigracionRQ(selected, migrationLogs)
+                  const motivo = motivoEstadoMigracion(selected, migrationLogs)
+                  return (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #e5e7eb" }}>
+                      <div style={lbl}>Migración de versión</div>
+                      <span title={motivo} style={{ display: "inline-flex", background: migracion.bg, color: migracion.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
+                        {migracion.label}
+                      </span>
+                      {motivo && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>{motivo}</div>}
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* Datos de pago — visible en programado, pagado, y al confirmar */}

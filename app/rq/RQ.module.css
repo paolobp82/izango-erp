@@ -86,18 +86,27 @@
 /* table-layout:fixed se mantiene (no es la causa de la mezcla de columnas): es lo
    que permite fijar el ancho real de cada columna. La superposicion anterior venia
    de celdas SIN contencion propia (badges/spans sin overflow:hidden), no del fixed
-   layout en si. min-width evita que el layout comprima columnas por debajo de un
-   ancho legible; si el contenedor real es mas angosto, el exceso se resuelve con
-   scroll horizontal controlado (dentro de .tableScroll), nunca comprimiendo texto. */
+   layout en si. min-width = suma de los 10 anchos de columna (ver page.tsx) para
+   que ninguna se comprima; si el contenedor real es mas angosto, el exceso se
+   resuelve con scroll horizontal controlado (dentro de .tableScroll), nunca
+   comprimiendo texto. */
 .tableWrap table {
   table-layout: fixed;
   width: 100%;
-  min-width: 1300px;
+  min-width: 1345px;
 }
 
 .tableWrap th,
 .tableWrap td {
   padding: 0 10px;
+}
+
+/* Contencion tambien en encabezados: con columnas mas angostas (Estado de pago /
+   Estado de aprobacion) un header largo podria desbordar igual que una celda. */
+.tableWrap th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .paginationRow {
@@ -240,7 +249,9 @@
   min-width: 0;
 }
 
-.estadosCell {
+/* Reutilizada por Estado de pago y Estado de aprobacion (cada una ahora es su
+   propia columna: un badge + una linea secundaria opcional). */
+.badgeStackCell {
   display: flex;
   flex-direction: column;
   gap: 3px;
