@@ -1015,7 +1015,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "codigo",
       header: "N° RQ",
-      width: "85px",
+      width: "95px",
       cell: (rq) => (
         <div className={styles.truncateCell} style={{ fontWeight: 800, color: "var(--v2-text)" }}>{rqCodigo(rq)}</div>
       ),
@@ -1023,7 +1023,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "proyecto",
       header: "PROYECTO",
-      width: "155px",
+      width: "150px",
       cell: (rq) => {
         const proyectoEliminado = rqPerteneceAProyectoEliminado(rq)
         const productor = rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : ""
@@ -1063,7 +1063,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "proveedor",
       header: "PROVEEDOR",
-      width: "105px",
+      width: "125px",
       cell: (rq) => {
         const nombre = rq.proveedor_nombre || rq.proveedor?.nombre || "—"
         return (
@@ -1090,22 +1090,28 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       id: "monto",
       header: "MONTO",
       align: "right",
-      width: "90px",
+      width: "100px",
       cell: (rq) => (
-        <span className={styles.truncateCell} style={{ fontWeight: 800, color: "var(--v2-text)" }}>{fmt(montoFinalRQ(rq))}</span>
+        <div className={styles.truncateCell} style={{ fontWeight: 800, color: "var(--v2-text)" }}>{fmt(montoFinalRQ(rq))}</div>
       ),
     },
     {
       id: "condicion",
       header: "CONDICIÓN",
-      width: "90px",
+      width: "110px",
       cell: (rq) => {
         const condicion = condicionComercialRQ(rq)
         if (!condicion) return "—"
         return (
           <div className={styles.condicionCell}>
-            <V2Badge variant="neutral" size="sm">{condicionLabelRQ(rq)}{rq.dias_credito ? ` ${rq.dias_credito}d` : ""}</V2Badge>
-            {rq.es_excepcion && <V2Badge variant="danger" size="sm">🚩 Excepción</V2Badge>}
+            <div className={styles.truncateCell}>
+              <V2Badge variant="neutral" size="sm">{condicionLabelRQ(rq)}{rq.dias_credito ? ` ${rq.dias_credito}d` : ""}</V2Badge>
+            </div>
+            {rq.es_excepcion && (
+              <div className={styles.truncateCell}>
+                <V2Badge variant="danger" size="sm">🚩 Excepción</V2Badge>
+              </div>
+            )}
           </div>
         )
       },
@@ -1113,7 +1119,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "fechas",
       header: "FECHAS",
-      width: "110px",
+      width: "170px",
       cell: (rq) => {
         const real = fechaPagoRealRQ(rq)
         const programada = fechaProgramadaRQ(rq)
@@ -1132,24 +1138,30 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "estados",
       header: "ESTADOS",
-      width: "125px",
+      width: "135px",
       cell: (rq) => {
         const pago = estadoPagoRQ(rq)
         const ec = ESTADOS[rq.estado] || { label: rq.estado }
         const migracion = estadoMigracionRQ(rq, migrationLogs)
         return (
           <div className={styles.estadosCell}>
-            <V2Badge variant={estadoRQVariant(rq.estado)} size="sm">{ec.label}</V2Badge>
-            <V2Badge variant={estadoPagoVariant(pago.key)} size="sm">{pago.label}</V2Badge>
+            <div className={styles.truncateCell}>
+              <V2Badge variant={estadoRQVariant(rq.estado)} size="sm">{ec.label}</V2Badge>
+            </div>
+            <div className={styles.truncateCell}>
+              <V2Badge variant={estadoPagoVariant(pago.key)} size="sm">{pago.label}</V2Badge>
+            </div>
             {rq.estado === "pagado" && rq.numero_operacion && (
               <div className={styles.truncateCell} style={{ fontSize: 10, color: "var(--v2-subtle)" }}>Op: {rq.numero_operacion}</div>
             )}
             {rqPerteneceAProyectoEliminado(rq) && (
-              <div style={{ fontSize: 10, color: "var(--v2-danger)", fontWeight: 700 }}>Proyecto eliminado</div>
+              <div className={styles.truncateCell} style={{ fontSize: 10, color: "var(--v2-danger)", fontWeight: 700 }}>Proyecto eliminado</div>
             )}
             <V2Tooltip content={motivoEstadoMigracion(rq, migrationLogs)}>
-              <div style={{ display: "inline-flex", background: migracion.bg, color: migracion.color, padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>
-                {migracion.label}
+              <div className={styles.truncateCell}>
+                <span style={{ display: "inline-flex", background: migracion.bg, color: migracion.color, padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 700, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {migracion.label}
+                </span>
               </div>
             </V2Tooltip>
           </div>
@@ -1160,7 +1172,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       id: "acciones",
       header: "",
       align: "right",
-      width: "160px",
+      width: "175px",
       cell: (rq) => {
         const accion = getSiguienteAccion(rq)
         const puedeEditar = puedeEditarRQ(rq)

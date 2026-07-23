@@ -58,12 +58,18 @@
   min-height: 320px;
 }
 
-/* V2DataTable no expone el div interno de scroll como prop, asi que se referencia
-   por posicion (1er hijo = shell del primitive, su hijo = scroller horizontal) en
-   vez de tocar V2System.module.css. Esto acota la altura al mismo elemento que ya
-   maneja el scroll horizontal: sin esto, el thead sticky del primitive queda
-   "atrapado" en un contenedor sin scroll vertical real y nunca se pega al hacer
-   scroll (bug que reproduce el problema reportado). */
+/* V2DataTable (components/v2/system/V2DataTable.tsx) no expone ninguna prop ni
+   clase estable para su div interno de scroll: solo renderiza <div className=
+   {styles.tableShell}><div className={styles.tableScroll}><table>, y esas clases
+   vienen de V2System.module.css, cuyos nombres CSS-modules quedan hasheados y no
+   son referenciables desde este archivo sin duplicar el primitive. Por eso se usa
+   un selector estructural minimo (2 reglas, por posicion) en vez de tocar el
+   primitive. Es necesario porque .tableScroll trae overflow-x:auto, y por spec
+   CSS ("if one of overflow-x/-y is not visible, the other computes to auto")
+   eso vuelve a .tableScroll tambien scroll-container en Y pero sin alto acotado
+   -> el <thead> sticky del primitive nunca se activa. Acotar el alto aqui hace
+   que el mismo elemento maneje scroll horizontal Y vertical, que es donde el
+   sticky header realmente necesita "engancharse". */
 .tableWrap > *:first-child {
   flex: 1 1 auto;
   min-height: 0;
@@ -77,9 +83,16 @@
   overflow-y: auto;
 }
 
+/* table-layout:fixed se mantiene (no es la causa de la mezcla de columnas): es lo
+   que permite fijar el ancho real de cada columna. La superposicion anterior venia
+   de celdas SIN contencion propia (badges/spans sin overflow:hidden), no del fixed
+   layout en si. min-width evita que el layout comprima columnas por debajo de un
+   ancho legible; si el contenedor real es mas angosto, el exceso se resuelve con
+   scroll horizontal controlado (dentro de .tableScroll), nunca comprimiendo texto. */
 .tableWrap table {
   table-layout: fixed;
   width: 100%;
+  min-width: 1300px;
 }
 
 .tableWrap th,
@@ -104,11 +117,23 @@
   min-width: 0;
 }
 
+/* Drawer real: position:fixed lo saca por completo del flujo de .layoutGrid, asi
+   que su alto ya NO depende de .tableWrap ni de ningun sticky-container ambiguo
+   (a diferencia de position:sticky, que antes lo ataba al alto de fila del grid
+   y a la cadena de scroll-containers de sus ancestros). El grid conserva la
+   columna reservada de 420px (gridTemplateColumns en page.tsx) solo para que la
+   tabla no quede tapada debajo del panel; el panel en si ya no es un item del
+   grid. top respeta la topbar fija (V2ThemeScope.module.css: --v2-topbar-height),
+   right/bottom usan el mismo gutter de pagina para alinearse con el resto del
+   contenido, y z-index queda por encima del sidebar fijo (z-index:3) sin invadir
+   modales/dropdowns (que usan valores >=100). */
 .detailPanel {
-  position: sticky;
-  top: 20px;
-  align-self: start;
-  max-height: calc(100vh - 40px);
+  position: fixed;
+  top: var(--v2-topbar-height, 64px);
+  right: var(--v2-page-gutter-desktop, 24px);
+  bottom: var(--v2-page-gutter-desktop, 24px);
+  width: 420px;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -123,8 +148,18 @@
 }
 
 .detailPanelBody {
-  overflow-y: auto;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+@media (max-width: 640px) {
+  .detailPanel {
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
 }
 
 .estadosPopover {
@@ -173,6 +208,8 @@
 }
 
 .descripcionCell {
+  display: block;
+  width: 100%;
   font-size: 12px;
   color: var(--v2-muted);
   max-width: 100%;
@@ -182,7 +219,13 @@
   text-overflow: ellipsis;
 }
 
+/* display:block es obligatorio aqui: overflow/text-overflow/max-width no tienen
+   ningun efecto sobre cajas inline (p.ej. un <span>), que es exactamente lo que
+   causaba que Monto se pintara fuera de su celda (span sin contencion real). Al
+   forzar block la clase funciona igual sin importar si se aplica a div/span/a. */
 .truncateCell {
+  display: block;
+  width: 100%;
   min-width: 0;
   max-width: 100%;
   white-space: nowrap;
