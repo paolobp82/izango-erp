@@ -43,6 +43,58 @@ const ACCION_ICON: Record<string, string> = {
   pagar: "💳",
 }
 
+// Etiquetas legibles para los códigos de "accion" registrados por registrarAccion().
+// Si aparece un código nuevo que no está aquí, se humaniza el snake_case (ver humanizarAccion)
+// en lugar de mostrar el código crudo o un texto inventado.
+const ACCION_LABEL: Record<string, string> = {
+  crear: "Creación",
+  editar: "Edición",
+  eliminar: "Eliminación",
+  eliminar_operativo: "Eliminación operativa",
+  aprobar: "Aprobación",
+  rechazar: "Rechazo",
+  cancelar: "Cancelación",
+  cambiar_estado: "Cambio de estado",
+  cambiar_rol: "Cambio de rol",
+  subir_voucher: "Carga de voucher",
+  sincronizacion_comercial: "Sincronización comercial",
+  sincronizar_estado: "Sincronización de estado",
+  guardar_saldos_diarios: "Registro de saldos diarios",
+  guardar_cierre_diario: "Registro de cierre diario",
+  registrar_entrega: "Registro de entrega",
+  registrar_rendicion: "Registro de rendición",
+  registrar_reembolso_pendiente_version: "Registro de reembolso pendiente",
+  reasignar_productor: "Reasignación de productor",
+  editar_datos_pago: "Edición de datos de pago",
+  editar_rq_requiere_reaprobacion: "Edición con reaprobación requerida",
+  mantener_historico_rq: "RQ mantenido como histórico",
+  cancelar_rq_por_version: "Cancelación de RQ por nueva versión",
+  generar_rq_diferencia_version: "Generación de RQ por diferencia de versión",
+  migrar_referencia_rq_pagado: "Migración de referencia (RQ pagado)",
+  migrar_rq_version: "Migración de RQ a nueva versión",
+  login: "Inicio de sesión",
+  logout: "Cierre de sesión",
+  enviar: "Envío",
+  pagar: "Pago",
+}
+
+function humanizarAccion(accion?: string | null): string {
+  if (!accion) return "—"
+  if (ACCION_LABEL[accion]) return ACCION_LABEL[accion]
+  const texto = accion.replace(/_/g, " ").trim()
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+function parseJsonSeguro(valor: any): any {
+  if (!valor) return null
+  if (typeof valor !== "string") return valor
+  try {
+    return JSON.parse(valor)
+  } catch {
+    return null
+  }
+}
+
 export default function TrazabilidadPage() {
   const supabase = createClient()
   const [registros, setRegistros] = useState<any[]>([])
@@ -196,7 +248,7 @@ export default function TrazabilidadPage() {
       header: "Acción",
       render: (r) => {
         const icon = ACCION_ICON[r.accion] || "•"
-        return <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--v2-text)" }}>{icon} {r.accion}</span>
+        return <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--v2-text)" }}>{icon} {humanizarAccion(r.accion)}</span>
       },
     },
     {
@@ -226,7 +278,7 @@ export default function TrazabilidadPage() {
       align: "right",
       render: (r) => (
         <V2Button variant="secondary" size="compact" onClick={() => setSelected(r)}>
-          Ver
+          Ver detalle
         </V2Button>
       ),
     },
@@ -312,6 +364,7 @@ export default function TrazabilidadPage() {
               columns={columns}
               rows={filtradosOrdenados}
               getRowKey={(r) => r.id}
+              stickyHeader
               empty={
                 <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
                   No hay registros de trazabilidad con los filtros aplicados.
@@ -336,7 +389,7 @@ export default function TrazabilidadPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Acción</div>
-                    <div style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{ACCION_ICON[selected.accion] || "•"} {selected.accion}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{ACCION_ICON[selected.accion] || "•"} {humanizarAccion(selected.accion)}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Módulo</div>
@@ -347,6 +400,9 @@ export default function TrazabilidadPage() {
                       <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Entidad</div>
                       <div style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{selected.entidad_tipo}</div>
                       {selected.entidad_label && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)" }}>{selected.entidad_label}</div>}
+                      {selected.entidad_id && (
+                        <div style={{ fontSize: 11, color: "var(--v2-muted)", fontFamily: "monospace" }}>Código: {selected.entidad_id}</div>
+                      )}
                     </div>
                   )}
                   {selected.descripcion && (
@@ -355,12 +411,42 @@ export default function TrazabilidadPage() {
                       <div style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{selected.descripcion}</div>
                     </div>
                   )}
+                  {(() => {
+                    const anteriores = parseJsonSeguro(selected.datos_anteriores)
+                    const nuevos = parseJsonSeguro(selected.datos_nuevos)
+                    const estadoAnterior = anteriores?.estado
+                    const estadoNuevo = nuevos?.estado
+                    if (!estadoAnterior && !estadoNuevo) return null
+                    return (
+                      <div>
+                        <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Cambio de estado</div>
+                        <div style={{ fontSize: 12.5, color: "var(--v2-text)", display: "flex", alignItems: "center", gap: 6 }}>
+                          <span>{estadoAnterior || "—"}</span>
+                          <span style={{ color: "var(--v2-muted)" }}>→</span>
+                          <span style={{ fontWeight: 700 }}>{estadoNuevo || "—"}</span>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                  {selected.datos_anteriores && (
+                    <div>
+                      <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Estado anterior</div>
+                      <pre style={{ fontSize: 11, color: "var(--v2-text)", background: "var(--v2-surface-subtle)", borderRadius: "var(--v2-radius)", padding: "8px 10px", overflow: "auto", maxHeight: 140, margin: 0, border: "1px solid var(--v2-border)" }}>
+                        {JSON.stringify(parseJsonSeguro(selected.datos_anteriores) ?? selected.datos_anteriores, null, 2)}
+                      </pre>
+                    </div>
+                  )}
                   {selected.datos_nuevos && (
                     <div>
-                      <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Datos nuevos</div>
+                      <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 2 }}>Estado nuevo</div>
                       <pre style={{ fontSize: 11, color: "var(--v2-text)", background: "var(--v2-surface-subtle)", borderRadius: "var(--v2-radius)", padding: "8px 10px", overflow: "auto", maxHeight: 140, margin: 0, border: "1px solid var(--v2-border)" }}>
-                        {JSON.stringify(JSON.parse(selected.datos_nuevos || "{}"), null, 2)}
+                        {JSON.stringify(parseJsonSeguro(selected.datos_nuevos) ?? selected.datos_nuevos, null, 2)}
                       </pre>
+                    </div>
+                  )}
+                  {!selected.descripcion && !selected.entidad_label && !selected.datos_anteriores && !selected.datos_nuevos && (
+                    <div style={{ fontSize: 11.5, color: "var(--v2-muted)", fontStyle: "italic" }}>
+                      Este evento no tiene detalle adicional registrado.
                     </div>
                   )}
                 </div>

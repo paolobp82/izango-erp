@@ -43,7 +43,7 @@ export default function HorasExtrasPage() {
       setTrabajadorPropio(t)
     }
     const [{ data: regs }, { data: trabs }, { data: pros }] = await Promise.all([
-      supabase.from("rrhh_horas_extras").select("*, trabajador:rrhh_trabajadores(nombre,apellido,sueldo_base), proyecto:proyectos(nombre,codigo,deleted_at)").order("fecha", { ascending: false }),
+      supabase.from("rrhh_horas_extras").select("*, trabajador:rrhh_trabajadores(nombre,apellido,sueldo_base,area,cargo), aprobador:perfiles!aprobado_por(nombre,apellido), proyecto:proyectos(nombre,codigo,deleted_at)").order("fecha", { ascending: false }),
       supabase.from("rrhh_trabajadores").select("id,nombre,apellido").eq("activo", true).order("apellido"),
       supabase.from("proyectos").select("id,nombre,codigo").is("deleted_at", null).order("nombre"),
     ])
@@ -54,6 +54,12 @@ export default function HorasExtrasPage() {
   }
 
   const esAdmin = ["superadmin","gerente_general","administrador","controller"].includes(perfil?.perfil)
+  // Gerente de Produccion: acceso limitado a revisar/aprobar/rechazar horas extras de su propio
+  // equipo (area "Produccion"), sin las capacidades administrativas completas de esAdmin
+  // (carga masiva, registrar en nombre de cualquier trabajador, filtros de toolbar).
+  const AREA_EQUIPO_PRODUCCION = "Produccion"
+  const esGerenteProduccion = perfil?.perfil === "gerente_produccion"
+  const puedeRevisarEquipo = esAdmin || esGerenteProduccion
 
   async function guardar() {
     if (!form.fecha || !form.horas) { alert("Fecha y horas son obligatorios"); return }
@@ -110,11 +116,26 @@ export default function HorasExtrasPage() {
   const registrosFiltrados = registros.filter(r => {
     const matchTrab = !filtroTrabajador || r.trabajador_id === filtroTrabajador
     const matchMes = !filtroMes || r.fecha?.startsWith(filtroMes)
-    if (!esAdmin) return r.trabajador_id === trabajadorPropio?.id
-    return matchTrab && matchMes
+    if (esAdmin) return matchTrab && matchMes
+    if (esGerenteProduccion) return r.trabajador?.area === AREA_EQUIPO_PRODUCCION || r.trabajador_id === trabajadorPropio?.id
+    return r.trabajador_id === trabajadorPropio?.id
   })
 
   const totalMonto = registrosFiltrados.filter(r => r.aprobado).reduce((s, r) => s + (r.monto_calculado || 0), 0)
+
+  // Fila plana para exportacion: ImportExport lee row[c.key] sin soporte de rutas anidadas
+  // (row.trabajador.nombre), asi que se aplanan aqui los datos de persona ya cargados por la
+  // query (sin queries adicionales por fila).
+  const registrosExport = registrosFiltrados.map(r => ({
+    ...r,
+    nombre_completo: [r.trabajador?.nombre, r.trabajador?.apellido].filter(Boolean).join(" ") || "—",
+    cargo: r.trabajador?.cargo || "",
+    area: r.trabajador?.area || "",
+    estado: r.aprobado ? "Aprobado" : "Pendiente",
+    aprobador_nombre: r.aprobado
+      ? ([r.aprobador?.nombre, r.aprobador?.apellido].filter(Boolean).join(" ") || "—")
+      : "",
+  }))
   const inp: any = { padding: "8px 12px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius)", fontSize: 13, fontFamily: "inherit", background: "var(--v2-surface)", width: "100%", outline: "none", boxSizing: "border-box" as const }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", marginBottom: 6, textTransform: "uppercase" as const }
 
@@ -127,7 +148,7 @@ export default function HorasExtrasPage() {
   }
 
   const columns: V2TableColumn<any>[] = [
-    ...(esAdmin
+    ...(puedeRevisarEquipo
       ? [
           {
             key: "trabajador",
@@ -195,7 +216,7 @@ export default function HorasExtrasPage() {
           </span>
         ),
     },
-    ...(esAdmin
+    ...(puedeRevisarEquipo
       ? [
           {
             key: "acciones",
@@ -231,20 +252,34 @@ export default function HorasExtrasPage() {
                 <ImportExport
                   modulo="rrhh_horas_extras"
                   campos={[
+                    { key: "nombre_completo", label: "Nombre completo" },
+                    { key: "cargo", label: "Cargo" },
+                    { key: "area", label: "Área" },
                     { key: "fecha", label: "Fecha", requerido: true },
                     { key: "horas", label: "Horas", requerido: true },
                     { key: "motivo", label: "Motivo" },
                     { key: "monto_calculado", label: "Monto calculado" },
-                    { key: "aprobado", label: "Aprobado" },
+                    { key: "estado", label: "Estado" },
+                    { key: "aprobador_nombre", label: "Aprobador" },
                     { key: "proyecto_externo", label: "Proyecto externo" },
                   ]}
-                  datos={registrosFiltrados}
+                  datos={registrosExport}
                   onImportar={async (registros) => {
                     let exitosos = 0
                     const errores: string[] = []
                     for (const r of registros) {
                       const trabajadorId = esAdmin ? r.trabajador_id : trabajadorPropio?.id
-                      const { error } = await supabase.from("rrhh_horas_extras").insert({ ...r, trabajador_id: trabajadorId })
+                      // Insert explicito: "campos" ahora incluye columnas de exportacion
+                      // (nombre_completo, cargo, area, estado, aprobador_nombre) que no
+                      // existen en rrhh_horas_extras, por lo que ya no se puede insertar
+                      // con un spread ciego de la fila importada.
+                      const { error } = await supabase.from("rrhh_horas_extras").insert({
+                        trabajador_id: trabajadorId,
+                        fecha: r.fecha,
+                        horas: r.horas,
+                        motivo: r.motivo || null,
+                        proyecto_externo: r.proyecto_externo || null,
+                      })
                       if (error) errores.push(r.fecha + ": " + error.message)
                       else exitosos++
                     }
@@ -317,6 +352,7 @@ export default function HorasExtrasPage() {
             columns={columns}
             rows={registrosFiltrados}
             getRowKey={(r) => r.id}
+            stickyHeader
             empty={
               <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
                 No hay registros de horas extras.

@@ -232,7 +232,7 @@ export const MATRIZ_ACCIONES: MatrizAcciones = {
     eliminar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "TOTAL", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
     exportar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "LECTURA", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "TOTAL", logistica: "LECTURA", audiovisual: "LECTURA", administrador: "LECTURA", practicante: "NINGUNO" },
     aprobar: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "TOTAL", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
-    aprobar_cliente: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "NINGUNO", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
+    aprobar_cliente: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "NINGUNO", gerente_produccion: "NINGUNO", productor: "NINGUNO", comercial: "TOTAL", logistica: "NINGUNO", audiovisual: "NINGUNO", administrador: "NINGUNO", practicante: "NINGUNO" },
   },
   rq: {
     ver: { superadmin: "TOTAL", gerente_general: "TOTAL", controller: "TOTAL", gerente_produccion: "TOTAL", productor: "PROPIO", comercial: "NINGUNO", logistica: "LECTURA", audiovisual: "NINGUNO", administrador: "LECTURA", practicante: "NINGUNO" },

@@ -241,6 +241,7 @@ export default function PermisosPage() {
             columns={columns}
             rows={registrosFiltrados}
             getRowKey={(r) => r.id}
+            stickyHeader
             empty={
               <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
                 No hay registros.

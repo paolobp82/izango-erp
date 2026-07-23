@@ -300,6 +300,7 @@ export default function ClientesPage() {
                   columns={columns}
                   rows={paginados}
                   getRowKey={(c) => c.id}
+                  stickyHeader
                   empty={
                     <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
                       No hay clientes. <Link href="/clientes/nuevo" style={{ color: "var(--v2-brand-primary)", fontWeight: "bold" }}>Agrega el primero</Link>

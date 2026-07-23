@@ -429,6 +429,7 @@ export default function TrabajadoresPage() {
               columns={columns}
               rows={trabajadoresPaginados}
               getRowKey={(t) => t.id}
+              stickyHeader
               empty={
                 <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
                   <div style={{ fontSize: 14, marginBottom: 8 }}>

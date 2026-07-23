@@ -32,6 +32,7 @@ import {
   V2Popover,
   V2Select,
   V2StatusDot,
+  V2Tooltip,
   type V2DataTableColumn,
 } from "@/components/v2/system"
 import { V2ActiveFilterChip, V2FilterBar, V2FilterDrawer } from "@/components/v2/filters"
@@ -150,6 +151,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const [filtroEstadoPago, setFiltroEstadoPago] = useState("")
   const [filtroFechaNecesidadDesde, setFiltroFechaNecesidadDesde] = useState("")
   const [filtroFechaNecesidadHasta, setFiltroFechaNecesidadHasta] = useState("")
+  const [filtroArchivado, setFiltroArchivado] = useState<"activos" | "archivados" | "todos">("activos")
   const [datosPago, setDatosPago] = useState({
     voucher_url: "", numero_operacion: "", banco_pago: "", tipo_transferencia: "Transferencia", nota_pago: ""
   })
@@ -169,13 +171,14 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const [tempFechaNecesidadHasta, setTempFechaNecesidadHasta] = useState("")
   const [tempExcepcion, setTempExcepcion] = useState("todos")
   const [tempIncluirProyectosEliminados, setTempIncluirProyectosEliminados] = useState(false)
+  const [tempProyecto, setTempProyecto] = useState("")
   const POR_PAGINA = 50
 
   useEffect(() => { load() }, [])
 
   useEffect(() => {
     setPagina(1)
-  }, [busquedaRQ, filtroEstados, filtroProveedor, filtroProyecto, filtroTipoPago, filtroExcepcion, filtroEstadoPago, filtroFechaNecesidadDesde, filtroFechaNecesidadHasta, incluirProyectosEliminados])
+  }, [busquedaRQ, filtroEstados, filtroProveedor, filtroProyecto, filtroTipoPago, filtroExcepcion, filtroEstadoPago, filtroFechaNecesidadDesde, filtroFechaNecesidadHasta, incluirProyectosEliminados, filtroArchivado])
 
   async function load() {
     const params = new URLSearchParams(window.location.search)
@@ -795,6 +798,16 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const fechaNecesidadRQ = (rq: any) => fechaYmd(rq?.fecha_necesidad_pago) || fechaVencimientoRQ(rq)
   const fechaProgramadaRQ = (rq: any) => fechaYmd(rq?.fecha_programada_pago)
   const fechaPagoRealRQ = (rq: any) => rq?.estado === "pagado" ? fechaYmd(rq?.fecha_pago) : ""
+  // No existe (aun) selector de mes/periodo operativo en /rq (sin parametro de URL, sin estado de UI para elegirlo).
+  // Fallback documentado: mes calendario actual, calculado en hora local para no desplazar el mes por UTC.
+  const hoyLocal = new Date()
+  const mesOperativoActual = `${hoyLocal.getFullYear()}-${String(hoyLocal.getMonth() + 1).padStart(2, "0")}`
+  const rqEstaArchivado = (rq: any) => {
+    if (rq?.estado !== "pagado") return false
+    const mesPago = fechaPagoRealRQ(rq).slice(0, 7)
+    if (!mesPago) return false
+    return mesPago < mesOperativoActual
+  }
   const estadoPagoRQ = (rq: any) => {
     const estado = String(rq?.estado || "")
     if (["cancelado", "rechazado"].includes(estado)) return { key: "anulado", label: "Anulado", bg: "#f3f4f6", color: "#6b7280", icon: "●" }
@@ -816,7 +829,17 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
 
   const rqsVistaActiva = incluirProyectosEliminados ? rqs : rqs.filter(r => r.estado !== "cancelado" && !rqPerteneceAProyectoEliminado(r))
   const rqsProyectosEliminados = rqs.filter(r => rqPerteneceAProyectoEliminado(r))
-  const filtradosBase = rqsVistaActiva.filter(r => {
+  // Activos / Archivados / Todos: misma regla de archivado (pagado + mes de fecha_pago anterior al mes operativo).
+  const rqsSegunArchivado = filtroArchivado === "todos"
+    ? rqsVistaActiva
+    : filtroArchivado === "archivados"
+      ? rqsVistaActiva.filter(rqEstaArchivado)
+      : rqsVistaActiva.filter(r => !rqEstaArchivado(r))
+  // La tabla y los KPIs comparten esta misma base (Activos/Archivados/Todos); los demas filtros
+  // (busqueda, estado, proveedor, proyecto, tipo, fechas, excepcion) solo se aplican a la tabla,
+  // igual que antes de este sprint.
+  const rqsBaseKpi = rqsSegunArchivado
+  const filtradosBase = rqsSegunArchivado.filter(r => {
     const textoBusqueda = busquedaRQ.trim().toLowerCase()
 
     if (textoBusqueda) {
@@ -863,10 +886,10 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const finPagina = Math.min(paginaActual * POR_PAGINA, filtrados.length)
   const paginados = filtrados.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA)
 
-  const totalPendiente = rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
-  const totalAprobado = rqsVistaActiva.filter(r => ["aprobado_produccion", "aprobado"].includes(r.estado)).reduce((s, r) => s + (r.monto_solicitado || 0), 0)
-  const totalProgramado = rqsVistaActiva.filter(r => r.estado === "programado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
-  const totalPagado = rqsVistaActiva.filter(r => r.estado === "pagado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalPendiente = rqsBaseKpi.filter(r => r.estado === "pendiente_aprobacion").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalAprobado = rqsBaseKpi.filter(r => ["aprobado_produccion", "aprobado"].includes(r.estado)).reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalProgramado = rqsBaseKpi.filter(r => r.estado === "programado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalPagado = rqsBaseKpi.filter(r => r.estado === "pagado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
 
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3, display: "block" }
@@ -881,6 +904,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     setFiltroExcepcion("todos")
     setFiltroProyecto("")
     setIncluirProyectosEliminados(false)
+    setFiltroArchivado("activos")
   }
 
   function limpiarTodoToolbar() {
@@ -895,6 +919,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     setTempFechaNecesidadHasta(filtroFechaNecesidadHasta)
     setTempExcepcion(filtroExcepcion)
     setTempIncluirProyectosEliminados(incluirProyectosEliminados)
+    setTempProyecto(filtroProyecto)
     setDrawerOpen(true)
   }
 
@@ -905,6 +930,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     setFiltroFechaNecesidadHasta(tempFechaNecesidadHasta)
     setFiltroExcepcion(tempExcepcion)
     setIncluirProyectosEliminados(tempIncluirProyectosEliminados)
+    setFiltroProyecto(tempProyecto)
     setDrawerOpen(false)
   }
 
@@ -916,6 +942,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     setTempFechaNecesidadHasta("")
     setTempExcepcion("todos")
     setTempIncluirProyectosEliminados(false)
+    setTempProyecto("")
     setDrawerOpen(false)
   }
 
@@ -929,6 +956,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     (filtroExcepcion !== "todos" ? 1 : 0) +
     (filtroProyecto ? 1 : 0) +
     (incluirProyectosEliminados ? 1 : 0) +
+    (filtroArchivado !== "activos" ? 1 : 0) +
     (busquedaRQ.trim() ? 1 : 0)
 
   const advancedFiltersCount =
@@ -937,7 +965,8 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     (filtroFechaNecesidadDesde ? 1 : 0) +
     (filtroFechaNecesidadHasta ? 1 : 0) +
     (filtroExcepcion !== "todos" ? 1 : 0) +
-    (incluirProyectosEliminados ? 1 : 0)
+    (incluirProyectosEliminados ? 1 : 0) +
+    (filtroProyecto ? 1 : 0)
 
   const proyectoFiltradoActual = proyectos.find((p: any) => p.id === filtroProyecto)
 
@@ -950,6 +979,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   if (filtroExcepcion !== "todos") filtrosActivosChips.push({ id: "excepcion", label: "Excepción", valueLabel: filtroExcepcion === "solo" ? "Solo excepciones" : "Sin excepción" })
   if (filtroProyecto) filtrosActivosChips.push({ id: "proyecto", label: "Proyecto", valueLabel: proyectoFiltradoActual?.codigo || "Filtrado" })
   if (incluirProyectosEliminados) filtrosActivosChips.push({ id: "eliminados", label: "Proyectos eliminados", valueLabel: "Incluidos" })
+  if (filtroArchivado !== "activos") filtrosActivosChips.push({ id: "archivado", label: "Vista", valueLabel: filtroArchivado === "archivados" ? "Solo archivados" : "Todos (activos + archivados)" })
 
   function quitarFiltro(id: string) {
     if (id === "estados") setFiltroEstados([])
@@ -960,6 +990,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     if (id === "excepcion") setFiltroExcepcion("todos")
     if (id === "proyecto") setFiltroProyecto("")
     if (id === "eliminados") setIncluirProyectosEliminados(false)
+    if (id === "archivado") setFiltroArchivado("activos")
   }
 
   function handleRowClick(rq: any) {
@@ -986,10 +1017,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       header: "N° RQ",
       minWidth: "110px",
       cell: (rq) => (
-        <div>
-          <div style={{ fontWeight: 800, color: "var(--v2-text)" }}>{rqCodigo(rq)}</div>
-          <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>Solicitado: {rq.created_at ? new Date(rq.created_at).toLocaleDateString("es-PE") : "—"}</div>
-        </div>
+        <div style={{ fontWeight: 800, color: "var(--v2-text)" }}>{rqCodigo(rq)}</div>
       ),
     },
     {
@@ -1023,14 +1051,19 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       },
     },
     {
+      id: "productor",
+      header: "PRODUCTOR",
+      minWidth: "130px",
+      cell: (rq) => (
+        <div style={{ color: "var(--v2-text)" }}>{rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : "—"}</div>
+      ),
+    },
+    {
       id: "proveedor",
       header: "PROVEEDOR",
       minWidth: "140px",
       cell: (rq) => (
-        <div>
-          <div style={{ color: "var(--v2-text)", fontWeight: 600 }}>{rq.proveedor_nombre || rq.proveedor?.nombre || "—"}</div>
-          <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>{rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : "—"}</div>
-        </div>
+        <div style={{ color: "var(--v2-text)", fontWeight: 600 }}>{rq.proveedor_nombre || rq.proveedor?.nombre || "—"}</div>
       ),
     },
     {
@@ -1038,9 +1071,13 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       header: "DESCRIPCIÓN",
       minWidth: "150px",
       cell: (rq) => (
-        <div className={styles.descripcionCell}>
-          {rq.descripcion || "—"}
-        </div>
+        rq.descripcion ? (
+          <V2Tooltip content={rq.descripcion}>
+            <div className={styles.descripcionCell}>{rq.descripcion}</div>
+          </V2Tooltip>
+        ) : (
+          <div className={styles.descripcionCell}>—</div>
+        )
       ),
     },
     {
@@ -1048,16 +1085,9 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       header: "MONTO",
       align: "right",
       minWidth: "115px",
-      cell: (rq) => {
-        const igv = detalleIgv(rq)
-        return (
-          <div className={styles.montoCell}>
-            <span style={{ fontWeight: 800, color: "var(--v2-text)" }}>{fmt(igv.total)}</span>
-            <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>Base {fmt(igv.subtotal)}</span>
-            <span style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>{rqTratamientoIgvLabel(rq)}</span>
-          </div>
-        )
-      },
+      cell: (rq) => (
+        <span style={{ fontWeight: 800, color: "var(--v2-text)" }}>{fmt(montoFinalRQ(rq))}</span>
+      ),
     },
     {
       id: "condicion",
@@ -1075,16 +1105,26 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       },
     },
     {
-      id: "fechas",
-      header: "FECHAS",
-      minWidth: "125px",
-      cell: (rq) => (
-        <div className={styles.fechasCell}>
-          <div>Necesidad: {fmtFecha(fechaNecesidadRQ(rq))}</div>
-          <div>Programada: {fmtFecha(fechaProgramadaRQ(rq))}</div>
-          <div>Pago real: {fmtFecha(fechaPagoRealRQ(rq))}</div>
-        </div>
-      ),
+      id: "fechaSolicitud",
+      header: "FECHA DE SOLICITUD",
+      minWidth: "115px",
+      cell: (rq) => <span>{fmtFecha(rq.created_at)}</span>,
+    },
+    {
+      id: "fechaPago",
+      header: "FECHA DE PAGO",
+      minWidth: "115px",
+      cell: (rq) => {
+        const real = fechaPagoRealRQ(rq)
+        const programada = fechaProgramadaRQ(rq)
+        const valor = real || programada
+        return (
+          <div className={styles.fechasCell}>
+            <div>{fmtFecha(valor)}</div>
+            {!real && programada && <div style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>Programada</div>}
+          </div>
+        )
+      },
     },
     {
       id: "estadoPago",
@@ -1108,26 +1148,17 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       minWidth: "120px",
       cell: (rq) => {
         const ec = ESTADOS[rq.estado] || { label: rq.estado }
+        const migracion = estadoMigracionRQ(rq, migrationLogs)
         return (
           <div>
             <V2Badge variant={estadoRQVariant(rq.estado)} size="sm">{ec.label}</V2Badge>
             {rqPerteneceAProyectoEliminado(rq) && (
               <div style={{ fontSize: 10, color: "var(--v2-danger)", marginTop: 3, fontWeight: 700 }}>Proyecto eliminado</div>
             )}
+            <div title={motivoEstadoMigracion(rq, migrationLogs)} style={{ display: "inline-flex", marginTop: 3, background: migracion.bg, color: migracion.color, padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>
+              {migracion.label}
+            </div>
           </div>
-        )
-      },
-    },
-    {
-      id: "migracion",
-      header: "MIGR.",
-      minWidth: "90px",
-      cell: (rq) => {
-        const migracion = estadoMigracionRQ(rq, migrationLogs)
-        return (
-          <span title={motivoEstadoMigracion(rq, migrationLogs)} style={{ display: "inline-flex", background: migracion.bg, color: migracion.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
-            {migracion.label}
-          </span>
         )
       },
     },
@@ -1218,34 +1249,49 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     </div>
   )
 
+  const archivadoQuickFilter = (
+    <div className={styles.toolbarField}>
+      <V2Select
+        compact
+        value={filtroArchivado}
+        onChange={e => setFiltroArchivado(e.target.value as "activos" | "archivados" | "todos")}
+        options={[
+          { label: "Activos", value: "activos" },
+          { label: "Archivados (pagados meses anteriores)", value: "archivados" },
+          { label: "Todos", value: "todos" },
+        ]}
+      />
+    </div>
+  )
+
   const kpiSection = (
     <div className={styles.kpiGrid}>
       <V2KpiCard
         icon={<Clock size={20} />}
         label="Pendientes"
         value={fmt(totalPendiente)}
-        description={`${rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").length} RQs`}
+        description={`${rqsBaseKpi.filter(r => r.estado === "pendiente_aprobacion").length} RQs`}
         tone="warning"
       />
       <V2KpiCard
         icon={<ShieldCheck size={20} />}
         label="En aprobación"
         value={fmt(totalAprobado)}
-        description={`${rqsVistaActiva.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length} RQs`}
+        description={`${rqsBaseKpi.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length} RQs`}
         tone="primary"
       />
       <V2KpiCard
         icon={<CalendarClock size={20} />}
         label="Programados"
         value={fmt(totalProgramado)}
-        description={`${rqsVistaActiva.filter(r => r.estado === "programado").length} RQs`}
+        description={`${rqsBaseKpi.filter(r => r.estado === "programado").length} RQs`}
         tone="neutral"
       />
       <V2KpiCard
         icon={<Wallet size={20} />}
         label="Pagados"
         value={fmt(totalPagado)}
-        description={`${rqsVistaActiva.filter(r => r.estado === "pagado").length} RQs`}
+        description={`${rqsBaseKpi.filter(r => r.estado === "pagado").length} RQs${filtroArchivado === "activos" ? " · mes actual" : filtroArchivado === "archivados" ? " · archivados" : " · activos + archivados"}`}
         tone="success"
       />
     </div>
@@ -1297,7 +1343,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
               searchPlaceholder="Buscar RQ, número, proyecto, proveedor o concepto..."
               activeFiltersCount={advancedFiltersCount}
               onToggleDrawer={abrirFiltrosAvanzados}
-              quickFilters={<>{estadoQuickFilter}{proveedorQuickFilter}</>}
+              quickFilters={<>{estadoQuickFilter}{proveedorQuickFilter}{archivadoQuickFilter}</>}
               showClearButton={activeFiltersCount > 0}
               onClearFilters={limpiarTodoToolbar}
             />
@@ -1325,6 +1371,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
             getRowId={(rq) => rq.id}
             selectedRowId={selected?.id}
             onRowClick={handleRowClick}
+            stickyHeader
             emptyState={
               rqs.length === 0 ? (
                 <V2EmptyState title="No existen RQ" description="Aún no se han creado requerimientos de pago." />
@@ -1348,8 +1395,8 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
         </div>
 
         {selected && (
-          <div className="card" style={{ position: "sticky", top: 20, alignSelf: "start" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div className={`card ${styles.detailPanel}`}>
+            <div className={styles.detailPanelHeader}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{rqCodigo(selected)}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 {puedeEditarRQ(selected) && (
@@ -1360,6 +1407,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
                 <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 18 }}>x</button>
               </div>
             </div>
+            <div className={styles.detailPanelBody}>
             {!puedeEditarRQ(selected) && mensajeEdicionRQ(selected) && (
               <div style={{ padding: "8px 10px", border: "1px solid #bbf7d0", borderRadius: 8, background: "#f0fdf4", color: "#166534", fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
                 {mensajeEdicionRQ(selected)}
@@ -1626,6 +1674,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
                 </div>
               )}
             </div>
+            </div>
           </div>
         )}
       </div>
@@ -1641,6 +1690,17 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
         onClearAll={limpiarFiltrosAvanzados}
       >
         <div style={{ display: "grid", gap: 16 }}>
+          <V2FormField label="Proyecto">
+            <V2Select
+              value={tempProyecto}
+              onChange={e => setTempProyecto(e.target.value)}
+              options={[
+                { label: "Todos los proyectos", value: "" },
+                ...proyectos.map((p: any) => ({ label: `${p.codigo} - ${p.nombre}`, value: p.id })),
+              ]}
+            />
+          </V2FormField>
+
           <V2FormField label="Condición comercial">
             <V2Select
               value={tempTipoPago}
@@ -1696,10 +1756,6 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
               Incluir proyectos eliminados
             </label>
           </V2FormField>
-
-          {filtroProyecto && (
-            <V2Badge variant="primary" size="sm">Proyecto filtrado: {proyectoFiltradoActual?.codigo || filtroProyecto}</V2Badge>
-          )}
         </div>
       </V2FilterDrawer>
 

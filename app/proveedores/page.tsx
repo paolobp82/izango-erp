@@ -516,6 +516,7 @@ export default function ProveedoresPage() {
                   columns={columns}
                   rows={paginados}
                   getRowKey={(p) => p.id}
+                  stickyHeader
                   empty={
                     <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
                       No hay proveedores con estos filtros.
