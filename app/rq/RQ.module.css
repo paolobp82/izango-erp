@@ -52,10 +52,44 @@
   border-radius: var(--v2-radius-lg);
   box-shadow: var(--v2-shadow-sm);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 440px);
+  min-height: 320px;
+}
+
+/* V2DataTable no expone el div interno de scroll como prop, asi que se referencia
+   por posicion (1er hijo = shell del primitive, su hijo = scroller horizontal) en
+   vez de tocar V2System.module.css. Esto acota la altura al mismo elemento que ya
+   maneja el scroll horizontal: sin esto, el thead sticky del primitive queda
+   "atrapado" en un contenedor sin scroll vertical real y nunca se pega al hacer
+   scroll (bug que reproduce el problema reportado). */
+.tableWrap > *:first-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tableWrap > *:first-child > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.tableWrap table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.tableWrap th,
+.tableWrap td {
+  padding: 0 10px;
 }
 
 .paginationRow {
   padding: 4px 8px 8px;
+  flex-shrink: 0;
 }
 
 .layoutGrid {
@@ -141,11 +175,34 @@
 .descripcionCell {
   font-size: 12px;
   color: var(--v2-muted);
-  max-width: 260px;
+  max-width: 100%;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.truncateCell {
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proyectoCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.estadosCell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  min-width: 0;
 }
 
 .rowActions {
@@ -153,7 +210,8 @@
   gap: 6px;
   align-items: center;
   justify-content: flex-end;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  row-gap: 4px;
 }
 
 @media (max-width: 1100px) {

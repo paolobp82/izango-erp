@@ -2,6 +2,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useRef } from "react"
 import * as XLSX from "xlsx"
+import { V2Button } from "@/components/v2/system"
+import { Download, Upload, ChevronDown } from "lucide-react"
 
 interface ImportExportProps {
   modulo: string
@@ -148,46 +150,38 @@ export default function ImportExport({ modulo, campos, datos, onImportar, varian
   const isV2 = variant === "v2"
 
   return (
-    <div style={{ position: "relative", display: "inline-flex", gap: 8, height: "32px", alignItems: "center" }}>
+    <div style={isV2 ? { position: "relative", display: "inline-flex", gap: 8, alignItems: "center" } : { position: "relative", display: "inline-flex", gap: 8, height: "32px", alignItems: "center" }}>
       {/* Exportar */}
-      <div style={{ position: "relative", height: "100%" }}>
-        <button
-          onClick={() => setShowMenu(!showMenu)}
-          style={
-            isV2
-              ? {
-                  padding: "0 12px",
-                  border: "1px solid transparent",
-                  borderRadius: "var(--v2-radius)",
-                  background: "var(--v2-surface)",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  color: "var(--v2-text)",
-                  fontWeight: 900,
-                  fontFamily: "inherit",
-                  height: "32px",
-                  boxSizing: "border-box",
-                }
-              : {
-                  padding: "7px 14px",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 8,
-                  background: "#fff",
-                  fontSize: 13,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  color: "#374151",
-                  fontFamily: "inherit",
-                }
-          }
-        >
-          ↓ Exportar <span style={{ fontSize: 10 }}>▾</span>
-        </button>
+      <div style={{ position: "relative" }}>
+        {isV2 ? (
+          <V2Button
+            variant="secondary"
+            leadingIcon={<Download size={14} />}
+            trailingIcon={<ChevronDown size={12} />}
+            onClick={() => setShowMenu(!showMenu)}
+          >
+            Exportar
+          </V2Button>
+        ) : (
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            style={{
+              padding: "7px 14px",
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              background: "#fff",
+              fontSize: 13,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              color: "#374151",
+              fontFamily: "inherit",
+            }}
+          >
+            ↓ Exportar <span style={{ fontSize: 10 }}>▾</span>
+          </button>
+        )}
         {showMenu && (
           <div
             style={
@@ -291,46 +285,40 @@ export default function ImportExport({ modulo, campos, datos, onImportar, varian
       </div>
 
       {/* Importar */}
-      <button
-        onClick={() => {
-          setShowImport(true)
-          setShowMenu(false)
-        }}
-        style={
-          isV2
-            ? {
-                padding: "0 12px",
-                border: "1px solid transparent",
-                borderRadius: "var(--v2-radius)",
-                background: "var(--v2-surface)",
-                fontSize: 12,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                color: "var(--v2-text)",
-                fontWeight: 900,
-                fontFamily: "inherit",
-                height: "32px",
-                boxSizing: "border-box",
-              }
-            : {
-                padding: "7px 14px",
-                border: "1px solid #1D9E75",
-                borderRadius: 8,
-                background: "#fff",
-                fontSize: 13,
-                cursor: "pointer",
-                color: "#0F6E56",
-                fontFamily: "inherit",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }
-        }
-      >
-        ↑ Importar
-      </button>
+      {isV2 ? (
+        <V2Button
+          variant="secondary"
+          leadingIcon={<Upload size={14} />}
+          onClick={() => {
+            setShowImport(true)
+            setShowMenu(false)
+          }}
+        >
+          Importar
+        </V2Button>
+      ) : (
+        <button
+          onClick={() => {
+            setShowImport(true)
+            setShowMenu(false)
+          }}
+          style={{
+            padding: "7px 14px",
+            border: "1px solid #1D9E75",
+            borderRadius: 8,
+            background: "#fff",
+            fontSize: 13,
+            cursor: "pointer",
+            color: "#0F6E56",
+            fontFamily: "inherit",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          ↑ Importar
+        </button>
+      )}
 
       {/* Modal importar */}
       {showImport && (

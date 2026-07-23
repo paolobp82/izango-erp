@@ -36,7 +36,7 @@ import {
   type V2DataTableColumn,
 } from "@/components/v2/system"
 import { V2ActiveFilterChip, V2FilterBar, V2FilterDrawer } from "@/components/v2/filters"
-import { Clock, ShieldCheck, CalendarClock, Wallet, MoreVertical } from "lucide-react"
+import { Clock, ShieldCheck, CalendarClock, Wallet, MoreVertical, Plus } from "lucide-react"
 import { RQForm } from "./components/RQForm"
 import {
   BANCOS_PAGO,
@@ -1015,61 +1015,67 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "codigo",
       header: "N° RQ",
-      minWidth: "110px",
+      width: "85px",
       cell: (rq) => (
-        <div style={{ fontWeight: 800, color: "var(--v2-text)" }}>{rqCodigo(rq)}</div>
+        <div className={styles.truncateCell} style={{ fontWeight: 800, color: "var(--v2-text)" }}>{rqCodigo(rq)}</div>
       ),
     },
     {
       id: "proyecto",
       header: "PROYECTO",
-      minWidth: "150px",
+      width: "155px",
       cell: (rq) => {
         const proyectoEliminado = rqPerteneceAProyectoEliminado(rq)
+        const productor = rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : ""
+        const productorLinea = productor && (
+          <V2Tooltip content={productor}>
+            <div className={styles.truncateCell} style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>{productor}</div>
+          </V2Tooltip>
+        )
         if (proyectoEliminado) {
           return (
-            <div>
-              <div style={{ fontWeight: 800, color: "var(--v2-danger)" }}>{rq.proyecto?.codigo || "Proyecto eliminado"}</div>
-              <div style={{ fontSize: 11, color: "var(--v2-danger)" }}>{rq.proyecto?.nombre || "No disponible"} · Proyecto eliminado</div>
+            <div className={styles.proyectoCell}>
+              <V2Tooltip content={`${rq.proyecto?.codigo || "Proyecto eliminado"} — ${rq.proyecto?.nombre || "No disponible"}`}>
+                <div className={styles.truncateCell} style={{ fontWeight: 800, color: "var(--v2-danger)" }}>{rq.proyecto?.codigo || "Proyecto eliminado"}</div>
+              </V2Tooltip>
+              <div className={styles.truncateCell} style={{ fontSize: 10.5, color: "var(--v2-danger)" }}>Proyecto eliminado</div>
             </div>
           )
         }
         if (rq.proyecto_id) {
           return (
-            <a href={`/proyectos/${rq.proyecto_id}`} onClick={(e) => e.stopPropagation()} style={{ textDecoration: "none", display: "inline-block" }}>
-              <div style={{ fontWeight: 700, color: "var(--v2-accent)" }}>{rq.proyecto?.codigo}</div>
-              <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>{rq.proyecto?.nombre}</div>
+            <a href={`/proyectos/${rq.proyecto_id}`} onClick={(e) => e.stopPropagation()} className={styles.proyectoCell} style={{ textDecoration: "none" }}>
+              <V2Tooltip content={`${rq.proyecto?.codigo || ""} — ${rq.proyecto?.nombre || ""}`}>
+                <div className={styles.truncateCell} style={{ fontWeight: 700, color: "var(--v2-accent)" }}>{rq.proyecto?.codigo}</div>
+              </V2Tooltip>
+              {productorLinea}
             </a>
           )
         }
         return (
-          <div>
+          <div className={styles.proyectoCell}>
             <div style={{ color: "var(--v2-text)" }}>—</div>
-            <div style={{ fontSize: 11, color: "var(--v2-subtle)" }}>Sin proyecto</div>
+            <div style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>Sin proyecto</div>
           </div>
         )
       },
     },
     {
-      id: "productor",
-      header: "PRODUCTOR",
-      minWidth: "130px",
-      cell: (rq) => (
-        <div style={{ color: "var(--v2-text)" }}>{rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : "—"}</div>
-      ),
-    },
-    {
       id: "proveedor",
       header: "PROVEEDOR",
-      minWidth: "140px",
-      cell: (rq) => (
-        <div style={{ color: "var(--v2-text)", fontWeight: 600 }}>{rq.proveedor_nombre || rq.proveedor?.nombre || "—"}</div>
-      ),
+      width: "105px",
+      cell: (rq) => {
+        const nombre = rq.proveedor_nombre || rq.proveedor?.nombre || "—"
+        return (
+          <V2Tooltip content={nombre}>
+            <div className={styles.truncateCell} style={{ color: "var(--v2-text)", fontWeight: 600 }}>{nombre}</div>
+          </V2Tooltip>
+        )
+      },
     },
     {
       id: "descripcion",
       header: "DESCRIPCIÓN",
-      minWidth: "150px",
       cell: (rq) => (
         rq.descripcion ? (
           <V2Tooltip content={rq.descripcion}>
@@ -1084,15 +1090,15 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       id: "monto",
       header: "MONTO",
       align: "right",
-      minWidth: "115px",
+      width: "90px",
       cell: (rq) => (
-        <span style={{ fontWeight: 800, color: "var(--v2-text)" }}>{fmt(montoFinalRQ(rq))}</span>
+        <span className={styles.truncateCell} style={{ fontWeight: 800, color: "var(--v2-text)" }}>{fmt(montoFinalRQ(rq))}</span>
       ),
     },
     {
       id: "condicion",
       header: "CONDICIÓN",
-      minWidth: "110px",
+      width: "90px",
       cell: (rq) => {
         const condicion = condicionComercialRQ(rq)
         if (!condicion) return "—"
@@ -1105,59 +1111,47 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       },
     },
     {
-      id: "fechaSolicitud",
-      header: "FECHA DE SOLICITUD",
-      minWidth: "115px",
-      cell: (rq) => <span>{fmtFecha(rq.created_at)}</span>,
-    },
-    {
-      id: "fechaPago",
-      header: "FECHA DE PAGO",
-      minWidth: "115px",
+      id: "fechas",
+      header: "FECHAS",
+      width: "110px",
       cell: (rq) => {
         const real = fechaPagoRealRQ(rq)
         const programada = fechaProgramadaRQ(rq)
-        const valor = real || programada
+        const pago = real || programada
         return (
           <div className={styles.fechasCell}>
-            <div>{fmtFecha(valor)}</div>
-            {!real && programada && <div style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>Programada</div>}
+            <div>Sol.: {fmtFecha(rq.created_at)}</div>
+            <div>
+              Pago: {fmtFecha(pago)}
+              {!real && programada && <span style={{ color: "var(--v2-subtle)" }}> (prog.)</span>}
+            </div>
           </div>
         )
       },
     },
     {
-      id: "estadoPago",
-      header: "ESTADO PAGO",
-      minWidth: "110px",
+      id: "estados",
+      header: "ESTADOS",
+      width: "125px",
       cell: (rq) => {
         const pago = estadoPagoRQ(rq)
-        return (
-          <div>
-            <V2Badge variant={estadoPagoVariant(pago.key)} size="sm">{pago.label}</V2Badge>
-            {rq.estado === "pagado" && rq.numero_operacion && (
-              <div style={{ fontSize: 10, color: "var(--v2-subtle)", marginTop: 3 }}>Op: {rq.numero_operacion}</div>
-            )}
-          </div>
-        )
-      },
-    },
-    {
-      id: "estadoRQ",
-      header: "ESTADO RQ",
-      minWidth: "120px",
-      cell: (rq) => {
         const ec = ESTADOS[rq.estado] || { label: rq.estado }
         const migracion = estadoMigracionRQ(rq, migrationLogs)
         return (
-          <div>
+          <div className={styles.estadosCell}>
             <V2Badge variant={estadoRQVariant(rq.estado)} size="sm">{ec.label}</V2Badge>
-            {rqPerteneceAProyectoEliminado(rq) && (
-              <div style={{ fontSize: 10, color: "var(--v2-danger)", marginTop: 3, fontWeight: 700 }}>Proyecto eliminado</div>
+            <V2Badge variant={estadoPagoVariant(pago.key)} size="sm">{pago.label}</V2Badge>
+            {rq.estado === "pagado" && rq.numero_operacion && (
+              <div className={styles.truncateCell} style={{ fontSize: 10, color: "var(--v2-subtle)" }}>Op: {rq.numero_operacion}</div>
             )}
-            <div title={motivoEstadoMigracion(rq, migrationLogs)} style={{ display: "inline-flex", marginTop: 3, background: migracion.bg, color: migracion.color, padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>
-              {migracion.label}
-            </div>
+            {rqPerteneceAProyectoEliminado(rq) && (
+              <div style={{ fontSize: 10, color: "var(--v2-danger)", fontWeight: 700 }}>Proyecto eliminado</div>
+            )}
+            <V2Tooltip content={motivoEstadoMigracion(rq, migrationLogs)}>
+              <div style={{ display: "inline-flex", background: migracion.bg, color: migracion.color, padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>
+                {migracion.label}
+              </div>
+            </V2Tooltip>
           </div>
         )
       },
@@ -1166,7 +1160,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       id: "acciones",
       header: "",
       align: "right",
-      minWidth: "120px",
+      width: "160px",
       cell: (rq) => {
         const accion = getSiguienteAccion(rq)
         const puedeEditar = puedeEditarRQ(rq)
@@ -1325,11 +1319,11 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
             actions={
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                 {puedeAccionRQ("crear") && (
-                  <V2Button variant="primary" onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo"); setProyectos(filtrarPorAlcance(projs || [], perfil, "proyectos", { usuarioId: perfil?.id })); setShowNuevoRQ(true) }}>
-                    + Nuevo RQ
+                  <V2Button variant="primary" leadingIcon={<Plus size={14} />} onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo"); setProyectos(filtrarPorAlcance(projs || [], perfil, "proyectos", { usuarioId: perfil?.id })); setShowNuevoRQ(true) }}>
+                    Nuevo RQ
                   </V2Button>
                 )}
-                <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
+                <ImportExport variant="v2" modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
               </div>
             }
           />
