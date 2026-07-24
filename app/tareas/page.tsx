@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 
 import { rowBelongsToDeletedProject } from "@/lib/projects"
-import { ArrowDown, ArrowUp, CalendarDays, Check, ClipboardCheck, Eye, Grid2X2, MoreVertical, Play, Plus, Trash2, User, Users } from "lucide-react"
+import { ArrowDown, ArrowUp, CalendarDays, ClipboardCheck, Eye, Grid2X2, MoreVertical, Plus, Trash2, User, Users } from "lucide-react"
 import { TaskForm } from "./components/TaskForm"
 import { agregarEventoFeedTarea, guardarParticipantesTarea, guardarTareaService, notificarTarea } from "@/lib/services/tareas"
 import { V2ListPageTemplate } from "@/components/v2/templates"
@@ -15,7 +15,6 @@ import {
   V2Drawer,
   V2EmptyState,
   V2Input,
-  V2KpiCard,
   V2Modal,
   V2PageHeader,
   V2Pagination,
@@ -410,8 +409,6 @@ export default function TareasPage() {
     return 0
   })
 
-  const estadoKeys = ["pendiente", "en_progreso", "en_revision", "completada"]
-
   function nombreUsuario(u: any) {
     return [u?.nombre, u?.apellido].filter(Boolean).join(" ") || "Sin nombre"
   }
@@ -510,22 +507,6 @@ export default function TareasPage() {
   const avanceDelegadas = tareasDelegadas.length
     ? Math.round(tareasDelegadas.reduce((acc, t) => acc + (avancePorEstado[t.estado] ?? 0), 0) / tareasDelegadas.length)
     : 0
-  const tareasResumenActual =
-    filtroAsignado === "mias"
-      ? misTareas
-      : filtroAsignado === "creadas"
-        ? tareasDelegadas
-        : filtroAsignado === "participo"
-          ? tareasParticipa
-          : filtroAsignado === "responsable"
-            ? tareas.filter(t => t.asignado_a === responsableId)
-            : tareasRelacionadas
-  const tarjetasResumenActual = estadoKeys.map(estado => ({
-    estado,
-    label: ESTADOS[estado].label,
-    value: contarPorEstado(tareasResumenActual, estado),
-    ...ESTADOS[estado],
-  }))
   const tituloResumenActual =
     filtroAsignado === "mias"
       ? "Tareas asignadas a mí"
@@ -704,15 +685,6 @@ export default function TareasPage() {
           />
         }
         state={loading ? "loading" : "ready"}
-        summary={
-          <div className={styles.kpiGrid}>
-            {tarjetasResumenActual.map((card) => {
-              const Icon = card.estado === "pendiente" ? ClipboardCheck : card.estado === "en_progreso" ? Play : card.estado === "en_revision" ? Eye : Check
-              const tone = card.estado === "completada" ? "success" : card.estado === "pendiente" ? "warning" : card.estado === "en_revision" ? "primary" : "neutral"
-              return <V2KpiCard density="compact" icon={<Icon size={18} />} key={card.estado} label={card.label} tone={tone} value={String(card.value)} />
-            })}
-          </div>
-        }
       >
         <div className={styles.overviewGrid}>
           <V2SectionCard description="Porcentaje promedio de las tareas que he delegado" title="Avance general de tareas delegadas">

@@ -11,13 +11,6 @@
   gap: 8px;
 }
 
-.kpiGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  align-items: start;
-}
-
 .overviewGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
@@ -359,7 +352,6 @@
 }
 
 @media (max-width: 1280px) {
-  .kpiGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overviewGrid { grid-template-columns: 1fr; }
   .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -370,7 +362,6 @@
 }
 
 @media (max-width: 640px) {
-  .kpiGrid,
   .filters,
   .summaryStrip,
   .legend {
