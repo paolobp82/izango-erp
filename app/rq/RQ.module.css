@@ -83,31 +83,58 @@
   overflow-y: auto;
 }
 
-/* table-layout:fixed se mantiene (no es la causa de la mezcla de columnas): es lo
-   que permite fijar el ancho real de cada columna. La superposicion anterior venia
-   de celdas SIN contencion propia (badges/spans sin overflow:hidden), no del fixed
-   layout en si. min-width = suma de los 10 anchos de columna (ver page.tsx) para
-   que ninguna se comprima; si el contenedor real es mas angosto, el exceso se
-   resuelve con scroll horizontal controlado (dentro de .tableScroll), nunca
-   comprimiendo texto. */
+/* ESTRATEGIA FINAL DE TABLE-LAYOUT (auditoria confirmada leyendo el codigo fuente
+   real de components/v2/system/V2DataTable.tsx):
+   - El primitive aplica `width`/`minWidth` de cada columna UNICAMENTE al <th>
+     (linea ~106-110 del primitive). El <td> del body SOLO recibe `textAlign`
+     (linea ~148-152): nunca un width ni un class propio por columna.
+   - table-layout:fixed deriva el ancho de columna de los anchos de la "primera
+     fila" de celdas; sin <colgroup><col> (que no se puede agregar sin tocar el
+     primitive) esa propagacion entre <thead> y <tbody> no es fiable entre
+     navegadores, y es la explicacion mas probable de "columnas que no respetan
+     su ancho" / "espacio vacio irregular" / headers y filas desalineados que
+     reportaron las capturas.
+   - Por eso se cambia a table-layout:auto (Opcion B): bajo auto, el ancho de
+     cada columna se calcula tomando el maximo "preferred width" de TODAS las
+     celdas de esa columna (th + td, todas las filas). No depende de que el
+     primitive propague nada del <th> al <td>: basta con que el contenido real
+     de cada <td> (los wrappers .cellRoot/.cellContent de page.tsx, con su
+     propio maxWidth en px) declare su propio limite.
+   - width:max-content (no 100%) para que la tabla no se estire de mas en
+     pantallas anchas; min-width = suma real de los 10 anchos de columna
+     (ver RQ_COL_WIDTH en page.tsx), como piso minimo. */
 .tableWrap table {
-  table-layout: fixed;
-  width: 100%;
-  min-width: 1345px;
+  table-layout: auto;
+  width: max-content;
+  min-width: 1565px;
 }
 
 .tableWrap th,
 .tableWrap td {
+  box-sizing: border-box;
+  min-width: 0;
   padding: 0 10px;
+  vertical-align: middle;
 }
 
-/* Contencion tambien en encabezados: con columnas mas angostas (Estado de pago /
-   Estado de aprobacion) un header largo podria desbordar igual que una celda. */
+/* Encabezados: mismo tratamiento de contencion que el contenido, para que un
+   header largo (p.ej. "ESTADO DE APROBACIÓN") no fuerce la columna mas ancha
+   de lo que declara RQ_COL_WIDTH ni se desborde sobre el siguiente header. */
 .tableWrap th {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Deliberadamente NO se aplica overflow:hidden a .tableWrap td (a diferencia de
+   lo sugerido inicialmente): V2Tooltip y V2Dropdown (components/v2/system/
+   V2Tooltip.tsx, V2Dropdown.tsx) renderizan su popover/menu con position:
+   absolute como HERMANO dentro de su propio wrapper, sin portal a document.
+   body. Un <td> con overflow:hidden es ANCESTRO directo de ese wrapper y
+   recortaria/ocultaria el tooltip o el menu de "mas acciones" al abrirse. La
+   contencion real vive mas abajo, en los wrappers de page.tsx (.cellContent),
+   que si pueden llevar overflow:hidden porque el popover nunca es descendiente
+   de esos divs especificos (es hermano dentro del span que arma V2Tooltip). */
 
 .paginationRow {
   padding: 4px 8px 8px;
@@ -194,78 +221,83 @@
   background: var(--v2-surface-muted);
 }
 
-.montoCell {
+/* .cellRoot = contenedor raiz de CADA celda (una sola clase reemplaza a las
+   anteriores .proyectoCell/.condicionCell/.badgeStackCell/.descripcionCell, que
+   eran variantes redundantes de lo mismo). Fija el ancho REAL de la columna via
+   maxWidth inline (RQ_COL_WIDTH en page.tsx) porque el <td> nunca recibe un
+   width del primitive. display:flex + flex-direction:column (con align-items
+   default = stretch) es lo que hace que un <V2Tooltip> hijo (que internamente
+   arma un <span class=tooltipWrap style="display:inline-flex">, ver V2Tooltip.
+   tsx) se estire al ancho completo en vez de encogerse a su propio contenido:
+   ese "shrink-to-fit" de un elemento inline sin un padre flex con stretch era
+   la causa real de que, por ejemplo, Proveedor (el unico texto envuelto en
+   V2Tooltip sin ningun contenedor flex propio) se pintara fuera de su celda
+   invadiendo Descripcion, mientras Proyecto (que si tenia un wrapper flex-
+   column) truncaba bien.
+   SIN overflow:hidden aqui a proposito: el popover de V2Tooltip se renderiza
+   como HERMANO del contenido (no descendiente) dentro de tooltipWrap, pero
+   .cellRoot SI es ancestro de tooltipWrap — si este div recortara overflow,
+   igual arriesgaria clipping en layouts inusuales; la contencion real de texto
+   vive en .cellContent (mas abajo), un nivel mas adentro donde no hay riesgo. */
+.cellRoot {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
   gap: 2px;
+  width: 100%;
+  min-width: 0;
 }
 
+/* .cellContent = una sola linea de texto/badge truncada con ellipsis. Sustituye
+   a .truncateCell: mismo comportamiento, nombre alineado con el resto del
+   hotfix. width:100% se resuelve contra .cellRoot (que ya tiene un ancho
+   definido via maxWidth en px), nunca queda indeterminado. overflow:hidden
+   aqui SI es seguro: si el padre inmediato es un <V2Tooltip>, el popover que
+   arma V2Tooltip es hermano de este div (no su descendiente), asi que jamas
+   queda oculto por este overflow. */
+.cellContent {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Overlay tipografico para Fechas (se combina con .cellRoot). Fechas NO se
+   trunca (requisito explicito: "no truncar las fechas normales"), por eso sus
+   lineas NO usan .cellContent — solo heredan white-space:nowrap de aqui, y
+   dependen de que RQ_COL_WIDTH.fechas les de suficiente ancho real. */
 .fechasCell {
-  display: grid;
-  gap: 2px;
   font-size: 11.5px;
   color: var(--v2-muted);
   white-space: nowrap;
 }
 
-.condicionCell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-}
-
-.descripcionCell {
-  display: block;
-  width: 100%;
-  font-size: 12px;
-  color: var(--v2-muted);
-  max-width: 100%;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* display:block es obligatorio aqui: overflow/text-overflow/max-width no tienen
-   ningun efecto sobre cajas inline (p.ej. un <span>), que es exactamente lo que
-   causaba que Monto se pintara fuera de su celda (span sin contencion real). Al
-   forzar block la clase funciona igual sin importar si se aplica a div/span/a. */
-.truncateCell {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.proyectoCell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-/* Reutilizada por Estado de pago y Estado de aprobacion (cada una ahora es su
-   propia columna: un badge + una linea secundaria opcional). */
-.badgeStackCell {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  align-items: flex-start;
-  min-width: 0;
-}
-
 .rowActions {
   display: flex;
-  gap: 6px;
   align-items: center;
   justify-content: flex-end;
-  flex-wrap: wrap;
-  row-gap: 4px;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  /* SIN overflow:hidden: V2Dropdown ("menu de tres puntos") renderiza su menu
+     desplegable con position:absolute dentro de este mismo contenedor (ver
+     components/v2/system/V2Dropdown.tsx), sin portal. overflow:hidden aqui
+     recortaria/ocultaria el menu al abrirse. La contencion horizontal se logra
+     dejando que el boton principal se encoja (.actionButtonShrink) en vez de
+     recortar el contenedor completo. */
+}
+
+/* Permite que el boton principal (p.ej. "Aprobar (Produccion)") se encoja por
+   debajo de su ancho de texto sin recortarlo: min-width:0 quita el piso
+   implicito de los flex items (que por defecto es "auto" = no encogerse mas
+   alla del contenido), y white-space:normal deja que el propio texto del boton
+   pase a 2 lineas en vez de desbordar la celda o el menu de al lado. */
+.actionButtonShrink {
+  min-width: 0;
+  flex-shrink: 1;
+  white-space: normal;
+  text-align: center;
 }
 
 @media (max-width: 1100px) {

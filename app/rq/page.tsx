@@ -86,6 +86,26 @@ const CONDICION_LABELS: Record<string, string> = { contado: "Contado", credito: 
 
 const ESTADOS: Record<string, any> = getRQEstadosVisuales()
 
+// Ancho REAL (px) de cada columna de la tabla /rq. Se usa dos veces a proposito:
+// como `width` de la columna (lo unico que V2DataTable aplica, y solo al <th> —
+// el <td> del primitive nunca recibe width, ver componentes/v2/system/
+// V2DataTable.tsx) y como `maxWidth` inline en el wrapper .cellRoot/.cellContent
+// de cada celda del body. Bajo table-layout:auto (ver RQ.module.css) esto es lo
+// que realmente fija el ancho de cada columna, sin depender de que el <th>
+// propague nada al <td>. Suma = 1565px = min-width de la tabla en RQ.module.css.
+const RQ_COL_WIDTH = {
+  codigo: 105,
+  proyecto: 185,
+  proveedor: 160,
+  descripcion: 210,
+  monto: 115,
+  condicion: 115,
+  fechas: 155,
+  estadoPago: 135,
+  estadoAprobacion: 180,
+  acciones: 205,
+} as const
+
 const RQ_COLUMNS_CONFIG = SYSTEM_COLUMNS
   .filter((col: any) => col.module === "rq" && col.visible)
   .sort((a: any, b: any) => a.order - b.order)
@@ -1015,47 +1035,47 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "codigo",
       header: "N° RQ",
-      width: "95px",
+      width: RQ_COL_WIDTH.codigo,
       cell: (rq) => (
-        <div className={styles.truncateCell} style={{ fontWeight: 800, color: "var(--v2-text)" }}>{rqCodigo(rq)}</div>
+        <div className={styles.cellContent} style={{ maxWidth: RQ_COL_WIDTH.codigo, fontWeight: 800, color: "var(--v2-text)" }}>{rqCodigo(rq)}</div>
       ),
     },
     {
       id: "proyecto",
       header: "PROYECTO",
-      width: "150px",
+      width: RQ_COL_WIDTH.proyecto,
       cell: (rq) => {
         const proyectoEliminado = rqPerteneceAProyectoEliminado(rq)
         const productor = rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : ""
         const productorLinea = productor && (
           <V2Tooltip content={productor}>
-            <div className={styles.truncateCell} style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>{productor}</div>
+            <div className={styles.cellContent} style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>{productor}</div>
           </V2Tooltip>
         )
         if (proyectoEliminado) {
           return (
-            <div className={styles.proyectoCell}>
+            <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.proyecto }}>
               <V2Tooltip content={`${rq.proyecto?.codigo || "Proyecto eliminado"} — ${rq.proyecto?.nombre || "No disponible"}`}>
-                <div className={styles.truncateCell} style={{ fontWeight: 800, color: "var(--v2-danger)" }}>{rq.proyecto?.codigo || "Proyecto eliminado"}</div>
+                <div className={styles.cellContent} style={{ fontWeight: 800, color: "var(--v2-danger)" }}>{rq.proyecto?.codigo || "Proyecto eliminado"}</div>
               </V2Tooltip>
-              <div className={styles.truncateCell} style={{ fontSize: 10.5, color: "var(--v2-danger)" }}>Proyecto eliminado</div>
+              <div className={styles.cellContent} style={{ fontSize: 10.5, color: "var(--v2-danger)" }}>Proyecto eliminado</div>
             </div>
           )
         }
         if (rq.proyecto_id) {
           return (
-            <a href={`/proyectos/${rq.proyecto_id}`} onClick={(e) => e.stopPropagation()} className={styles.proyectoCell} style={{ textDecoration: "none" }}>
+            <a href={`/proyectos/${rq.proyecto_id}`} onClick={(e) => e.stopPropagation()} className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.proyecto, textDecoration: "none" }}>
               <V2Tooltip content={`${rq.proyecto?.codigo || ""} — ${rq.proyecto?.nombre || ""}`}>
-                <div className={styles.truncateCell} style={{ fontWeight: 700, color: "var(--v2-accent)" }}>{rq.proyecto?.codigo}</div>
+                <div className={styles.cellContent} style={{ fontWeight: 700, color: "var(--v2-accent)" }}>{rq.proyecto?.codigo}</div>
               </V2Tooltip>
               {productorLinea}
             </a>
           )
         }
         return (
-          <div className={styles.proyectoCell}>
-            <div style={{ color: "var(--v2-text)" }}>—</div>
-            <div style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>Sin proyecto</div>
+          <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.proyecto }}>
+            <div className={styles.cellContent} style={{ color: "var(--v2-text)" }}>—</div>
+            <div className={styles.cellContent} style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>Sin proyecto</div>
           </div>
         )
       },
@@ -1063,53 +1083,57 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "proveedor",
       header: "PROVEEDOR",
-      width: "125px",
+      width: RQ_COL_WIDTH.proveedor,
       cell: (rq) => {
         const nombre = rq.proveedor_nombre || rq.proveedor?.nombre || "—"
         return (
-          <V2Tooltip content={nombre}>
-            <div className={styles.truncateCell} style={{ color: "var(--v2-text)", fontWeight: 600 }}>{nombre}</div>
-          </V2Tooltip>
+          <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.proveedor }}>
+            <V2Tooltip content={nombre}>
+              <div className={styles.cellContent} style={{ color: "var(--v2-text)", fontWeight: 600 }}>{nombre}</div>
+            </V2Tooltip>
+          </div>
         )
       },
     },
     {
       id: "descripcion",
       header: "DESCRIPCIÓN",
-      width: "150px",
+      width: RQ_COL_WIDTH.descripcion,
       cell: (rq) => (
-        rq.descripcion ? (
-          <V2Tooltip content={rq.descripcion}>
-            <div className={styles.descripcionCell}>{rq.descripcion}</div>
-          </V2Tooltip>
-        ) : (
-          <div className={styles.descripcionCell}>—</div>
-        )
+        <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.descripcion }}>
+          {rq.descripcion ? (
+            <V2Tooltip content={rq.descripcion}>
+              <div className={styles.cellContent} style={{ fontSize: 12, color: "var(--v2-muted)" }}>{rq.descripcion}</div>
+            </V2Tooltip>
+          ) : (
+            <div className={styles.cellContent} style={{ fontSize: 12, color: "var(--v2-muted)" }}>—</div>
+          )}
+        </div>
       ),
     },
     {
       id: "monto",
       header: "MONTO",
       align: "right",
-      width: "100px",
+      width: RQ_COL_WIDTH.monto,
       cell: (rq) => (
-        <div className={styles.truncateCell} style={{ fontWeight: 800, color: "var(--v2-text)" }}>{fmt(montoFinalRQ(rq))}</div>
+        <div className={styles.cellContent} style={{ maxWidth: RQ_COL_WIDTH.monto, fontWeight: 800, color: "var(--v2-text)" }}>{fmt(montoFinalRQ(rq))}</div>
       ),
     },
     {
       id: "condicion",
       header: "CONDICIÓN",
-      width: "110px",
+      width: RQ_COL_WIDTH.condicion,
       cell: (rq) => {
         const condicion = condicionComercialRQ(rq)
         if (!condicion) return "—"
         return (
-          <div className={styles.condicionCell}>
-            <div className={styles.truncateCell}>
+          <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.condicion }}>
+            <div className={styles.cellContent}>
               <V2Badge variant="neutral" size="sm">{condicionLabelRQ(rq)}{rq.dias_credito ? ` ${rq.dias_credito}d` : ""}</V2Badge>
             </div>
             {rq.es_excepcion && (
-              <div className={styles.truncateCell}>
+              <div className={styles.cellContent}>
                 <V2Badge variant="danger" size="sm">🚩 Excepción</V2Badge>
               </div>
             )}
@@ -1120,13 +1144,13 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "fechas",
       header: "FECHAS",
-      width: "170px",
+      width: RQ_COL_WIDTH.fechas,
       cell: (rq) => {
         const real = fechaPagoRealRQ(rq)
         const programada = fechaProgramadaRQ(rq)
         const pago = real || programada
         return (
-          <div className={styles.fechasCell}>
+          <div className={`${styles.cellRoot} ${styles.fechasCell}`} style={{ maxWidth: RQ_COL_WIDTH.fechas }}>
             <div>Sol.: {fmtFecha(rq.created_at)}</div>
             <div>
               Pago: {fmtFecha(pago)}
@@ -1139,16 +1163,16 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "estadoPago",
       header: "ESTADO DE PAGO",
-      width: "120px",
+      width: RQ_COL_WIDTH.estadoPago,
       cell: (rq) => {
         const pago = estadoPagoRQ(rq)
         return (
-          <div className={styles.badgeStackCell}>
-            <div className={styles.truncateCell}>
+          <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.estadoPago }}>
+            <div className={styles.cellContent}>
               <V2Badge variant={estadoPagoVariant(pago.key)} size="sm">{pago.label}</V2Badge>
             </div>
             {rq.estado === "pagado" && rq.numero_operacion && (
-              <div className={styles.truncateCell} style={{ fontSize: 10, color: "var(--v2-subtle)" }}>Op: {rq.numero_operacion}</div>
+              <div className={styles.cellContent} style={{ fontSize: 10, color: "var(--v2-subtle)" }}>Op: {rq.numero_operacion}</div>
             )}
           </div>
         )
@@ -1157,16 +1181,16 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     {
       id: "estadoAprobacion",
       header: "ESTADO DE APROBACIÓN",
-      width: "145px",
+      width: RQ_COL_WIDTH.estadoAprobacion,
       cell: (rq) => {
         const ec = ESTADOS[rq.estado] || { label: rq.estado }
         return (
-          <div className={styles.badgeStackCell}>
-            <div className={styles.truncateCell}>
+          <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.estadoAprobacion }}>
+            <div className={styles.cellContent}>
               <V2Badge variant={estadoRQVariant(rq.estado)} size="sm">{ec.label}</V2Badge>
             </div>
             {rqPerteneceAProyectoEliminado(rq) && (
-              <div className={styles.truncateCell} style={{ fontSize: 10, color: "var(--v2-danger)", fontWeight: 700 }}>Proyecto eliminado</div>
+              <div className={styles.cellContent} style={{ fontSize: 10, color: "var(--v2-danger)", fontWeight: 700 }}>Proyecto eliminado</div>
             )}
           </div>
         )
@@ -1176,7 +1200,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
       id: "acciones",
       header: "",
       align: "right",
-      width: "180px",
+      width: RQ_COL_WIDTH.acciones,
       cell: (rq) => {
         const accion = getSiguienteAccion(rq)
         const puedeEditar = puedeEditarRQ(rq)
@@ -1186,9 +1210,9 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
           ...(puedeCancelar ? [{ label: "Cancelar", onSelect: () => cancelarRQ(rq) }] : []),
         ]
         return (
-          <div className={styles.rowActions} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.rowActions} style={{ maxWidth: RQ_COL_WIDTH.acciones }} onClick={(e) => e.stopPropagation()}>
             {accion && (
-              <V2Button variant="primary" size="sm" onClick={() => cambiarEstado(rq.id, accion.nextEstado)}>{accion.label}</V2Button>
+              <V2Button variant="primary" size="sm" className={styles.actionButtonShrink} onClick={() => cambiarEstado(rq.id, accion.nextEstado)}>{accion.label}</V2Button>
             )}
             {menuItems.length > 0 && (
               <V2Dropdown
