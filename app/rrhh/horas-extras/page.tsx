@@ -1,8 +1,18 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2PageHeader,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 const PROYECTO_OTRO = "__otro__"
 
@@ -33,7 +43,7 @@ export default function HorasExtrasPage() {
       setTrabajadorPropio(t)
     }
     const [{ data: regs }, { data: trabs }, { data: pros }] = await Promise.all([
-      supabase.from("rrhh_horas_extras").select("*, trabajador:rrhh_trabajadores(nombre,apellido,sueldo_base), proyecto:proyectos(nombre,codigo,deleted_at)").order("fecha", { ascending: false }),
+      supabase.from("rrhh_horas_extras").select("*, trabajador:rrhh_trabajadores(nombre,apellido,sueldo_base,area,cargo), aprobador:perfiles!aprobado_por(nombre,apellido), proyecto:proyectos(nombre,codigo,deleted_at)").order("fecha", { ascending: false }),
       supabase.from("rrhh_trabajadores").select("id,nombre,apellido").eq("activo", true).order("apellido"),
       supabase.from("proyectos").select("id,nombre,codigo").is("deleted_at", null).order("nombre"),
     ])
@@ -44,13 +54,19 @@ export default function HorasExtrasPage() {
   }
 
   const esAdmin = ["superadmin","gerente_general","administrador","controller"].includes(perfil?.perfil)
+  // Gerente de Produccion: acceso limitado a revisar/aprobar/rechazar horas extras de su propio
+  // equipo (area "Produccion"), sin las capacidades administrativas completas de esAdmin
+  // (carga masiva, registrar en nombre de cualquier trabajador, filtros de toolbar).
+  const AREA_EQUIPO_PRODUCCION = "Produccion"
+  const esGerenteProduccion = perfil?.perfil === "gerente_produccion"
+  const puedeRevisarEquipo = esAdmin || esGerenteProduccion
 
   async function guardar() {
     if (!form.fecha || !form.horas) { alert("Fecha y horas son obligatorios"); return }
     if (form.proyecto_id === PROYECTO_OTRO && !form.proyecto_externo) { alert("Ingresa el nombre del proyecto"); return }
     setSaving(true)
     const trabajadorId = esAdmin ? form.trabajador_id : trabajadorPropio?.id
-    if (!trabajadorId) { alert("No se encontro el trabajador. Asegurate de tener una ficha creada en RRHH."); setSaving(false); return }
+    if (!trabajadorId) { alert("No se encontró el trabajador. Asegúrate de tener una ficha creada en RRHH."); setSaving(false); return }
     const { error } = await supabase.from("rrhh_horas_extras").insert({
       trabajador_id: trabajadorId,
       fecha: form.fecha,
@@ -92,7 +108,7 @@ export default function HorasExtrasPage() {
   }
 
   async function eliminar(id: string) {
-    if (!confirm("Eliminar este registro?")) return
+    if (!confirm("¿Eliminar este registro?")) return
     await supabase.from("rrhh_horas_extras").delete().eq("id", id)
     load()
   }
@@ -100,110 +116,258 @@ export default function HorasExtrasPage() {
   const registrosFiltrados = registros.filter(r => {
     const matchTrab = !filtroTrabajador || r.trabajador_id === filtroTrabajador
     const matchMes = !filtroMes || r.fecha?.startsWith(filtroMes)
-    if (!esAdmin) return r.trabajador_id === trabajadorPropio?.id
-    return matchTrab && matchMes
+    if (esAdmin) return matchTrab && matchMes
+    if (esGerenteProduccion) return r.trabajador?.area === AREA_EQUIPO_PRODUCCION || r.trabajador_id === trabajadorPropio?.id
+    return r.trabajador_id === trabajadorPropio?.id
   })
 
   const totalMonto = registrosFiltrados.filter(r => r.aprobado).reduce((s, r) => s + (r.monto_calculado || 0), 0)
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  // Fila plana para exportacion: ImportExport lee row[c.key] sin soporte de rutas anidadas
+  // (row.trabajador.nombre), asi que se aplanan aqui los datos de persona ya cargados por la
+  // query (sin queries adicionales por fila).
+  const registrosExport = registrosFiltrados.map(r => ({
+    ...r,
+    nombre_completo: [r.trabajador?.nombre, r.trabajador?.apellido].filter(Boolean).join(" ") || "—",
+    cargo: r.trabajador?.cargo || "",
+    area: r.trabajador?.area || "",
+    estado: r.aprobado ? "Aprobado" : "Pendiente",
+    aprobador_nombre: r.aprobado
+      ? ([r.aprobador?.nombre, r.aprobador?.apellido].filter(Boolean).join(" ") || "—")
+      : "",
+  }))
+  const inp: any = { padding: "8px 12px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius)", fontSize: 13, fontFamily: "inherit", background: "var(--v2-surface)", width: "100%", outline: "none", boxSizing: "border-box" as const }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", marginBottom: 6, textTransform: "uppercase" as const }
+
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando horas extras...
+      </div>
+    )
+  }
+
+  const columns: V2TableColumn<any>[] = [
+    ...(puedeRevisarEquipo
+      ? [
+          {
+            key: "trabajador",
+            header: "Trabajador",
+            render: (r: any) => (
+              <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--v2-text)" }}>
+                {r.trabajador?.apellido}, {r.trabajador?.nombre}
+              </span>
+            ),
+          },
+        ]
+      : []),
+    {
+      key: "fecha",
+      header: "Fecha",
+      render: (r) => <span style={{ fontSize: 13, color: "var(--v2-text)" }}>{r.fecha}</span>,
+    },
+    {
+      key: "horas",
+      header: "Horas",
+      align: "center",
+      render: (r) => <span style={{ fontWeight: 700, fontSize: 13.5, color: "var(--v2-text)" }}>{r.horas}h</span>,
+    },
+    {
+      key: "motivo",
+      header: "Motivo",
+      render: (r) => <span style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>{r.motivo || "—"}</span>,
+    },
+    {
+      key: "proyecto",
+      header: "Proyecto",
+      render: (r) =>
+        r.proyecto ? (
+          <span style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{r.proyecto.codigo}</span>
+        ) : r.proyecto_externo ? (
+          <span style={{ color: "#92400e", background: "#fef3c7", padding: "1px 6px", borderRadius: 4, fontSize: 11 }}>
+            Otro: {r.proyecto_externo}
+          </span>
+        ) : (
+          <span style={{ fontSize: 12.5, color: "var(--v2-subtle)" }}>—</span>
+        ),
+    },
+    {
+      key: "monto_calculado",
+      header: "Monto",
+      align: "right",
+      render: (r) => (
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-success)" }}>
+          S/ {Number(r.monto_calculado || 0).toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      key: "estado",
+      header: "Estado",
+      align: "center",
+      render: (r) =>
+        r.aprobado ? (
+          <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+            Aprobado
+          </span>
+        ) : (
+          <span style={{ background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
+            Pendiente
+          </span>
+        ),
+    },
+    ...(puedeRevisarEquipo
+      ? [
+          {
+            key: "acciones",
+            header: "",
+            align: "right" as const,
+            render: (r: any) => (
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                {!r.aprobado && (
+                  <V2Button variant="ghost" size="compact" onClick={() => aprobar(r.id)}>
+                    Aprobar
+                  </V2Button>
+                )}
+                <V2Button variant="destructive" size="compact" onClick={() => eliminar(r.id)}>
+                  ×
+                </V2Button>
+              </div>
+            ),
+          },
+        ]
+      : []),
+  ]
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Horas Extras</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{registrosFiltrados.length} registros</p>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <ImportExport modulo="rrhh_horas_extras"
-            campos={[{key:"fecha",label:"Fecha",requerido:true},{key:"horas",label:"Horas",requerido:true},{key:"motivo",label:"Motivo"},{key:"monto_calculado",label:"Monto calculado"},{key:"aprobado",label:"Aprobado"},{key:"proyecto_externo",label:"Proyecto externo"}]}
-            datos={registrosFiltrados}
-            onImportar={async (registros) => {
-              let exitosos=0; const errores: string[]=[]
-              for(const r of registros){
-                const trabajadorId = esAdmin ? r.trabajador_id : trabajadorPropio?.id
-                const {error}=await supabase.from("rrhh_horas_extras").insert({...r,trabajador_id:trabajadorId})
-                if(error)errores.push(r.fecha+": "+error.message); else exitosos++
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            eyebrow="Recursos Humanos"
+            title="Horas Extras"
+            subtitle={`${registrosFiltrados.length} registros ${totalMonto > 0 ? `· Total aprobado: S/ ${totalMonto.toFixed(2)}` : ""}`}
+            actions={
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <ImportExport
+                  modulo="rrhh_horas_extras"
+                  campos={[
+                    { key: "nombre_completo", label: "Nombre completo" },
+                    { key: "cargo", label: "Cargo" },
+                    { key: "area", label: "Área" },
+                    { key: "fecha", label: "Fecha", requerido: true },
+                    { key: "horas", label: "Horas", requerido: true },
+                    { key: "motivo", label: "Motivo" },
+                    { key: "monto_calculado", label: "Monto calculado" },
+                    { key: "estado", label: "Estado" },
+                    { key: "aprobador_nombre", label: "Aprobador" },
+                    { key: "proyecto_externo", label: "Proyecto externo" },
+                  ]}
+                  datos={registrosExport}
+                  onImportar={async (registros) => {
+                    let exitosos = 0
+                    const errores: string[] = []
+                    for (const r of registros) {
+                      const trabajadorId = esAdmin ? r.trabajador_id : trabajadorPropio?.id
+                      // Insert explicito: "campos" ahora incluye columnas de exportacion
+                      // (nombre_completo, cargo, area, estado, aprobador_nombre) que no
+                      // existen en rrhh_horas_extras, por lo que ya no se puede insertar
+                      // con un spread ciego de la fila importada.
+                      const { error } = await supabase.from("rrhh_horas_extras").insert({
+                        trabajador_id: trabajadorId,
+                        fecha: r.fecha,
+                        horas: r.horas,
+                        motivo: r.motivo || null,
+                        proyecto_externo: r.proyecto_externo || null,
+                      })
+                      if (error) errores.push(r.fecha + ": " + error.message)
+                      else exitosos++
+                    }
+                    load()
+                    return { exitosos, errores }
+                  }}
+                />
+                {esAdmin && (
+                  <V2Button variant="secondary" onClick={() => setShowBatch(true)}>
+                    + Carga masiva
+                  </V2Button>
+                )}
+                <V2Button variant="primary" onClick={() => setShowForm(true)}>
+                  + Registrar HH.EE
+                </V2Button>
+              </div>
+            }
+          />
+        }
+        toolbar={
+          esAdmin ? (
+            <V2FilterBar
+              searchValue=""
+              onSearchChange={() => {}}
+              activeFiltersCount={0}
+              hideDrawerButton
+              onToggleDrawer={() => {}}
+              quickFilters={
+                <>
+                  <div style={{ width: 220 }}>
+                    <V2Select
+                      compact
+                      value={filtroTrabajador}
+                      onChange={(e) => setFiltroTrabajador(e.target.value)}
+                      options={[
+                        { label: "Todos los trabajadores", value: "" },
+                        ...trabajadores.map((t) => ({ label: `${t.apellido}, ${t.nombre}`, value: t.id })),
+                      ]}
+                    />
+                  </div>
+                  <div style={{ width: 160 }}>
+                    <input
+                      type="month"
+                      style={{
+                        padding: "5px 8px",
+                        border: "1px solid var(--v2-border)",
+                        borderRadius: "var(--v2-radius-sm)",
+                        fontSize: 12,
+                        fontFamily: "inherit",
+                        background: "var(--v2-surface)",
+                        color: "var(--v2-text)",
+                        width: "100%",
+                      }}
+                      value={filtroMes}
+                      onChange={(e) => setFiltroMes(e.target.value)}
+                    />
+                  </div>
+                </>
               }
-              load(); return{exitosos,errores}
-            }} />
-          {esAdmin && <button onClick={() => setShowBatch(true)} className="btn-secondary" style={{ fontSize: 13 }}>+ Carga masiva</button>}
-          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Registrar HH.EE</button>
-        </div>
-      </div>
-
-      {esAdmin && (
-        <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-          <select style={{ ...inp, maxWidth: 200 }} value={filtroTrabajador} onChange={e => setFiltroTrabajador(e.target.value)}>
-            <option value="">Todos los trabajadores</option>
-            {trabajadores.map(t => <option key={t.id} value={t.id}>{t.apellido}, {t.nombre}</option>)}
-          </select>
-          <input style={{ ...inp, maxWidth: 160 }} type="month" value={filtroMes} onChange={e => setFiltroMes(e.target.value)} />
-          {totalMonto > 0 && <div style={{ background: "#d1fae5", color: "#065f46", padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 700 }}>Total aprobado: S/ {totalMonto.toFixed(2)}</div>}
-        </div>
-      )}
-
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {registrosFiltrados.length === 0 ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "#9ca3af" }}>No hay registros de horas extras.</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                {esAdmin && <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TRABAJADOR</th>}
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FECHA</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>HORAS</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MOTIVO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MONTO</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-                {esAdmin && <th style={{ padding: "10px 20px", width: 120 }}></th>}
-              </tr>
-            </thead>
-            <tbody>
-              {registrosFiltrados.map((r, idx) => (
-                <tr key={r.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                  {esAdmin && <td style={{ padding: "12px 20px", fontSize: 13, fontWeight: 600 }}>{r.trabajador?.apellido}, {r.trabajador?.nombre}</td>}
-                  <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{r.fecha}</td>
-                  <td style={{ padding: "12px", textAlign: "center", fontSize: 14, fontWeight: 700, color: "#111827" }}>{r.horas}h</td>
-                  <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{r.motivo || "—"}</td>
-                  <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
-                    {r.proyecto ? r.proyecto.codigo : r.proyecto_externo ? (
-                      <span style={{ color: "#92400e", background: "#fef3c7", padding: "1px 6px", borderRadius: 4, fontSize: 11 }}>Otro: {r.proyecto_externo}</span>
-                    ) : "—"}
-                  </td>
-                  <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: "#065f46" }}>S/ {Number(r.monto_calculado || 0).toFixed(2)}</td>
-                  <td style={{ padding: "12px", textAlign: "center" }}>
-                    {r.aprobado ? (
-                      <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>Aprobado</span>
-                    ) : (
-                      <span style={{ background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>Pendiente</span>
-                    )}
-                  </td>
-                  {esAdmin && (
-                    <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                        {!r.aprobado && <button onClick={() => aprobar(r.id)} style={{ fontSize: 12, padding: "3px 8px", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", color: "#065f46", cursor: "pointer" }}>Aprobar</button>}
-                        <button onClick={() => eliminar(r.id)} style={{ fontSize: 12, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>x</button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              showClearButton={Boolean(filtroTrabajador || filtroMes)}
+              onClearFilters={() => {
+                setFiltroTrabajador("")
+                setFiltroMes("")
+              }}
+            />
+          ) : undefined
+        }
+        table={
+          <V2DataTable
+            columns={columns}
+            rows={registrosFiltrados}
+            getRowKey={(r) => r.id}
+            stickyHeader
+            empty={
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
+                No hay registros de horas extras.
+              </div>
+            }
+          />
+        }
+      />
 
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 480 }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 480, boxShadow: "var(--v2-shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Registrar horas extras</h2>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>Registrar horas extras</h2>
+              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--v2-subtle)" }}>×</button>
             </div>
             <div style={{ display: "grid", gap: 12 }}>
               {esAdmin && (
@@ -219,7 +383,7 @@ export default function HorasExtrasPage() {
                 <div><label style={lbl}>Fecha *</label><input style={inp} type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} /></div>
                 <div><label style={lbl}>Horas *</label><input style={inp} type="number" min="0.5" step="0.5" value={form.horas} onChange={e => setForm({ ...form, horas: parseFloat(e.target.value) })} /></div>
               </div>
-              <div><label style={lbl}>Motivo</label><input style={inp} value={form.motivo} placeholder="Descripcion del trabajo" onChange={e => setForm({ ...form, motivo: e.target.value })} /></div>
+              <div><label style={lbl}>Motivo</label><input style={inp} value={form.motivo} placeholder="Descripción del trabajo" onChange={e => setForm({ ...form, motivo: e.target.value })} /></div>
               <div>
                 <label style={lbl}>Proyecto</label>
                 <select style={inp} value={form.proyecto_id} onChange={e => setForm({ ...form, proyecto_id: e.target.value, proyecto_externo: "" })}>
@@ -236,8 +400,8 @@ export default function HorasExtrasPage() {
               )}
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : "Registrar"}</button>
+              <V2Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={guardar} disabled={saving}>{saving ? "Guardando..." : "Registrar"}</V2Button>
             </div>
           </div>
         </div>
@@ -245,10 +409,10 @@ export default function HorasExtrasPage() {
 
       {showBatch && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 900, maxHeight: "92vh", overflowY: "auto" }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 900, maxHeight: "92vh", overflowY: "auto", boxShadow: "var(--v2-shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Carga masiva — Horas extras</h2>
-              <button onClick={() => setShowBatch(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>Carga masiva — Horas extras</h2>
+              <button onClick={() => setShowBatch(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--v2-subtle)" }}>×</button>
             </div>
             <div style={{ marginBottom: 12 }}>
               {batchItems.map((b, i) => (
@@ -282,20 +446,22 @@ export default function HorasExtrasPage() {
                   </div>
                   <div>
                     {i === 0 && <label style={lbl}>Nombre proyecto otro</label>}
-                    <input style={{ ...inp, background: b.proyecto_id !== PROYECTO_OTRO ? "#f9fafb" : "#fff" }} value={b.proyecto_externo} placeholder="Solo si eliges Otro" disabled={b.proyecto_id !== PROYECTO_OTRO} onChange={e => setBatchItems(prev => prev.map((x, j) => j === i ? { ...x, proyecto_externo: e.target.value } : x))} />
+                    <input style={{ ...inp, background: b.proyecto_id !== PROYECTO_OTRO ? "var(--v2-border-soft)" : "var(--v2-surface)" }} value={b.proyecto_externo} placeholder="Solo si eliges Otro" disabled={b.proyecto_id !== PROYECTO_OTRO} onChange={e => setBatchItems(prev => prev.map((x, j) => j === i ? { ...x, proyecto_externo: e.target.value } : x))} />
                   </div>
-                  <button onClick={() => setBatchItems(prev => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 18, paddingBottom: 4 }}>x</button>
+                  <button onClick={() => setBatchItems(prev => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--v2-danger)", fontSize: 18, paddingBottom: 4 }}>×</button>
                 </div>
               ))}
             </div>
-            <button onClick={() => setBatchItems(prev => [...prev, { trabajador_id: "", fecha: "", horas: 1, motivo: "", proyecto_id: "", proyecto_externo: "" }])} style={{ fontSize: 12, color: "#0F6E56", background: "none", border: "1px dashed #1D9E75", borderRadius: 6, padding: "4px 12px", cursor: "pointer", marginBottom: 16 }}>+ Agregar fila</button>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setShowBatch(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardarBatch} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : "Guardar todo"}</button>
+            <V2Button variant="ghost" size="compact" onClick={() => setBatchItems(prev => [...prev, { trabajador_id: "", fecha: "", horas: 1, motivo: "", proyecto_id: "", proyecto_externo: "" }])}>
+              + Agregar fila
+            </V2Button>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+              <V2Button variant="ghost" onClick={() => setShowBatch(false)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={guardarBatch} disabled={saving}>{saving ? "Guardando..." : "Guardar todo"}</V2Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

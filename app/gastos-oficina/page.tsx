@@ -1,10 +1,13 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/immutability, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import KpiCard from "@/components/ui/KpiCard"
 import StatusBadge from "@/components/ui/StatusBadge"
 import { puedeAccederRuta } from "@/lib/permissions"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import { V2Button, V2KpiCard, V2PageHeader, V2SectionCard } from "@/components/v2/system"
 
 const TIPOS: Record<string, string> = {
   alquiler: "Alquiler",
@@ -277,16 +280,18 @@ export default function GastosOficinaPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Gastos de Oficina</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{gastos.length} registros</p>
-        </div>
-        {puedeRegistrar && (
-          <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo gasto</button>
-        )}
-      </div>
+      <V2PageHeader
+        eyebrow="Finanzas & Operaciones"
+        title="Gastos de Oficina y Gastos Administrativos"
+        subtitle={`${gastos.length} registros de gastos de oficina`}
+        actions={
+          puedeRegistrar ? (
+            <V2Button variant="primary" onClick={abrirNuevo}>
+              + Nuevo gasto
+            </V2Button>
+          ) : undefined
+        }
+      />
 
       {/* Resumen */}
 <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16, marginBottom: 20 }}>

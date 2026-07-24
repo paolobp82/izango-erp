@@ -1,0 +1,307 @@
+/* Composicion V2 del listado de RQ. Solo grid/layout/responsive: los colores, tipografia,
+   radios y sombras viven en V2System.module.css / V2ThemeScope.module.css (primitives). */
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.toolbarWrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
+.toolbarField {
+  flex: 1 1 170px;
+  min-width: 150px;
+  max-width: 220px;
+}
+
+.toolbarCheckboxField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--v2-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.resultsSummary {
+  font-size: 12px;
+  color: var(--v2-muted);
+  margin-top: 10px;
+}
+
+.tableWrap {
+  width: 100%;
+  min-width: 0;
+  background: var(--v2-surface);
+  border-radius: var(--v2-radius-lg);
+  box-shadow: var(--v2-shadow-sm);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 440px);
+  min-height: 320px;
+}
+
+/* V2DataTable (components/v2/system/V2DataTable.tsx) no expone ninguna prop ni
+   clase estable para su div interno de scroll: solo renderiza <div className=
+   {styles.tableShell}><div className={styles.tableScroll}><table>, y esas clases
+   vienen de V2System.module.css, cuyos nombres CSS-modules quedan hasheados y no
+   son referenciables desde este archivo sin duplicar el primitive. Por eso se usa
+   un selector estructural minimo (2 reglas, por posicion) en vez de tocar el
+   primitive. Es necesario porque .tableScroll trae overflow-x:auto, y por spec
+   CSS ("if one of overflow-x/-y is not visible, the other computes to auto")
+   eso vuelve a .tableScroll tambien scroll-container en Y pero sin alto acotado
+   -> el <thead> sticky del primitive nunca se activa. Acotar el alto aqui hace
+   que el mismo elemento maneje scroll horizontal Y vertical, que es donde el
+   sticky header realmente necesita "engancharse". */
+.tableWrap > *:first-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tableWrap > *:first-child > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ESTRATEGIA FINAL DE TABLE-LAYOUT (auditoria confirmada leyendo el codigo fuente
+   real de components/v2/system/V2DataTable.tsx):
+   - El primitive aplica `width`/`minWidth` de cada columna UNICAMENTE al <th>
+     (linea ~106-110 del primitive). El <td> del body SOLO recibe `textAlign`
+     (linea ~148-152): nunca un width ni un class propio por columna.
+   - table-layout:fixed deriva el ancho de columna de los anchos de la "primera
+     fila" de celdas; sin <colgroup><col> (que no se puede agregar sin tocar el
+     primitive) esa propagacion entre <thead> y <tbody> no es fiable entre
+     navegadores, y es la explicacion mas probable de "columnas que no respetan
+     su ancho" / "espacio vacio irregular" / headers y filas desalineados que
+     reportaron las capturas.
+   - Por eso se cambia a table-layout:auto (Opcion B): bajo auto, el ancho de
+     cada columna se calcula tomando el maximo "preferred width" de TODAS las
+     celdas de esa columna (th + td, todas las filas). No depende de que el
+     primitive propague nada del <th> al <td>: basta con que el contenido real
+     de cada <td> (los wrappers .cellRoot/.cellContent de page.tsx, con su
+     propio maxWidth en px) declare su propio limite.
+   - width:max-content (no 100%) para que la tabla no se estire de mas en
+     pantallas anchas; min-width = suma real de los 10 anchos de columna
+     (ver RQ_COL_WIDTH en page.tsx), como piso minimo. */
+.tableWrap table {
+  table-layout: auto;
+  width: max-content;
+  min-width: 1565px;
+}
+
+.tableWrap th,
+.tableWrap td {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 0 10px;
+  vertical-align: middle;
+}
+
+/* Encabezados: mismo tratamiento de contencion que el contenido, para que un
+   header largo (p.ej. "ESTADO DE APROBACIÓN") no fuerce la columna mas ancha
+   de lo que declara RQ_COL_WIDTH ni se desborde sobre el siguiente header. */
+.tableWrap th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Deliberadamente NO se aplica overflow:hidden a .tableWrap td (a diferencia de
+   lo sugerido inicialmente): V2Tooltip y V2Dropdown (components/v2/system/
+   V2Tooltip.tsx, V2Dropdown.tsx) renderizan su popover/menu con position:
+   absolute como HERMANO dentro de su propio wrapper, sin portal a document.
+   body. Un <td> con overflow:hidden es ANCESTRO directo de ese wrapper y
+   recortaria/ocultaria el tooltip o el menu de "mas acciones" al abrirse. La
+   contencion real vive mas abajo, en los wrappers de page.tsx (.cellContent),
+   que si pueden llevar overflow:hidden porque el popover nunca es descendiente
+   de esos divs especificos (es hermano dentro del span que arma V2Tooltip). */
+
+.paginationRow {
+  padding: 4px 8px 8px;
+  flex-shrink: 0;
+}
+
+.layoutGrid {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+}
+
+.layoutGrid > * {
+  min-width: 0;
+}
+
+/* Drawer real: position:fixed lo saca por completo del flujo de .layoutGrid, asi
+   que su alto ya NO depende de .tableWrap ni de ningun sticky-container ambiguo
+   (a diferencia de position:sticky, que antes lo ataba al alto de fila del grid
+   y a la cadena de scroll-containers de sus ancestros). El grid conserva la
+   columna reservada de 420px (gridTemplateColumns en page.tsx) solo para que la
+   tabla no quede tapada debajo del panel; el panel en si ya no es un item del
+   grid. top respeta la topbar fija (V2ThemeScope.module.css: --v2-topbar-height),
+   right/bottom usan el mismo gutter de pagina para alinearse con el resto del
+   contenido, y z-index queda por encima del sidebar fijo (z-index:3) sin invadir
+   modales/dropdowns (que usan valores >=100). */
+.detailPanel {
+  position: fixed;
+  top: var(--v2-topbar-height, 64px);
+  right: var(--v2-page-gutter-desktop, 24px);
+  bottom: var(--v2-page-gutter-desktop, 24px);
+  width: 420px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.detailPanelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.detailPanelBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+@media (max-width: 640px) {
+  .detailPanel {
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
+}
+
+.estadosPopover {
+  display: grid;
+  gap: 2px;
+  min-width: 220px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.estadoCheckboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--v2-radius);
+  font-size: 12.5px;
+  color: var(--v2-text);
+  cursor: pointer;
+}
+
+.estadoCheckboxRow:hover {
+  background: var(--v2-surface-muted);
+}
+
+/* .cellRoot = contenedor raiz de CADA celda (una sola clase reemplaza a las
+   anteriores .proyectoCell/.condicionCell/.badgeStackCell/.descripcionCell, que
+   eran variantes redundantes de lo mismo). Fija el ancho REAL de la columna via
+   maxWidth inline (RQ_COL_WIDTH en page.tsx) porque el <td> nunca recibe un
+   width del primitive. display:flex + flex-direction:column (con align-items
+   default = stretch) es lo que hace que un <V2Tooltip> hijo (que internamente
+   arma un <span class=tooltipWrap style="display:inline-flex">, ver V2Tooltip.
+   tsx) se estire al ancho completo en vez de encogerse a su propio contenido:
+   ese "shrink-to-fit" de un elemento inline sin un padre flex con stretch era
+   la causa real de que, por ejemplo, Proveedor (el unico texto envuelto en
+   V2Tooltip sin ningun contenedor flex propio) se pintara fuera de su celda
+   invadiendo Descripcion, mientras Proyecto (que si tenia un wrapper flex-
+   column) truncaba bien.
+   SIN overflow:hidden aqui a proposito: el popover de V2Tooltip se renderiza
+   como HERMANO del contenido (no descendiente) dentro de tooltipWrap, pero
+   .cellRoot SI es ancestro de tooltipWrap — si este div recortara overflow,
+   igual arriesgaria clipping en layouts inusuales; la contencion real de texto
+   vive en .cellContent (mas abajo), un nivel mas adentro donde no hay riesgo. */
+.cellRoot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+}
+
+/* .cellContent = una sola linea de texto/badge truncada con ellipsis. Sustituye
+   a .truncateCell: mismo comportamiento, nombre alineado con el resto del
+   hotfix. width:100% se resuelve contra .cellRoot (que ya tiene un ancho
+   definido via maxWidth en px), nunca queda indeterminado. overflow:hidden
+   aqui SI es seguro: si el padre inmediato es un <V2Tooltip>, el popover que
+   arma V2Tooltip es hermano de este div (no su descendiente), asi que jamas
+   queda oculto por este overflow. */
+.cellContent {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Overlay tipografico para Fechas (se combina con .cellRoot). Fechas NO se
+   trunca (requisito explicito: "no truncar las fechas normales"), por eso sus
+   lineas NO usan .cellContent — solo heredan white-space:nowrap de aqui, y
+   dependen de que RQ_COL_WIDTH.fechas les de suficiente ancho real. */
+.fechasCell {
+  font-size: 11.5px;
+  color: var(--v2-muted);
+  white-space: nowrap;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  /* SIN overflow:hidden: V2Dropdown ("menu de tres puntos") renderiza su menu
+     desplegable con position:absolute dentro de este mismo contenedor (ver
+     components/v2/system/V2Dropdown.tsx), sin portal. overflow:hidden aqui
+     recortaria/ocultaria el menu al abrirse. La contencion horizontal se logra
+     dejando que el boton principal se encoja (.actionButtonShrink) en vez de
+     recortar el contenedor completo. */
+}
+
+/* Permite que el boton principal (p.ej. "Aprobar (Produccion)") se encoja por
+   debajo de su ancho de texto sin recortarlo: min-width:0 quita el piso
+   implicito de los flex items (que por defecto es "auto" = no encogerse mas
+   alla del contenido), y white-space:normal deja que el propio texto del boton
+   pase a 2 lineas en vez de desbordar la celda o el menu de al lado. */
+.actionButtonShrink {
+  min-width: 0;
+  flex-shrink: 1;
+  white-space: normal;
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .layoutGrid {
+    grid-template-columns: 1fr !important;
+  }
+}

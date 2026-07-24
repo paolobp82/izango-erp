@@ -1,0 +1,8 @@
+{
+  "name": "Izango 360 CRM",
+  "description": "Enterprise CRM portal featuring key client metrics, pipeline health tracking, contact management, active projects dashboards, and ZIGI AI strategic insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

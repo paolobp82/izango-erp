@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/immutability, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
@@ -12,6 +13,8 @@ import StatusBadge from "@/components/ui/StatusBadge"
 import FinanceDataError from "@/components/finanzas/FinanceDataError"
 import { puedeAccederRuta } from "@/lib/permissions"
 import { esFacturaAnulada, montoCobradoFactura, saldoPendienteFactura, totalFactura } from "@/lib/finance"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import { V2Button, V2KpiCard, V2PageHeader, V2SectionCard } from "@/components/v2/system"
 import {
   consolidarCostosProyecto,
   resumenDesdeItemsConsolidados,
@@ -463,20 +466,23 @@ export default function LiquidacionesPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Liquidaciones</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{liquidaciones.length} liquidaciones</p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
-            onChange={e => { if (e.target.value) crearLiquidacion(e.target.value); e.target.value = "" }}>
-            <option value="">+ Nueva liquidación</option>
-            {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} — {p.nombre}</option>)}
-          </select>
-          <ImportExport modulo="liquidaciones" campos={[{key:"proyecto_nombre",label:"Proyecto"},{key:"costo_presupuestado",label:"Costo presupuestado"},{key:"precio_cliente_presupuestado",label:"Precio cliente"},{key:"margen_presupuestado_pct",label:"Margen %"},{key:"margen_real_pct",label:"Margen real %"}]} datos={liquidaciones.map((l:any)=>({...l,proyecto_nombre:l.proyecto?.nombre,proyecto_codigo:l.proyecto?.codigo}))} onImportar={async () => ({ exitosos: 0, errores: ["Las liquidaciones se generan automaticamente"] })} />
-        </div>
-      </div>
+      <V2PageHeader
+        eyebrow="Finanzas"
+        title="Liquidaciones de Proyectos"
+        subtitle={`${liquidaciones.length} liquidaciones registradas en el sistema`}
+        actions={
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <select
+              style={{ padding: "8px 12px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius)", fontSize: 13, fontFamily: "inherit", background: "var(--v2-surface)", color: "var(--v2-text)" }}
+              onChange={e => { if (e.target.value) crearLiquidacion(e.target.value); e.target.value = "" }}
+            >
+              <option value="">+ Nueva liquidación</option>
+              {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} — {p.nombre}</option>)}
+            </select>
+            <ImportExport modulo="liquidaciones" campos={[{key:"proyecto_nombre",label:"Proyecto"},{key:"costo_presupuestado",label:"Costo presupuestado"},{key:"precio_cliente_presupuestado",label:"Precio cliente"},{key:"margen_presupuestado_pct",label:"Margen %"},{key:"margen_real_pct",label:"Margen real %"}]} datos={liquidaciones.map((l:any)=>({...l,proyecto_nombre:l.proyecto?.nombre,proyecto_codigo:l.proyecto?.codigo}))} onImportar={async () => ({ exitosos: 0, errores: ["Las liquidaciones se generan automaticamente"] })} />
+          </div>
+        }
+      />
       <FinanceDataError detail={[error, detailError].filter(Boolean).join(" · ")} />
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "320px 1fr" : "1fr", gap: 16 }}>

@@ -1,6 +1,9 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState, useRef } from "react"
 import { createClient } from "@/lib/supabase"
+import { V2FullFormTemplate } from "@/components/v2/templates"
+import { V2Button, V2PageHeader, V2SectionCard } from "@/components/v2/system"
 
 type MensajeIA = { rol: "user" | "assistant"; contenido: string }
 type PerfilIA = { id: string }
@@ -80,7 +83,6 @@ export default function IAPage() {
       const data = await res.json()
       if (data.respuesta) {
         setMensajes(prev => [...prev, { rol: "assistant", contenido: data.respuesta }])
-        // Actualizar titulo si es el primer mensaje
         if (mensajes.length === 0 && convId) {
           await supabase.from("ia_conversaciones").update({ titulo: input.slice(0, 50) }).eq("id", convId)
           setConversaciones(prev => prev.map(c => c.id === convId ? { ...c, titulo: input.slice(0, 50) } : c))
@@ -104,111 +106,149 @@ export default function IAPage() {
   ]
 
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 80px)", gap: 0 }}>
-      {/* Sidebar conversaciones */}
-      <div style={{ width: 260, borderRight: "1px solid #f3f4f6", display: "flex", flexDirection: "column", background: "#fafafa" }}>
-        <div style={{ padding: "16px 12px", borderBottom: "1px solid #f3f4f6" }}>
-          <button onClick={nuevaConversacion} style={{ width: "100%", padding: "8px 12px", background: "#1D2040", border: "none", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            + Nueva conversación
-          </button>
-        </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
-          {loadingHistorial ? (
-            <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 16 }}>Cargando...</div>
-          ) : conversaciones.length === 0 ? (
-            <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: 16 }}>Sin conversaciones previas</div>
-          ) : (
-            conversaciones.map(c => (
-              <button key={c.id} onClick={() => cargarConversacion(c.id)}
-                style={{ width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 7, border: "none", background: conversacionId === c.id ? "#E1F5EE" : "transparent", cursor: "pointer", marginBottom: 2 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: conversacionId === c.id ? "#04342C" : "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.titulo || "Conversación"}</div>
-                <div style={{ fontSize: 10, color: "#9ca3af" }}>{new Date(c.updated_at).toLocaleDateString("es-PE")}</div>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Area de chat */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        {/* Header */}
-        <div style={{ padding: "16px 24px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, background: "#1D2040", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ color: "#03E373", fontSize: 18 }}>✦</span>
+    <V2FullFormTemplate
+      header={
+        <V2PageHeader
+          eyebrow="Inteligencia Artificial"
+          title="Asistente Izango IA"
+          subtitle="Consultas inteligentes con contexto operativo en tiempo real del ERP"
+          actions={
+            <V2Button variant="primary" onClick={nuevaConversacion}>
+              + Nueva conversación
+            </V2Button>
+          }
+        />
+      }
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 16, minHeight: "calc(100vh - 220px)" }}>
+        {/* Historial conversations */}
+        <V2SectionCard title="Historial">
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+            {loadingHistorial ? (
+              <div style={{ fontSize: 12, color: "var(--v2-muted)", textAlign: "center", padding: 12 }}>Cargando...</div>
+            ) : conversaciones.length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--v2-muted)", textAlign: "center", padding: 12 }}>Sin conversaciones previas</div>
+            ) : (
+              conversaciones.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => cargarConversacion(c.id)}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "8px 10px",
+                    borderRadius: "var(--v2-radius-sm)",
+                    border: "1px solid " + (conversacionId === c.id ? "var(--v2-brand)" : "var(--v2-border)"),
+                    background: conversacionId === c.id ? "var(--v2-surface-subtle)" : "var(--v2-surface)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: conversacionId === c.id ? "var(--v2-brand)" : "var(--v2-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.titulo || "Conversación"}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "var(--v2-muted)", marginTop: 2 }}>{new Date(c.updated_at).toLocaleDateString("es-PE")}</div>
+                </button>
+              ))
+            )}
           </div>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Asistente Izango IA</div>
-            <div style={{ fontSize: 11, color: "#9ca3af" }}>Powered by Claude — con contexto real del ERP</div>
-          </div>
-        </div>
+        </V2SectionCard>
 
-        {/* Mensajes */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
-          {mensajes.length === 0 && (
-            <div style={{ textAlign: "center", maxWidth: 600, margin: "0 auto" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>✦</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 8 }}>¿En qué puedo ayudarte?</div>
-              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 24 }}>Tengo acceso a los datos reales del ERP — proyectos, cotizaciones, inventario, RRHH y más.</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {SUGERENCIAS.map((s, i) => (
-                  <button key={i} onClick={() => setInput(s)}
-                    style={{ padding: "10px 14px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12, color: "#374151", cursor: "pointer", textAlign: "left", lineHeight: 1.4 }}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {mensajes.map((m, i) => (
-            <div key={i} style={{ marginBottom: 20, display: "flex", justifyContent: m.rol === "user" ? "flex-end" : "flex-start" }}>
-              {m.rol === "assistant" && (
-                <div style={{ width: 28, height: 28, background: "#1D2040", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", marginRight: 10, flexShrink: 0, marginTop: 2 }}>
-                  <span style={{ color: "#03E373", fontSize: 14 }}>✦</span>
+        {/* Chat area */}
+        <V2SectionCard title="Panel de Chat">
+          <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+            <div style={{ flex: 1, padding: "12px 0", overflowY: "auto", minHeight: 360, maxHeight: 500 }}>
+              {mensajes.length === 0 && (
+                <div style={{ textAlign: "center", maxWidth: 560, margin: "20px auto 0" }}>
+                  <div style={{ fontSize: 36, marginBottom: 12, color: "var(--v2-brand)" }}>✦</div>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: "var(--v2-text)", marginBottom: 8 }}>¿En qué puedo ayudarte hoy?</div>
+                  <div style={{ fontSize: 13, color: "var(--v2-muted)", marginBottom: 20 }}>Acceso directo a datos de proyectos, cotizaciones, inventario, RRHH y más.</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    {SUGERENCIAS.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setInput(s)}
+                        style={{
+                          padding: "10px 12px",
+                          background: "var(--v2-surface-subtle)",
+                          border: "1px solid var(--v2-border)",
+                          borderRadius: "var(--v2-radius)",
+                          fontSize: 12,
+                          color: "var(--v2-text)",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
-              <div style={{
-                maxWidth: "70%", padding: "12px 16px", borderRadius: m.rol === "user" ? "12px 12px 2px 12px" : "12px 12px 12px 2px",
-                background: m.rol === "user" ? "#1D2040" : "#f8fafc",
-                color: m.rol === "user" ? "#fff" : "#111827",
-                fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap",
-                border: m.rol === "assistant" ? "1px solid #e2e8f0" : "none"
-              }}>
-                {m.contenido}
-              </div>
+              {mensajes.map((m, i) => (
+                <div key={i} style={{ marginBottom: 16, display: "flex", justifyContent: m.rol === "user" ? "flex-end" : "flex-start" }}>
+                  {m.rol === "assistant" && (
+                    <div style={{ width: 28, height: 28, background: "var(--v2-brand)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", marginRight: 10, flexShrink: 0, marginTop: 2 }}>
+                      <span style={{ color: "#fff", fontSize: 14 }}>✦</span>
+                    </div>
+                  )}
+                  <div style={{
+                    maxWidth: "75%", padding: "10px 14px", borderRadius: m.rol === "user" ? "12px 12px 2px 12px" : "12px 12px 12px 2px",
+                    background: m.rol === "user" ? "var(--v2-brand)" : "var(--v2-surface-subtle)",
+                    color: m.rol === "user" ? "#fff" : "var(--v2-text)",
+                    fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap",
+                    border: m.rol === "assistant" ? "1px solid var(--v2-border)" : "none"
+                  }}>
+                    {m.contenido}
+                  </div>
+                </div>
+              ))}
+              {loading && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                  <div style={{ width: 28, height: 28, background: "var(--v2-brand)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ color: "#fff", fontSize: 14 }}>✦</span>
+                  </div>
+                  <div style={{ padding: "10px 14px", background: "var(--v2-surface-subtle)", borderRadius: "12px 12px 12px 2px", border: "1px solid var(--v2-border)", fontSize: 13, color: "var(--v2-muted)" }}>
+                    Consultando datos del ERP...
+                  </div>
+                </div>
+              )}
+              <div ref={bottomRef} />
             </div>
-          ))}
-          {loading && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <div style={{ width: 28, height: 28, background: "#1D2040", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ color: "#03E373", fontSize: 14 }}>✦</span>
-              </div>
-              <div style={{ padding: "10px 16px", background: "#f8fafc", borderRadius: "12px 12px 12px 2px", border: "1px solid #e2e8f0", fontSize: 13, color: "#9ca3af" }}>
-                Consultando datos del ERP...
-              </div>
-            </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
 
-        {/* Input */}
-        <div style={{ padding: "16px 24px", borderTop: "1px solid #f3f4f6" }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
-            <textarea
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar() } }}
-              placeholder="Pregunta algo sobre el ERP... (Enter para enviar, Shift+Enter para nueva línea)"
-              style={{ flex: 1, padding: "10px 14px", border: "1px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontFamily: "inherit", resize: "none", outline: "none", minHeight: 44, maxHeight: 120, lineHeight: 1.5 }}
-              rows={1}
-            />
-            <button onClick={enviar} disabled={loading || !input.trim()}
-              style={{ padding: "10px 20px", background: loading || !input.trim() ? "#e2e8f0" : "#1D2040", border: "none", borderRadius: 10, color: loading || !input.trim() ? "#9ca3af" : "#fff", fontSize: 13, fontWeight: 600, cursor: loading || !input.trim() ? "default" : "pointer", whiteSpace: "nowrap" }}>
-              {loading ? "..." : "Enviar ↑"}
-            </button>
+            <div style={{ paddingTop: 14, borderTop: "1px solid var(--v2-border)" }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+                <textarea
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar() } }}
+                  placeholder="Escribe tu consulta sobre el ERP... (Enter para enviar)"
+                  style={{
+                    flex: 1,
+                    padding: "10px 12px",
+                    border: "1px solid var(--v2-border)",
+                    borderRadius: "var(--v2-radius)",
+                    fontSize: 13,
+                    fontFamily: "inherit",
+                    background: "var(--v2-surface)",
+                    color: "var(--v2-text)",
+                    resize: "none",
+                    outline: "none",
+                    minHeight: 44,
+                    maxHeight: 120,
+                    lineHeight: 1.5,
+                  }}
+                  rows={1}
+                />
+                <V2Button variant="primary" onClick={enviar} disabled={loading || !input.trim()}>
+                  {loading ? "..." : "Enviar ↑"}
+                </V2Button>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--v2-muted)", marginTop: 6 }}>El asistente responde con datos reales del ERP.</div>
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>El asistente tiene acceso a datos reales del ERP en tiempo real.</div>
-        </div>
+        </V2SectionCard>
       </div>
-    </div>
+    </V2FullFormTemplate>
   )
 }

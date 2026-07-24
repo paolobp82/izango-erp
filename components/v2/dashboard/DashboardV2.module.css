@@ -1,0 +1,1063 @@
+.dashboardRoot {
+  display: grid;
+  gap: var(--v2-space-5);
+  min-width: 0;
+  padding-bottom: var(--v2-space-6);
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Alertas Superiores */
+.alertRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--v2-space-3);
+}
+
+@media (max-width: 1440px) {
+  .alertRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .alertRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.alertLink {
+  text-decoration: none;
+}
+
+.alertCompact {
+  display: flex;
+  align-items: center;
+  gap: var(--v2-space-2);
+  min-height: 38px;
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface);
+  color: var(--v2-text);
+  padding: 0 var(--v2-space-3);
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.alertCompact:hover {
+  transform: translateY(-1.5px);
+  box-shadow: var(--v2-shadow-sm);
+  border-color: var(--v2-indigo);
+}
+
+.alertWarning {
+  border-color: rgba(217, 119, 6, 0.25);
+  background: rgba(217, 119, 6, 0.08);
+}
+
+.alertInfo {
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.alertHot {
+  border-color: rgba(220, 38, 38, 0.25);
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.alertIconCompact {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--v2-radius-sm);
+  background: var(--v2-surface);
+  box-shadow: var(--v2-shadow-sm);
+}
+
+.alertWarning .alertIconCompact {
+  color: var(--v2-warning);
+}
+
+.alertInfo .alertIconCompact {
+  color: var(--v2-info);
+}
+
+.alertHot .alertIconCompact {
+  color: var(--v2-danger);
+}
+
+.alertTextCompact {
+  overflow: hidden;
+  color: var(--v2-text);
+  font-size: 11.5px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-grow: 1;
+}
+
+.alertActionCompact {
+  margin-left: auto;
+  color: var(--v2-indigo);
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: var(--v2-radius-sm);
+  background: var(--v2-surface-soft);
+  border: 1px solid var(--v2-border);
+}
+
+/* 1. Executive Header */
+.executiveHeader {
+  background: linear-gradient(135deg, var(--v2-surface-muted), var(--v2-surface));
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-lg);
+  padding: var(--v2-space-5);
+  display: grid;
+  gap: var(--v2-space-4);
+  box-shadow: var(--v2-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.executiveHeader::before {
+  display: none;
+}
+
+.headerTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--v2-space-4);
+}
+
+.headerTitleBlock {
+  display: grid;
+  gap: var(--v2-space-1);
+}
+
+.headerEyebrow {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--v2-indigo);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.headerTitle {
+  font-size: 26px;
+  font-weight: 950;
+  color: var(--v2-text);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.headerDate {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-muted);
+  margin: 0;
+}
+
+.headerMetaGrid {
+  display: flex;
+  gap: var(--v2-space-3);
+}
+
+.metaCard {
+  background: var(--v2-surface-soft);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  padding: var(--v2-space-2) var(--v2-space-3);
+  display: grid;
+  gap: 2px;
+  min-width: 120px;
+}
+
+.metaLabel {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--v2-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metaValue {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--v2-text);
+}
+
+.metaValueActive {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-success);
+  display: flex;
+  align-items: center;
+  gap: var(--v2-space-1);
+}
+
+.statusDotActive {
+  width: 6px;
+  height: 6px;
+  background: var(--v2-success);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--v2-success);
+  display: inline-block;
+  animation: pulseDot 2s infinite;
+}
+
+@keyframes pulseDot {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+    box-shadow: 0 0 12px var(--v2-success);
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+}
+
+.headerSummaryBlock {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--v2-space-3);
+  background: rgba(79, 70, 229, 0.04);
+  border: 1px dashed rgba(79, 70, 229, 0.15);
+  border-radius: var(--v2-radius);
+  padding: var(--v2-space-3);
+}
+
+.summaryBadge {
+  font-size: 9px;
+  font-weight: 900;
+  background: var(--v2-primary);
+  color: var(--v2-on-primary);
+  padding: 3px 6px;
+  border-radius: var(--v2-radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.summaryText {
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.5;
+  color: var(--v2-muted);
+  margin: 0;
+}
+
+/* 2. Rediseño de 6 KPI Cards */
+.kpiGridPremium {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--v2-space-3);
+}
+
+.premiumKpiCard {
+  background: var(--v2-surface);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-lg);
+  padding: var(--v2-space-3);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 104px;
+  box-shadow: var(--v2-shadow-sm);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.premiumKpiCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--v2-indigo);
+  box-shadow: var(--v2-shadow-md);
+}
+
+.kpiTopRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kpiIconBox {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: var(--v2-radius);
+  background: rgba(79, 70, 229, 0.08);
+  color: var(--v2-indigo);
+  transition: transform 0.2s ease;
+}
+
+.premiumKpiCard:hover .kpiIconBox {
+  transform: scale(1.1);
+}
+
+.kpiTrendBadgeNeutral,
+.kpiTrendBadgePositive,
+.kpiTrendBadgeNegative {
+  font-size: 9px;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: var(--v2-radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.kpiTrendBadgeNeutral {
+  background: var(--v2-surface-soft);
+  color: var(--v2-muted);
+}
+
+.kpiTrendBadgePositive {
+  background: rgba(22, 163, 74, 0.1);
+  color: var(--v2-success);
+}
+
+.kpiTrendBadgeNegative {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--v2-danger);
+}
+
+.kpiMainContent {
+  display: grid;
+  gap: 1px;
+  margin: var(--v2-space-2) 0;
+}
+
+.kpiLabelText {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--v2-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.kpiValueText {
+  font-size: 20px;
+  font-weight: 950;
+  color: var(--v2-text);
+  letter-spacing: -0.01em;
+}
+
+.kpiBottomRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kpiDescText {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--v2-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 90%;
+}
+
+.kpiIndicatorDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* 3. ZIGI */
+.premiumIntelligenceCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v2-space-4);
+  position: relative;
+}
+
+.intelligenceHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--v2-space-2);
+}
+
+.intelligenceTitle {
+  font-size: 16px;
+  font-weight: 950;
+  color: var(--v2-text);
+  margin: 0;
+}
+
+.intelligenceSummary {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--v2-text);
+  background: linear-gradient(135deg, rgba(3, 227, 115, 0.05), rgba(79, 70, 229, 0.05));
+  border-radius: var(--v2-radius);
+  padding: var(--v2-space-3);
+  border-left: 1px solid var(--v2-border);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.intelligenceItems {
+  display: grid;
+  gap: var(--v2-space-3);
+}
+
+.intelligenceItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--v2-space-3);
+  background: var(--v2-surface-muted);
+  border: 1px solid var(--v2-border-soft);
+  border-radius: var(--v2-radius);
+  padding: var(--v2-space-2) var(--v2-space-3);
+  transition: all 0.2s ease;
+}
+
+.intelligenceItem:hover {
+  transform: translateX(4px);
+  background: var(--v2-surface-soft);
+  border-color: var(--v2-border);
+}
+
+.intelligenceIcon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: var(--v2-radius-sm);
+  background: var(--v2-surface-soft);
+  color: var(--v2-muted);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.intelligenceIconRisk {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--v2-danger);
+}
+
+.intelligenceIconOpp {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--v2-info);
+}
+
+.intelligenceIconRec {
+  background: rgba(217, 119, 6, 0.1);
+  color: var(--v2-warning);
+}
+
+.intelligenceContent {
+  display: grid;
+  gap: 1px;
+}
+
+.intelligenceLabel {
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--v2-subtle);
+  letter-spacing: 0.05em;
+}
+
+.intelligenceValue {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--v2-text);
+  line-height: 1.35;
+}
+
+/* 4. Activity Timeline */
+.timelineContainer {
+  padding: var(--v2-space-3) 0 0;
+}
+
+.timelineList {
+  display: grid;
+  gap: var(--v2-space-4);
+  position: relative;
+}
+
+.timelineItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--v2-space-4);
+}
+
+.timelineLeft {
+  width: 70px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-top: var(--v2-space-2);
+}
+
+.timelineDate {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--v2-subtle);
+  white-space: nowrap;
+}
+
+.timelineMiddle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.timelineDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--v2-border);
+  z-index: 1;
+  margin-top: 14px;
+  transition: all 0.2s ease;
+}
+
+.timelineItem:hover .timelineDot {
+  transform: scale(1.3);
+  background: var(--v2-indigo);
+  box-shadow: 0 0 6px var(--v2-indigo);
+}
+
+.timelineLine {
+  width: 1px;
+  background: var(--v2-border);
+  flex-grow: 1;
+  position: absolute;
+  top: 22px;
+  bottom: -22px;
+}
+
+.timelineRight {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.timelineCard {
+  background: var(--v2-surface-muted);
+  border: 1px solid var(--v2-border-soft);
+  border-radius: var(--v2-radius);
+  padding: var(--v2-space-3);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: grid;
+  gap: var(--v2-space-1);
+}
+
+.timelineItem:hover .timelineCard {
+  background: var(--v2-surface);
+  border-color: var(--v2-border);
+  box-shadow: var(--v2-shadow-sm);
+  transform: translateX(2px);
+}
+
+.timelineHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--v2-space-2);
+}
+
+.timelineCode {
+  font-size: 11.5px;
+  font-weight: 950;
+  color: var(--v2-text);
+  letter-spacing: 0.02em;
+}
+
+.timelineTitle {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--v2-text);
+  margin: 2px 0 0;
+  line-height: 1.4;
+}
+
+.timelineMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--v2-space-2);
+  margin-top: var(--v2-space-2);
+  border-top: 1px solid rgba(0, 0, 0, 0.03);
+  padding-top: var(--v2-space-2);
+}
+
+.timelineClient {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--v2-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timelineValue {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-text);
+}
+
+/* 5. Alertas del Negocio Bottom List */
+.alertsBottomList {
+  display: grid;
+  gap: var(--v2-space-2);
+}
+
+.alertBottomItem {
+  display: contents;
+}
+
+.alertBottomIcon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: var(--v2-radius-sm);
+  color: var(--v2-accent-ink);
+  flex-shrink: 0;
+}
+
+.alertBottomText {
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--v2-text);
+}
+
+.alertBottomBtn {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-indigo);
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.alertBottomBtn:hover {
+  opacity: 0.8;
+}
+
+/* Resumen Financiero Comparativo */
+.financialSummaryCard {
+  display: grid;
+  gap: var(--v2-space-4);
+}
+
+.financialBars {
+  display: grid;
+  gap: var(--v2-space-3);
+}
+
+.financialBarRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--v2-space-1);
+}
+
+.financialLabel {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--v2-muted);
+}
+
+.financialValue {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--v2-text);
+}
+
+.financialTrack {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--v2-surface-muted);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.financialBar {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.financialInflows {
+  background: var(--v2-success);
+}
+
+.financialReceivables {
+  background: var(--v2-warning);
+}
+
+.financialTotal {
+  background: var(--v2-info);
+}
+
+/* Layout structural grids */
+.rowFacturacionEstados,
+.rowProyectosIntelligence,
+.rowAlertasFinanzas {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: var(--v2-space-4);
+}
+
+.chartFrame {
+  min-height: 254px;
+}
+
+.chartCompact {
+  min-height: 220px;
+}
+
+.chartEmpty,
+.statePanel {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  border: 1px dashed var(--v2-border);
+  border-radius: var(--v2-radius);
+  color: var(--v2-subtle);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.statePanel {
+  min-height: 260px;
+  background: var(--v2-surface);
+}
+
+.statusList {
+  display: grid;
+  gap: var(--v2-space-2);
+}
+
+.statusRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--v2-space-2);
+  align-items: center;
+}
+
+.statusLabel {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--v2-space-2);
+  color: var(--v2-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.statusValue {
+  color: var(--v2-text);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.statusTrack {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--v2-surface-muted);
+}
+
+.statusBar {
+  height: 100%;
+  border-radius: inherit;
+}
+
+/* Footer style */
+.executiveFooter {
+  border-top: 1px solid var(--v2-border);
+  padding: var(--v2-space-5) 0 0;
+  margin-top: var(--v2-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--v2-space-2);
+}
+
+.footerMainRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--v2-space-3);
+}
+
+.footerBrand {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--v2-indigo);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.footerCopyright {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-subtle);
+}
+
+.footerLinks {
+  display: flex;
+  gap: var(--v2-space-4);
+  align-items: center;
+}
+
+.footerStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--v2-space-1);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+}
+
+.statusIndicator {
+  width: 6px;
+  height: 6px;
+  background: var(--v2-success);
+  border-radius: 50%;
+  animation: pulseIndicator 2s infinite;
+}
+
+.footerLink {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--v2-muted);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.footerLink:hover {
+  color: var(--v2-text);
+}
+
+@keyframes pulseIndicator {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+}
+
+.quickActions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--v2-space-3);
+}
+
+.loadingGrid {
+  display: grid;
+  gap: var(--v2-space-3);
+}
+
+.tableLink {
+  color: var(--v2-text);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.tableLink:hover {
+  color: var(--v2-accent);
+}
+
+@media (max-width: 1440px) {
+  .kpiGridPremium {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1320px) {
+  .rowFacturacionEstados,
+  .rowProyectosIntelligence,
+  .rowAlertasFinanzas {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .kpiGridPremium {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quickActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .quickActions {
+    grid-template-columns: 1fr;
+  }
+
+  .footerMainRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .kpiGridPremium {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Overrides to remove decorative borders/accent lines and marcos perimetrales */
+.dashboardRoot [class*="executiveHeader"]::before {
+  display: none !important;
+}
+
+.dashboardRoot [class*="executiveHeader"],
+.dashboardRoot [class*="premiumKpiCard"],
+.dashboardRoot [class*="sectionCard"],
+.dashboardRoot [class*="alertCardCompact"],
+.dashboardRoot [class*="chartCardFrame"] {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.dashboardRoot [class*="intelligenceSummary"] {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* --- SPRINT 7.3: SEGUNDO MANTENIMIENTO CORRECTIVO VISUAL DASHBOARD V2 --- */
+
+/* 1. Registros de Línea de Actividad (eliminar marco completo) */
+.dashboardRoot [class*="timelineCard"] {
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+  background: var(--v2-surface-muted) !important;
+  border-radius: var(--v2-radius-sm) !important;
+  box-shadow: none !important;
+}
+
+.dashboardRoot [class*="timelineItem"]:hover [class*="timelineCard"] {
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--v2-surface) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* 2. Buscador y accesos (eliminar borde exterior de la barra) */
+.dashboardRoot [class*="toolbar"] {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: var(--v2-space-2) 0 !important;
+}
+
+/* 3. ZIGI (eliminar marco perimetral fuerte de las 3 tarjetas) */
+.dashboardRoot [class*="intelligenceItem"] {
+  border: none !important;
+  box-shadow: none !important;
+  background: var(--v2-surface-muted) !important;
+  padding: var(--v2-space-2) var(--v2-space-3) !important;
+}
+
+
+/* 4. Alertas del negocio (convertir a filas ligeras con acento tonal) */
+.alertsBottomList [class*="alertCardCompact"] {
+  border: none !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: var(--v2-space-3) 0 !important;
+  min-height: auto !important;
+}
+
+.alertsBottomList [class*="alertCardCompact"]:last-child {
+  border-bottom: none !important;
+}
+
+.alertsBottomList [class*="alertCardCompact"]:hover {
+  transform: none !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.alertsBottomList [class*="alertCardWarning"] {
+  background: rgba(217, 119, 6, 0.03) !important;
+  border-left: 3px solid var(--v2-warning) !important;
+  padding-left: var(--v2-space-3) !important;
+}
+
+.alertsBottomList [class*="alertCardInfo"] {
+  background: rgba(37, 99, 235, 0.03) !important;
+  border-left: 3px solid var(--v2-info) !important;
+  padding-left: var(--v2-space-3) !important;
+}
+
+.alertsBottomList [class*="alertCardHot"] {
+  background: rgba(220, 38, 38, 0.03) !important;
+  border-left: 3px solid var(--v2-danger) !important;
+  padding-left: var(--v2-space-3) !important;
+}
+
+/* 5. Accesos rápidos inferiores (bordes suavizados y fondos integrados) */
+.dashboardRoot [class*="quickActionsGrid"] button,
+.dashboardRoot [class*="quickActionsGrid"] a {
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--v2-surface-soft) !important;
+  border-radius: var(--v2-radius) !important;
+  transition: all 0.2s ease !important;
+}
+
+.dashboardRoot [class*="quickActionsGrid"] button:hover,
+.dashboardRoot [class*="quickActionsGrid"] a:hover {
+  background: var(--v2-surface) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 6. Estado del sistema y Sincronización (sin borde perimetral fuerte, fondo tonal suave) */
+.dashboardRoot [class*="metaCard"] {
+  border: none !important;
+  box-shadow: none !important;
+  background: var(--v2-surface-soft) !important;
+  border-radius: var(--v2-radius-sm) !important;
+  padding: var(--v2-space-1) var(--v2-space-3) !important;
+  min-height: auto !important;
+}

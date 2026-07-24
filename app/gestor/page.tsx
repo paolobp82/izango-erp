@@ -1,9 +1,12 @@
 "use client"
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { estadoOrigenCotizacionItem, esItemHistoricoCotizacion } from "@/lib/cotizaciones"
 import { cargarItemsAprobadosAlGestor } from "@/lib/gestor"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import { V2Button, V2PageHeader, V2SectionCard, V2Select } from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 const ESTADO_TAREA: Record<string, any> = {
   pendiente:   { bg: "#f3f4f6", color: "#6b7280",  label: "Pendiente" },
@@ -12,7 +15,6 @@ const ESTADO_TAREA: Record<string, any> = {
   bloqueada:   { bg: "#fee2e2", color: "#991b1b",  label: "Bloqueada" },
 }
 
-const COLORES = ["#0F6E56","#2563eb","#d97706","#dc2626","#8b5cf6","#0891b2","#059669","#db2777"]
 const ESTADOS_GESTOR_PROYECTO = ["en_curso", "terminado", "liquidado", "pendiente_facturacion", "facturado"]
 
 function exportarExcel(tareas: any[], proyectoNombre: string) {
@@ -45,11 +47,8 @@ export default function GestorPage() {
   const [filtroUsuario, setFiltroUsuario] = useState("")
   const [filtroEstado, setFiltroEstado] = useState("")
   const [ordenFecha, setOrdenFecha] = useState<"asc" | "desc" | "">("") 
-  const [importando, setImportando] = useState(false)
   const [errorGestor, setErrorGestor] = useState("")
   const [form, setForm] = useState({ titulo: "", descripcion: "", responsable_id: "", responsable_nombre: "", estado: "pendiente", fecha_inicio: "", fecha_fin: "", color: "#0F6E56" })
-
-  useEffect(() => { load() }, [])
 
   async function load() {
     const { data: provs, error } = await supabase.from("proyectos").select("*, cliente:clientes(razon_social)").is("deleted_at", null).order("created_at", { ascending: false })
@@ -59,6 +58,8 @@ export default function GestorPage() {
     setPerfiles(perfs || [])
     setLoading(false)
   }
+
+  useEffect(() => { load() }, [])
 
   async function loadTareas(proyectoId: string) {
     const proyectoActivo = proyectos.find((p: any) => p.id === proyectoId)
@@ -180,388 +181,247 @@ export default function GestorPage() {
     return null
   }
 
-  async function importarCSV(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file || !proyectoSeleccionado) return
-    setImportando(true)
-    const text = await file.text()
-    const lines = text.split("\n").filter(l => l.trim())
-    const rows = lines.slice(1)
-    let importados = 0
-    for (const row of rows) {
-      const cols = row.split(",").map(c => c.replace(/^"|"$/g, "").replace(/""/g, '"').trim())
-      if (!cols[0]) continue
-      const perf = perfiles.find(p => (p.nombre + " " + p.apellido).toLowerCase() === (cols[2] || "").toLowerCase())
-      await supabase.from("proyecto_tareas").insert({
-        proyecto_id: proyectoSeleccionado.id,
-        titulo: cols[0] || "",
-        descripcion: cols[1] || "",
-        responsable_nombre: cols[2] || "",
-        responsable_id: perf?.id || null,
-        estado: cols[3] || "pendiente",
-        fecha_inicio: cols[4] || null,
-        fecha_fin: cols[5] || null,
-        color: cols[6] || "#0F6E56",
-        orden: tareas.length + importados,
-      })
-      importados++
-    }
-    setImportando(false)
-    e.target.value = ""
-    loadTareas(proyectoSeleccionado.id)
-    alert(`${importados} tareas importadas`)
+  const tareasFiltradas = tareas.filter(t => {
+    if (filtroUsuario && t.responsable_id !== filtroUsuario && t.responsable_nombre !== filtroUsuario) return false
+    if (filtroEstado && t.estado !== filtroEstado) return false
+    return true
+  }).sort((a,b) => {
+    if (!ordenFecha) return 0
+    if (!a.fecha_fin) return 1
+    if (!b.fecha_fin) return -1
+    return ordenFecha === "asc"
+      ? new Date(a.fecha_fin).getTime() - new Date(b.fecha_fin).getTime()
+      : new Date(b.fecha_fin).getTime() - new Date(a.fecha_fin).getTime()
+  })
+
+  const fechasValidas = tareas.flatMap(t => [t.fecha_inicio, t.fecha_fin].filter(Boolean)).map(f => new Date(f).getTime())
+  const minFecha = fechasValidas.length ? Math.min(...fechasValidas) : new Date().getTime()
+  const maxFecha = fechasValidas.length ? Math.max(...fechasValidas) : new Date().getTime() + 14 * 86400000
+  const ganttInicio = new Date(minFecha)
+  const ganttFin = new Date(maxFecha + 86400000 * 3)
+  const ganttDias = Math.max(7, Math.ceil((ganttFin.getTime() - ganttInicio.getTime()) / 86400000))
+  const ganttDiasArr = Array.from({ length: ganttDias }, (_, i) => {
+    const d = new Date(ganttInicio)
+    d.setDate(d.getDate() + i)
+    return d
+  })
+
+  function getBarStyle(t: any, inicio: Date, totalDias: number) {
+    if (!t.fecha_inicio && !t.fecha_fin) return null
+    const fi = t.fecha_inicio ? new Date(t.fecha_inicio) : new Date(t.fecha_fin)
+    const ff = t.fecha_fin ? new Date(t.fecha_fin) : fi
+    const diffInicio = Math.max(0, (fi.getTime() - inicio.getTime()) / 86400000)
+    const duracion = Math.max(1, Math.ceil((ff.getTime() - fi.getTime()) / 86400000) + 1)
+    const leftPct = (diffInicio / totalDias) * 100
+    const widthPct = Math.min(100 - leftPct, (duracion / totalDias) * 100)
+    return { left: `${leftPct}%`, width: `${widthPct}%` }
   }
 
-  // Filtros y ordenamiento
-  const tareasFiltradas = tareas
-    .filter(t => {
-      if (filtroUsuario && t.responsable_id !== filtroUsuario && t.responsable_nombre !== filtroUsuario) return false
-      if (filtroEstado && t.estado !== filtroEstado) return false
-      return true
-    })
-    .sort((a, b) => {
-      if (!ordenFecha) return 0
-      const fa = a.fecha_fin || a.fecha_inicio || ""
-      const fb = b.fecha_fin || b.fecha_inicio || ""
-      if (!fa && !fb) return 0
-      if (!fa) return 1
-      if (!fb) return -1
-      return ordenFecha === "asc" ? fa.localeCompare(fb) : fb.localeCompare(fa)
-    })
-
-  // Gantt helpers
-  function getGanttRange() {
-    const tareasConFecha = tareas.filter(t => t.fecha_inicio && t.fecha_fin)
-    if (tareasConFecha.length === 0) return { inicio: new Date(), dias: 30 }
-    const fechas = tareasConFecha.flatMap(t => [new Date(t.fecha_inicio), new Date(t.fecha_fin)])
-    const min = new Date(Math.min(...fechas.map(f => f.getTime())))
-    const max = new Date(Math.max(...fechas.map(f => f.getTime())))
-    min.setDate(min.getDate() - 2)
-    max.setDate(max.getDate() + 2)
-    const dias = Math.ceil((max.getTime() - min.getTime()) / (1000 * 60 * 60 * 24))
-    return { inicio: min, dias: Math.max(dias, 14) }
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando gestor operacional...
+      </div>
+    )
   }
-
-  function getBarStyle(tarea: any, inicio: Date, totalDias: number) {
-    if (!tarea.fecha_inicio || !tarea.fecha_fin) return null
-    const fi = new Date(tarea.fecha_inicio)
-    const ff = new Date(tarea.fecha_fin)
-    const startPct = ((fi.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)) / totalDias * 100
-    const widthPct = ((ff.getTime() - fi.getTime()) / (1000 * 60 * 60 * 24) + 1) / totalDias * 100
-    return { left: Math.max(0, startPct) + "%", width: Math.max(1, widthPct) + "%" }
-  }
-
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4, textTransform: "uppercase" }
-
-  const { inicio: ganttInicio, dias: ganttDias } = getGanttRange()
-  const ganttDiasArr = Array.from({ length: ganttDias }, (_, i) => { const d = new Date(ganttInicio); d.setDate(d.getDate() + i); return d })
-
-  // Usuarios unicos en tareas del proyecto
-  const usuariosEnTareas = Array.from(new Map(tareas.filter(t => t.responsable_id).map(t => [t.responsable_id, { id: t.responsable_id, nombre: t.responsable_nombre }])).values())
-
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Gestor de proyectos</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Tareas, responsables y seguimiento</p>
-        </div>
-        {proyectoSeleccionado && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            {/* Exportar */}
-            <button onClick={() => exportarExcel(tareas, proyectoSeleccionado.nombre)}
-              style={{ fontSize: 12, padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", color: "#374151", cursor: "pointer" }}>
-              Exportar CSV
-            </button>
-            {/* Importar */}
-            <label style={{ fontSize: 12, padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", color: "#374151", cursor: "pointer" }}>
-              {importando ? "Importando..." : "Importar CSV"}
-              <input type="file" accept=".csv" style={{ display: "none" }} onChange={importarCSV} />
-            </label>
-            <div style={{ display: "flex", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
-              {(["kanban", "lista", "gantt"] as const).map(v => (
-                <button key={v} onClick={() => setVista(v)}
-                  style={{ padding: "7px 14px", border: "none", background: vista === v ? "#0F6E56" : "#fff", color: vista === v ? "#fff" : "#374151", cursor: "pointer", fontSize: 12, fontWeight: vista === v ? 700 : 400, fontFamily: "inherit" }}>
-                  {v === "kanban" ? "Kanban" : v === "lista" ? "Lista" : "Gantt"}
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setShowForm(true)} className="btn-primary" style={{ fontSize: 13 }}>+ Nueva tarea</button>
-          </div>
-        )}
-      </div>
-
-      {/* Modal tarea */}
-      {showForm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>{editandoTarea ? "Editar tarea" : "Nueva tarea"}</h2>
-              <button onClick={() => { setShowForm(false); setEditandoTarea(null) }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>x</button>
-            </div>
-            <div style={{ display: "grid", gap: 14 }}>
-              <div><label style={lbl}>Titulo *</label><input style={inp} value={form.titulo} placeholder="Titulo de la tarea" onChange={e => setForm({ ...form, titulo: e.target.value })} /></div>
-              <div><label style={lbl}>Descripcion</label><textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} /></div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>Responsable</label>
-                  <select style={inp} value={form.responsable_id} onChange={e => setForm({ ...form, responsable_id: e.target.value })}>
-                    <option value="">Sin responsable</option>
-                    {perfiles.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>Estado</label>
-                  <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
-                    {Object.entries(ESTADO_TAREA).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
+    <V2ListPageTemplate
+      header={
+        <V2PageHeader
+          eyebrow="Operaciones"
+          title="Gestor Operativo de Proyectos"
+          subtitle="Tablero de control operacional por proyecto (Kanban, Lista, Gantt)"
+          actions={
+            proyectoSeleccionado ? (
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <V2Button variant="primary" onClick={() => { setEditandoTarea(null); setForm({ titulo: "", descripcion: "", responsable_id: "", responsable_nombre: "", estado: "pendiente", fecha_inicio: "", fecha_fin: "", color: "#0F6E56" }); setShowForm(true) }}>
+                  + Nueva tarea
+                </V2Button>
+                <V2Button variant="secondary" onClick={() => exportarExcel(tareas, proyectoSeleccionado.nombre)}>
+                  Exportar CSV
+                </V2Button>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>Fecha inicio</label><input type="date" style={inp} value={form.fecha_inicio} onChange={e => setForm({ ...form, fecha_inicio: e.target.value })} /></div>
-                <div><label style={lbl}>Fecha fin</label><input type="date" style={inp} value={form.fecha_fin} onChange={e => setForm({ ...form, fecha_fin: e.target.value })} /></div>
+            ) : undefined
+          }
+        />
+      }
+      toolbar={
+        <V2FilterBar
+          searchValue=""
+          onSearchChange={() => {}}
+          activeFiltersCount={(filtroUsuario ? 1 : 0) + (filtroEstado ? 1 : 0)}
+          hideDrawerButton
+          onToggleDrawer={() => {}}
+          quickFilters={
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ width: 260 }}>
+                <V2Select
+                  compact
+                  value={proyectoSeleccionado?.id || ""}
+                  onChange={(e) => {
+                    const p = proyectos.find((x) => x.id === e.target.value)
+                    if (p) seleccionarProyecto(p)
+                  }}
+                  options={[
+                    { label: "-- Seleccionar proyecto --", value: "" },
+                    ...proyectos.map((p) => ({ label: `${p.codigo} — ${p.nombre}`, value: p.id })),
+                  ]}
+                />
               </div>
-              <div>
-                <label style={lbl}>Color</label>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {COLORES.map(c => (
-                    <div key={c} onClick={() => setForm({ ...form, color: c })}
-                      style={{ width: 28, height: 28, borderRadius: "50%", background: c, cursor: "pointer", border: form.color === c ? "3px solid #111" : "2px solid transparent", boxSizing: "border-box" }} />
+              {proyectoSeleccionado && (
+                <div style={{ display: "flex", gap: 4, background: "var(--v2-surface-subtle)", padding: 3, borderRadius: "var(--v2-radius)", border: "1px solid var(--v2-border)" }}>
+                  {(["kanban", "lista", "gantt"] as const).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setVista(v)}
+                      style={{
+                        padding: "5px 12px",
+                        borderRadius: "var(--v2-radius-sm)",
+                        border: "none",
+                        background: vista === v ? "var(--v2-surface)" : "transparent",
+                        color: vista === v ? "var(--v2-text)" : "var(--v2-muted)",
+                        fontWeight: vista === v ? 700 : 500,
+                        fontSize: 12,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {v.toUpperCase()}
+                    </button>
                   ))}
                 </div>
-              </div>
+              )}
             </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => { setShowForm(false); setEditandoTarea(null) }} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardarTarea} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : editandoTarea ? "Actualizar" : "Crear tarea"}</button>
+          }
+        />
+      }
+      table={
+        <div style={{ display: "grid", gap: 16 }}>
+          {errorGestor && (
+            <div style={{ padding: 12, borderRadius: "var(--v2-radius)", background: "var(--v2-danger-subtle, #fee2e2)", color: "var(--v2-danger, #991b1b)", fontSize: 13, fontWeight: 600 }}>
+              {errorGestor}
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 16 }}>
-        {/* Lista proyectos */}
-        <div className="card" style={{ padding: 0, overflow: "hidden", alignSelf: "start" }}>
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", fontSize: 13, fontWeight: 600, color: "#374151" }}>Proyectos</div>
-          {proyectos.length === 0 ? (
-            <div style={{ padding: 20, fontSize: 13, color: "#9ca3af", textAlign: "center" }}>No hay proyectos activos</div>
-          ) : proyectos.map((p, idx) => (
-            <div key={p.id} onClick={() => seleccionarProyecto(p)}
-              style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", cursor: "pointer", background: proyectoSeleccionado?.id === p.id ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#0F6E56" }}>{p.codigo}</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginTop: 2 }}>{p.nombre}</div>
-              <div style={{ fontSize: 11, color: "#9ca3af" }}>{p.cliente?.razon_social}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Vista principal */}
-        {!proyectoSeleccionado ? (
-          <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300 }}>
-            <div style={{ textAlign: "center", color: "#9ca3af" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Selecciona un proyecto</div>
-              <div style={{ fontSize: 12, marginTop: 4 }}>para ver y gestionar sus tareas</div>
-            </div>
-          </div>
-        ) : (
-          <div>
-            {/* Filtros */}
-            {errorGestor && (
-              <div style={{ padding: 12, borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", fontSize: 12, marginBottom: 12 }}>
-                {errorGestor}
+          {!proyectoSeleccionado ? (
+            <V2SectionCard title="Seleccionar Proyecto">
+              <div style={{ padding: 48, textAlign: "center", color: "var(--v2-muted)" }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--v2-text)", marginBottom: 6 }}>Selecciona un proyecto</div>
+                <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>Elige un proyecto activo para ver y gestionar sus tareas operativas</div>
               </div>
-            )}
-            <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{proyectoSeleccionado.codigo} — {proyectoSeleccionado.nombre}</span>
-              <span style={{ fontSize: 12, color: "#9ca3af" }}>{tareasFiltradas.length}/{tareas.length} tareas</span>
-              <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {usuariosEnTareas.length > 0 && (
-                  <select style={{ padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff" }}
-                    value={filtroUsuario} onChange={e => setFiltroUsuario(e.target.value)}>
-                    <option value="">Todos los usuarios</option>
-                    {usuariosEnTareas.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                  </select>
-                )}
-                <select style={{ padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff" }}
-                  value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
-                  <option value="">Todos los estados</option>
-                  {Object.entries(ESTADO_TAREA).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                </select>
-                <select style={{ padding: "5px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff" }}
-                  value={ordenFecha} onChange={e => setOrdenFecha(e.target.value as any)}>
-                  <option value="">Sin ordenar</option>
-                  <option value="asc">Fecha: mas proxima primero</option>
-                  <option value="desc">Fecha: mas lejana primero</option>
-                </select>
-                {(filtroUsuario || filtroEstado || ordenFecha) && (
-                  <button onClick={() => { setFiltroUsuario(""); setFiltroEstado(""); setOrdenFecha("") }}
-                    style={{ fontSize: 11, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
-                    Limpiar
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Vista Kanban */}
-            {vista === "kanban" && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-                {Object.entries(ESTADO_TAREA).map(([estado, info]) => {
-                  const tareasEstado = tareasFiltradas.filter(t => t.estado === estado)
-                  return (
-                    <div key={estado}>
-                      <div style={{ padding: "8px 12px", borderRadius: "8px 8px 0 0", background: info.bg, marginBottom: 2 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: info.color }}>{info.label}</span>
-                        <span style={{ fontSize: 11, color: info.color, marginLeft: 6, opacity: 0.7 }}>({tareasEstado.length})</span>
-                      </div>
-                      <div style={{ background: "#f9fafb", borderRadius: "0 0 8px 8px", minHeight: 120, padding: 8, display: "grid", gap: 8 }}>
-                        {tareasEstado.map(t => (
-                          <div key={t.id} style={{ background: "#fff", borderRadius: 8, padding: "10px 12px", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", borderLeft: "3px solid " + (t.color || "#0F6E56") }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 4 }}>{t.titulo}</div>
-                            <BadgeOrigenCotizacion tarea={t} />
-                            {t.descripcion && <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>{t.descripcion}</div>}
-                            {t.responsable_nombre && <div style={{ fontSize: 11, color: "#374151", marginBottom: 4 }}>👤 {t.responsable_nombre}</div>}
-                            {t.fecha_fin && (
-                              <div style={{ fontSize: 11, color: new Date(t.fecha_fin) < new Date() && t.estado !== "completada" ? "#dc2626" : "#9ca3af" }}>
-                                📅 {t.fecha_fin}
+            </V2SectionCard>
+          ) : (
+            <div>
+              {/* Kanban */}
+              {vista === "kanban" && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
+                  {Object.entries(ESTADO_TAREA).map(([estKey, estVal]: any) => {
+                    const ts = tareasFiltradas.filter((t) => t.estado === estKey)
+                    return (
+                      <div key={estKey} style={{ background: "var(--v2-surface-subtle)", borderRadius: "var(--v2-radius)", border: "1px solid var(--v2-border)", padding: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                          <span style={{ fontSize: 12.5, fontWeight: 700, color: estVal.color }}>{estVal.label}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--v2-muted)", background: "var(--v2-surface)", padding: "2px 8px", borderRadius: 99, border: "1px solid var(--v2-border)" }}>{ts.length}</span>
+                        </div>
+                        <div style={{ display: "grid", gap: 8 }}>
+                          {ts.map((t) => (
+                            <div
+                              key={t.id}
+                              style={{
+                                background: "var(--v2-surface)",
+                                border: "1px solid var(--v2-border)",
+                                borderLeft: `4px solid ${t.color || "var(--v2-brand)"}`,
+                                borderRadius: "var(--v2-radius-sm)",
+                                padding: 10,
+                              }}
+                            >
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)", marginBottom: 4 }}>{t.titulo}</div>
+                              {t.descripcion && <div style={{ fontSize: 11.5, color: "var(--v2-muted)", marginBottom: 6 }}>{t.descripcion}</div>}
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "var(--v2-muted)" }}>
+                                <span>{t.responsable_nombre || "Sin asignación"}</span>
+                                {t.fecha_fin && <span>{t.fecha_fin}</span>}
                               </div>
-                            )}
-                            <div style={{ display: "flex", gap: 4, marginTop: 8, flexWrap: "wrap" }}>
-                              {!esTareaHistorica(t) && Object.entries(ESTADO_TAREA).filter(([k]) => k !== estado).map(([k, v]) => (
-                                <button key={k} onClick={() => cambiarEstadoTarea(t.id, k)}
-                                  style={{ fontSize: 10, padding: "2px 6px", border: "1px solid " + v.color, borderRadius: 4, background: v.bg, color: v.color, cursor: "pointer", fontFamily: "inherit" }}>
-                                  {v.label}
-                                </button>
-                              ))}
-                              {!esTareaHistorica(t) && <button onClick={() => abrirEditar(t)} style={{ fontSize: 10, padding: "2px 6px", border: "1px solid #e5e7eb", borderRadius: 4, background: "#fff", color: "#6b7280", cursor: "pointer", fontFamily: "inherit" }}>Editar</button>}
-                              {!esTareaHistorica(t) && <button onClick={() => eliminarTarea(t.id)} style={{ fontSize: 10, padding: "2px 6px", border: "1px solid #fee2e2", borderRadius: 4, background: "#fff", color: "#dc2626", cursor: "pointer", fontFamily: "inherit" }}>x</button>}
+                              <BadgeOrigenCotizacion tarea={t} />
+                              {!esTareaHistorica(t) && (
+                                <div style={{ display: "flex", gap: 6, marginTop: 8, justifyContent: "flex-end" }}>
+                                  <V2Button variant="ghost" size="compact" onClick={() => abrirEditar(t)}>Editar</V2Button>
+                                  <V2Button variant="ghost" size="compact" onClick={() => eliminarTarea(t.id)}>Eliminar</V2Button>
+                                </div>
+                              )}
                             </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Lista */}
+              {vista === "lista" && (
+                <V2SectionCard title="Lista de Tareas Operativas">
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid var(--v2-border)", background: "var(--v2-surface-subtle)" }}>
+                          <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>TAREA</th>
+                          <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>RESPONSABLE</th>
+                          <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>ESTADO</th>
+                          <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>FECHA FIN</th>
+                          <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>ACCIONES</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tareasFiltradas.map((t) => (
+                          <tr key={t.id} style={{ borderBottom: "1px solid var(--v2-border)" }}>
+                            <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--v2-text)" }}>{t.titulo}</td>
+                            <td style={{ padding: "10px 12px", color: "var(--v2-muted)" }}>{t.responsable_nombre || "—"}</td>
+                            <td style={{ padding: "10px 12px" }}>
+                              <span style={{ fontSize: 11, fontWeight: 600, background: ESTADO_TAREA[t.estado]?.bg || "var(--v2-surface-subtle)", color: ESTADO_TAREA[t.estado]?.color || "var(--v2-muted)", padding: "2px 8px", borderRadius: 99 }}>
+                                {ESTADO_TAREA[t.estado]?.label || t.estado}
+                              </span>
+                            </td>
+                            <td style={{ padding: "10px 12px", color: "var(--v2-muted)" }}>{t.fecha_fin || "—"}</td>
+                            <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                              {!esTareaHistorica(t) && (
+                                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                                  <V2Button variant="ghost" size="compact" onClick={() => abrirEditar(t)}>Editar</V2Button>
+                                  <V2Button variant="ghost" size="compact" onClick={() => eliminarTarea(t.id)}>Eliminar</V2Button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </V2SectionCard>
+              )}
+
+              {/* Gantt */}
+              {vista === "gantt" && (
+                <V2SectionCard title="Cronograma Gantt">
+                  <div style={{ minWidth: 700, overflowX: "auto" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", borderBottom: "2px solid var(--v2-border)", fontWeight: 700, fontSize: 11, color: "var(--v2-muted)", padding: "8px 0" }}>
+                      <div>TAREA</div>
+                      <div style={{ display: "flex" }}>
+                        {ganttDiasArr.map((d, i) => (
+                          <div key={i} style={{ flex: `0 0 ${100/ganttDias}%`, textAlign: "center", fontSize: 9 }}>
+                            {d.getDate()}/{d.getMonth()+1}
                           </div>
                         ))}
-                        {tareasEstado.length === 0 && (
-                          <div style={{ fontSize: 12, color: "#d1d5db", textAlign: "center", padding: "16px 0" }}>Sin tareas</div>
-                        )}
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Vista Lista */}
-            {vista === "lista" && (
-              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ background: "#f9fafb" }}>
-                      <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TAREA</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RESPONSABLE</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>FECHA FIN</th>
-                      <th style={{ padding: "10px 16px", width: 120 }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tareasFiltradas.length === 0 ? (
-                      <tr><td colSpan={5} style={{ padding: "32px", textAlign: "center", color: "#9ca3af" }}>No hay tareas</td></tr>
-                    ) : tareasFiltradas.map((t, idx) => {
-                      const ec = ESTADO_TAREA[t.estado] || { bg: "#f3f4f6", color: "#6b7280", label: t.estado }
-                      const vencida = t.fecha_fin && new Date(t.fecha_fin) < new Date() && t.estado !== "completada"
-                      return (
-                        <tr key={t.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                          <td style={{ padding: "12px 16px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <div style={{ width: 4, height: 32, borderRadius: 2, background: t.color || "#0F6E56", flexShrink: 0 }} />
-                              <div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{t.titulo}</div>
-                                <BadgeOrigenCotizacion tarea={t} />
-                                {t.descripcion && <div style={{ fontSize: 11, color: "#9ca3af" }}>{t.descripcion}</div>}
-                              </div>
-                            </div>
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{t.responsable_nombre || "—"}</td>
-                          <td style={{ padding: "12px" }}>
-                            {/* Selector de estado inline */}
-                            {esTareaHistorica(t) ? (
-                              <span style={{ padding: "3px 8px", border: "1px solid " + ec.color, borderRadius: 6, fontSize: 11, fontWeight: 600, background: ec.bg, color: ec.color }}>
-                                {ec.label}
-                              </span>
-                            ) : (
-                              <select
-                                value={t.estado}
-                                onChange={e => cambiarEstadoTarea(t.id, e.target.value)}
-                                style={{ padding: "3px 8px", border: "1px solid " + ec.color, borderRadius: 6, fontSize: 11, fontWeight: 600, background: ec.bg, color: ec.color, cursor: "pointer", fontFamily: "inherit", outline: "none" }}>
-                                {Object.entries(ESTADO_TAREA).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                              </select>
-                            )}
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 12, color: vencida ? "#dc2626" : "#6b7280", fontWeight: vencida ? 600 : 400 }}>
-                            {t.fecha_fin ? (vencida ? "⚠ " : "") + t.fecha_fin : "—"}
-                          </td>
-                          <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              {!esTareaHistorica(t) && <button onClick={() => abrirEditar(t)} className="btn-secondary" style={{ fontSize: 11 }}>Editar</button>}
-                              {!esTareaHistorica(t) && <button onClick={() => eliminarTarea(t.id)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fee2e2", borderRadius: 5, background: "#fff", color: "#dc2626", cursor: "pointer" }}>x</button>}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Vista Gantt */}
-            {vista === "gantt" && (
-              tareas.length === 0 ? (
-                <div className="card" style={{ textAlign: "center", padding: 40, color: "#9ca3af" }}>
-                  <div style={{ fontSize: 14 }}>No hay tareas con fechas definidas</div>
-                </div>
-              ) : (
-                <div className="card" style={{ padding: 0, overflow: "auto" }}>
-                  <div style={{ minWidth: 800 }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", borderBottom: "2px solid #e5e7eb" }}>
-                      <div style={{ padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#6b7280", background: "#f9fafb", borderRight: "1px solid #e5e7eb" }}>TAREA</div>
-                      <div style={{ display: "flex", background: "#f9fafb" }}>
-                        {ganttDiasArr.map((d, i) => {
-                          const esHoy = d.toDateString() === new Date().toDateString()
-                          const esSabDom = d.getDay() === 0 || d.getDay() === 6
-                          return (
-                            <div key={i} style={{ flex: "0 0 " + (100/ganttDias) + "%", padding: "4px 0", textAlign: "center", fontSize: 9, color: esHoy ? "#0F6E56" : "#9ca3af", fontWeight: esHoy ? 800 : 400, background: esSabDom ? "#f3f4f6" : "transparent", borderRight: "1px solid #f3f4f6" }}>
-                              {d.getDate()}/{d.getMonth()+1}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    {tareasFiltradas.map((t, idx) => {
+                    {tareasFiltradas.map((t) => {
                       const barStyle = getBarStyle(t, ganttInicio, ganttDias)
-                      const ec = ESTADO_TAREA[t.estado] || { bg: "#f3f4f6", color: "#6b7280" }
                       return (
-                        <div key={t.id} style={{ display: "grid", gridTemplateColumns: "220px 1fr", borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                          <div style={{ padding: "8px 16px", borderRight: "1px solid #e5e7eb" }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{t.titulo}</div>
-                            {t.responsable_nombre && <div style={{ fontSize: 10, color: "#6b7280" }}>👤 {t.responsable_nombre}</div>}
-                            <span style={{ background: ec.bg, color: ec.color, padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 600 }}>{ec.label}</span>
-                          </div>
-                          <div style={{ position: "relative", height: 40 }}>
-                            {ganttDiasArr.map((d, i) => {
-                              const esHoy = d.toDateString() === new Date().toDateString()
-                              const esSabDom = d.getDay() === 0 || d.getDay() === 6
-                              return <div key={i} style={{ position: "absolute", left: (i/ganttDias*100) + "%", width: (1/ganttDias*100) + "%", height: "100%", background: esHoy ? "rgba(15,110,86,0.08)" : esSabDom ? "rgba(0,0,0,0.02)" : "transparent", borderRight: "1px solid #f9fafb" }} />
-                            })}
+                        <div key={t.id} style={{ display: "grid", gridTemplateColumns: "220px 1fr", borderBottom: "1px solid var(--v2-border)", padding: "8px 0", alignItems: "center" }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--v2-text)" }}>{t.titulo}</div>
+                          <div style={{ position: "relative", height: 24 }}>
                             {barStyle && (
-                              <div style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", left: barStyle.left, width: barStyle.width, height: 20, background: t.color || "#0F6E56", borderRadius: 4, display: "flex", alignItems: "center", paddingLeft: 6, overflow: "hidden" }}>
-                                <span style={{ fontSize: 10, color: "#fff", fontWeight: 600, whiteSpace: "nowrap" }}>{t.titulo}</span>
-                              </div>
-                            )}
-                            {!barStyle && (
-                              <div style={{ display: "flex", alignItems: "center", height: "100%", paddingLeft: 8 }}>
-                                <span style={{ fontSize: 11, color: "#d1d5db" }}>Sin fechas</span>
+                              <div style={{ position: "absolute", left: barStyle.left, width: barStyle.width, height: 20, background: t.color || "var(--v2-brand)", borderRadius: 4, color: "#fff", fontSize: 10, paddingLeft: 6, display: "flex", alignItems: "center" }}>
+                                {t.titulo}
                               </div>
                             )}
                           </div>
@@ -569,17 +429,12 @@ export default function GestorPage() {
                       )
                     })}
                   </div>
-                </div>
-              )
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+                </V2SectionCard>
+              )}
+            </div>
+          )}
+        </div>
+      }
+    />
   )
 }
-
-
-
-
-

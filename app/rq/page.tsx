@@ -1,5 +1,5 @@
 "use client"
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/immutability, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
@@ -13,19 +13,98 @@ import { getRQEstadosVisuales } from "@/lib/core/configuration"
 import { lifecycleEngine } from "@/lib/core/lifecycle"
 import { businessRuleEngine } from "@/lib/core/business-rules"
 import { estadoMigracionRQ, motivoEstadoMigracion } from "@/lib/rq-migracion"
-import KpiCard from "@/components/ui/KpiCard"
-import StatusBadge from "@/components/ui/StatusBadge"
 import { SYSTEM_COLUMNS } from "@/lib/core/configuration"
-import { buildCreateRQPPayload, buildUpdateRQPFinancialPayload } from "@/lib/services/rqp"
+import { buildCreateRQPPayload, buildUpdateRQPFinancialPayload, crearRQManualService } from "@/lib/services/rqp"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Badge,
+  V2Button,
+  V2DataTable,
+  V2Dropdown,
+  V2EmptyState,
+  V2FormField,
+  V2IconButton,
+  V2Input,
+  V2KpiCard,
+  V2LoadingState,
+  V2PageHeader,
+  V2Pagination,
+  V2Popover,
+  V2Select,
+  V2StatusDot,
+  V2Tooltip,
+  type V2DataTableColumn,
+} from "@/components/v2/system"
+import { V2ActiveFilterChip, V2FilterBar, V2FilterDrawer } from "@/components/v2/filters"
+import { Clock, ShieldCheck, CalendarClock, Wallet, MoreVertical, Plus } from "lucide-react"
+import { RQForm } from "./components/RQForm"
 import {
   BANCOS_PAGO,
   MEDIOS_PAGO,
   ESTADOS_CANCELABLES_RQP,
   ROLES_CANCELAR_RQP,
 } from "./config/constants"
+import styles from "./RQ.module.css"
+
+function estadoRQVariant(estado: string): "warning" | "information" | "primary" | "success" | "danger" | "neutral" {
+  if (estado === "pendiente_aprobacion") return "warning"
+  if (estado === "aprobado_produccion") return "information"
+  if (estado === "aprobado" || estado === "programado") return "primary"
+  if (estado === "pagado") return "success"
+  if (estado === "rechazado") return "danger"
+  return "neutral"
+}
+
+function estadoRQDotTone(estado: string): "warning" | "info" | "success" | "danger" | "neutral" {
+  if (estado === "pendiente_aprobacion") return "warning"
+  if (estado === "pagado") return "success"
+  if (estado === "rechazado") return "danger"
+  if (estado === "cancelado") return "neutral"
+  return "info"
+}
+
+function estadoPagoVariant(key: string): "success" | "danger" | "warning" | "information" | "neutral" | "outlined" {
+  if (key === "pagado") return "success"
+  if (key === "vencido") return "danger"
+  if (key === "vence_hoy") return "warning"
+  if (key === "programado") return "information"
+  if (key === "anulado") return "outlined"
+  return "neutral"
+}
+
+const ESTADO_PAGO_LABELS: Record<string, string> = {
+  sin_programar: "Sin programar",
+  programado: "Programado",
+  vence_hoy: "Vence hoy",
+  vencido: "Vencido",
+  pagado: "Pagado",
+  anulado: "Anulado",
+}
+
+const CONDICION_LABELS: Record<string, string> = { contado: "Contado", credito: "Crédito", adelanto: "Adelanto" }
 
 
 const ESTADOS: Record<string, any> = getRQEstadosVisuales()
+
+// Ancho REAL (px) de cada columna de la tabla /rq. Se usa dos veces a proposito:
+// como `width` de la columna (lo unico que V2DataTable aplica, y solo al <th> —
+// el <td> del primitive nunca recibe width, ver componentes/v2/system/
+// V2DataTable.tsx) y como `maxWidth` inline en el wrapper .cellRoot/.cellContent
+// de cada celda del body. Bajo table-layout:auto (ver RQ.module.css) esto es lo
+// que realmente fija el ancho de cada columna, sin depender de que el <th>
+// propague nada al <td>. Suma = 1565px = min-width de la tabla en RQ.module.css.
+const RQ_COL_WIDTH = {
+  codigo: 105,
+  proyecto: 185,
+  proveedor: 160,
+  descripcion: 210,
+  monto: 115,
+  condicion: 115,
+  fechas: 155,
+  estadoPago: 135,
+  estadoAprobacion: 180,
+  acciones: 205,
+} as const
 
 const RQ_COLUMNS_CONFIG = SYSTEM_COLUMNS
   .filter((col: any) => col.module === "rq" && col.visible)
@@ -92,6 +171,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const [filtroEstadoPago, setFiltroEstadoPago] = useState("")
   const [filtroFechaNecesidadDesde, setFiltroFechaNecesidadDesde] = useState("")
   const [filtroFechaNecesidadHasta, setFiltroFechaNecesidadHasta] = useState("")
+  const [filtroArchivado, setFiltroArchivado] = useState<"activos" | "archivados" | "todos">("activos")
   const [datosPago, setDatosPago] = useState({
     voucher_url: "", numero_operacion: "", banco_pago: "", tipo_transferencia: "Transferencia", nota_pago: ""
   })
@@ -104,13 +184,21 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   })
   const [guardandoRendicion, setGuardandoRendicion] = useState(false)
   const [pagina, setPagina] = useState(1)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [tempTipoPago, setTempTipoPago] = useState("")
+  const [tempEstadoPago, setTempEstadoPago] = useState("")
+  const [tempFechaNecesidadDesde, setTempFechaNecesidadDesde] = useState("")
+  const [tempFechaNecesidadHasta, setTempFechaNecesidadHasta] = useState("")
+  const [tempExcepcion, setTempExcepcion] = useState("todos")
+  const [tempIncluirProyectosEliminados, setTempIncluirProyectosEliminados] = useState(false)
+  const [tempProyecto, setTempProyecto] = useState("")
   const POR_PAGINA = 50
 
   useEffect(() => { load() }, [])
 
   useEffect(() => {
     setPagina(1)
-  }, [busquedaRQ, filtroEstados, filtroProveedor, filtroProyecto, filtroTipoPago, filtroExcepcion, filtroEstadoPago, filtroFechaNecesidadDesde, filtroFechaNecesidadHasta, incluirProyectosEliminados])
+  }, [busquedaRQ, filtroEstados, filtroProveedor, filtroProyecto, filtroTipoPago, filtroExcepcion, filtroEstadoPago, filtroFechaNecesidadDesde, filtroFechaNecesidadHasta, incluirProyectosEliminados, filtroArchivado])
 
   async function load() {
     const params = new URLSearchParams(window.location.search)
@@ -663,84 +751,28 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
     load()
   }
 
-  function errorSupabaseRQ(error: any) {
-    const mensaje = String(error?.message || "")
-    if (mensaje.includes("tratamiento_igv") || mensaje.includes("schema cache")) {
-      return "No se pudo crear el RQ porque falta actualizar el esquema de Supabase. Verifica que la migracion RQ de tratamiento_igv/codigo_rq este aplicada y refresca el schema cache."
-    }
-    if (mensaje.includes("solicitado_por")) {
-      return "No se pudo crear el RQ porque falta el campo solicitado_por en la base de datos o no esta disponible en el schema cache."
-    }
-    if (mensaje.includes("codigo_rq") || mensaje.includes("rq_codigo")) {
-      return "No se pudo generar el codigo RQ. Verifica que la migracion de numeracion RQ y su trigger esten aplicados."
-    }
-    return mensaje || "No se pudo crear el RQ. Revisa los datos obligatorios e intenta nuevamente."
-  }
+  // El mapeo de mensajes de error de crearRQManual (antes aqui) se movio a
+  // lib/services/rqp/rqp.crear-manual.ts junto con el resto de esa funcion.
 
   async function crearRQManual() {
     setErrorNuevoRQ("")
-    if (!validarAccionRQ("crear", { proyecto_id: formRQ.proyecto_id, proyecto: proyectos.find((p: any) => p.id === formRQ.proyecto_id) || null })) return
-    const monto = Number(formRQ.monto_solicitado)
-    const proyecto = proyectos.find((p: any) => p.id === formRQ.proyecto_id)
-    if (!formRQ.proyecto_id) { setErrorNuevoRQ("Selecciona un proyecto para evitar crear un RQ huerfano."); return }
-    if (proyecto?.estado !== "en_curso") { setErrorNuevoRQ("Para generar RQs, el proyecto debe estar En curso."); return }
-    if (!formRQ.descripcion.trim()) { setErrorNuevoRQ("Ingresa la descripcion o concepto del RQ."); return }
-    if (!formRQ.proveedor_id) { setErrorNuevoRQ("Selecciona un proveedor."); return }
-    if (!Number.isFinite(monto) || monto <= 0) { setErrorNuevoRQ("Ingresa un monto valido mayor a cero."); return }
-    if (formRQ.es_excepcion && !String(formRQ.motivo_excepcion || "").trim()) {
-      setErrorNuevoRQ("El motivo de la excepción es obligatorio.")
+    setGuardandoRQ(true)
+    const resultado = await crearRQManualService({ supabase, formRQ, proyectos, proveedoresTodos, perfil })
+    if (!resultado.ok) {
+      setErrorNuevoRQ(resultado.error)
+      setGuardandoRQ(false)
       return
     }
-
-    setGuardandoRQ(true)
-    try {
-      const prov = proveedoresTodos.find((p: any) => p.id === formRQ.proveedor_id)
-      const payload = {
-        proyecto_id: formRQ.proyecto_id,
-        estado: "pendiente_aprobacion",
-        proveedor_id: formRQ.proveedor_id,
-        proveedor_nombre: prov?.nombre || "",
-        monto_solicitado: monto,
-        tratamiento_igv: formRQ.tratamiento_igv,
-        descripcion: formRQ.descripcion.trim(),
-        tipo_pago: formRQ.condicion_comercial || formRQ.tipo_pago,
-        dias_credito: (formRQ.condicion_comercial || formRQ.tipo_pago) === "credito" && formRQ.dias_credito ? Number(formRQ.dias_credito) : null,
-        condicion_comercial: formRQ.condicion_comercial || formRQ.tipo_pago,
-        medio_pago: formRQ.medio_pago || "Transferencia",
-        fecha_necesidad_pago: formRQ.fecha_necesidad_pago || null,
-        es_excepcion: Boolean(formRQ.es_excepcion),
-        motivo_excepcion: formRQ.es_excepcion
-          ? String(formRQ.motivo_excepcion || "").trim()
-          : null,
-        excepcion_solicitada_por: formRQ.es_excepcion
-          ? perfil?.id || null
-          : null,
-        excepcion_solicitada_at: formRQ.es_excepcion
-          ? new Date().toISOString()
-          : null,
-        es_adicional: true,
-        solicitado_por: perfil?.id || null,
-      }
-      const { data: creado, error } = await supabase.from("requerimientos_pago").insert(payload).select("id,codigo_rq,numero_rq").single()
-      if (error) throw error
-      console.info("RQ manual creado", {
-        proyecto_id: payload.proyecto_id,
-        proveedor_id: payload.proveedor_id,
-        proveedor_nombre: payload.proveedor_nombre,
-        solicitado_por: payload.solicitado_por,
-        rq_id: creado?.id,
-        codigo_rq: creado?.codigo_rq || creado?.numero_rq,
-      })
-      await registrarAccion({ accion: "crear", modulo: "rq", entidad_id: creado?.id, entidad_tipo: "rq", descripcion: "RQ manual creado: " + rqCodigo(creado), datos_nuevos: payload })
-      setShowNuevoRQ(false)
-      setFormRQ(FORM_RQ_VACIO)
-      await load()
-    } catch (error: any) {
-      console.error("Error creando RQ manual:", error)
-      setErrorNuevoRQ(errorSupabaseRQ(error))
-    } finally {
-      setGuardandoRQ(false)
-    }
+    console.info("RQ manual creado", {
+      proyecto_id: formRQ.proyecto_id,
+      proveedor_id: formRQ.proveedor_id,
+      rq_id: resultado.creado?.id,
+      codigo_rq: resultado.creado?.codigo_rq || resultado.creado?.numero_rq,
+    })
+    setShowNuevoRQ(false)
+    setFormRQ(FORM_RQ_VACIO)
+    await load()
+    setGuardandoRQ(false)
   }
 
   function getSiguienteAccion(rq: any) {
@@ -786,6 +818,16 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const fechaNecesidadRQ = (rq: any) => fechaYmd(rq?.fecha_necesidad_pago) || fechaVencimientoRQ(rq)
   const fechaProgramadaRQ = (rq: any) => fechaYmd(rq?.fecha_programada_pago)
   const fechaPagoRealRQ = (rq: any) => rq?.estado === "pagado" ? fechaYmd(rq?.fecha_pago) : ""
+  // No existe (aun) selector de mes/periodo operativo en /rq (sin parametro de URL, sin estado de UI para elegirlo).
+  // Fallback documentado: mes calendario actual, calculado en hora local para no desplazar el mes por UTC.
+  const hoyLocal = new Date()
+  const mesOperativoActual = `${hoyLocal.getFullYear()}-${String(hoyLocal.getMonth() + 1).padStart(2, "0")}`
+  const rqEstaArchivado = (rq: any) => {
+    if (rq?.estado !== "pagado") return false
+    const mesPago = fechaPagoRealRQ(rq).slice(0, 7)
+    if (!mesPago) return false
+    return mesPago < mesOperativoActual
+  }
   const estadoPagoRQ = (rq: any) => {
     const estado = String(rq?.estado || "")
     if (["cancelado", "rechazado"].includes(estado)) return { key: "anulado", label: "Anulado", bg: "#f3f4f6", color: "#6b7280", icon: "●" }
@@ -807,7 +849,17 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
 
   const rqsVistaActiva = incluirProyectosEliminados ? rqs : rqs.filter(r => r.estado !== "cancelado" && !rqPerteneceAProyectoEliminado(r))
   const rqsProyectosEliminados = rqs.filter(r => rqPerteneceAProyectoEliminado(r))
-  const filtradosBase = rqsVistaActiva.filter(r => {
+  // Activos / Archivados / Todos: misma regla de archivado (pagado + mes de fecha_pago anterior al mes operativo).
+  const rqsSegunArchivado = filtroArchivado === "todos"
+    ? rqsVistaActiva
+    : filtroArchivado === "archivados"
+      ? rqsVistaActiva.filter(rqEstaArchivado)
+      : rqsVistaActiva.filter(r => !rqEstaArchivado(r))
+  // La tabla y los KPIs comparten esta misma base (Activos/Archivados/Todos); los demas filtros
+  // (busqueda, estado, proveedor, proyecto, tipo, fechas, excepcion) solo se aplican a la tabla,
+  // igual que antes de este sprint.
+  const rqsBaseKpi = rqsSegunArchivado
+  const filtradosBase = rqsSegunArchivado.filter(r => {
     const textoBusqueda = busquedaRQ.trim().toLowerCase()
 
     if (textoBusqueda) {
@@ -854,20 +906,433 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
   const finPagina = Math.min(paginaActual * POR_PAGINA, filtrados.length)
   const paginados = filtrados.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA)
 
-  const totalPendiente = rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
-  const totalAprobado = rqsVistaActiva.filter(r => ["aprobado_produccion", "aprobado"].includes(r.estado)).reduce((s, r) => s + (r.monto_solicitado || 0), 0)
-  const totalProgramado = rqsVistaActiva.filter(r => r.estado === "programado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
-  const totalPagado = rqsVistaActiva.filter(r => r.estado === "pagado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalPendiente = rqsBaseKpi.filter(r => r.estado === "pendiente_aprobacion").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalAprobado = rqsBaseKpi.filter(r => ["aprobado_produccion", "aprobado"].includes(r.estado)).reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalProgramado = rqsBaseKpi.filter(r => r.estado === "programado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
+  const totalPagado = rqsBaseKpi.filter(r => r.estado === "pagado").reduce((s, r) => s + (r.monto_solicitado || 0), 0)
 
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", marginBottom: 3, display: "block" }
 
+  function limpiarFiltros() {
+    setFiltroEstados([])
+    setFiltroProveedor("")
+    setFiltroTipoPago("")
+    setFiltroEstadoPago("")
+    setFiltroFechaNecesidadDesde("")
+    setFiltroFechaNecesidadHasta("")
+    setFiltroExcepcion("todos")
+    setFiltroProyecto("")
+    setIncluirProyectosEliminados(false)
+    setFiltroArchivado("activos")
+  }
+
+  function limpiarTodoToolbar() {
+    limpiarFiltros()
+    setBusquedaRQ("")
+  }
+
+  function abrirFiltrosAvanzados() {
+    setTempTipoPago(filtroTipoPago)
+    setTempEstadoPago(filtroEstadoPago)
+    setTempFechaNecesidadDesde(filtroFechaNecesidadDesde)
+    setTempFechaNecesidadHasta(filtroFechaNecesidadHasta)
+    setTempExcepcion(filtroExcepcion)
+    setTempIncluirProyectosEliminados(incluirProyectosEliminados)
+    setTempProyecto(filtroProyecto)
+    setDrawerOpen(true)
+  }
+
+  function aplicarFiltrosAvanzados() {
+    setFiltroTipoPago(tempTipoPago)
+    setFiltroEstadoPago(tempEstadoPago)
+    setFiltroFechaNecesidadDesde(tempFechaNecesidadDesde)
+    setFiltroFechaNecesidadHasta(tempFechaNecesidadHasta)
+    setFiltroExcepcion(tempExcepcion)
+    setIncluirProyectosEliminados(tempIncluirProyectosEliminados)
+    setFiltroProyecto(tempProyecto)
+    setDrawerOpen(false)
+  }
+
+  function limpiarFiltrosAvanzados() {
+    limpiarFiltros()
+    setTempTipoPago("")
+    setTempEstadoPago("")
+    setTempFechaNecesidadDesde("")
+    setTempFechaNecesidadHasta("")
+    setTempExcepcion("todos")
+    setTempIncluirProyectosEliminados(false)
+    setTempProyecto("")
+    setDrawerOpen(false)
+  }
+
+  const activeFiltersCount =
+    (filtroEstados.length > 0 ? 1 : 0) +
+    (filtroProveedor ? 1 : 0) +
+    (filtroTipoPago ? 1 : 0) +
+    (filtroEstadoPago ? 1 : 0) +
+    (filtroFechaNecesidadDesde ? 1 : 0) +
+    (filtroFechaNecesidadHasta ? 1 : 0) +
+    (filtroExcepcion !== "todos" ? 1 : 0) +
+    (filtroProyecto ? 1 : 0) +
+    (incluirProyectosEliminados ? 1 : 0) +
+    (filtroArchivado !== "activos" ? 1 : 0) +
+    (busquedaRQ.trim() ? 1 : 0)
+
+  const advancedFiltersCount =
+    (filtroTipoPago ? 1 : 0) +
+    (filtroEstadoPago ? 1 : 0) +
+    (filtroFechaNecesidadDesde ? 1 : 0) +
+    (filtroFechaNecesidadHasta ? 1 : 0) +
+    (filtroExcepcion !== "todos" ? 1 : 0) +
+    (incluirProyectosEliminados ? 1 : 0) +
+    (filtroProyecto ? 1 : 0)
+
+  const proyectoFiltradoActual = proyectos.find((p: any) => p.id === filtroProyecto)
+
+  const filtrosActivosChips: Array<{ id: string; label: string; valueLabel: string }> = []
+  if (filtroEstados.length > 0) filtrosActivosChips.push({ id: "estados", label: "Estado de aprobación", valueLabel: filtroEstados.map(k => ESTADOS[k]?.label || k).join(", ") })
+  if (filtroProveedor) filtrosActivosChips.push({ id: "proveedor", label: "Proveedor", valueLabel: proveedores.find(p => p.id === filtroProveedor)?.nombre || filtroProveedor })
+  if (filtroTipoPago) filtrosActivosChips.push({ id: "condicion", label: "Condición", valueLabel: CONDICION_LABELS[filtroTipoPago] || filtroTipoPago })
+  if (filtroEstadoPago) filtrosActivosChips.push({ id: "estadoPago", label: "Estado de pago", valueLabel: ESTADO_PAGO_LABELS[filtroEstadoPago] || filtroEstadoPago })
+  if (filtroFechaNecesidadDesde || filtroFechaNecesidadHasta) filtrosActivosChips.push({ id: "fechas", label: "F. necesidad", valueLabel: `${filtroFechaNecesidadDesde || "…"} → ${filtroFechaNecesidadHasta || "…"}` })
+  if (filtroExcepcion !== "todos") filtrosActivosChips.push({ id: "excepcion", label: "Excepción", valueLabel: filtroExcepcion === "solo" ? "Solo excepciones" : "Sin excepción" })
+  if (filtroProyecto) filtrosActivosChips.push({ id: "proyecto", label: "Proyecto", valueLabel: proyectoFiltradoActual?.codigo || "Filtrado" })
+  if (incluirProyectosEliminados) filtrosActivosChips.push({ id: "eliminados", label: "Proyectos eliminados", valueLabel: "Incluidos" })
+  if (filtroArchivado !== "activos") filtrosActivosChips.push({ id: "archivado", label: "Vista", valueLabel: filtroArchivado === "archivados" ? "Solo archivados" : "Todos (activos + archivados)" })
+
+  function quitarFiltro(id: string) {
+    if (id === "estados") setFiltroEstados([])
+    if (id === "proveedor") setFiltroProveedor("")
+    if (id === "condicion") setFiltroTipoPago("")
+    if (id === "estadoPago") setFiltroEstadoPago("")
+    if (id === "fechas") { setFiltroFechaNecesidadDesde(""); setFiltroFechaNecesidadHasta("") }
+    if (id === "excepcion") setFiltroExcepcion("todos")
+    if (id === "proyecto") setFiltroProyecto("")
+    if (id === "eliminados") setIncluirProyectosEliminados(false)
+    if (id === "archivado") setFiltroArchivado("activos")
+  }
+
+  function handleRowClick(rq: any) {
+    if (selected?.id === rq.id) { setSelected(null); return }
+    setSelected(rq)
+    setDatosPago({
+      voucher_url: rq.voucher_url || "",
+      numero_operacion: rq.numero_operacion || "",
+      banco_pago: rq.banco_pago || "",
+      tipo_transferencia: rq.tipo_transferencia || "Transferencia",
+      nota_pago: rq.nota_pago || "",
+    })
+    setDatosRendicion({
+      monto_rendido: rq.monto_rendido ? String(rq.monto_rendido) : "",
+      monto_devolucion: rq.monto_devolucion ? String(rq.monto_devolucion) : "",
+      fecha_rendicion: rq.fecha_rendicion || "",
+      observacion_rendicion: rq.observacion_rendicion || "",
+    })
+  }
+
+  const columns: V2DataTableColumn<any>[] = [
+    {
+      id: "codigo",
+      header: "N° RQ",
+      width: RQ_COL_WIDTH.codigo,
+      cell: (rq) => (
+        <div className={styles.cellContent} style={{ maxWidth: RQ_COL_WIDTH.codigo, fontWeight: 800, color: "var(--v2-text)" }}>{rqCodigo(rq)}</div>
+      ),
+    },
+    {
+      id: "proyecto",
+      header: "PROYECTO",
+      width: RQ_COL_WIDTH.proyecto,
+      cell: (rq) => {
+        const proyectoEliminado = rqPerteneceAProyectoEliminado(rq)
+        const productor = rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : ""
+        const productorLinea = productor && (
+          <V2Tooltip content={productor}>
+            <div className={styles.cellContent} style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>{productor}</div>
+          </V2Tooltip>
+        )
+        if (proyectoEliminado) {
+          return (
+            <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.proyecto }}>
+              <V2Tooltip content={`${rq.proyecto?.codigo || "Proyecto eliminado"} — ${rq.proyecto?.nombre || "No disponible"}`}>
+                <div className={styles.cellContent} style={{ fontWeight: 800, color: "var(--v2-danger)" }}>{rq.proyecto?.codigo || "Proyecto eliminado"}</div>
+              </V2Tooltip>
+              <div className={styles.cellContent} style={{ fontSize: 10.5, color: "var(--v2-danger)" }}>Proyecto eliminado</div>
+            </div>
+          )
+        }
+        if (rq.proyecto_id) {
+          return (
+            <a href={`/proyectos/${rq.proyecto_id}`} onClick={(e) => e.stopPropagation()} className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.proyecto, textDecoration: "none" }}>
+              <V2Tooltip content={`${rq.proyecto?.codigo || ""} — ${rq.proyecto?.nombre || ""}`}>
+                <div className={styles.cellContent} style={{ fontWeight: 700, color: "var(--v2-accent)" }}>{rq.proyecto?.codigo}</div>
+              </V2Tooltip>
+              {productorLinea}
+            </a>
+          )
+        }
+        return (
+          <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.proyecto }}>
+            <div className={styles.cellContent} style={{ color: "var(--v2-text)" }}>—</div>
+            <div className={styles.cellContent} style={{ fontSize: 10.5, color: "var(--v2-subtle)" }}>Sin proyecto</div>
+          </div>
+        )
+      },
+    },
+    {
+      id: "proveedor",
+      header: "PROVEEDOR",
+      width: RQ_COL_WIDTH.proveedor,
+      cell: (rq) => {
+        const nombre = rq.proveedor_nombre || rq.proveedor?.nombre || "—"
+        return (
+          <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.proveedor }}>
+            <V2Tooltip content={nombre}>
+              <div className={styles.cellContent} style={{ color: "var(--v2-text)", fontWeight: 600 }}>{nombre}</div>
+            </V2Tooltip>
+          </div>
+        )
+      },
+    },
+    {
+      id: "descripcion",
+      header: "DESCRIPCIÓN",
+      width: RQ_COL_WIDTH.descripcion,
+      cell: (rq) => (
+        <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.descripcion }}>
+          {rq.descripcion ? (
+            <V2Tooltip content={rq.descripcion}>
+              <div className={styles.cellContent} style={{ fontSize: 12, color: "var(--v2-muted)" }}>{rq.descripcion}</div>
+            </V2Tooltip>
+          ) : (
+            <div className={styles.cellContent} style={{ fontSize: 12, color: "var(--v2-muted)" }}>—</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "monto",
+      header: "MONTO",
+      align: "right",
+      width: RQ_COL_WIDTH.monto,
+      cell: (rq) => (
+        <div className={styles.cellContent} style={{ maxWidth: RQ_COL_WIDTH.monto, fontWeight: 800, color: "var(--v2-text)" }}>{fmt(montoFinalRQ(rq))}</div>
+      ),
+    },
+    {
+      id: "condicion",
+      header: "CONDICIÓN",
+      width: RQ_COL_WIDTH.condicion,
+      cell: (rq) => {
+        const condicion = condicionComercialRQ(rq)
+        if (!condicion) return "—"
+        return (
+          <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.condicion }}>
+            <div className={styles.cellContent}>
+              <V2Badge variant="neutral" size="sm">{condicionLabelRQ(rq)}{rq.dias_credito ? ` ${rq.dias_credito}d` : ""}</V2Badge>
+            </div>
+            {rq.es_excepcion && (
+              <div className={styles.cellContent}>
+                <V2Badge variant="danger" size="sm">🚩 Excepción</V2Badge>
+              </div>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: "fechas",
+      header: "FECHAS",
+      width: RQ_COL_WIDTH.fechas,
+      cell: (rq) => {
+        const real = fechaPagoRealRQ(rq)
+        const programada = fechaProgramadaRQ(rq)
+        const pago = real || programada
+        return (
+          <div className={`${styles.cellRoot} ${styles.fechasCell}`} style={{ maxWidth: RQ_COL_WIDTH.fechas }}>
+            <div>Sol.: {fmtFecha(rq.created_at)}</div>
+            <div>
+              Pago: {fmtFecha(pago)}
+              {!real && programada && <span style={{ color: "var(--v2-subtle)" }}> (prog.)</span>}
+            </div>
+          </div>
+        )
+      },
+    },
+    {
+      id: "estadoPago",
+      header: "ESTADO DE PAGO",
+      width: RQ_COL_WIDTH.estadoPago,
+      cell: (rq) => {
+        const pago = estadoPagoRQ(rq)
+        return (
+          <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.estadoPago }}>
+            <div className={styles.cellContent}>
+              <V2Badge variant={estadoPagoVariant(pago.key)} size="sm">{pago.label}</V2Badge>
+            </div>
+            {rq.estado === "pagado" && rq.numero_operacion && (
+              <div className={styles.cellContent} style={{ fontSize: 10, color: "var(--v2-subtle)" }}>Op: {rq.numero_operacion}</div>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: "estadoAprobacion",
+      header: "ESTADO DE APROBACIÓN",
+      width: RQ_COL_WIDTH.estadoAprobacion,
+      cell: (rq) => {
+        const ec = ESTADOS[rq.estado] || { label: rq.estado }
+        return (
+          <div className={styles.cellRoot} style={{ maxWidth: RQ_COL_WIDTH.estadoAprobacion }}>
+            <div className={styles.cellContent}>
+              <V2Badge variant={estadoRQVariant(rq.estado)} size="sm">{ec.label}</V2Badge>
+            </div>
+            {rqPerteneceAProyectoEliminado(rq) && (
+              <div className={styles.cellContent} style={{ fontSize: 10, color: "var(--v2-danger)", fontWeight: 700 }}>Proyecto eliminado</div>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: "acciones",
+      header: "",
+      align: "right",
+      width: RQ_COL_WIDTH.acciones,
+      cell: (rq) => {
+        const accion = getSiguienteAccion(rq)
+        const puedeEditar = puedeEditarRQ(rq)
+        const puedeCancelar = puedeCancelarRQ(rq)
+        const menuItems = [
+          ...(puedeEditar ? [{ label: "Editar", onSelect: () => { setSelected(rq); abrirEditarRQ(rq) } }] : []),
+          ...(puedeCancelar ? [{ label: "Cancelar", onSelect: () => cancelarRQ(rq) }] : []),
+        ]
+        return (
+          <div className={styles.rowActions} style={{ maxWidth: RQ_COL_WIDTH.acciones }} onClick={(e) => e.stopPropagation()}>
+            {accion && (
+              <V2Button variant="primary" size="sm" className={styles.actionButtonShrink} onClick={() => cambiarEstado(rq.id, accion.nextEstado)}>{accion.label}</V2Button>
+            )}
+            {menuItems.length > 0 && (
+              <V2Dropdown
+                trigger={
+                  <V2IconButton label="Más acciones" size="sm">
+                    <MoreVertical size={14} />
+                  </V2IconButton>
+                }
+                items={menuItems}
+              />
+            )}
+          </div>
+        )
+      },
+    },
+  ]
+
   const puedeEditarPago = selected ? puedeAccionRQ("pagar", selected) : puedeAccionRQ("pagar")
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
-  if (!puedeVerModulo(perfil, "rq")) return <div style={{ color: "#6b7280", padding: 24 }}>No tienes permiso para ver Requerimientos de Pago.</div>
+  if (loading) return (
+    <div style={{ padding: 24 }}>
+      <V2LoadingState rows={5} variant="table" title="Cargando requerimientos de pago..." />
+    </div>
+  )
+  if (!puedeVerModulo(perfil, "rq")) return (
+    <div style={{ padding: 24 }}>
+      <V2EmptyState title="Sin acceso" description="No tienes permiso para ver Requerimientos de Pago." />
+    </div>
+  )
+
+  const estadoQuickFilter = (
+    <div className={styles.toolbarField}>
+      <V2Popover
+        ariaLabel="Filtrar por estado de aprobación"
+        trigger={
+          <V2Button variant="secondary" size="compact" style={{ width: "100%" }}>
+            {filtroEstados.length === 0 ? "Estado de aprobación" : `${filtroEstados.length} estado${filtroEstados.length > 1 ? "s" : ""} de aprobación`}
+          </V2Button>
+        }
+      >
+        <div className={styles.estadosPopover}>
+          {Object.entries(ESTADOS).map(([k, v]: any) => {
+            const activo = filtroEstados.includes(k)
+            return (
+              <label className={styles.estadoCheckboxRow} key={k}>
+                <input
+                  type="checkbox"
+                  checked={activo}
+                  onChange={() => setFiltroEstados(prev => activo ? prev.filter(e => e !== k) : [...prev, k])}
+                />
+                <V2StatusDot tone={estadoRQDotTone(k)} />
+                <span>{v.label}</span>
+              </label>
+            )
+          })}
+        </div>
+      </V2Popover>
+    </div>
+  )
+
+  const proveedorQuickFilter = (
+    <div className={styles.toolbarField}>
+      <V2Select
+        compact
+        value={filtroProveedor}
+        onChange={e => setFiltroProveedor(e.target.value)}
+        options={[{ label: "Todos los proveedores", value: "" }, ...proveedores.map(p => ({ label: p.nombre, value: p.id }))]}
+      />
+    </div>
+  )
+
+  const archivadoQuickFilter = (
+    <div className={styles.toolbarField}>
+      <V2Select
+        compact
+        value={filtroArchivado}
+        onChange={e => setFiltroArchivado(e.target.value as "activos" | "archivados" | "todos")}
+        options={[
+          { label: "Activos", value: "activos" },
+          { label: "Archivados (pagados meses anteriores)", value: "archivados" },
+          { label: "Todos", value: "todos" },
+        ]}
+      />
+    </div>
+  )
+
+  const kpiSection = (
+    <div className={styles.kpiGrid}>
+      <V2KpiCard
+        icon={<Clock size={20} />}
+        label="Pendientes"
+        value={fmt(totalPendiente)}
+        description={`${rqsBaseKpi.filter(r => r.estado === "pendiente_aprobacion").length} RQs`}
+        tone="warning"
+      />
+      <V2KpiCard
+        icon={<ShieldCheck size={20} />}
+        label="En aprobación"
+        value={fmt(totalAprobado)}
+        description={`${rqsBaseKpi.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length} RQs`}
+        tone="primary"
+      />
+      <V2KpiCard
+        icon={<CalendarClock size={20} />}
+        label="Programados"
+        value={fmt(totalProgramado)}
+        description={`${rqsBaseKpi.filter(r => r.estado === "programado").length} RQs`}
+        tone="neutral"
+      />
+      <V2KpiCard
+        icon={<Wallet size={20} />}
+        label="Pagados"
+        value={fmt(totalPagado)}
+        description={`${rqsBaseKpi.filter(r => r.estado === "pagado").length} RQs${filtroArchivado === "activos" ? " · mes actual" : filtroArchivado === "archivados" ? " · archivados" : " · activos + archivados"}`}
+        tone="success"
+      />
+    </div>
+  )
 
   return (
-    <div>
+    <>
       {toastMsg && (
         <div style={{
           position: "fixed",
@@ -885,344 +1350,87 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
           {toastMsg}
         </div>
       )}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Requerimientos de pago</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-            {rqsVistaActiva.length} RQs activos{rqsProyectosEliminados.length ? ` · ${rqsProyectosEliminados.length} en proyectos eliminados` : ""} · {perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}
-          </p>
-        </div>
-        {puedeAccionRQ("crear") && (<button onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo"); setProyectos(filtrarPorAlcance(projs || [], perfil, "proyectos", { usuarioId: perfil?.id })); setShowNuevoRQ(true) }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo RQ</button>)}
-        <ImportExport modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
-      </div>      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-        <KpiCard
-          icon="money"
-          label="Pendientes"
-          value={fmt(totalPendiente)}
-          sub={`${rqsVistaActiva.filter(r => r.estado === "pendiente_aprobacion").length} RQs`}
-          borderColor="#F59E0B"
-          valueColor="#92400E"
-        />
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            eyebrow="Tesorería & Pagos"
+            title="Requerimientos de Pago (RQ)"
+            subtitle={`${rqsVistaActiva.length} RQs activos · ${perfil ? perfil.nombre + " " + perfil.apellido + " (" + perfil.perfil + ")" : ""}`}
+            actions={
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                {puedeAccionRQ("crear") && (
+                  <V2Button variant="primary" leadingIcon={<Plus size={14} />} onClick={async () => { setErrorNuevoRQ(""); const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre"); setProveedores(provs || []); setProveedoresTodos(provs || []); const { data: projs } = await supabase.from("proyectos").select("id, codigo, nombre, estado, productor_id").is("deleted_at", null).order("codigo"); setProyectos(filtrarPorAlcance(projs || [], perfil, "proyectos", { usuarioId: perfil?.id })); setShowNuevoRQ(true) }}>
+                    Nuevo RQ
+                  </V2Button>
+                )}
+                <ImportExport variant="v2" modulo="requerimientos" campos={[{key:"codigo_rq",label:"N RQ"},{key:"descripcion",label:"Descripcion"},{key:"proveedor_nombre",label:"Proveedor"},{key:"monto_solicitado",label:"Monto"},{key:"tratamiento_igv",label:"Tratamiento IGV"},{key:"estado",label:"Estado"}]} datos={rqs.map(rq => ({ ...rq, codigo_rq: rqCodigo(rq), tratamiento_igv: rqTratamientoIgvLabel(rq) }))} onImportar={async () => ({ exitosos: 0, errores: ["RQs se generan automaticamente"] })} />
+              </div>
+            }
+          />
+        }
+        summary={kpiSection}
+        toolbar={
+          <div className={styles.toolbarWrap}>
+            <V2FilterBar
+              searchValue={busquedaRQ}
+              onSearchChange={setBusquedaRQ}
+              searchPlaceholder="Buscar RQ, número, proyecto, proveedor o concepto..."
+              activeFiltersCount={advancedFiltersCount}
+              onToggleDrawer={abrirFiltrosAvanzados}
+              quickFilters={<>{estadoQuickFilter}{proveedorQuickFilter}{archivadoQuickFilter}</>}
+              showClearButton={activeFiltersCount > 0}
+              onClearFilters={limpiarTodoToolbar}
+            />
 
-        <KpiCard
-          icon="shield"
-          label="En aprobación"
-          value={fmt(totalAprobado)}
-          sub={`${rqsVistaActiva.filter(r => ["aprobado_produccion","aprobado"].includes(r.estado)).length} RQs`}
-          borderColor="#3B82F6"
-          valueColor="#1E40AF"
-        />
+            {filtrosActivosChips.length > 0 && (
+              <div className={styles.chipsRow}>
+                {filtrosActivosChips.map(chip => (
+                  <V2ActiveFilterChip key={chip.id} id={chip.id} label={chip.label} valueLabel={chip.valueLabel} onRemove={quitarFiltro} />
+                ))}
+              </div>
+            )}
 
-        <KpiCard
-          icon="chart"
-          label="Programados"
-          value={fmt(totalProgramado)}
-          sub={`${rqsVistaActiva.filter(r => r.estado === "programado").length} RQs`}
-          borderColor="#06B6D4"
-          valueColor="#0E7490"
-        />
-
-        <KpiCard
-          icon="wallet"
-          label="Pagados"
-          value={fmt(totalPagado)}
-          sub={`${rqsVistaActiva.filter(r => r.estado === "pagado").length} RQs`}
-          borderColor="#10B981"
-          valueColor="#166534"
-        />
-      </div>
-
-      <div className="card" style={{ marginBottom: 16, padding: "12px 16px" }}>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <input
-  value={busquedaRQ}
-  onChange={e => setBusquedaRQ(e.target.value)}
-  placeholder="Buscar RQ, número, proyecto, proveedor o concepto..."
-  style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", minWidth: 360, flex: "1 1 360px" }}
-/>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-            {Object.entries(ESTADOS).map(([k, v]: any) => {
-              const activo = filtroEstados.includes(k)
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setFiltroEstados(prev => activo ? prev.filter(e => e !== k) : [...prev, k])}
-                  style={{
-                    fontSize: 12,
-                    padding: "6px 10px",
-                    borderRadius: 999,
-                    border: activo ? `1px solid ${v.color}` : "1px solid #e5e7eb",
-                    background: activo ? v.bg : "#fff",
-                    color: activo ? v.color : "#6b7280",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {activo ? "✓ " : ""}{v.label}
-                </button>
+            <div className={styles.resultsSummary}>
+              {filtrados.length} requerimiento{filtrados.length === 1 ? "" : "s"} encontrado{filtrados.length === 1 ? "" : "s"}
+              {activeFiltersCount > 0 ? ` · ${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}` : ""}
+            </div>
+          </div>
+        }
+        table={
+      <div className={styles.layoutGrid} style={{ gridTemplateColumns: selected ? "1fr 420px" : "1fr" }}>
+        <div className={styles.tableWrap}>
+          <V2DataTable
+            columns={columns}
+            rows={paginados}
+            getRowId={(rq) => rq.id}
+            selectedRowId={selected?.id}
+            onRowClick={handleRowClick}
+            stickyHeader
+            emptyState={
+              rqs.length === 0 ? (
+                <V2EmptyState title="No existen RQ" description="Aún no se han creado requerimientos de pago." />
+              ) : (
+                <V2EmptyState
+                  title="Sin resultados"
+                  description="No hay resultados para los filtros seleccionados."
+                  primaryAction={<V2Button variant="secondary" onClick={limpiarFiltros}>Limpiar filtros</V2Button>}
+                />
               )
-            })}
-          </div>          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
-            value={filtroProveedor} onChange={e => setFiltroProveedor(e.target.value)}>
-            <option value="">Todos los proveedores</option>
-            {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </select>
-          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
-            value={filtroTipoPago} onChange={e => setFiltroTipoPago(e.target.value)}>
-            <option value="">Todas las condiciones</option>
-            <option value="contado">Contado</option>
-            <option value="adelanto">Adelanto</option>
-            <option value="credito">Credito</option>
-          </select>
-          <select style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }}
-            value={filtroEstadoPago} onChange={e => setFiltroEstadoPago(e.target.value)}>
-            <option value="">Todos los estados de pago</option>
-            <option value="sin_programar">Sin programar</option>
-            <option value="programado">Programado</option>
-            <option value="vence_hoy">Vence hoy</option>
-            <option value="vencido">Vencido</option>
-            <option value="pagado">Pagado</option>
-            <option value="anulado">Anulado</option>
-          </select>
-          <input type="date" title="Fecha necesidad desde" value={filtroFechaNecesidadDesde} onChange={e => setFiltroFechaNecesidadDesde(e.target.value)}
-            style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }} />
-          <input type="date" title="Fecha necesidad hasta" value={filtroFechaNecesidadHasta} onChange={e => setFiltroFechaNecesidadHasta(e.target.value)}
-            style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff" }} />
-          <select
-            value={filtroExcepcion}
-            onChange={e => setFiltroExcepcion(e.target.value)}
-            style={{
-              padding: "7px 10px",
-              border: "1px solid #e5e7eb",
-              borderRadius: 7,
-              fontSize: 13,
-              fontFamily: "inherit",
-              background: "#fff"
-            }}
-          >
-            <option value="todos">Todas las solicitudes</option>
-            <option value="solo">🚩 Solo excepciones</option>
-            <option value="sin">Sin excepción</option>
-          </select>
-          {filtroProyecto && (
-            <span style={{ fontSize: 12, color: "#0F6E56", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 99, padding: "4px 10px", fontWeight: 700 }}>
-              Proyecto filtrado
-            </span>
-          )}
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280", fontWeight: 600 }}>
-            <input type="checkbox" checked={incluirProyectosEliminados} onChange={e => setIncluirProyectosEliminados(e.target.checked)} />
-            Incluir proyectos eliminados
-          </label>
-          {(filtroEstados.length > 0 || filtroProveedor || filtroTipoPago || filtroEstadoPago || filtroFechaNecesidadDesde || filtroFechaNecesidadHasta || filtroExcepcion !== "todos" || filtroProyecto || incluirProyectosEliminados) && (
-            <button onClick={() => { setFiltroEstados([]); setFiltroProveedor(""); setFiltroTipoPago(""); setFiltroEstadoPago(""); setFiltroFechaNecesidadDesde(""); setFiltroFechaNecesidadHasta(""); setFiltroExcepcion("todos"); setFiltroProyecto(""); setIncluirProyectosEliminados(false) }}
-              style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
-              Limpiar filtros
-            </button>
-          )}
-          <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: "auto" }}>{filtrados.length} resultados</span>
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 420px" : "1fr", gap: 16 }}>
-        <div className="card" style={{ padding: 0, overflowX: "auto", border: "1px solid #E2E8F0", borderRadius: 18, background: "#fff", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
-          <table style={{ width: "100%", minWidth: 1560, borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("codigo_rq", "N RQ")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("proyecto", "PROYECTO")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("proveedor", "PROVEEDOR")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("productor", "PRODUCTOR")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("descripcion", "DESCRIPCION")}</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("monto_solicitado", "MONTO")}</th>
-                <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("tratamiento_igv", "IGV")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("tipo_pago", "CONDICIÓN COMERCIAL")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("fecha_solicitud", "F. SOLICITUD")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("fecha_necesidad_pago", "F. NECESIDAD")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("fecha_programada_pago", "F. PROGRAMADA")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("fecha_pago", "F. PAGO REAL")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO PAGO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>{rqColumnLabel("estado", "ESTADO RQ")}</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MIGRACIÓN</th>
-                <th style={{ padding: "10px 20px", width: 140 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginados.map((rq, idx) => {
-                const ec = ESTADOS[rq.estado] || { bg: "#f3f4f6", color: "#6b7280", label: rq.estado }
-                const accion = getSiguienteAccion(rq)
-                const igv = detalleIgv(rq)
-                const proyectoEliminado = rqPerteneceAProyectoEliminado(rq)
-                const pago = estadoPagoRQ(rq)
-                const migracion = estadoMigracionRQ(rq, migrationLogs)
-                return (
-                  <tr key={rq.id}
-                    style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === rq.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}
-                    onClick={() => {
-                      if (selected?.id === rq.id) { setSelected(null); return }
-                      setSelected(rq)
-                      setDatosPago({
-                        voucher_url: rq.voucher_url || "",
-                        numero_operacion: rq.numero_operacion || "",
-                        banco_pago: rq.banco_pago || "",
-                        tipo_transferencia: rq.tipo_transferencia || "Transferencia",
-                        nota_pago: rq.nota_pago || "",
-                      })
-                      setDatosRendicion({
-                        monto_rendido: rq.monto_rendido ? String(rq.monto_rendido) : "",
-                        monto_devolucion: rq.monto_devolucion ? String(rq.monto_devolucion) : "",
-                        fecha_rendicion: rq.fecha_rendicion || "",
-                        observacion_rendicion: rq.observacion_rendicion || "",
-                      })
-                    }}>
-                    <td style={{ padding: "12px 20px", fontSize: 12, fontWeight: 700, color: "#0F6E56" }}>{rqCodigo(rq)}</td>
-                    <td style={{ padding: "12px" }}>
-                      {proyectoEliminado ? (
-                        <>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>{rq.proyecto?.codigo || "Proyecto eliminado"}</div>
-                          <div style={{ fontSize: 11, color: "#b91c1c" }}>{rq.proyecto?.nombre || "No disponible"} · Proyecto eliminado</div>
-                        </>
-                      ) : rq.proyecto_id ? (
-                        <a href={`/proyectos/${rq.proyecto_id}`} onClick={e => e.stopPropagation()} style={{ textDecoration: "none", display: "inline-block" }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "#0F6E56" }}>{rq.proyecto?.codigo}</div>
-                          <div style={{ fontSize: 11, color: "#6b7280" }}>{rq.proyecto?.nombre}</div>
-                        </a>
-                      ) : (
-                        <>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>—</div>
-                          <div style={{ fontSize: 11, color: "#9ca3af" }}>Sin proyecto</div>
-                        </>
-                      )}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{rq.proveedor_nombre || rq.proveedor?.nombre || "—"}</td>
-                    <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>
-                      {rq.proyecto?.productor ? rq.proyecto.productor.nombre + " " + rq.proyecto.productor.apellido : "—"}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {rq.descripcion || "—"}
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>
-                      {fmt(igv.total)}
-                      <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 500 }}>Base {fmt(igv.subtotal)}</div>
-                    </td>
-                    <td style={{ padding: "12px", textAlign: "center" }}>
-                      <span style={{ background: igv.tratamiento === "mas_igv" ? "#fef9c3" : igv.tratamiento === "no_aplica" ? "#f3f4f6" : "#f0fdf4", color: igv.tratamiento === "mas_igv" ? "#92400e" : igv.tratamiento === "no_aplica" ? "#374151" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
-                        {rqTratamientoIgvLabel(rq)}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12 }}>
-                      {condicionComercialRQ(rq) ? (
-                        <>
-                          <span style={{ background: condicionComercialRQ(rq) === "credito" ? "#dbeafe" : condicionComercialRQ(rq) === "adelanto" ? "#fef9c3" : "#f0fdf4", color: condicionComercialRQ(rq) === "credito" ? "#1e40af" : condicionComercialRQ(rq) === "adelanto" ? "#92400e" : "#15803d", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
-                            {condicionLabelRQ(rq)}{rq.dias_credito ? " " + rq.dias_credito + "d" : ""}
-                          </span>
-
-                          {rq.es_excepcion && (
-                            <div
-                              title={rq.motivo_excepcion || "Excepción de pago"}
-                              style={{
-                                marginTop: 4,
-                                color: "#dc2626",
-                                fontSize: 10,
-                                fontWeight: 800,
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              🚩 Excepción
-                            </div>
-                          )}
-                        </>
-                      ) : "—"}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>
-                      {rq.created_at ? new Date(rq.created_at).toLocaleDateString("es-PE") : "—"}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>
-                      {fmtFecha(fechaNecesidadRQ(rq))}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>
-                      {fmtFecha(fechaProgramadaRQ(rq))}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#374151" }}>
-                      {fmtFecha(fechaPagoRealRQ(rq))}
-                    </td>
-                    <td style={{ padding: "12px", fontSize: 12 }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: pago.bg, color: pago.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
-                        {pago.icon} {pago.label}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px" }}>
-                      <StatusBadge label={ec.label} type={rq.estado} />
-                      {rq.estado === "pagado" && rq.numero_operacion && (
-                        <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>Op: {rq.numero_operacion}</div>
-                      )}
-                      {proyectoEliminado && (
-                        <div style={{ fontSize: 10, color: "#991b1b", marginTop: 3, fontWeight: 700 }}>Proyecto eliminado</div>
-                      )}
-                    </td>
-                    <td style={{ padding: "12px" }}>
-                      <span title={motivoEstadoMigracion(rq, migrationLogs)} style={{ display: "inline-flex", background: migracion.bg, color: migracion.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
-                        {migracion.label}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px 20px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
-                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                      {puedeEditarRQ(rq) && (
-                        <button onClick={(e) => { e.stopPropagation(); setSelected(rq); abrirEditarRQ(rq) }}
-                          style={{ fontSize: 11, padding: "4px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer", fontWeight: 600 }}>
-                          Editar
-                        </button>
-                      )}
-                      {accion && (
-                        <button onClick={(e) => { e.stopPropagation(); cambiarEstado(rq.id, accion.nextEstado) }}
-                          style={{ fontSize: 11, padding: "4px 10px", border: "none", borderRadius: 6, background: accion.color, color: "#fff", cursor: "pointer", fontWeight: 600 }}>
-                          {accion.label}
-                        </button>
-                      )}
-                      {puedeCancelarRQ(rq) && (
-                        <button onClick={(e) => { e.stopPropagation(); cancelarRQ(rq) }}
-                          style={{ fontSize: 11, padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", color: "#4b5563", cursor: "pointer", fontWeight: 600 }}>
-                          Cancelar
-                        </button>
-                      )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-              {filtrados.length === 0 && (
-                <tr><td colSpan={16} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay requerimientos de pago</td></tr>
-              )}
-            </tbody>
-          </table>
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderTop: "1px solid #F1F5F9", background: "#fff", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>
-              Mostrando <strong style={{ color: "#111827" }}>{inicioPagina}</strong>–<strong style={{ color: "#111827" }}>{finPagina}</strong> de <strong style={{ color: "#111827" }}>{filtrados.length}</strong> RQs · 50 por página
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button onClick={() => setPagina(prev => Math.max(1, prev - 1))} disabled={paginaActual <= 1}
-                style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 7, background: paginaActual <= 1 ? "#f9fafb" : "#fff", color: paginaActual <= 1 ? "#9ca3af" : "#374151", cursor: paginaActual <= 1 ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600 }}>
-                ← Anterior
-              </button>
-
-              <span style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>
-                Página {paginaActual} de {totalPaginas}
-              </span>
-
-              <button onClick={() => setPagina(prev => Math.min(totalPaginas, prev + 1))} disabled={paginaActual >= totalPaginas}
-                style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 7, background: paginaActual >= totalPaginas ? "#f9fafb" : "#fff", color: paginaActual >= totalPaginas ? "#9ca3af" : "#374151", cursor: paginaActual >= totalPaginas ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600 }}>
-                Siguiente →
-              </button>
-            </div>
+            }
+          />
+          <div className={styles.paginationRow}>
+            <V2Pagination
+              page={paginaActual}
+              pageCount={totalPaginas}
+              onPageChange={setPagina}
+              summary={`Mostrando ${inicioPagina}–${finPagina} de ${filtrados.length} RQs · 50 por página`}
+            />
           </div>
         </div>
 
         {selected && (
-          <div className="card" style={{ position: "sticky", top: 20, alignSelf: "start" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div className={`card ${styles.detailPanel}`}>
+            <div className={styles.detailPanelHeader}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>{rqCodigo(selected)}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 {puedeEditarRQ(selected) && (
@@ -1233,6 +1441,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
                 <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 18 }}>x</button>
               </div>
             </div>
+            <div className={styles.detailPanelBody}>
             {!puedeEditarRQ(selected) && mensajeEdicionRQ(selected) && (
               <div style={{ padding: "8px 10px", border: "1px solid #bbf7d0", borderRadius: 8, background: "#f0fdf4", color: "#166534", fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
                 {mensajeEdicionRQ(selected)}
@@ -1313,6 +1522,19 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
                     </div>
                   )
                 })}
+                {(() => {
+                  const migracion = estadoMigracionRQ(selected, migrationLogs)
+                  const motivo = motivoEstadoMigracion(selected, migrationLogs)
+                  return (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #e5e7eb" }}>
+                      <div style={lbl}>Migración de versión</div>
+                      <span title={motivo} style={{ display: "inline-flex", background: migracion.bg, color: migracion.color, padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
+                        {migracion.label}
+                      </span>
+                      {motivo && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>{motivo}</div>}
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* Datos de pago — visible en programado, pagado, y al confirmar */}
@@ -1499,8 +1721,91 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
                 </div>
               )}
             </div>
+            </div>
           </div>
         )}
+      </div>
+        }
+      />
+
+      <V2FilterDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        activeChips={filtrosActivosChips}
+        onRemoveChip={quitarFiltro}
+        onApply={aplicarFiltrosAvanzados}
+        onClearAll={limpiarFiltrosAvanzados}
+      >
+        <div style={{ display: "grid", gap: 16 }}>
+          <V2FormField label="Proyecto">
+            <V2Select
+              value={tempProyecto}
+              onChange={e => setTempProyecto(e.target.value)}
+              options={[
+                { label: "Todos los proyectos", value: "" },
+                ...proyectos.map((p: any) => ({ label: `${p.codigo} - ${p.nombre}`, value: p.id })),
+              ]}
+            />
+          </V2FormField>
+
+          <V2FormField label="Condición comercial">
+            <V2Select
+              value={tempTipoPago}
+              onChange={e => setTempTipoPago(e.target.value)}
+              options={[
+                { label: "Todas las condiciones", value: "" },
+                { label: "Contado", value: "contado" },
+                { label: "Adelanto", value: "adelanto" },
+                { label: "Credito", value: "credito" },
+              ]}
+            />
+          </V2FormField>
+
+          <V2FormField label="Estado de pago">
+            <V2Select
+              value={tempEstadoPago}
+              onChange={e => setTempEstadoPago(e.target.value)}
+              options={[
+                { label: "Todos los estados de pago", value: "" },
+                { label: "Sin programar", value: "sin_programar" },
+                { label: "Programado", value: "programado" },
+                { label: "Vence hoy", value: "vence_hoy" },
+                { label: "Vencido", value: "vencido" },
+                { label: "Pagado", value: "pagado" },
+                { label: "Anulado", value: "anulado" },
+              ]}
+            />
+          </V2FormField>
+
+          <V2FormField label="Fecha necesidad desde">
+            <V2Input type="date" value={tempFechaNecesidadDesde} onChange={e => setTempFechaNecesidadDesde(e.target.value)} />
+          </V2FormField>
+
+          <V2FormField label="Fecha necesidad hasta">
+            <V2Input type="date" value={tempFechaNecesidadHasta} onChange={e => setTempFechaNecesidadHasta(e.target.value)} />
+          </V2FormField>
+
+          <V2FormField label="Excepciones">
+            <V2Select
+              value={tempExcepcion}
+              onChange={e => setTempExcepcion(e.target.value)}
+              options={[
+                { label: "Todas las solicitudes", value: "todos" },
+                { label: "🚩 Solo excepciones", value: "solo" },
+                { label: "Sin excepción", value: "sin" },
+              ]}
+            />
+          </V2FormField>
+
+          <V2FormField label="Proyectos eliminados">
+            <label className={styles.toolbarCheckboxField}>
+              <input type="checkbox" checked={tempIncluirProyectosEliminados} onChange={e => setTempIncluirProyectosEliminados(e.target.checked)} />
+              Incluir proyectos eliminados
+            </label>
+          </V2FormField>
+        </div>
+      </V2FilterDrawer>
+
       {showEditarRQ && selected && (
         <div onClick={() => setShowEditarRQ(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 520 }}>
@@ -1595,94 +1900,12 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
               <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Nuevo Requerimiento de Pago</h2>
               <button onClick={() => setShowNuevoRQ(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>x</button>
             </div>
-            <div style={{ display: "grid", gap: 12 }}>
-              <div>
-                <label style={lbl}>PROYECTO</label>
-                <select style={inp} value={formRQ.proyecto_id} onChange={e => { setErrorNuevoRQ(""); setFormRQ({ ...formRQ, proyecto_id: e.target.value }) }}>
-                  <option value="">Seleccionar proyecto</option>{proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}{p.estado !== "en_curso" ? " (no en curso)" : ""}</option>)}
-                </select>
-                {formRQ.proyecto_id && proyectos.find((p: any) => p.id === formRQ.proyecto_id)?.estado !== "en_curso" && (
-                  <div style={{ fontSize: 11, color: "#92400e", marginTop: 4 }}>Para generar RQs, el proyecto debe estar En curso.</div>
-                )}
-              </div>
-              <div><label style={lbl}>CONCEPTO</label><input style={inp} value={formRQ.descripcion} placeholder="Concepto del RQ..." onChange={e => setFormRQ({ ...formRQ, descripcion: e.target.value })} /></div>
-              <div><label style={lbl}>PROVEEDOR</label><select style={inp} value={formRQ.proveedor_id} onChange={e => setFormRQ({ ...formRQ, proveedor_id: e.target.value })}><option value="">Seleccionar proveedor</option>{proveedoresTodos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>
-              <div><label style={lbl}>MONTO (S/)</label><input type="number" style={inp} value={formRQ.monto_solicitado} placeholder="0.00" onChange={e => setFormRQ({ ...formRQ, monto_solicitado: e.target.value })} /></div>
-              <div><label style={lbl}>TRATAMIENTO IGV</label><select style={inp} value={formRQ.tratamiento_igv} onChange={e => setFormRQ({ ...formRQ, tratamiento_igv: e.target.value })}><option value="incluye_igv">Incluye IGV</option><option value="mas_igv">No incluye IGV</option><option value="no_aplica">No aplica</option></select></div>
-              {formRQ.monto_solicitado && (
-                <div style={{ padding: 10, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, color: "#374151" }}>
-                  {(() => {
-                    const igv = rqIgvDetalle({ monto_solicitado: formRQ.monto_solicitado, tratamiento_igv: formRQ.tratamiento_igv })
-                    return <>Subtotal {fmt(igv.subtotal)} · IGV {fmt(igv.igv)} · Total {fmt(igv.total)}</>
-                  })()}
-                </div>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div><label style={lbl}>CONDICIÓN COMERCIAL</label><select style={inp} value={formRQ.condicion_comercial} onChange={e => setFormRQ({ ...formRQ, condicion_comercial: e.target.value, tipo_pago: e.target.value, dias_credito: e.target.value === "credito" ? formRQ.dias_credito : "" })}><option value="contado">Contado</option><option value="adelanto">Adelanto</option><option value="credito">Credito</option></select></div>
-                <div><label style={lbl}>MEDIO DE PAGO</label><select style={inp} value={formRQ.medio_pago} onChange={e => setFormRQ({ ...formRQ, medio_pago: e.target.value })}>{MEDIOS_PAGO.map(m => <option key={m}>{m}</option>)}</select></div>
-              </div>
-              {formRQ.condicion_comercial === "credito" && (
-                <div><label style={lbl}>DÍAS DE CRÉDITO</label><input type="number" style={inp} value={formRQ.dias_credito} placeholder="Ej: 30, 45, 60..." onChange={e => setFormRQ({ ...formRQ, dias_credito: e.target.value })} /></div>
-              )}
-              <div><label style={lbl}>FECHA DE NECESIDAD DE PAGO</label><input type="date" style={inp} value={formRQ.fecha_necesidad_pago} onChange={e => setFormRQ({ ...formRQ, fecha_necesidad_pago: e.target.value })} /></div>
-
-              <div style={{
-                padding: 12,
-                borderRadius: 10,
-                border: formRQ.es_excepcion
-                  ? "1px solid #fecaca"
-                  : "1px solid #e5e7eb",
-                background: formRQ.es_excepcion
-                  ? "#fef2f2"
-                  : "#f9fafb"
-              }}>
-                <label style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: formRQ.es_excepcion ? "#b91c1c" : "#374151",
-                  cursor: "pointer"
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(formRQ.es_excepcion)}
-                    onChange={e => setFormRQ({
-                      ...formRQ,
-                      es_excepcion: e.target.checked,
-                      motivo_excepcion: e.target.checked
-                        ? formRQ.motivo_excepcion
-                        : ""
-                    })}
-                  />
-                  🚩 Marcar como excepción de pago
-                </label>
-
-                {formRQ.es_excepcion && (
-                  <div style={{ marginTop: 10 }}>
-                    <label style={{ ...lbl, color: "#b91c1c" }}>
-                      MOTIVO DE LA EXCEPCIÓN *
-                    </label>
-
-                    <textarea
-                      rows={3}
-                      value={formRQ.motivo_excepcion}
-                      placeholder="Explica por qué este pago requiere una excepción..."
-                      onChange={e => setFormRQ({
-                        ...formRQ,
-                        motivo_excepcion: e.target.value
-                      })}
-                      style={{
-                        ...inp,
-                        resize: "vertical",
-                        borderColor: "#fca5a5"
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
+            <RQForm
+              formRQ={formRQ}
+              onChange={(next) => { setErrorNuevoRQ(""); setFormRQ(next) }}
+              proveedoresTodos={proveedoresTodos}
+              proyectos={proyectos}
+            />
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
               {errorNuevoRQ && (
                 <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: "#fef2f2", color: "#991b1b", fontSize: 12, textAlign: "left" }}>
@@ -1695,8 +1918,7 @@ const [filtroExcepcion, setFiltroExcepcion] = useState("todos")
           </div>
         </div>
 )}
-    </div>
-    </div>
+    </>
   )
 }
 

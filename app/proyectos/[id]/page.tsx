@@ -6,7 +6,7 @@ import { notificarATodos } from "@/lib/notificaciones"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { cargarItemsAprobadosAlGestor } from "@/lib/gestor"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation"
 import { rqCodigo } from "@/lib/rq-code"
 import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 import { filtrarPorAlcance, puedeEjecutarAccion, puedeVerInformacionSensible, puedeVerModulo, type AccionPermiso } from "@/lib/permisos"
@@ -15,11 +15,29 @@ import { businessRuleEngine } from "@/lib/core/business-rules"
 import { esFacturaAnulada, totalFactura } from "@/lib/finance"
 import { puedeCerrarFinancieramenteProyecto } from "@/lib/proyecto-cierre-financiero"
 import { RQ_MIGRATION_SUCCESS_ACTIONS } from "@/lib/rq-migracion"
+import { V2DetailPageTemplate } from "@/components/v2/templates"
+import { V2AlertCard, V2ActivityTimeline, V2Button, V2Drawer, V2EmptyState, V2ErrorState, V2MetricCard, V2QuickActions, V2SectionCard, V2SectionHeader, V2Select, V2StatusBadge, V2StatusSelect } from "@/components/v2/system"
+import { crearRQManualService, type FormRQManual } from "@/lib/services/rqp"
+import { RQForm } from "@/app/rq/components/RQForm"
+import { guardarTareaService, type FormTarea } from "@/lib/services/tareas"
+import { TaskForm } from "@/app/tareas/components/TaskForm"
+import { cargarCotizacionesDelProyecto, guardarRequerimientoAudiovisualService, subirDocumentoAudiovisual, type FormAudiovisual } from "@/lib/services/audiovisual"
+import { AudiovisualRequestForm } from "@/app/audiovisual/requerimientos/components/AudiovisualRequestForm"
+import type { V2TimelineItem } from "@/components/v2/system/V2ActivityTimeline"
+import { ProjectDetailShellV2 } from "@/components/v2/projects/ProjectDetailShellV2"
+import { ProjectDetailHeaderV2, estadoTone } from "@/components/v2/projects/ProjectDetailHeaderV2"
+import { ProjectDetailSection } from "@/components/v2/projects/ProjectDetailContentV2"
+import { DEFAULT_PROJECT_DETAIL_TAB, isProjectDetailTabId, type ProjectDetailTabId } from "@/components/v2/projects/ProjectDetailTabsV2"
+import { ProjectActionToolbarV2, type ProjectToolbarAction } from "@/components/v2/projects/ProjectActionToolbarV2"
+import { ProjectWorkflowCardV2, type ProjectWorkflowStep } from "@/components/v2/projects/ProjectWorkflowCardV2"
+import { ProjectInfoCardV2 } from "@/components/v2/projects/ProjectInfoCardV2"
+import styles from "@/components/v2/projects/ProjectDetailV2.module.css"
+import { FilePlus2, FileText, ClipboardList, Video, Receipt, FileCheck2, FolderOpen, Pencil, Eye, Trash2, RotateCcw, CheckCircle2 } from "lucide-react"
 
 const FLUJO: Record<string, any> = {
   pendiente_aprobacion: { label: "Pendiente aprobación", bg: "#fef9c3", color: "#92400e", siguiente: "aprobado_produccion", accion: "Aprobar (Producción)", roles: ["gerente_produccion", "gerente_general", "superadmin"] },
   aprobado_produccion:  { label: "Aprobado Producción",  bg: "#fed7aa", color: "#9a3412", siguiente: "aprobado_gerencia",   accion: "Aprobar (Gerencia)",      roles: ["gerente_general", "superadmin"] },
-  aprobado_gerencia:    { label: "Aprobado Gerencia",    bg: "#e0e7ff", color: "#3730a3", siguiente: "aprobado_cliente",    accion: "Aprobar cliente",    roles: ["gerente_general", "superadmin"] },
+  aprobado_gerencia:    { label: "Aprobado Gerencia",    bg: "#e0e7ff", color: "#3730a3", siguiente: "aprobado_cliente",    accion: "Aprobar cliente",    roles: ["gerente_general", "superadmin", "comercial"] },
   aprobado_cliente:     { label: "Aprobado Cliente",     bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Preparar pre-cuadre / generar RQs", roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   aprobado:             { label: "Aprobado",              bg: "#dbeafe", color: "#1e40af", siguiente: "en_curso",            accion: "Iniciar proyecto",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
   en_curso:             { label: "En curso",              bg: "#dcfce7", color: "#15803d", siguiente: "terminado",           accion: "Marcar terminado",        roles: ["gerente_produccion", "gerente_general", "productor", "superadmin"] },
@@ -41,7 +59,7 @@ const ENTIDADES = [
 
 const ESTADOS_RQ: Record<string, any> = {
   pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e", label: "Pendiente" },
-  aprobado_produccion: { bg: "#fed7aa", color: "#9a3412", label: "Aprobado Produccion" },
+  aprobado_produccion: { bg: "#fed7aa", color: "#9a3412", label: "Aprobado Producción" },
   aprobado: { bg: "#dcfce7", color: "#15803d", label: "Aprobado GG" },
   programado: { bg: "#dbeafe", color: "#1e40af", label: "Programado" },
   pagado: { bg: "#f0fdf4", color: "#166534", label: "Pagado" },
@@ -52,8 +70,21 @@ const ESTADOS_RQ: Record<string, any> = {
 export default function ProyectoDetallePage() {
   const params = useParams()
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const id = params?.id as string
   const supabase = createClient()
+
+  // Pestana activa persistida en la URL (?tab=). Sin valor o valor invalido -> "resumen".
+  // Cambiar de pestana no vuelve a ejecutar load(): activeTab es independiente del estado de datos.
+  const tabParam = searchParams.get("tab")
+  const activeTab: ProjectDetailTabId = isProjectDetailTabId(tabParam) ? tabParam : DEFAULT_PROJECT_DETAIL_TAB
+
+  function handleTabChange(tab: ProjectDetailTabId) {
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.set("tab", tab)
+    router.push(`${pathname}?${nextParams.toString()}`, { scroll: false })
+  }
 
   const [proyecto, setProyecto] = useState<any>(null)
   const [cotizaciones, setCotizaciones] = useState<any[]>([])
@@ -67,6 +98,21 @@ export default function ProyectoDetallePage() {
   const [cambiando, setCambiando] = useState(false)
   const [showPreCuadre, setShowPreCuadre] = useState(false)
   const [preCuadreItems, setPreCuadreItems] = useState<any[]>([])
+  const [scrollTargetId, setScrollTargetId] = useState<string | null>(null)
+  // Launcher contextual: que Drawer de accion del proyecto esta abierto. Un solo estado
+  // en vez de un booleano por accion (isRqOpen/isTaskOpen/...), extensible a futuro.
+  const [activeProjectAction, setActiveProjectAction] = useState<"rq" | "task" | "audiovisual" | null>(null)
+  const [rqForm, setRqForm] = useState<FormRQManual | null>(null)
+  const [rqError, setRqError] = useState("")
+  const [rqGuardando, setRqGuardando] = useState(false)
+  const [taskForm, setTaskForm] = useState<FormTarea | null>(null)
+  const [usuariosTarea, setUsuariosTarea] = useState<any[]>([])
+  const [taskGuardando, setTaskGuardando] = useState(false)
+  const [audiovisualForm, setAudiovisualForm] = useState<FormAudiovisual | null>(null)
+  const [productoresAudiovisual, setProductoresAudiovisual] = useState<any[]>([])
+  const [cotizacionesAudiovisual, setCotizacionesAudiovisual] = useState<any[]>([])
+  const [audiovisualGuardando, setAudiovisualGuardando] = useState(false)
+  const [audiovisualUploading, setAudiovisualUploading] = useState(false)
   const [itemsCotizadosPresupuesto, setItemsCotizadosPresupuesto] = useState<any[]>([])
   const [showMigracionRQ, setShowMigracionRQ] = useState(false)
   const [comparacionPendiente, setComparacionPendiente] = useState<any>(null)
@@ -85,6 +131,19 @@ export default function ProyectoDetallePage() {
   const [accesoRestringido, setAccesoRestringido] = useState(false)
 
   useEffect(() => { load() }, [id])
+
+  // Acciones "Ver liquidacion"/"Ver documentos" cambian de pestana (handleTabChange)
+  // y piden un scroll a la seccion correspondiente via scrollTargetId. El scroll se
+  // hace aqui, despues de que activeTab efectivamente cambio y esa seccion ya esta
+  // en el DOM (ProjectDetailSection no renderiza pestanas inactivas).
+  useEffect(() => {
+    if (!scrollTargetId) return
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(scrollTargetId)?.scrollIntoView({ behavior: "smooth", block: "start" })
+      setScrollTargetId(null)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [activeTab, scrollTargetId])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -1317,6 +1376,142 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
     if (nueva) router.push(`/proyectos/${id}/cotizaciones/${nueva.id}`)
   }
 
+  // Mismo flujo que usa el boton "+ Generar RQs adicionales" de Costos/RQ — se extrajo
+  // aqui para que la accion "Crear RQ" de la barra superior del proyecto pueda reutilizarlo
+  // sin duplicar logica ni navegar fuera del detalle del proyecto.
+  async function abrirGenerarRQAdicional() {
+    const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
+    setProveedores(provs || [])
+    setPreCuadreItems([{ id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, esAdicional: true, tipo_pago: "contado", tratamiento_igv: tratamientoIgvDefaultProyecto }])
+    setShowPreCuadre(true)
+  }
+
+  // Formulario general de "Crear RQ" (mismo RQForm/crearRQManualService que /rq) abierto
+  // desde el proyecto, con proyecto_id precargado y bloqueado. No decide aqui si el
+  // proyecto esta "en curso": esa regla vive dentro de crearRQManualService, igual que
+  // cuando se crea desde /rq directamente.
+  function abrirCrearRQGeneral() {
+    setRqError("")
+    setRqForm({
+      descripcion: "", proveedor_id: "", monto_solicitado: "", tratamiento_igv: "incluye_igv",
+      proyecto_id: String(id), tipo_pago: "contado", condicion_comercial: "contado", medio_pago: "Transferencia",
+      es_excepcion: false, motivo_excepcion: "", dias_credito: "", fecha_necesidad_pago: "",
+      fecha_pago: "", voucher_url: "", nota_pago: "", numero_operacion: "", banco_pago: "", tipo_transferencia: "Transferencia",
+    })
+    if (proveedores.length === 0) {
+      supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
+        .then(({ data }) => setProveedores(data || []))
+    }
+    setActiveProjectAction("rq")
+  }
+
+  async function guardarRQGeneral() {
+    if (!rqForm) return
+    setRqError("")
+    setRqGuardando(true)
+    const resultado = await crearRQManualService({ supabase, formRQ: rqForm, proyectos: proyecto ? [proyecto] : [], proveedoresTodos: proveedores, perfil })
+    if (!resultado.ok) {
+      setRqError(resultado.error)
+      setRqGuardando(false)
+      return
+    }
+    setActiveProjectAction(null)
+    await load()
+    setRqGuardando(false)
+  }
+
+  // Formulario general de "Crear tarea" (mismo TaskForm/guardarTareaService que /tareas)
+  // abierto desde el proyecto, con proyecto_id y cliente_id precargados y bloqueados.
+  // Solo creacion (editando=null) — editar tareas desde Proyecto no esta en alcance.
+  function abrirCrearTarea() {
+    setTaskForm({
+      titulo: "", descripcion: "", estado: "pendiente", prioridad: "media",
+      proyecto_id: String(id), cliente_id: clienteId || "", asignado_a: "",
+      fecha_limite: "", hora_inicio: "", hora_fin: "", participante_ids: [],
+      frecuencia: "no_repite", recurrencia_intervalo: 1, recurrencia_fecha_fin: "", recurrencia_max_repeticiones: "",
+      link_inicial: "", notificar_participantes: true, mostrar_participantes_mi_trabajo: true, permitir_comentarios: true, recibir_correos_automaticos: true,
+    })
+    if (usuariosTarea.length === 0) {
+      supabase.from("perfiles").select("id, nombre, apellido, perfil").order("nombre")
+        .then(({ data }: any) => setUsuariosTarea(data || []))
+    }
+    setActiveProjectAction("task")
+  }
+
+  async function guardarTareaProyecto() {
+    if (!taskForm) return
+    setTaskGuardando(true)
+    const resultado = await guardarTareaService({ supabase, form: taskForm, editando: null, perfil })
+    if (!resultado.ok) {
+      alert(resultado.error)
+      setTaskGuardando(false)
+      return
+    }
+    setActiveProjectAction(null)
+    handleTabChange("seguimiento")
+    setScrollTargetId("tab-tareas")
+    await load()
+    setTaskGuardando(false)
+  }
+
+  // Formulario general de "Solicitar audiovisual" (mismo AudiovisualRequestForm/
+  // guardarRequerimientoAudiovisualService que /audiovisual/requerimientos) abierto
+  // desde el proyecto, con proyecto_id precargado y bloqueado (sin opcion OTRO / SIN
+  // PROYECTO) y sus cotizaciones ya cargadas. Solo creacion (editando=null).
+  async function abrirSolicitarAudiovisual() {
+    setAudiovisualForm({
+      proyecto_id: String(id), cotizacion_id: "", detalle_otro_proyecto: "", ubicacion: "",
+      productor_id: proyecto?.productor_id || "", responsable_audiovisual_id: "",
+      fecha_entrega_solicitada: "", fecha_devolucion_audiovisual: "", piezas: [],
+      pieza_otros_descripcion: "", brief: "", prioridad: "media", avance: "10",
+      referencia_url: "", documento_url: "", artes_url: "", estado: "pendiente",
+    })
+    if (productoresAudiovisual.length === 0) {
+      supabase.from("perfiles").select("id,nombre,apellido,perfil").eq("activo", true).order("nombre")
+        .then(({ data }: any) => setProductoresAudiovisual(data || []))
+    }
+    setCotizacionesAudiovisual(await cargarCotizacionesDelProyecto(supabase, String(id)))
+    setActiveProjectAction("audiovisual")
+  }
+
+  async function subirDocumentoAudiovisualProyecto(file: File) {
+    setAudiovisualUploading(true)
+    const resultado = await subirDocumentoAudiovisual(supabase, file)
+    if (!resultado.ok) {
+      alert(resultado.error)
+      setAudiovisualUploading(false)
+      return
+    }
+    setAudiovisualForm((prev) => (prev ? { ...prev, documento_url: resultado.url } : prev))
+    setAudiovisualUploading(false)
+  }
+
+  async function guardarAudiovisualProyecto() {
+    if (!audiovisualForm) return
+    setAudiovisualGuardando(true)
+    const resultado = await guardarRequerimientoAudiovisualService({
+      supabase,
+      form: audiovisualForm,
+      editando: null,
+      perfil,
+      proyectos: proyecto ? [proyecto] : [],
+      productores: productoresAudiovisual,
+      puedeEditarPedidoFormulario: true,
+      puedeEditarAvanceFormulario: false,
+    })
+    if (!resultado.ok) {
+      alert(resultado.error)
+      setAudiovisualGuardando(false)
+      return
+    }
+    if (resultado.warning) alert(resultado.warning)
+    setActiveProjectAction(null)
+    handleTabChange("seguimiento")
+    setScrollTargetId("tab-tareas")
+    await load()
+    setAudiovisualGuardando(false)
+  }
+
   async function abrirPreCuadreDesdeItem(item: any) {
     if (!puedeAccionRQ("crear")) {
       alert("No tienes permiso para realizar esta acción.")
@@ -1457,37 +1652,42 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
   const requiereMigracionRQ = rqsVersionAnterior.length > 0
   const resumenAlertas = [
     !tieneCotizacion ? { label: "Sin cotización", detalle: "Crea una cotización para continuar el flujo comercial." } : null,
-    tieneCotizacion && !cotAprobada ? { label: "Sin version aprobada", detalle: "Aun no hay una version aprobada por cliente." } : null,
-    ["aprobado", "aprobado_cliente"].includes(proyecto?.estado) && cotAprobada ? { label: "Pendiente de RQ", detalle: "Al iniciar el proyecto se mantiene el flujo actual de pre-cuadre y generacion de RQs." } : null,
-    proyecto?.estado === "terminado" ? { label: "Pendiente de liquidacion", detalle: "El proyecto esta terminado y debe pasar por liquidacion." } : null,
+    tieneCotizacion && !cotAprobada ? { label: "Sin versión aprobada", detalle: "Aún no hay una versión aprobada por cliente." } : null,
+    ["aprobado", "aprobado_cliente"].includes(proyecto?.estado) && cotAprobada ? { label: "Pendiente de RQ", detalle: "Al iniciar el proyecto se mantiene el flujo actual de pre-cuadre y generación de RQs." } : null,
+    proyecto?.estado === "terminado" ? { label: "Pendiente de liquidación", detalle: "El proyecto está terminado y debe pasar por liquidación." } : null,
   ].filter(Boolean) as any[]
 
-  const ecCot: any = {
-    borrador: { bg: "#fef9c3", color: "#92400e" },
-    enviada_cliente: { bg: "#dbeafe", color: "#1e40af" },
-    aprobada_cliente: { bg: "#dcfce7", color: "#15803d" },
-    rechazada: { bg: "#fee2e2", color: "#991b1b" },
+  const ecCotTone: Record<string, "neutral" | "info" | "warning" | "success" | "danger"> = {
+    borrador: "warning",
+    enviada_cliente: "info",
+    pendiente: "neutral",
+    aprobada_cliente: "success",
+    rechazada: "danger",
   }
 
   const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
   const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
   const historialCount = Object.values(historial).reduce((total, items) => total + items.length, 0)
-  const tabsProyecto360 = [
-    { label: "Cotizaciones", href: "#tab-proformas", count: cotizaciones.length },
-    { label: "Costos / RQ", href: "#tab-costos-rq", count: rqsProyecto.length },
-    { label: "Resumen", href: "#tab-resumen" },
-    { label: "Cliente", href: "#tab-cliente", count: proyecto?.cliente ? 1 : 0 },
-    { label: "Tareas", href: "#tab-tareas" },
-    { label: "Logística", href: "#tab-logistica" },
-    { label: "Facturación", href: "#tab-facturacion" },
-    { label: "Liquidación", href: "#tab-liquidacion" },
-    { label: "Archivos", href: "#tab-archivos" },
-    { label: "Historial", href: "#tab-historial", count: historialCount },
-  ]
-  const placeholderStyle = { padding: 16, border: "1px dashed #d1d5db", borderRadius: 10, background: "#fafafa", color: "#6b7280", fontSize: 13 }
-
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
-  if (accesoRestringido) return <div style={{ color: "#6b7280", padding: 24 }}>Acceso restringido</div>
+  // Conteos por pestana de primer nivel (Lote 1). Mismos valores que antes mostraba
+  // tabsProyecto360 por ancla; "seguimiento" agrupa Tareas/Logistica/Facturacion/
+  // Liquidacion/Archivos/Historial y no tiene un conteo unico real, se deja sin badge.
+  const tabCounts: Partial<Record<ProjectDetailTabId, number>> = {
+    cotizaciones: cotizaciones.length,
+    "costos-rq": rqsProyecto.length,
+    cliente: proyecto?.cliente ? 1 : 0,
+  }
+  if (loading) {
+    return <V2DetailPageTemplate state="loading" title="Cargando proyecto..." />
+  }
+  if (accesoRestringido) {
+    return (
+      <V2DetailPageTemplate
+        errorState={<V2ErrorState description="No tienes permiso para ver este proyecto." errorCode="403-PROYECTO" title="Acceso restringido" />}
+        state="error"
+        title="Proyecto"
+      />
+    )
+  }
 
   return (
     <div>
@@ -1611,8 +1811,8 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
             </table>
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", borderTop: "1px solid #f3f4f6", paddingTop: 16 }}>
-              <button onClick={() => { setShowMigracionRQ(false); setComparacionPendiente(null); setCotizacionPendienteAprobar(null) }} style={{ padding: "8px 16px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer" }}>Cancelar</button>
-              <button onClick={() => {
+              <V2Button onClick={() => { setShowMigracionRQ(false); setComparacionPendiente(null); setCotizacionPendienteAprobar(null) }} variant="secondary">Cancelar</V2Button>
+              <V2Button onClick={() => {
                 setShowMigracionRQ(false)
                 if (cotizacionPendienteAprobar) {
                   const pendiente = cotizacionPendienteAprobar
@@ -1620,9 +1820,9 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   setCotizacionPendienteAprobar(null)
                   ejecutarMigracionRQVersion(comparacionPendiente, pendiente)
                 }
-              }} style={{ padding: "8px 20px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              }} variant="primary">
                 Continuar aprobación
-              </button>
+              </V2Button>
             </div>
           </div>
         </div>
@@ -1750,265 +1950,209 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
               + Agregar item imprevisto
             </button>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", borderTop: "1px solid #f3f4f6", paddingTop: 16 }}>
-              <button onClick={() => setShowPreCuadre(false)} style={{ padding: "8px 16px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer" }}>Cancelar</button>
-              <button onClick={confirmarPreCuadre} disabled={guardandoPreCuadre}
-                style={{ padding: "8px 20px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: guardandoPreCuadre ? 0.7 : 1 }}>
+              <V2Button onClick={() => setShowPreCuadre(false)} variant="secondary">Cancelar</V2Button>
+              <V2Button loading={guardandoPreCuadre} onClick={confirmarPreCuadre} variant="primary">
                 {guardandoPreCuadre ? "Generando RQs..." : "Confirmar y generar RQs"}
-              </button>
+              </V2Button>
             </div>
           </div>
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <a href="/proyectos" style={{ color: "#9ca3af", fontSize: 12 }}>Proyectos</a>
-            <span style={{ color: "#d1d5db" }}>/</span>
-            <span style={{ fontSize: 12, color: "#4b5563" }}>{proyecto?.codigo}</span>
-          </div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>{proyecto?.nombre}</h1>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 13, color: "#6b7280" }}>{proyecto?.cliente?.razon_social}</span>
-            {proyecto?.productor && <span style={{ color: "#9ca3af", fontSize: 13 }}>· Productor: {proyecto.productor.nombre} {proyecto.productor.apellido}</span>}
-            {cotAprobada && (
-              <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>
-                ✓ V{cotAprobada.version} aprobada
-              </span>
-            )}
-            {editandoEntidad ? (
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                {ENTIDADES.map(e => (
-                  <button key={e.value} onClick={() => cambiarEntidad(e.value)}
-                    style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, border: proyecto?.entidad === e.value ? "2px solid #0F6E56" : "1px solid #e5e7eb", background: proyecto?.entidad === e.value ? "#f0fdf4" : "#fff", color: proyecto?.entidad === e.value ? "#0F6E56" : "#6b7280", cursor: "pointer", fontWeight: proyecto?.entidad === e.value ? 700 : 400 }}>
-                    {e.label}
-                  </button>
-                ))}
-                <button onClick={() => setEditandoEntidad(false)} style={{ fontSize: 11, color: "#9ca3af", background: "none", border: "none", cursor: "pointer" }}>×</button>
-              </div>
-            ) : (
-              <button onClick={() => setEditandoEntidad(true)}
-                style={{ fontSize: 11, background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 99, padding: "2px 8px", cursor: "pointer" }}>
-                🏢 {ENTIDADES.find(e => e.value === proyecto?.entidad)?.label || proyecto?.entidad || "Sin entidad"}
-              </button>
-            )}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {puedeEditar && (
-            <button onClick={abrirEditar}
-              style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-              ✏️ Editar
-            </button>
-          )}
-          {puedeExportarProyecto && (
-            <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
-              style={{ padding: "7px 14px", border: "1px solid #1D9E75", borderRadius: 8, background: "#fff", color: "#0F6E56", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
-              📥 Reporte PDF
-            </a>
-          )}
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 24, padding: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>Acciones del proyecto</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {puedeCrearProforma && (
-          <button onClick={() => {
-            const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
-            const val = sel?.value
-            nuevaVersion(val && val !== "" ? val : undefined)
-          }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
-            {creando ? "Creando..." : "Crear cotización"}
-          </button>
-          )}
-          {puedeCrearRQ && (
-          <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-            Crear RQ
-          </button>
-          )}
-          <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-            Crear tarea
-          </button>
-          <button onClick={() => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-            Solicitar audiovisual
-          </button>
-          {puedeVerFacturacionProyecto && (
-          <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-            Emitir factura
-          </button>
-          )}
-          <button onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 13 }}>
-            Ver liquidación
-          </button>
-          {puedeExportarProyecto && (
-            <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank"
-              style={{ padding: "7px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-              Ver documentos
-            </a>
-          )}
-        </div>
-      </div>
-
-      <nav className="card" style={{ marginBottom: 16, padding: "10px 12px", position: "sticky", top: 57, zIndex: 40, overflowX: "auto" }}>
-        <div style={{ display: "flex", gap: 6, minWidth: "max-content" }}>
-          {tabsProyecto360.map(tab => (
-            <a key={tab.href} href={tab.href}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, color: "#374151", textDecoration: "none", fontSize: 12, fontWeight: 600, background: "#fff", whiteSpace: "nowrap" }}>
-              {tab.label}
-              {typeof tab.count === "number" && (
-                <span style={{ minWidth: 18, height: 18, padding: "0 6px", borderRadius: 99, background: tab.count > 0 ? "#dcfce7" : "#f3f4f6", color: tab.count > 0 ? "#15803d" : "#9ca3af", fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                  {tab.count}
-                </span>
-              )}
-            </a>
-          ))}
-        </div>
-      </nav>
-      <section id="estado-proyecto" className="card" style={{ marginBottom: 16, padding: 16, scrollMarginTop: 120 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "#111827" }}>Estado del proyecto</h2>
-            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-              Flujo operativo del proyecto y siguiente acción disponible.
-            </p>
-          </div>
-          <span style={{ background: estadoInfo.bg, color: estadoInfo.color, padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
-            {estadoInfo.label}
-          </span>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          {FLUJO_BREADCRUMB.map((estado, idx) => {
+      <ProjectDetailShellV2
+        activeTab={activeTab}
+        header={
+          <ProjectDetailHeaderV2
+            cotAprobada={cotAprobada}
+            editandoEntidad={editandoEntidad}
+            entidades={ENTIDADES}
+            estadoLabel={estadoInfo.label}
+            onAbrirEditar={abrirEditar}
+            onCambiarEntidad={cambiarEntidad}
+            onToggleEditarEntidad={setEditandoEntidad}
+            proyecto={proyecto}
+            puedeEditar={puedeEditar}
+            puedeExportarProyecto={puedeExportarProyecto}
+            reportePdfHref={"/api/reporte-pdf?proyecto_id=" + id}
+          />
+        }
+        onTabChange={handleTabChange}
+        tabCounts={tabCounts}
+        actionsBar={
+          <ProjectActionToolbarV2
+            primary={puedeCrearProforma ? {
+              key: "crear-cotizacion",
+              label: creando ? "Creando..." : "Crear cotización",
+              icon: <FilePlus2 size={15} />,
+              loading: creando,
+              onClick: () => {
+                const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
+                const val = sel?.value
+                nuevaVersion(val && val !== "" ? val : undefined)
+              },
+            } : undefined}
+            secondary={([
+              // Crear RQ: abre el formulario general (RQForm, el mismo que usa /rq), con
+              // el proyecto precargado y bloqueado. La regla de "solo se puede si el
+              // proyecto esta en_curso" vive dentro de crearRQManualService — el proyecto
+              // no decide reglas funcionales, solo abre el formulario correcto.
+              puedeCrearRQ ? {
+                key: "crear-rq",
+                label: "Crear RQ",
+                icon: <FileText size={15} />,
+                onClick: abrirCrearRQGeneral,
+              } : null,
+              // Crear tarea: abre el formulario general (TaskForm, el mismo que usa
+              // /tareas), con proyecto y cliente precargados y bloqueados.
+              { key: "crear-tarea", label: "Crear tarea", icon: <ClipboardList size={15} />, onClick: abrirCrearTarea },
+              // Solicitar audiovisual: abre el formulario general (AudiovisualRequestForm,
+              // el mismo que usa /audiovisual/requerimientos), con proyecto precargado y
+              // bloqueado y sus cotizaciones ya cargadas.
+              { key: "solicitar-audiovisual", label: "Solicitar audiovisual", icon: <Video size={15} />, onClick: abrirSolicitarAudiovisual },
+              // Emitir factura: flujo fiscal (detraccion/retencion/pronto pago) demasiado
+              // acoplado a /facturacion para integrarlo sin riesgo este sprint. Se usa href
+              // (abre en pestana nueva) en vez de onClick+router.push para no perder el
+              // detalle del proyecto abierto — distincion visual/funcional de accion externa.
+              puedeVerFacturacionProyecto ? { key: "emitir-factura", label: "Emitir factura", icon: <Receipt size={15} />, href: `/facturacion?proyecto_id=${id}` } : null,
+              // Ver liquidacion / Ver documentos: ya viven dentro de Seguimiento (Sprint 3.1),
+              // asi que activar la pestana y hacer scroll reemplaza la navegacion externa.
+              { key: "ver-liquidacion", label: "Ver liquidación", icon: <FileCheck2 size={15} />, onClick: () => { handleTabChange("seguimiento"); setScrollTargetId("tab-liquidacion") } },
+              puedeExportarProyecto ? { key: "ver-documentos", label: "Ver documentos", icon: <FolderOpen size={15} />, onClick: () => { handleTabChange("seguimiento"); setScrollTargetId("tab-archivos") } } : null,
+            ].filter(Boolean)) as ProjectToolbarAction[]}
+          />
+        }
+      >
+      <section id="estado-proyecto" style={{ scrollMarginTop: 120 }}>
+        <ProjectWorkflowCardV2
+          estadoLabel={estadoInfo.label}
+          estadoTone={estadoTone(proyecto?.estado)}
+          steps={FLUJO_BREADCRUMB.map((estado, idx) => {
             const info = FLUJO[estado]
             const idxActual = FLUJO_BREADCRUMB.indexOf(proyecto?.estado)
             const completado = idx <= idxActual
             const actual = estado === proyecto?.estado
-            return (
-              <div key={estado} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div
-                  onClick={async () => {
-                    if (!puedeReabrirProyecto) return
-                    if (actual) return
-                    if (idx >= FLUJO_BREADCRUMB.indexOf(proyecto?.estado)) return
-                    const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id, estado").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
-                    const nRqs = rqsPendientes?.length || 0
-                    const msgRqs = nRqs > 0 ? `\n\nSe cancelarán ${nRqs} RQ(s) pendientes automáticamente.` : ""
-                    if (confirm(`¿Regresar el proyecto al estado "${info.label}"?${msgRqs}`)) {
-                      if (nRqs > 0) {
-                        await supabase.from("requerimientos_pago").update({ estado: "rechazado" }).eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
-                      }
-                      cambiarEstado(estado)
-                    }
-                  }}
-                  style={{ width: 24, height: 24, borderRadius: "50%", background: completado ? info.color : "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", cursor: puedeReabrirProyecto && !actual && idx < FLUJO_BREADCRUMB.indexOf(proyecto?.estado) ? "pointer" : "default" }}>
-                  <span style={{ color: completado ? "#fff" : "#9ca3af", fontSize: 11, fontWeight: 700 }}>{idx + 1}</span>
-                </div>
-                {actual && <span style={{ fontSize: 11, fontWeight: 700, color: info.color }}>{info.label}</span>}
-              </div>
-            )
+            const clickable = Boolean(puedeReabrirProyecto) && !actual && idx < idxActual
+            return {
+              key: estado,
+              index: idx,
+              label: info.label,
+              color: info.color,
+              completed: completado,
+              current: actual,
+              clickable,
+              onClick: clickable ? async () => {
+                const { data: rqsPendientes } = await supabase.from("requerimientos_pago").select("id, estado").eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
+                const nRqs = rqsPendientes?.length || 0
+                const msgRqs = nRqs > 0 ? `\n\nSe cancelarán ${nRqs} RQ(s) pendientes automáticamente.` : ""
+                if (confirm(`¿Regresar el proyecto al estado "${info.label}"?${msgRqs}`)) {
+                  if (nRqs > 0) {
+                    await supabase.from("requerimientos_pago").update({ estado: "rechazado" }).eq("proyecto_id", id).in("estado", ["pendiente_aprobacion","aprobado_produccion"])
+                  }
+                  cambiarEstado(estado)
+                }
+              } : undefined,
+            } as ProjectWorkflowStep
           })}
-        </div>
-
-        {(() => {
-          const roles = estadoInfo.roles || []
-          const rolLabels: Record<string, string> = {
-            superadmin: "Superadmin",
-            gerente_general: "Gerente General",
-            gerente_produccion: "Gerente de Producción",
-            controller: "Controller",
-            productor: "Productor",
-            comercial: "Comercial",
-            logistica: "Logística",
-            audiovisual: "Audiovisual",
-            administrador: "Administrador",
+          nextActionTitle={proyecto?.estado === "aprobado_gerencia" ? "Aprobación desde cotización" : puedeAvanzar && estadoInfo.accion ? estadoInfo.accion : esEstadoFinal ? "Sin acciones pendientes" : "Sin acción disponible"}
+          nextActionDescription={
+            proyecto?.estado === "aprobado_gerencia"
+              ? "Esperando aprobación del cliente desde la cotización."
+              : proyecto?.estado === "aprobado_cliente"
+                ? "Abre el pre-cuadre para revisar proveedores, costos y generar los RQs iniciales."
+                : estadoInfo.accion
+                  ? "Avanza el proyecto al siguiente estado del flujo."
+                  : esEstadoFinal
+                    ? "El proyecto no tiene acciones pendientes."
+                    : "No hay acción disponible para tu rol."
           }
-          const rolResponsable = proyecto?.estado === "aprobado_cliente" && roles.includes("productor")
-            ? "productor"
-            : roles.find((rol: string) => rol !== "superadmin") || roles[0]
-          const nombreResponsable = rolResponsable === "productor" && proyecto?.productor
-            ? `${proyecto.productor.nombre} ${proyecto.productor.apellido}`.trim()
-            : ""
-          const responsableTexto = rolResponsable
-            ? `Responsable del siguiente paso: ${rolLabels[rolResponsable] || rolResponsable}${nombreResponsable ? ` (${nombreResponsable})` : ""}`
-            : "Responsable del siguiente paso: Sin responsable asignado"
-          const descripcionAccion = proyecto?.estado === "aprobado_gerencia"
-            ? "Esperando aprobación del cliente desde la cotización."
-            : proyecto?.estado === "aprobado_cliente"
-              ? "Abre el pre-cuadre para revisar proveedores, costos y generar los RQs iniciales."
-              : estadoInfo.accion
-                ? "Avanza el proyecto al siguiente estado del flujo."
-                : esEstadoFinal
-                  ? "El proyecto no tiene acciones pendientes."
-                  : "No hay acción disponible para tu rol."
-
-          return (
-            <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
-              <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Siguiente acción disponible</div>
-              <div style={{ fontSize: 14, color: "#111827", fontWeight: 700, marginBottom: 4 }}>
-                {proyecto?.estado === "aprobado_gerencia" ? "Aprobación desde cotización" : puedeAvanzar && estadoInfo.accion ? estadoInfo.accion : esEstadoFinal ? "Sin acciones pendientes" : "Sin acción disponible"}
-              </div>
-              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 6 }}>{descripcionAccion}</div>
-              <div style={{ fontSize: 13, color: "#374151", marginBottom: 12 }}>{responsableTexto}</div>
-
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {puedeAvanzar && estadoInfo.siguiente  && (
-                  <button onClick={() => cambiarEstado(estadoInfo.siguiente)} disabled={cambiando}
-                    style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, opacity: cambiando ? 0.7 : 1 }}>
-                    {cambiando ? "..." : estadoInfo.accion}
-                  </button>
-                )}
-                {proyecto?.estado === "pendiente_facturacion" && (
-                  <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)}
-                    style={{ padding: "8px 16px", border: "1px solid #bbf7d0", borderRadius: 8, background: "#fff", color: "#0F6E56", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                    Ir a Facturación
-                  </button>
-                )}
-                {puedeRechazar && (
-                  <button onClick={rechazar} disabled={cambiando}
-                    style={{ padding: "8px 16px", border: "1px solid #fde8d8", borderRadius: 8, background: "#fff", color: "#c2410c", cursor: "pointer", fontSize: 13 }}>
-                    Rechazar proyecto
-                  </button>
-                )}
-              </div>
-            </div>
-          )
-        })()}
+          responsibleText={(() => {
+            const roles = estadoInfo.roles || []
+            const rolLabels: Record<string, string> = {
+              superadmin: "Superadmin",
+              gerente_general: "Gerente General",
+              gerente_produccion: "Gerente de Producción",
+              controller: "Controller",
+              productor: "Productor",
+              comercial: "Comercial",
+              logistica: "Logística",
+              audiovisual: "Audiovisual",
+              administrador: "Administrador",
+            }
+            const rolResponsable = proyecto?.estado === "aprobado_cliente" && roles.includes("productor")
+              ? "productor"
+              : roles.find((rol: string) => rol !== "superadmin") || roles[0]
+            const nombreResponsable = rolResponsable === "productor" && proyecto?.productor
+              ? `${proyecto.productor.nombre} ${proyecto.productor.apellido}`.trim()
+              : ""
+            return rolResponsable
+              ? `Responsable del siguiente paso: ${rolLabels[rolResponsable] || rolResponsable}${nombreResponsable ? ` (${nombreResponsable})` : ""}`
+              : "Responsable del siguiente paso: Sin responsable asignado"
+          })()}
+          primaryAction={puedeAvanzar && estadoInfo.siguiente ? {
+            label: estadoInfo.accion,
+            loading: cambiando,
+            onClick: () => cambiarEstado(estadoInfo.siguiente),
+          } : undefined}
+          secondaryActions={([
+            (() => {
+              const cotObjetivo = cotizaciones.find((c: any) => c.id === versionAprobar)
+              const puedeMostrar = puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cotObjetivo && cotObjetivo.estado !== "aprobada_cliente"
+              return puedeMostrar ? {
+                label: "Marcar aprobado por cliente",
+                icon: <CheckCircle2 size={15} />,
+                onClick: () => marcarCotizacionAprobadaCliente(cotObjetivo),
+              } : null
+            })(),
+            proyecto?.estado === "pendiente_facturacion" ? {
+              label: "Ir a Facturación",
+              onClick: () => router.push(`/facturacion?proyecto_id=${id}`),
+            } : null,
+          ].filter(Boolean)) as any[]}
+          dangerAction={puedeRechazar ? {
+            label: "Rechazar proyecto",
+            disabled: cambiando,
+            onClick: rechazar,
+          } : undefined}
+        />
       </section>
+      <ProjectDetailSection activeTab={activeTab} tab="cotizaciones">
       <section id="tab-proformas" style={{ scrollMarginTop: 120 }}>
-      <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+      <div className="card" style={{ marginBottom: 12, padding: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Cotizaciones</div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Cotizaciones</h2>
-            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-              Administra versiones, estados, previews y recuperacion de cotizaciones del proyecto.
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--v2-muted)", textTransform: "uppercase", marginBottom: 4 }}>Tab Cotizaciones</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>Cotizaciones</h2>
+            <p style={{ fontSize: 13, color: "var(--v2-muted)", margin: "4px 0 0" }}>
+              Administra versiones, estados, vistas previas y recuperación de cotizaciones del proyecto.
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ background: "#f3f4f6", color: "#374151", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
-              {cotizaciones.length} version{cotizaciones.length !== 1 ? "es" : ""}
+            <span style={{ background: "var(--v2-surface-muted)", color: "var(--v2-text-secondary)", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+              {cotizaciones.length} {cotizaciones.length === 1 ? "versión" : "versiones"}
             </span>
             {cotizacionesEliminadas.length > 0 && (
-              <span style={{ background: "#fee2e2", color: "#991b1b", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
+              <span style={{ background: "var(--v2-danger-bg)", color: "var(--v2-danger)", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
                 {cotizacionesEliminadas.length} recuperable{cotizacionesEliminadas.length !== 1 ? "s" : ""}
               </span>
             )}
             {cotizaciones.length > 0 && (
-              <select id="copiar-version" style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
-                <option value="">Nueva vacía</option>
-                {cotizaciones.map((cot: any) => (
-                  <option key={cot.id} value={cot.id}>Copiar V{cot.version}</option>
-                ))}
-              </select>
+              <V2Select
+                compact
+                fullWidth={false}
+                id="copiar-version"
+                options={[
+                  { label: "Nueva vacía", value: "" },
+                  ...cotizaciones.map((cot: any) => ({ label: `Copiar V${cot.version}`, value: cot.id })),
+                ]}
+              />
             )}
             {puedeCrearProforma && (
-            <button onClick={() => {
+            <V2Button loading={creando} onClick={() => {
               const sel = cotizaciones.length > 0 ? document.getElementById("copiar-version") as HTMLSelectElement : null
               const val = sel?.value
               nuevaVersion(val && val !== "" ? val : undefined)
-            }} disabled={creando} className="btn-primary" style={{ fontSize: 13 }}>
-              {creando ? "Creando..." : "+ Crear cotización"}
-            </button>
+            }} variant="primary">
+              {creando ? "Creando..." : "Crear cotización"}
+            </V2Button>
             )}
           </div>
         </div>
@@ -2017,24 +2161,23 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       {cotizacionesEliminadas.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <button onClick={() => setShowVersionesEliminadas(!showVersionesEliminadas)}
-            style={{ fontSize: 12, color: "#dc2626", background: "#fee2e2", border: "none", borderRadius: 99, padding: "3px 10px", cursor: "pointer", marginBottom: 8 }}>
-            🗑 {cotizacionesEliminadas.length} version{cotizacionesEliminadas.length > 1 ? "es eliminadas" : " eliminada"} (recuperable{cotizacionesEliminadas.length > 1 ? "s" : ""})
+            style={{ fontSize: 12, color: "var(--v2-danger)", background: "var(--v2-danger-bg)", border: "none", borderRadius: 99, padding: "3px 10px", cursor: "pointer", marginBottom: 8 }}>
+            🗑 {cotizacionesEliminadas.length} {cotizacionesEliminadas.length > 1 ? "versiones eliminadas" : "versión eliminada"} (recuperable{cotizacionesEliminadas.length > 1 ? "s" : ""})
           </button>
           {showVersionesEliminadas && (
-            <div style={{ background: "#fff8f8", border: "1px solid #fecaca", borderRadius: 10, padding: 12 }}>
+            <div style={{ background: "var(--v2-danger-bg)", borderRadius: 10, padding: 12 }}>
               {cotizacionesEliminadas.map(cot => {
                 const horasRestantes = 48 - Math.floor((Date.now() - new Date(cot.deleted_at).getTime()) / (1000 * 60 * 60))
                 return (
-                  <div key={cot.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #fee2e2" }}>
+                  <div key={cot.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 6 }}>
                     <div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>V{cot.version}</span>
-                      {cot.total_cliente > 0 && <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 8 }}>{fmt(cot.total_cliente)}</span>}
-                      <span style={{ fontSize: 11, color: "#dc2626", marginLeft: 8 }}>Expira en {horasRestantes}h</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)" }}>V{cot.version}</span>
+                      {cot.total_cliente > 0 && <span style={{ fontSize: 12, color: "var(--v2-muted)", marginLeft: 8 }}>{fmt(cot.total_cliente)}</span>}
+                      <span style={{ fontSize: 11, color: "var(--v2-danger)", marginLeft: 8 }}>Expira en {horasRestantes}h</span>
                     </div>
-                    <button onClick={() => recuperarVersion(cot.id)}
-                      style={{ fontSize: 12, padding: "3px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontWeight: 600 }}>
+                    <V2Button leadingIcon={<RotateCcw size={13} />} onClick={() => recuperarVersion(cot.id)} size="sm" variant="secondary">
                       Recuperar
-                    </button>
+                    </V2Button>
                   </div>
                 )
               })}
@@ -2044,71 +2187,77 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
       )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Versiones</h2>
-          <span style={{ fontSize: 12, color: "#9ca3af" }}>{cotizaciones.length} version{cotizaciones.length !== 1 ? "es" : ""}</span>
+        <div style={{ padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "var(--v2-text)" }}>Versiones</h2>
+          <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>{cotizaciones.length} {cotizaciones.length === 1 ? "versión" : "versiones"}</span>
         </div>
         {cotizaciones.length === 0 ? (
-          <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af" }}>
-            <div style={{ fontSize: 14, marginBottom: 4 }}>No hay cotizaciones aun</div>
-            <div style={{ fontSize: 12 }}>Crea la primera version para comenzar</div>
+          <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--v2-muted)" }}>
+            <div style={{ fontSize: 14, marginBottom: 4 }}>No hay cotizaciones aún</div>
+            <div style={{ fontSize: 12 }}>Crea la primera versión para comenzar</div>
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>VERSION</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>TOTAL CLIENTE</th>
-                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>MARGEN</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONDICION PAGO</th>
-                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>HISTORIAL</th>
-                <th style={{ padding: "10px 20px", width: 200 }}></th>
+              <tr style={{ background: "var(--v2-surface-muted)" }}>
+                <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>VERSIÓN</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>ESTADO</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>TOTAL CLIENTE</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>MARGEN</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)" }}>CONDICIÓN DE PAGO</th>
+                <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>HISTORIAL</th>
+                <th style={{ textAlign: "right", padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>ACCIONES</th>
               </tr>
             </thead>
             <tbody>
               {cotizaciones.map((cot, idx) => {
-                const e = ecCot[cot.estado] || { bg: "#f3f4f6", color: "#6b7280" }
-                const esAprobada = (cot.id === proyecto?.cotizacion_aprobada_id || cot.estado === "aprobada_cliente") && ["en_curso","terminado","liquidado","pendiente_facturacion","facturado","cerrado_financiero"].includes(proyecto?.estado)
+                // Cada fila se resuelve unicamente con el dato real de esa cotizacion
+                // (no con el estado general del proyecto ni con versionAprobar/cotizacion_aprobada_id,
+                // que pueden desincronizarse del estado real de la version).
+                const isClientApproved = cot.estado === "aprobada_cliente"
                 return (
-                  <tr key={cot.id} style={{ borderTop: "1px solid #f3f4f6", background: esAprobada ? "#f0fdf4" : idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                    <td style={{ padding: "12px 20px" }}>
+                  <tr style={{ background: isClientApproved ? "var(--v2-success-bg)" : idx % 2 === 0 ? "var(--v2-surface)" : "var(--v2-surface-soft)" }} key={cot.id}>
+                    <td style={{ padding: "10px 16px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>V{cot.version}</span>
-                        {esAprobada && <span style={{ fontSize: 10, background: "#dcfce7", color: "#15803d", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>✓ Aprobada</span>}
+                        <span style={{ fontWeight: 700, fontSize: 15, color: "var(--v2-text)" }}>V{cot.version}</span>
+                        {isClientApproved && <V2StatusBadge size="sm" tone="success">Aprobada</V2StatusBadge>}
                       </div>
                     </td>
-                    <td style={{ padding: "12px" }}>
-                      <select value={cot.estado || "borrador"} onChange={async ev => {
-                        const nuevoEstado = ev.target.value
-                        if (nuevoEstado === "aprobada_cliente") {
-                          alert("Usa la accion independiente para marcar aprobado por cliente")
-                          return
-                        }
-                        await supabase.from("cotizaciones").update({ estado: nuevoEstado }).eq("id", cot.id)
-                        load()
-                      }}
-                        style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, border: "1px solid " + e.color, background: e.bg, color: e.color, cursor: "pointer", fontFamily: "inherit", outline: "none" }}>
-                        <option value="borrador">Borrador</option>
-                        <option value="enviada_cliente">Enviada</option>
-                        <option value="pendiente">Pendiente</option>
-                        {cot.estado === "aprobada_cliente" && <option value="aprobada_cliente">Aprobada</option>}
-                        <option value="rechazada">Rechazada</option>
-                      </select>
+                    <td style={{ padding: "10px 12px", verticalAlign: "middle" }}>
+                      <V2StatusSelect
+                        onChange={async (ev) => {
+                          const nuevoEstado = ev.target.value
+                          if (nuevoEstado === "aprobada_cliente") {
+                            alert("Usa la acción independiente para marcar aprobado por cliente")
+                            return
+                          }
+                          await supabase.from("cotizaciones").update({ estado: nuevoEstado }).eq("id", cot.id)
+                          load()
+                        }}
+                        options={[
+                          { label: "Borrador", value: "borrador" },
+                          { label: "Enviada", value: "enviada_cliente" },
+                          { label: "Pendiente", value: "pendiente" },
+                          ...(cot.estado === "aprobada_cliente" ? [{ label: "Aprobada", value: "aprobada_cliente" }] : []),
+                          { label: "Rechazada", value: "rechazada" },
+                        ]}
+                        tone={ecCotTone[cot.estado] || "neutral"}
+                        value={cot.estado || "borrador"}
+                      />
                     </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "#0F6E56" }}>
+                    <td style={{ padding: "10px 12px", textAlign: "right", verticalAlign: "middle", whiteSpace: "nowrap", fontSize: 14, fontWeight: 700, color: "var(--v2-accent)" }}>
                       {cot.total_cliente > 0 ? fmt(cot.total_cliente) : "—"}
                     </td>
-                    <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 600, color: (cot.margen_pct || 0) >= 35 ? "#0F6E56" : "#6b7280" }}>
+                    <td style={{ padding: "10px 12px", textAlign: "right", verticalAlign: "middle", whiteSpace: "nowrap", fontSize: 13, fontWeight: 600, color: (cot.margen_pct || 0) >= 35 ? "var(--v2-accent)" : "var(--v2-muted)" }}>
                       {cot.margen_pct > 0 ? cot.margen_pct.toFixed(1) + "%" : "—"}
                     </td>
-                    <td style={{ padding: "12px", fontSize: 12, color: "#6b7280" }}>{cot.condicion_pago || "—"}</td>
-                    <td style={{ padding: "12px" }}>
+                    <td style={{ padding: "10px 12px", verticalAlign: "middle", fontSize: 12, color: "var(--v2-muted)" }}>{cot.condicion_pago || "—"}</td>
+                    <td style={{ padding: "10px 12px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                       {historial[cot.id] && historial[cot.id].length > 0 && (
-                        <div style={{ marginTop: 4 }}>
+                        <div style={{ display: "grid", gap: 2 }}>
                           {historial[cot.id].slice(0, 3).map((h: any, i: number) => (
-                            <div key={i} style={{ fontSize: 10, color: "#9ca3af", display: "flex", gap: 4, alignItems: "center" }}>
-                              <span style={{ color: h.accion === "aprobada_cliente" ? "#15803d" : "#6b7280" }}>
+                            <div key={i} style={{ fontSize: 10, color: "var(--v2-subtle)", display: "flex", gap: 4, alignItems: "center" }}>
+                              <span style={{ color: h.accion === "aprobada_cliente" ? "var(--v2-success)" : "var(--v2-muted)" }}>
                                 {h.accion === "aprobada_cliente" ? "✓" : "✎"}
                               </span>
                               <span>{h.usuario_nombre}</span>
@@ -2119,26 +2268,29 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <td style={{ padding: "10px 16px", textAlign: "right", verticalAlign: "middle" }}>
+                      <div className={styles.rowActions}>
                         {puedeEditarProforma && (
-                          <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>
+                          <V2Button leadingIcon={<Pencil size={13} />} onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}`)} size="sm" variant="secondary">
                             Editar
-                          </button>
+                          </V2Button>
                         )}
-                        <button onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>
-                          Preview
-                        </button>
-                        {puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) && cot.estado !== "aprobada_cliente" && (
-                          <button onClick={() => marcarCotizacionAprobadaCliente(cot)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#15803d", cursor: "pointer", fontWeight: 600 }}>
-                            Marcar aprobado por cliente
-                          </button>
-                        )}
-                        {!esAprobada && puedeEliminarProforma && (
-                          <button onClick={() => eliminarVersion(cot.id, cot.version)}
-                            style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
+                        <V2Button leadingIcon={<Eye size={13} />} onClick={() => router.push(`/proyectos/${id}/cotizaciones/${cot.id}/preview`)} size="sm" variant="secondary">
+                          Vista previa
+                        </V2Button>
+                        {isClientApproved ? (
+                          <V2Button disabled leadingIcon={<CheckCircle2 size={13} />} size="sm" variant="success">
+                            Aprobado cliente
+                          </V2Button>
+                        ) : puedeAprobarCliente && ["aprobado_gerencia", "aprobado_cliente"].includes(proyecto?.estado) ? (
+                          <V2Button leadingIcon={<CheckCircle2 size={13} />} onClick={() => marcarCotizacionAprobadaCliente(cot)} size="sm" variant="successSoft">
+                            Aprobado cliente
+                          </V2Button>
+                        ) : null}
+                        {!isClientApproved && puedeEliminarProforma && (
+                          <V2Button leadingIcon={<Trash2 size={13} />} onClick={() => eliminarVersion(cot.id, cot.version)} size="sm" variant="danger">
                             Borrar
-                          </button>
+                          </V2Button>
                         )}
                       </div>
                     </td>
@@ -2150,451 +2302,471 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
         )}
       </div>
       </section>
+      </ProjectDetailSection>
 
+      <ProjectDetailSection activeTab={activeTab} tab="costos-rq">
+      <section id="tab-costos-rq" style={{ scrollMarginTop: 120 }}>
+        <V2SectionHeader
+          actions={
+            <V2Button leadingIcon={<Receipt size={15} />} onClick={() => router.push(`/rq?proyecto_id=${id}`)} size="sm" variant="secondary">
+              Ver módulo RQ
+            </V2Button>
+          }
+          description="Ordena pre-cuadre, proveedores y RQs del proyecto sin cambiar la lógica actual."
+          title="Costos y requerimientos de pago"
+        />
 
-      <section id="tab-costos-rq" className="card" style={{ marginTop: 24, marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Costos / RQ</div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Costos y requerimientos de pago</h2>
-            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-              Ordena pre-cuadre, proveedores y RQs del proyecto sin cambiar la logica actual.
-            </p>
-          </div>
-          <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver módulo RQ</button>
+        <div className={styles.metricsRow} style={{ marginTop: 16 }}>
+          <V2MetricCard
+            label="Versión aprobada"
+            subtext={cotAprobada?.total_cliente ? fmt(cotAprobada.total_cliente) : "Se define desde Cotizaciones / aprobación"}
+            value={cotAprobada ? `V${cotAprobada.version}` : "Pendiente"}
+          />
+          <V2MetricCard
+            label="Pre-cuadre"
+            subtext="Usa el flujo actual de proveedores y costos."
+            value={proyecto?.estado === "en_curso" ? "Disponible" : "Según estado"}
+          />
+          <V2MetricCard
+            label="RQs del proyecto"
+            subtext={rqsProyecto.length ? `${fmt(totalRqs)} activos` : "Sin requerimientos vinculados"}
+            value={rqsProyecto.length}
+          />
         </div>
-        <div style={{ padding: 20, display: "grid", gap: 12 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>Version aprobada</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: cotAprobada ? "#15803d" : "#9ca3af" }}>
-                {cotAprobada ? `V${cotAprobada.version}` : "Pendiente"}
-              </div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                {cotAprobada?.total_cliente ? fmt(cotAprobada.total_cliente) : "Se define desde Cotizaciones / aprobación"}
-              </div>
-            </div>
-            <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>Pre-cuadre</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: proyecto?.estado === "en_curso" ? "#92400e" : "#9ca3af" }}>
-                {proyecto?.estado === "en_curso" ? "Disponible" : "Segun estado"}
-              </div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Usa el flujo actual de proveedores y costos.</div>
-            </div>
-            <div style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>RQs del proyecto</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: rqsProyecto.length ? "#0F6E56" : "#9ca3af" }}>
-                {rqsProyecto.length}
-              </div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                {rqsProyecto.length ? `${fmt(totalRqs)} activos` : "Sin requerimientos vinculados"}
-              </div>
-            </div>
-          </div>
 
-          <div style={{ padding: 16, border: "1px solid #fcd34d", borderRadius: 10, background: "#fffbeb" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ marginTop: 12 }}>
+          <V2AlertCard
+            actionLabel={proyecto?.estado === "en_curso" && puedeCrearRQ ? "+ Generar RQs adicionales" : "No disponible"}
+            message="Pre-cuadre y RQs adicionales: mantiene el flujo actual — selecciona proveedores, costos finales y genera requerimientos de pago adicionales."
+            onClick={proyecto?.estado === "en_curso" && puedeCrearRQ ? abrirGenerarRQAdicional : undefined}
+            tipo="warning"
+          />
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <V2SectionHeader
+            actions={
+              <V2Button leadingIcon={<Receipt size={15} />} onClick={() => router.push(`/rq?proyecto_id=${id}`)} size="sm" variant="secondary">
+                Ver en módulo RQ
+              </V2Button>
+            }
+            description={`${rqsProyecto.length} RQs · ${rqsPendientes.length} pendientes · ${rqsPagados.length} pagados · ${fmt(totalRqsPendientes)} por gestionar`}
+            title="Ejecución de RQs del proyecto"
+          />
+
+          {requiereMigracionRQ && cotAprobada && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: 16,
+                borderRadius: 10,
+                borderLeft: "3px solid var(--v2-warning)",
+                background: "var(--v2-warning-bg)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 20,
+                flexWrap: "wrap",
+              }}
+            >
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#92400e", marginBottom: 4 }}>Pre-cuadre y RQs adicionales</div>
-                <div style={{ fontSize: 12, color: "#92400e" }}>
-                  Mantiene el flujo actual: selecciona proveedores, costos finales y genera requerimientos de pago adicionales.
-                </div>
-              </div>
-              {proyecto?.estado === "en_curso" && puedeCrearRQ ? (
-                <button onClick={async () => {
-                  const { data: provs } = await supabase.from("proveedores").select("id, nombre, banco, numero_cuenta, tipo_pago").order("nombre")
-                  setProveedores(provs || [])
-                  setPreCuadreItems([{ id: "new_pc_" + Date.now(), descripcion: "", costo_total: 0, costo_final: 0, proveedor_id: null, proveedor_nombre: "", tipo: "item", esNuevo: true, esAdicional: true, tipo_pago: "contado", tratamiento_igv: tratamientoIgvDefaultProyecto }])
-                  setShowPreCuadre(true)
-                }} style={{ padding: "8px 16px", border: "1px dashed #f59e0b", borderRadius: 8, background: "#fff", color: "#92400e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  + Generar RQs adicionales
-                </button>
-              ) : (
-                <span style={{ fontSize: 12, color: "#92400e", fontWeight: 600 }}>Disponible cuando el proyecto este en curso y el rol lo permita</span>
-              )}
-            </div>
-          </div>
-
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Ejecución de RQs del proyecto</div>
-                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                  {rqsProyecto.length} RQs · {rqsPendientes.length} pendientes · {rqsPagados.length} pagados · {fmt(totalRqsPendientes)} por gestionar
-                </div>
-              </div>
-              <button onClick={() => router.push(`/rq?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver en módulo RQ</button>
-            </div>
-            {requiereMigracionRQ && cotAprobada && (
-              <div
-                style={{
-                  margin: 16,
-                  padding: 16,
-                  borderRadius: 10,
-                  border: "1px solid #FACC15",
-                  background: "#FEFCE8",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 20,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      color: "#92400E",
-                      marginBottom: 4,
-                    }}
-                  >
-                    ⚠ Hay requerimientos asociados a una versión anterior.
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "#78350F",
-                    }}
-                  >
-                    Se detectaron <b>{rqsVersionAnterior.length}</b> RQs que aún apuntan a una versión anterior de la cotización. Se recomienda ejecutar la migración antes de continuar.
-                  </div>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    color: "var(--v2-warning)",
+                    marginBottom: 4,
+                  }}
+                >
+                  ⚠ Hay requerimientos asociados a una versión anterior.
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <select
-                    value={cotizacionDestinoMigracionId || proyecto?.cotizacion_aprobada_id || ""}
-                    onChange={(e) => setCotizacionDestinoMigracionId(e.target.value)}
-                    style={{ padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 13, background: "#fff" }}
-                  >
-                    <option value="">Seleccionar versión destino</option>
-                    {[...cotizaciones]
-                      .sort((a: any, b: any) => (b.version || 0) - (a.version || 0))
-                      .map((cot: any) => (
-                        <option key={cot.id} value={cot.id}>
-                          V{cot.version} {cot.id === proyecto?.cotizacion_aprobada_id ? "(actual aprobada)" : ""}
-                        </option>
-                      ))}
-                  </select>
-
-                  <button
-                    className="btn-primary"
-                    onClick={async () => {
-                      const destinoId =
-                        cotizacionDestinoMigracionId ||
-                        proyecto?.cotizacion_aprobada_id ||
-                        cotizaciones.sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0]?.id
-
-                      const cotizacionDestino = cotizaciones.find((cot: any) => cot.id === destinoId)
-
-                      if (!cotizacionDestino) {
-                        alert("Selecciona una versión destino para migrar los RQs.")
-                        return
-                      }
-
-                      const comparacion = await compararRQsContraVersionDestino(cotizacionDestino)
-
-                      if (!comparacion) {
-                        alert("No fue posible calcular la migración hacia la versión seleccionada.")
-                        return
-                      }
-
-                      setComparacionPendiente(comparacion)
-                      setCotizacionPendienteAprobar(cotizacionDestino)
-                      setShowMigracionRQ(true)
-                    }}
-                  >
-                    Migrar RQs
-                  </button>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: "var(--v2-text-secondary)",
+                  }}
+                >
+                  Se detectaron <b>{rqsVersionAnterior.length}</b> RQs que aún apuntan a una versión anterior de la cotización. Se recomienda ejecutar la migración antes de continuar.
                 </div>
               </div>
-            )}
 
-            {rqsProyecto.length === 0 ? (
-              <div style={{ padding: 20, color: "#9ca3af", fontSize: 13, textAlign: "center" }}>
-                Este proyecto todavia no tiene requerimientos de pago vinculados.
-              </div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ background: "#f9fafb" }}>
-                      <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ORIGEN</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ESTADO</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ÍTEM DEL PRESUPUESTO</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>RQ</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PROVEEDOR</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>FECHA SOLICITUD</th>
-                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>PRESUP.</th>
-                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>FINAL RQ</th>
-                      <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>VARIACIÓN</th>
-                      <th style={{ padding: "10px 16px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "#6b7280" }}>ACCIÓN</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filasEjecucionRqs.map((fila: any, idx: number) => {
-                      const estilosEstadoRQ: Record<string, any> = {
-                        generado: { dot: "#22c55e", label: "Generado", color: "#166534", bg: "#dcfce7" },
-                        pendiente: { dot: "#f59e0b", label: "Pendiente", color: "#92400e", bg: "#fef3c7" },
-                        cancelado: { dot: "#3b82f6", label: "Cancelado", color: "#1e40af", bg: "#dbeafe" },
-                        adicional: { dot: "#8b5cf6", label: "Adicional", color: "#5b21b6", bg: "#ede9fe" },
-                      }
-                      const estadoStyle = estilosEstadoRQ[String(fila.estadoVista)] || { dot: "#9ca3af", label: String(fila.estadoVista || "Sin estado"), color: "#374151", bg: "#f3f4f6" }
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <select
+                  value={cotizacionDestinoMigracionId || proyecto?.cotizacion_aprobada_id || ""}
+                  onChange={(e) => setCotizacionDestinoMigracionId(e.target.value)}
+                  style={{ padding: "8px 10px", border: "1px solid var(--v2-border)", borderRadius: 8, fontSize: 13, background: "var(--v2-surface)", color: "var(--v2-text)" }}
+                >
+                  <option value="">Seleccionar versión destino</option>
+                  {[...cotizaciones]
+                    .sort((a: any, b: any) => (b.version || 0) - (a.version || 0))
+                    .map((cot: any) => (
+                      <option key={cot.id} value={cot.id}>
+                        V{cot.version} {cot.id === proyecto?.cotizacion_aprobada_id ? "(actual aprobada)" : ""}
+                      </option>
+                    ))}
+                </select>
 
-                      return (
-                        <tr key={fila.key} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                          <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700, color: fila.origen === "adicional" ? "#5b21b6" : "#374151", whiteSpace: "nowrap" }}>
-                            {fila.origen === "adicional" ? "➕ Adicional" : fila.legacy ? "📋 Proyecto legacy" : "📋 Proyecto"}
-                          </td>
-                          <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, background: estadoStyle.bg, color: estadoStyle.color, padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
-                              <span style={{ width: 9, height: 9, borderRadius: "50%", background: estadoStyle.dot, display: "inline-block" }} />
-                              {estadoStyle.label}
-                            </span>
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 12, color: "#374151", minWidth: 240 }}>{fila.descripcion}</td>
-                          <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, color: fila.rq ? "#0F6E56" : "#9ca3af", whiteSpace: "nowrap" }}>
-                            {fila.rq ? rqCodigo(fila.rq) : "—"}
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", minWidth: 160 }}>{fila.proveedor}</td>
-                          <td style={{ padding: "12px", fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>
-                            {fila.fecha ? new Date(fila.fecha).toLocaleDateString("es-PE") : "—"}
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, color: "#374151", textAlign: "right", whiteSpace: "nowrap" }}>
-                            {fmt(fila.montoPresupuestado)}
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 13, fontWeight: 900, color: "#0F6E56", textAlign: "right", whiteSpace: "nowrap" }}>
-                            {fmt(fila.montoFinal)}
-                            {fila.rq && <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600 }}>{rqTratamientoIgvLabel(fila.rq)}</div>}
-                          </td>
-                          <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, textAlign: "right", whiteSpace: "nowrap" }}>
-                            {(() => {
-                              const presup = Number(fila.montoPresupuestado || 0)
-                              const final = Number(fila.montoFinal || 0)
-                              const diff = final - presup
-                              const pct = presup > 0 ? (diff / presup) * 100 : 0
-                              const color = Math.abs(diff) < 0.01 ? "#6b7280" : diff > 0 ? "#dc2626" : "#15803d"
-                              return (
-                                <div style={{ color }}>
-                                  {Math.abs(diff) < 0.01 ? "S/ 0.00" : `${diff > 0 ? "+" : "-"}${fmt(Math.abs(diff))}`}
-                                  {presup > 0 && <div style={{ fontSize: 10, fontWeight: 700 }}>{Math.abs(pct).toFixed(1)}%</div>}
-                                </div>
-                              )
-                            })()}
-                          </td>
-                          <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
-                            {fila.estadoVista === "pendiente" && (
-                              <button onClick={() => abrirPreCuadreDesdeItem(fila.item)} style={{ padding: "7px 12px", border: "none", borderRadius: 8, background: "#0F6E56", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Generar</button>
-                            )}
-                            {fila.estadoVista === "cancelado" && (
-                              <button onClick={() => abrirPreCuadreDesdeItem(fila.item)} style={{ padding: "7px 12px", border: "1px solid #bfdbfe", borderRadius: 8, background: "#eff6ff", color: "#1e40af", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Regenerar</button>
-                            )}
-                            {(fila.estadoVista === "generado" || fila.estadoVista === "adicional") && fila.rq && (
-                              <button onClick={() => router.push(`/rq?proyecto_id=${id}&rq_id=${fila.rq.id}&view=list`)} className="btn-secondary" style={{ fontSize: 11 }}>Abrir</button>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
+                <V2Button
+                  onClick={async () => {
+                    const destinoId =
+                      cotizacionDestinoMigracionId ||
+                      proyecto?.cotizacion_aprobada_id ||
+                      cotizaciones.sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0]?.id
 
+                    const cotizacionDestino = cotizaciones.find((cot: any) => cot.id === destinoId)
 
-      <section id="tab-resumen" style={{ scrollMarginTop: 120 }}>
-        <div className="card" style={{ marginBottom: 24, padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Resumen</div>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>Resumen ejecutivo</h2>
-              <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-                Vista rapida del proyecto, estado, economia base y alertas operativas.
-              </p>
-            </div>
-            <span style={{ background: estadoInfo.bg, color: estadoInfo.color, padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
-              {estadoInfo.label}
-            </span>
-          </div>
+                    if (!cotizacionDestino) {
+                      alert("Selecciona una versión destino para migrar los RQs.")
+                      return
+                    }
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 16 }}>
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fff" }}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Datos base del proyecto</h3>
-              <div style={{ display: "grid", gap: 8 }}>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Codigo</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.codigo || "-"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Nombre</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.nombre || "-"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Cliente</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.cliente?.razon_social || "Sin cliente"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Productor</span><div style={{ fontSize: 13, color: "#374151" }}>{productorNombre}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Entidad</span><div style={{ fontSize: 13, color: "#374151" }}>{entidadLabel}</div></div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Inicio</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.fecha_inicio || "-"}</div></div>
-                  <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Fin estimado</span><div style={{ fontSize: 13, color: "#374151" }}>{proyecto?.fecha_fin_estimada || "-"}</div></div>
-                </div>
+                    const comparacion = await compararRQsContraVersionDestino(cotizacionDestino)
+
+                    if (!comparacion) {
+                      alert("No fue posible calcular la migración hacia la versión seleccionada.")
+                      return
+                    }
+
+                    setComparacionPendiente(comparacion)
+                    setCotizacionPendienteAprobar(cotizacionDestino)
+                    setShowMigracionRQ(true)
+                  }}
+                  size="sm"
+                  variant="primary"
+                >
+                  Migrar RQs
+                </V2Button>
               </div>
             </div>
-
-
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fff" }}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Informacion economica basica</h3>
-              <div style={{ display: "grid", gap: 10 }}>
-                <div>
-                  <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Presupuesto referencial</span>
-                  <div style={{ fontSize: 18, color: "#111827", fontWeight: 700 }}>{proyecto?.presupuesto_referencial ? fmt(proyecto.presupuesto_referencial) : "-"}</div>
-                </div>
-                <div>
-                  <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Version aprobada</span>
-                  <div style={{ fontSize: 13, color: "#374151" }}>{cotAprobada ? `V${cotAprobada.version}` : "Sin version aprobada"}</div>
-                </div>
-                <div>
-                  <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Monto aprobado</span>
-                  <div style={{ fontSize: 13, color: "#374151" }}>{montoAprobado ? fmt(montoAprobado) : "-"}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 14, background: "#fafafa" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: resumenAlertas.length > 0 ? 10 : 0 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>Alertas simples</h3>
-              {resumenAlertas.length === 0 && <span style={{ fontSize: 12, color: "#15803d", fontWeight: 700 }}>Sin alertas operativas</span>}
-            </div>
-            {resumenAlertas.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-                {resumenAlertas.map((alerta: any) => (
-                  <div key={alerta.label} style={{ padding: "10px 12px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#9a3412", marginBottom: 3 }}>{alerta.label}</div>
-                    <div style={{ fontSize: 12, color: "#7c2d12" }}>{alerta.detalle}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-
-      <section id="tab-cliente" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 4 }}>Tab Cliente</div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#111827" }}>{clienteNombre}</h2>
-            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-              Contexto comercial y datos principales del cliente asociados a este proyecto.
-            </p>
-          </div>
-          {clienteId && (
-            <span style={{ background: "#f3f4f6", color: "#374151", padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
-              1 proyecto en esta vista
-            </span>
           )}
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(260px, 0.8fr)", gap: 16 }}>
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fff" }}>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Ficha rapida</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Razon social</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteNombre}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Nombre comercial</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.nombre_comercial || "No disponible en esta vista"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>RUC</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.ruc || "-"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Direccion principal</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteProyecto.direccion || "Sin direccion"}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Contacto principal</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteContacto}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Correo</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteEmail}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Telefono</span><div style={{ fontSize: 13, color: "#374151" }}>{clienteTelefono}</div></div>
-                <div><span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase" }}>Responsable comercial</span><div style={{ fontSize: 13, color: "#374151" }}>{productorNombre}</div></div>
-              </div>
-            </div>
 
-            <div style={{ display: "grid", gap: 12 }}>
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fff" }}>
-                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 12px" }}>Acciones del cliente</h3>
-                <div style={{ display: "grid", gap: 8 }}>
-                  <button onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
-                    Ver ficha completa
-                  </button>
-                  <button onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
-                    Editar cliente
-                  </button>
-                  <button onClick={() => clienteId && router.push(`/proyectos?cliente_id=${clienteId}`)} disabled={!clienteId} className="btn-secondary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
-                    Ver proyectos del cliente
-                  </button>
-                  <button onClick={() => clienteId && router.push(`/proyectos/nuevo?cliente_id=${clienteId}`)} disabled={!clienteId} className="btn-primary" style={{ fontSize: 13, justifyContent: "center", opacity: clienteId ? 1 : 0.5 }}>
-                    Crear nuevo proyecto
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, background: "#fafafa" }}>
-                <h3 style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 10px" }}>Proyectos relacionados</h3>
-                <div style={{ padding: "10px 12px", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{proyecto?.codigo || "Proyecto actual"}</div>
-                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{proyecto?.nombre || "-"}</div>
-                  <div style={{ fontSize: 11, color: estadoInfo.color, fontWeight: 700, marginTop: 6 }}>{estadoInfo.label}</div>
-                </div>
-                <p style={{ fontSize: 12, color: "#9ca3af", margin: "10px 0 0" }}>
-                  El listado completo se mantiene en Proyectos para evitar consultas adicionales en este tab.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="tab-tareas" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Tareas</h2>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={() => router.push(`/tareas?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Crear tarea</button>
-            <button onClick={() => router.push(`/audiovisual/requerimientos?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Solicitar audiovisual</button>
-          </div>
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: placeholder para tareas vinculadas al proyecto, responsables, estados, fechas limite y comentarios recientes.
-          </div>
-        </div>
-      </section>
-
-      <section id="tab-logistica" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Logística</h2>
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: placeholder para envios de materiales, inventario, ordenes asociadas, responsables logisticos y estados de entrega.
-          </div>
-        </div>
-      </section>
-
-      <section id="tab-facturacion" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Facturación</h2>
-          {puedeVerFacturacionProyecto && (
-            <button onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Emitir factura</button>
-          )}
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: placeholder para facturas asociadas al proyecto, estado de cobro, detracciones, retenciones y documentos.
-          </div>
-        </div>
-      </section>
-
-      <section id="tab-liquidacion" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Liquidación</h2>
-          <button onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver liquidación</button>
-        </div>
-        <div style={{ padding: 20 }}>
-          {!liquidacionProyecto ? (
-            <div style={placeholderStyle}>
-              Aún no existe liquidación registrada para este proyecto.
+          {rqsProyecto.length === 0 ? (
+            <div style={{ marginTop: 16 }}>
+              <V2EmptyState
+                compact
+                description="Este proyecto todavía no tiene requerimientos de pago vinculados."
+                title="Sin requerimientos vinculados"
+              />
             </div>
           ) : (
-            <div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12 }}>
+            <div style={{ marginTop: 16, overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "var(--v2-surface-muted)" }}>
+                    <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>ORIGEN</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>ESTADO</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>ÍTEM DEL PRESUPUESTO</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>RQ</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>PROVEEDOR</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>FECHA SOLICITUD</th>
+                    <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>PRESUP.</th>
+                    <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>FINAL RQ</th>
+                    <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>VARIACIÓN</th>
+                    <th style={{ padding: "10px 16px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)" }}>ACCIÓN</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filasEjecucionRqs.map((fila: any, idx: number) => {
+                    const estilosEstadoRQ: Record<string, any> = {
+                      generado: { dot: "var(--v2-success)", label: "Generado", color: "var(--v2-success)", bg: "var(--v2-success-bg)" },
+                      pendiente: { dot: "var(--v2-warning)", label: "Pendiente", color: "var(--v2-warning)", bg: "var(--v2-warning-bg)" },
+                      cancelado: { dot: "var(--v2-info)", label: "Cancelado", color: "var(--v2-info)", bg: "var(--v2-info-bg)" },
+                      adicional: { dot: "var(--v2-indigo)", label: "Adicional", color: "var(--v2-indigo)", bg: "var(--v2-indigo-bg)" },
+                    }
+                    const estadoStyle = estilosEstadoRQ[String(fila.estadoVista)] || { dot: "var(--v2-subtle)", label: String(fila.estadoVista || "Sin estado"), color: "var(--v2-text-secondary)", bg: "var(--v2-neutral-bg)" }
+
+                    return (
+                      <tr key={fila.key} style={{ borderTop: "1px solid var(--v2-border-soft)", background: idx % 2 === 0 ? "var(--v2-surface)" : "var(--v2-surface-soft)" }}>
+                        <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 700, color: fila.origen === "adicional" ? "var(--v2-indigo)" : "var(--v2-text-secondary)", whiteSpace: "nowrap" }}>
+                          {fila.origen === "adicional" ? "➕ Adicional" : fila.legacy ? "📋 Proyecto legacy" : "📋 Proyecto"}
+                        </td>
+                        <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 7, background: estadoStyle.bg, color: estadoStyle.color, padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
+                            <span style={{ width: 9, height: 9, borderRadius: "50%", background: estadoStyle.dot, display: "inline-block" }} />
+                            {estadoStyle.label}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px", fontSize: 12, color: "var(--v2-text-secondary)", minWidth: 240 }}>{fila.descripcion}</td>
+                        <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, color: fila.rq ? "var(--v2-accent)" : "var(--v2-subtle)", whiteSpace: "nowrap" }}>
+                          {fila.rq ? rqCodigo(fila.rq) : "—"}
+                        </td>
+                        <td style={{ padding: "12px", fontSize: 12, color: "var(--v2-muted)", minWidth: 160 }}>{fila.proveedor}</td>
+                        <td style={{ padding: "12px", fontSize: 12, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>
+                          {fila.fecha ? new Date(fila.fecha).toLocaleDateString("es-PE") : "—"}
+                        </td>
+                        <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, color: "var(--v2-text-secondary)", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {fmt(fila.montoPresupuestado)}
+                        </td>
+                        <td style={{ padding: "12px", fontSize: 13, fontWeight: 900, color: "var(--v2-accent)", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {fmt(fila.montoFinal)}
+                          {fila.rq && <div style={{ fontSize: 10, color: "var(--v2-muted)", fontWeight: 600 }}>{rqTratamientoIgvLabel(fila.rq)}</div>}
+                        </td>
+                        <td style={{ padding: "12px", fontSize: 12, fontWeight: 800, textAlign: "right", whiteSpace: "nowrap" }}>
+                          {(() => {
+                            const presup = Number(fila.montoPresupuestado || 0)
+                            const final = Number(fila.montoFinal || 0)
+                            const diff = final - presup
+                            const pct = presup > 0 ? (diff / presup) * 100 : 0
+                            const color = Math.abs(diff) < 0.01 ? "var(--v2-muted)" : diff > 0 ? "var(--v2-danger)" : "var(--v2-success)"
+                            return (
+                              <div style={{ color }}>
+                                {Math.abs(diff) < 0.01 ? "S/ 0.00" : `${diff > 0 ? "+" : "-"}${fmt(Math.abs(diff))}`}
+                                {presup > 0 && <div style={{ fontSize: 10, fontWeight: 700 }}>{Math.abs(pct).toFixed(1)}%</div>}
+                              </div>
+                            )
+                          })()}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {fila.estadoVista === "pendiente" && (
+                            <V2Button onClick={() => abrirPreCuadreDesdeItem(fila.item)} size="sm" variant="primary">Generar</V2Button>
+                          )}
+                          {fila.estadoVista === "cancelado" && (
+                            <V2Button onClick={() => abrirPreCuadreDesdeItem(fila.item)} size="sm" variant="secondary">Regenerar</V2Button>
+                          )}
+                          {(fila.estadoVista === "generado" || fila.estadoVista === "adicional") && fila.rq && (
+                            <V2Button onClick={() => router.push(`/rq?proyecto_id=${id}&rq_id=${fila.rq.id}&view=list`)} size="sm" variant="secondary">Abrir</V2Button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+      </ProjectDetailSection>
+
+      <ProjectDetailSection activeTab={activeTab} tab="resumen">
+      <section id="tab-resumen" style={{ scrollMarginTop: 120 }}>
+        <V2SectionHeader
+          description="Vista rápida del proyecto, estado, economía base y alertas operativas."
+          title="Resumen ejecutivo"
+        />
+
+        <div className={styles.summaryGrid} style={{ marginTop: 16 }}>
+          <ProjectInfoCardV2
+            rows={[
+              { label: "Código", value: proyecto?.codigo || "-" },
+              { label: "Nombre", value: proyecto?.nombre || "-" },
+              { label: "Cliente", value: proyecto?.cliente?.razon_social || "Sin cliente" },
+              { label: "Productor", value: productorNombre },
+              { label: "Entidad", value: entidadLabel },
+              { label: "Inicio", value: proyecto?.fecha_inicio || "-" },
+              { label: "Fin estimado", value: proyecto?.fecha_fin_estimada || "-" },
+            ]}
+            title="Datos base del proyecto"
+          />
+
+          <ProjectInfoCardV2
+            rows={[
+              { label: "Presupuesto referencial", value: proyecto?.presupuesto_referencial ? fmt(proyecto.presupuesto_referencial) : "-", emphasis: true },
+              { label: "Versión aprobada", value: cotAprobada ? `V${cotAprobada.version}` : "Sin versión aprobada" },
+              { label: "Monto aprobado", value: montoAprobado ? fmt(montoAprobado) : "-" },
+            ]}
+            title="Información económica"
+          />
+
+          <div className={styles.summaryGridFull}>
+            <V2SectionCard description="Condiciones operativas que requieren atención." title="Alertas del sistema">
+              {resumenAlertas.length === 0 ? (
+                <span className={styles.alertsEmpty}>Sin alertas operativas</span>
+              ) : (
+                <div className={styles.alertsList}>
+                  {resumenAlertas.map((alerta: any) => {
+                    const alertaAccion: Record<string, { actionLabel: string; onClick: () => void }> = {
+                      "Sin cotización": { actionLabel: "Ir a Cotizaciones", onClick: () => handleTabChange("cotizaciones") },
+                      "Sin versión aprobada": { actionLabel: "Ir a Cotizaciones", onClick: () => handleTabChange("cotizaciones") },
+                      "Pendiente de RQ": { actionLabel: "Ir a Costos/RQ", onClick: () => handleTabChange("costos-rq") },
+                      "Pendiente de liquidación": { actionLabel: "Ir a Liquidaciones", onClick: () => router.push(`/liquidaciones?proyecto_id=${id}`) },
+                    }
+                    const accion = alertaAccion[alerta.label]
+                    return (
+                      <V2AlertCard
+                        actionLabel={accion?.actionLabel}
+                        key={alerta.label}
+                        message={`${alerta.label}: ${alerta.detalle}`}
+                        onClick={accion?.onClick}
+                        tipo="warning"
+                      />
+                    )
+                  })}
+                </div>
+              )}
+            </V2SectionCard>
+          </div>
+
+          <div className={styles.summaryGridFull}>
+            <V2SectionCard description="Últimos cambios registrados en las cotizaciones del proyecto." title="Actividad reciente">
+              <V2ActivityTimeline
+                items={Object.entries(historial)
+                  .flatMap(([cotId, entradas]: [string, any[]]) => {
+                    const cot = cotizaciones.find((c: any) => c.id === cotId)
+                    return entradas.map((h: any, i: number): V2TimelineItem => ({
+                      id: `${cotId}-${i}`,
+                      date: h.created_at ? new Date(h.created_at).toLocaleDateString("es-PE") : "-",
+                      title: cot ? `V${cot.version} - ${h.accion || "Actualización"}` : (h.accion || "Actualización"),
+                      subtitle: h.usuario_nombre || undefined,
+                    }))
+                  })
+                  .sort((a, b) => (a.date < b.date ? 1 : -1))
+                  .slice(0, 6)}
+              />
+            </V2SectionCard>
+          </div>
+
+          <div className={styles.summaryGridFull}>
+            <V2SectionCard description="Accesos directos usados con frecuencia desde el Resumen." title="Acciones rápidas">
+              <V2QuickActions layout="auto">
+                <V2Button leadingIcon={<FileText size={15} />} onClick={() => handleTabChange("cotizaciones")} variant="secondary">
+                  Ver historial económico
+                </V2Button>
+                {puedeExportarProyecto && (
+                  <V2Button leadingIcon={<FolderOpen size={15} />} onClick={() => window.open(`/api/reporte-pdf?proyecto_id=${id}`, "_blank")} variant="secondary">
+                    Ver documentos
+                  </V2Button>
+                )}
+              </V2QuickActions>
+            </V2SectionCard>
+          </div>
+        </div>
+      </section>
+      </ProjectDetailSection>
+
+      <ProjectDetailSection activeTab={activeTab} tab="cliente">
+      <section id="tab-cliente" style={{ scrollMarginTop: 120 }}>
+        <V2SectionHeader
+          actions={clienteId && <V2StatusBadge tone="neutral">1 proyecto en esta vista</V2StatusBadge>}
+          description="Contexto comercial y datos principales del cliente asociados a este proyecto."
+          title={clienteNombre}
+        />
+
+        <div className={styles.clienteGrid} style={{ marginTop: 16 }}>
+          <ProjectInfoCardV2
+            columns={4}
+            density="compact"
+            rows={[
+              { label: "Razón social", value: clienteNombre },
+              { label: "Nombre comercial", value: clienteProyecto.nombre_comercial || "No disponible en esta vista" },
+              { label: "RUC", value: clienteProyecto.ruc || "-" },
+              { label: "Dirección principal", value: clienteProyecto.direccion || "Sin dirección" },
+              { label: "Contacto principal", value: clienteContacto },
+              { label: "Correo", value: clienteEmail },
+              { label: "Teléfono", value: clienteTelefono },
+              { label: "Responsable comercial", value: productorNombre },
+            ]}
+            title="Ficha rápida"
+          />
+
+          <div className={styles.clienteRightColumn}>
+            <V2SectionCard title="Acciones del cliente">
+              <V2QuickActions layout="auto">
+                <V2Button disabled={!clienteId} leadingIcon={<Eye size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
+                  Ver ficha completa
+                </V2Button>
+                <V2Button disabled={!clienteId} leadingIcon={<Pencil size={15} />} onClick={() => clienteId && router.push(`/clientes/${clienteId}`)} variant="secondary">
+                  Editar cliente
+                </V2Button>
+                <V2Button disabled={!clienteId} leadingIcon={<FolderOpen size={15} />} onClick={() => clienteId && router.push(`/proyectos?cliente_id=${clienteId}`)} variant="secondary">
+                  Ver proyectos del cliente
+                </V2Button>
+                <V2Button disabled={!clienteId} leadingIcon={<FilePlus2 size={15} />} onClick={() => clienteId && router.push(`/proyectos/nuevo?cliente_id=${clienteId}`)} variant="primary">
+                  Crear nuevo proyecto
+                </V2Button>
+              </V2QuickActions>
+            </V2SectionCard>
+
+            <V2SectionCard title="Proyectos relacionados">
+              <div className={styles.relatedProjectCard}>
+                <div className={styles.relatedProjectCode}>{proyecto?.codigo || "Proyecto actual"}</div>
+                <div className={styles.relatedProjectName}>{proyecto?.nombre || "-"}</div>
+                <div style={{ marginTop: 6 }}>
+                  <V2StatusBadge size="sm" tone={estadoTone(proyecto?.estado)}>{estadoInfo.label}</V2StatusBadge>
+                </div>
+              </div>
+              <p className={styles.relatedProjectHint}>
+                El listado completo se mantiene en Proyectos para evitar consultas adicionales en este tab.
+              </p>
+            </V2SectionCard>
+          </div>
+        </div>
+      </section>
+      </ProjectDetailSection>
+
+      <ProjectDetailSection activeTab={activeTab} tab="seguimiento">
+      <div style={{ display: "grid", gap: 16 }}>
+      <section id="tab-tareas" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard
+          action={
+            <V2QuickActions layout="auto">
+              <V2Button leadingIcon={<ClipboardList size={15} />} onClick={abrirCrearTarea} size="sm" variant="secondary">
+                Crear tarea
+              </V2Button>
+              <V2Button leadingIcon={<Video size={15} />} onClick={abrirSolicitarAudiovisual} size="sm" variant="secondary">
+                Solicitar audiovisual
+              </V2Button>
+            </V2QuickActions>
+          }
+          title="Tareas"
+        >
+          <V2EmptyState
+            compact
+            description="Aquí se mostrarán las tareas vinculadas al proyecto: responsables, estados, fechas límite y comentarios recientes."
+            icon={<ClipboardList size={20} />}
+            title="No hay tareas ni solicitudes pendientes para este cliente"
+          />
+        </V2SectionCard>
+      </section>
+
+      <section id="tab-logistica" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard title="Logística">
+          <V2EmptyState
+            compact
+            description="Aquí se mostrarán los envíos de materiales, inventario, órdenes asociadas, responsables logísticos y estados de entrega."
+            icon={<FolderOpen size={20} />}
+            title="Sin movimientos logísticos registrados"
+          />
+        </V2SectionCard>
+      </section>
+
+      <section id="tab-facturacion" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard
+          action={puedeVerFacturacionProyecto && (
+            <V2Button leadingIcon={<Receipt size={15} />} onClick={() => router.push(`/facturacion?proyecto_id=${id}`)} size="sm" variant="secondary">
+              Emitir factura
+            </V2Button>
+          )}
+          title="Facturación"
+        >
+          <V2EmptyState
+            compact
+            description="Aquí se mostrarán las facturas asociadas al proyecto: estado de cobro, detracciones, retenciones y documentos."
+            icon={<Receipt size={20} />}
+            title="Sin facturas registradas"
+          />
+        </V2SectionCard>
+      </section>
+
+      <section id="tab-liquidacion" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard
+          action={
+            <V2Button leadingIcon={<FileCheck2 size={15} />} onClick={() => router.push(`/liquidaciones?proyecto_id=${id}`)} size="sm" variant="secondary">
+              Ver liquidación
+            </V2Button>
+          }
+          title="Liquidación"
+        >
+          {!liquidacionProyecto ? (
+            <V2EmptyState
+              compact
+              description="Aún no existe liquidación registrada para este proyecto."
+              icon={<FileCheck2 size={20} />}
+              title="Sin liquidación registrada"
+            />
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              <div className={styles.infoGrid}>
                 {[
                   { label: "Presupuesto aprobado", value: fmt(liquidacionProyecto.precio_cliente_presupuestado || 0) },
                   { label: "Costo real", value: fmt(liquidacionProyecto.costo_real || 0) },
@@ -2606,51 +2778,155 @@ const ultimaVersion = todasCots && todasCots.length > 0 ? Math.max(...todasCots.
                   { label: "Estado", value: liquidacionProyecto.cerrada ? "Cerrada" : "Abierta" },
                   { label: "Controller", value: liquidacionProyecto.aprobado_controller ? "Aprobado" : "Pendiente" },
                 ].map((item: any) => (
-                  <div key={item.label} style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: 12, background: "#FFFFFF" }}>
-                    <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 800, textTransform: "uppercase" }}>{item.label}</div>
-                    <div style={{ fontSize: 14, color: "#111827", fontWeight: 800, marginTop: 4 }}>{item.value}</div>
+                  <div className={styles.infoRow} key={item.label}>
+                    <span className={styles.infoLabel}>{item.label}</span>
+                    <div className={styles.infoValueEmphasis}>{item.value}</div>
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {!liquidacionProyecto.aprobado_controller && (
-                  <span style={{ fontSize: 12, color: "#92400E", background: "#FEF3C7", borderRadius: 999, padding: "5px 10px", fontWeight: 700 }}>Pendiente aprobación Controller</span>
+                  <V2StatusBadge tone="warning">Pendiente aprobación Controller</V2StatusBadge>
                 )}
                 {Number(liquidacionProyecto.costo_real || 0) <= 0 && (
-                  <span style={{ fontSize: 12, color: "#991B1B", background: "#FEE2E2", borderRadius: 999, padding: "5px 10px", fontWeight: 700 }}>Costo real pendiente de consolidar</span>
+                  <V2StatusBadge tone="danger">Costo real pendiente de consolidar</V2StatusBadge>
                 )}
                 {Number(liquidacionProyecto.margen_real_pct || 0) < 0 && (
-                  <span style={{ fontSize: 12, color: "#991B1B", background: "#FEE2E2", borderRadius: 999, padding: "5px 10px", fontWeight: 700 }}>Rentabilidad negativa</span>
+                  <V2StatusBadge tone="danger">Rentabilidad negativa</V2StatusBadge>
                 )}
               </div>
             </div>
           )}
-        </div>
+        </V2SectionCard>
       </section>
 
-      <section id="tab-archivos" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Archivos</h2>
-          <a href={"/api/reporte-pdf?proyecto_id=" + id} target="_blank" style={{ fontSize: 12, color: "#0F6E56", fontWeight: 600, textDecoration: "none" }}>Reporte PDF</a>
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: placeholder para reporte PDF, previews de cotización, facturas, vouchers, sustentos y enlaces externos del proyecto.
-          </div>
-        </div>
+      <section id="tab-archivos" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard
+          action={
+            <V2Button leadingIcon={<FileText size={15} />} onClick={() => window.open("/api/reporte-pdf?proyecto_id=" + id, "_blank")} size="sm" variant="secondary">
+              Reporte PDF
+            </V2Button>
+          }
+          title="Archivos"
+        >
+          <V2EmptyState
+            compact
+            description="Aquí se mostrarán el reporte PDF, previews de cotización, facturas, vouchers, sustentos y enlaces externos del proyecto."
+            icon={<FolderOpen size={20} />}
+            title="Sin archivos vinculados todavía"
+          />
+        </V2SectionCard>
       </section>
 
-      <section id="tab-historial" className="card" style={{ marginBottom: 24, scrollMarginTop: 120 }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#374151" }}>Historial</h2>
-          <span style={{ fontSize: 12, color: "#9ca3af" }}>{historialCount} evento{historialCount !== 1 ? "s" : ""} de cotizaciones</span>
-        </div>
-        <div style={{ padding: 20 }}>
-          <div style={placeholderStyle}>
-            Fase 1: placeholder para trazabilidad consolidada del proyecto. Por ahora el historial visible se mantiene dentro de cada cotización.
-          </div>
-        </div>
+      <section id="tab-historial" style={{ scrollMarginTop: 120 }}>
+        <V2SectionCard
+          action={<span style={{ fontSize: 12, color: "var(--v2-subtle)" }}>{historialCount} evento{historialCount !== 1 ? "s" : ""} de cotizaciones</span>}
+          title="Historial"
+        >
+          <V2EmptyState
+            compact
+            description="Por ahora el historial visible se mantiene dentro de cada cotización (pestaña Cotizaciones)."
+            icon={<FileText size={20} />}
+            title="Trazabilidad consolidada pendiente"
+          />
+        </V2SectionCard>
       </section>
+      </div>
+      </ProjectDetailSection>
+      </ProjectDetailShellV2>
+
+      <V2Drawer
+        description={proyecto ? `${proyecto.codigo} — ${proyecto.nombre}` : undefined}
+        footer={
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", width: "100%" }}>
+            {rqError && (
+              <div style={{ flex: 1, padding: "8px 10px", borderRadius: 8, background: "var(--v2-danger-bg)", color: "var(--v2-danger)", fontSize: 12, textAlign: "left" }}>
+                {rqError}
+              </div>
+            )}
+            <V2Button onClick={() => setActiveProjectAction(null)} variant="secondary">Cancelar</V2Button>
+            <V2Button disabled={rqGuardando} loading={rqGuardando} onClick={guardarRQGeneral} variant="primary">
+              {rqGuardando ? "Creando..." : "Crear RQ"}
+            </V2Button>
+          </div>
+        }
+        onClose={() => setActiveProjectAction(null)}
+        open={activeProjectAction === "rq"}
+        title="Nuevo requerimiento de pago"
+      >
+        {rqForm && (
+          <RQForm
+            formRQ={rqForm}
+            onChange={(next) => { setRqError(""); setRqForm(next) }}
+            proveedoresTodos={proveedores}
+            proyectoBloqueado
+            proyectos={proyecto ? [proyecto] : []}
+          />
+        )}
+      </V2Drawer>
+
+      <V2Drawer
+        description={proyecto ? `${proyecto.codigo} — ${proyecto.nombre}` : undefined}
+        footer={
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", width: "100%" }}>
+            <V2Button onClick={() => setActiveProjectAction(null)} variant="secondary">Cancelar</V2Button>
+            <V2Button disabled={taskGuardando} loading={taskGuardando} onClick={guardarTareaProyecto} variant="primary">
+              {taskGuardando ? "Guardando..." : "Delegar trabajo"}
+            </V2Button>
+          </div>
+        }
+        onClose={() => setActiveProjectAction(null)}
+        open={activeProjectAction === "task"}
+        size="lg"
+        title="Nueva tarea"
+      >
+        {taskForm && (
+          <TaskForm
+            clienteBloqueado
+            clientes={clienteId ? [{ id: clienteId, razon_social: clienteNombre }] : []}
+            editando={false}
+            form={taskForm}
+            onChange={setTaskForm}
+            proyectoBloqueado
+            proyectos={proyecto ? [proyecto] : []}
+            usuarios={usuariosTarea}
+          />
+        )}
+      </V2Drawer>
+
+      <V2Drawer
+        description={proyecto ? `${proyecto.codigo} — ${proyecto.nombre}` : undefined}
+        footer={
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", width: "100%" }}>
+            <V2Button onClick={() => setActiveProjectAction(null)} variant="secondary">Cancelar</V2Button>
+            <V2Button disabled={audiovisualGuardando || audiovisualUploading} loading={audiovisualGuardando} onClick={guardarAudiovisualProyecto} variant="primary">
+              {audiovisualGuardando ? "Creando..." : "Crear y alertar audiovisual"}
+            </V2Button>
+          </div>
+        }
+        onClose={() => setActiveProjectAction(null)}
+        open={activeProjectAction === "audiovisual"}
+        size="lg"
+        title="Nuevo requerimiento audiovisual"
+      >
+        {audiovisualForm && (
+          <AudiovisualRequestForm
+            camposAvanceDeshabilitados={false}
+            camposPedidoDeshabilitados={false}
+            cotizaciones={cotizacionesAudiovisual}
+            editando={false}
+            form={audiovisualForm}
+            onChange={setAudiovisualForm}
+            onProyectoChange={() => {}}
+            onUploadDocumento={subirDocumentoAudiovisualProyecto}
+            productores={productoresAudiovisual}
+            proyectoBloqueado
+            proyectos={proyecto ? [proyecto] : []}
+            puedeEditarAvanceFormulario={false}
+            uploading={audiovisualUploading}
+          />
+        )}
+      </V2Drawer>
 
       {showEditar && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>

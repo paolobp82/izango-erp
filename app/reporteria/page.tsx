@@ -1,10 +1,20 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { rqCodigo } from "@/lib/rq-code"
 import { rqIgvDetalle, rqTratamientoIgvLabel } from "@/lib/rq-igv"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
 import { puedeVerInformacionSensible } from "@/lib/permissions"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2PageHeader,
+  V2SectionCard,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 const MODULOS = [
   { key: "proyectos",     label: "Proyectos",       icon: "📁" },
@@ -58,474 +68,367 @@ const CAMPOS: Record<string, { key: string; label: string; tipo?: string }[]> = 
     { key: "codigo_rq", label: "N° RQ" },
     { key: "proyecto", label: "Proyecto" },
     { key: "descripcion", label: "Descripción" },
-    { key: "proveedor_nombre", label: "Proveedor" },
-    { key: "tratamiento_igv_label", label: "Tratamiento IGV" },
-    { key: "subtotal_igv", label: "Subtotal", tipo: "monto" },
-    { key: "igv_monto", label: "IGV", tipo: "monto" },
-    { key: "total_igv", label: "Total", tipo: "monto" },
+    { key: "proveedor", label: "Proveedor" },
+    { key: "subtotal", label: "Subtotal", tipo: "monto" },
+    { key: "tratamiento_igv", label: "Tratamiento IGV" },
+    { key: "igv_monto", label: "IGV S/", tipo: "monto" },
+    { key: "monto_total", label: "Monto total", tipo: "monto" },
     { key: "estado", label: "Estado" },
-    { key: "fecha_vencimiento", label: "Vencimiento", tipo: "fecha" },
+    { key: "solicitante", label: "Solicitado por" },
     { key: "fecha_pago", label: "Fecha pago", tipo: "fecha" },
   ],
   caja_chica: [
+    { key: "tipo", label: "Tipo" },
     { key: "concepto", label: "Concepto" },
-    { key: "monto_debe", label: "Debe", tipo: "monto" },
-    { key: "monto_haber", label: "Haber", tipo: "monto" },
+    { key: "monto", label: "Monto", tipo: "monto" },
+    { key: "responsable", label: "Responsable" },
+    { key: "comprobante", label: "Comprobante" },
     { key: "fecha", label: "Fecha", tipo: "fecha" },
-    { key: "tipo_comprobante", label: "Comprobante" },
-    { key: "numero_operacion", label: "N° Operación" },
-    { key: "estado", label: "Estado" },
-    { key: "proyecto", label: "Proyecto" },
-    { key: "categoria", label: "Categoría" },
-    { key: "solicitante", label: "Solicitante" },
   ],
   gastos_oficina: [
-    { key: "descripcion", label: "Descripción" },
-    { key: "tipo", label: "Tipo" },
+    { key: "concepto", label: "Concepto" },
+    { key: "categoria", label: "Categoría" },
     { key: "monto", label: "Monto", tipo: "monto" },
-    { key: "fecha", label: "Fecha", tipo: "fecha" },
-    { key: "estado_pago", label: "Estado" },
     { key: "proveedor", label: "Proveedor" },
-    { key: "tipo_comprobante", label: "Comprobante" },
-    { key: "numero_comprobante", label: "N° Comprobante" },
-    { key: "recurrente", label: "Recurrente" },
-    { key: "frecuencia", label: "Frecuencia" },
-    { key: "categoria_costo", label: "Centro costos" },
+    { key: "comprobante", label: "Comprobante" },
+    { key: "estado", label: "Estado" },
+    { key: "fecha_emision", label: "Fecha emisión", tipo: "fecha" },
   ],
   prestamos: [
-    { key: "nombre", label: "Nombre" },
-    { key: "tipo", label: "Tipo" },
     { key: "prestamista", label: "Prestamista" },
-    { key: "tipo_prestamista", label: "Tipo prestamista" },
-    { key: "monto_original", label: "Monto original", tipo: "monto" },
-    { key: "tasa_interes", label: "Tasa interés %" },
-    { key: "num_cuotas", label: "N° cuotas" },
-    { key: "sistema_cuotas", label: "Sistema" },
-    { key: "fecha_inicio", label: "Fecha inicio", tipo: "fecha" },
+    { key: "monto", label: "Monto prestado", tipo: "monto" },
+    { key: "monto_devuelto", label: "Monto devuelto", tipo: "monto" },
+    { key: "saldo_pendiente", label: "Saldo pendiente", tipo: "monto" },
+    { key: "tasa_interes", label: "Tasa %" },
     { key: "estado", label: "Estado" },
-    { key: "empleado", label: "Empleado" },
+    { key: "fecha", label: "Fecha", tipo: "fecha" },
   ],
   rrhh: [
-    { key: "nombre", label: "Nombre" },
-    { key: "apellido", label: "Apellido" },
+    { key: "nombre_completo", label: "Trabajador" },
     { key: "cargo", label: "Cargo" },
-    { key: "departamento", label: "Departamento" },
-    { key: "tipo_contrato", label: "Tipo contrato" },
-    { key: "sueldo_bruto", label: "Sueldo bruto", tipo: "monto" },
+    { key: "area", label: "Área" },
+    { key: "tipo", label: "Tipo" },
+    { key: "sueldo_base", label: "Sueldo base", tipo: "monto" },
     { key: "fecha_ingreso", label: "Fecha ingreso", tipo: "fecha" },
-    { key: "activo", label: "Activo" },
+    { key: "banco", label: "Banco" },
+    { key: "sistema_pension", label: "Pensión" },
   ],
   inventario: [
-    { key: "codigo", label: "Código" },
-    { key: "nombre", label: "Nombre" },
+    { key: "nombre", label: "Ítem" },
     { key: "categoria", label: "Categoría" },
-    { key: "stock_actual", label: "Stock" },
     { key: "unidad", label: "Unidad" },
-    { key: "precio_unitario", label: "Precio unit.", tipo: "monto" },
-    { key: "almacen", label: "Almacén" },
+    { key: "stock_total", label: "Stock total" },
+    { key: "stock_minimo", label: "Stock mín." },
+    { key: "cliente", label: "Cliente" },
   ],
-}
-
-const ESTADO_FILTROS: Record<string, string[]> = {
-  proyectos: ["pendiente_aprobacion", "aprobado_produccion", "aprobado", "en_curso", "terminado", "liquidado", "facturado", "cancelado", "rechazado"],
-  facturacion: ["pendiente", "emitida", "cobrada", "anulada"],
-  rqs: ["pendiente", "aprobado", "rechazado", "pagado", "cancelado"],
-  caja_chica: ["pendiente", "aprobado", "rechazado"],
-  gastos_oficina: ["pendiente", "pagado", "vencido"],
-  prestamos: ["activo", "pagado", "refinanciado", "cancelado"],
 }
 
 export default function ReporteriaPage() {
   const supabase = createClient()
-  const [moduloActivo, setModuloActivo] = useState("proyectos")
-  const [camposSeleccionados, setCamposSeleccionados] = useState<string[]>(CAMPOS.proyectos.map(c => c.key))
+  const [modulo, setModulo] = useState("proyectos")
+  const [columnasSel, setColumnasSel] = useState<string[]>([])
+  const [filtros, setFiltros] = useState({ fechaDesde: "", fechaHasta: "", estado: "", clienteId: "", proyectoId: "" })
   const [datos, setDatos] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [perfil, setPerfil] = useState<any>(null)
-  const [autorizado, setAutorizado] = useState(false)
-  const [checkingAccess, setCheckingAccess] = useState(true)
   const [generado, setGenerado] = useState(false)
-  const [filtros, setFiltros] = useState({ fechaDesde: "", fechaHasta: "", estado: "", busqueda: "" })
-  const [clientes, setClientes] = useState<any[]>([])
-  const [filtroCliente, setFiltroCliente] = useState("")
+  const [perfil, setPerfil] = useState<any>(null)
 
   useEffect(() => {
-    setCamposSeleccionados(CAMPOS[moduloActivo].map(c => c.key))
-    setDatos([])
-    setGenerado(false)
-    setFiltros({ fechaDesde: "", fechaHasta: "", estado: "", busqueda: "" })
-    setFiltroCliente("")
-  }, [moduloActivo])
-
-  useEffect(() => {
-    validarAcceso()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from("perfiles").select("*").eq("id", user.id).single().then(({ data }) => setPerfil(data))
+      }
+    })
   }, [])
 
-  async function validarAcceso() {
-    const { data: { user } } = await supabase.auth.getUser()
+  useEffect(() => {
+    const caps = CAMPOS[modulo] || []
+    setColumnasSel(caps.map(c => c.key))
+    setGenerado(false)
+    setDatos([])
+  }, [modulo])
 
-    if (!user) {
-      setAutorizado(false)
-      setCheckingAccess(false)
-      return
-    }
-
-    const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-    setPerfil(p)
-
-    const puedeVer = puedeVerInformacionSensible(p?.perfil)
-    setAutorizado(puedeVer)
-
-    if (!puedeVer) {
-      setCheckingAccess(false)
-      return
-    }
-
-    const { data } = await supabase
-      .from("clientes")
-      .select("id, razon_social")
-      .order("razon_social")
-
-    setClientes(data || [])
-    setCheckingAccess(false)
+  const toggleCol = (key: string) => {
+    setColumnasSel(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
   }
 
-  async function generarReporte() {
-    if (!autorizado) return
-    setLoading(true)
-    let data: any[] = []
+  const verInfoSensible = puedeVerInformacionSensible(perfil?.perfil)
 
-    if (moduloActivo === "proyectos") {
-      let q = supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido)")
+  async function generarReporte() {
+    setLoading(true)
+    setGenerado(true)
+    let res: any[] = []
+
+    if (modulo === "proyectos") {
+      let q = supabase.from("proyectos").select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre,apellido)").is("deleted_at", null).order("created_at", { ascending: false })
       if (filtros.estado) q = q.eq("estado", filtros.estado)
-      if (filtroCliente) q = q.eq("cliente_id", filtroCliente)
-      if (filtros.fechaDesde) q = q.gte("fecha_inicio", filtros.fechaDesde)
-      if (filtros.fechaHasta) q = q.lte("fecha_inicio", filtros.fechaHasta)
-      const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).map(p => ({
+      if (filtros.clienteId) q = q.eq("cliente_id", filtros.clienteId)
+      if (filtros.fechaDesde) q = q.gte("created_at", filtros.fechaDesde)
+      if (filtros.fechaHasta) q = q.lte("created_at", filtros.fechaHasta + "T23:59:59")
+      const { data } = await q
+      res = (data || []).map(p => ({
         ...p,
         cliente: p.cliente?.razon_social || "—",
-        productor: p.productor ? p.productor.nombre + " " + p.productor.apellido : "—",
+        productor: p.productor ? `${p.productor.nombre} ${p.productor.apellido}` : "—",
+        presupuesto_referencial: verInfoSensible ? p.presupuesto_referencial : undefined,
       }))
-    } else if (moduloActivo === "facturacion") {
-      let q = supabase.from("facturas").select("*, proyecto:proyectos(nombre, codigo, deleted_at, cliente:clientes(razon_social))")
+    } else if (modulo === "facturacion") {
+      let q = supabase.from("facturas").select("*, proyecto:proyectos(nombre,codigo,deleted_at), cliente:clientes(razon_social)").order("fecha_emision", { ascending: false })
       if (filtros.estado) q = q.eq("estado", filtros.estado)
+      if (filtros.clienteId) q = q.eq("cliente_id", filtros.clienteId)
+      if (filtros.proyectoId) q = q.eq("proyecto_id", filtros.proyectoId)
       if (filtros.fechaDesde) q = q.gte("fecha_emision", filtros.fechaDesde)
       if (filtros.fechaHasta) q = q.lte("fecha_emision", filtros.fechaHasta)
-      const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).filter((f: any) => !rowBelongsToDeletedProject(f)).map(f => ({
+      const { data } = await q
+      res = (data || []).filter((f: any) => !rowBelongsToDeletedProject(f)).map(f => ({
         ...f,
-        proyecto: f.proyecto ? f.proyecto.codigo + " — " + f.proyecto.nombre : "—",
-        cliente: f.proyecto?.cliente?.razon_social || "—",
-        total: (f.subtotal || 0) + (f.igv || 0),
+        proyecto: f.proyecto ? `${f.proyecto.codigo} — ${f.proyecto.nombre}` : "—",
+        cliente: f.cliente?.razon_social || "—",
+        subtotal: verInfoSensible ? f.subtotal : undefined,
+        igv: verInfoSensible ? f.igv : undefined,
+        total: verInfoSensible ? f.total : undefined,
+        monto_final_abonado: verInfoSensible ? f.monto_final_abonado : undefined,
       }))
-    } else if (moduloActivo === "liquidaciones") {
-      let q = supabase.from("liquidaciones").select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
-      if (filtros.fechaDesde) q = q.gte("created_at", filtros.fechaDesde)
-      if (filtros.fechaHasta) q = q.lte("created_at", filtros.fechaHasta)
-      const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).filter((l: any) => !rowBelongsToDeletedProject(l)).map(l => ({
-        ...l,
-        proyecto: l.proyecto ? l.proyecto.codigo + " — " + l.proyecto.nombre : "—",
-        cerrada: l.cerrada ? "Sí" : "No",
+    } else if (modulo === "liquidaciones") {
+      let q = supabase.from("proyectos").select("*, cliente:clientes(razon_social)").not("costo_real", "is", null).is("deleted_at", null).order("created_at", { ascending: false })
+      if (filtros.clienteId) q = q.eq("cliente_id", filtros.clienteId)
+      const { data } = await q
+      res = (data || []).map(p => ({
+        proyecto: `${p.codigo} — ${p.nombre}`,
+        costo_presupuestado: verInfoSensible ? p.costo_presupuestado : undefined,
+        costo_real: verInfoSensible ? p.costo_real : undefined,
+        precio_cliente_presupuestado: verInfoSensible ? p.precio_cliente_presupuestado : undefined,
+        precio_cliente_real: verInfoSensible ? p.precio_cliente_real : undefined,
+        margen_presupuestado_pct: verInfoSensible && p.margen_presupuestado_pct ? `${p.margen_presupuestado_pct}%` : "—",
+        margen_real_pct: verInfoSensible && p.margen_real_pct ? `${p.margen_real_pct}%` : "—",
+        cerrada: p.liquidacion_cerrada ? "Sí" : "No",
       }))
-    } else if (moduloActivo === "rqs") {
-      let q = supabase.from("requerimientos_pago").select("*, proyecto:proyectos(nombre, codigo, deleted_at)")
+    } else if (modulo === "rqs") {
+      let q = supabase.from("requerimientos_pago").select("*, proyecto:proyectos(nombre,codigo,deleted_at), proveedor:proveedores(razon_social,nombre_comercial), solicitante:perfiles!solicitado_por(nombre,apellido)").order("created_at", { ascending: false })
       if (filtros.estado) q = q.eq("estado", filtros.estado)
-      if (filtros.fechaDesde) q = q.gte("fecha_vencimiento", filtros.fechaDesde)
-      if (filtros.fechaHasta) q = q.lte("fecha_vencimiento", filtros.fechaHasta)
-      const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).filter((rq: any) => !rowBelongsToDeletedProject(rq)).map(r => {
-        const igv = rqIgvDetalle(r)
+      if (filtros.proyectoId) q = q.eq("proyecto_id", filtros.proyectoId)
+      if (filtros.fechaDesde) q = q.gte("created_at", filtros.fechaDesde)
+      if (filtros.fechaHasta) q = q.lte("created_at", filtros.fechaHasta + "T23:59:59")
+      const { data } = await q
+      res = (data || []).filter((r: any) => !rowBelongsToDeletedProject(r)).map(r => {
+        const detIgv = rqIgvDetalle(r)
         return {
           ...r,
           codigo_rq: rqCodigo(r),
-          proyecto: r.proyecto ? r.proyecto.codigo + " — " + r.proyecto.nombre : "—",
-          tratamiento_igv_label: rqTratamientoIgvLabel(r),
-          subtotal_igv: igv.subtotal,
-          igv_monto: igv.igv,
-          total_igv: igv.total,
+          proyecto: r.proyecto ? `${r.proyecto.codigo} — ${r.proyecto.nombre}` : "Sin proyecto",
+          proveedor: r.proveedor ? (r.proveedor.razon_social || r.proveedor.nombre_comercial) : (r.proveedor_nombre || "—"),
+          solicitante: r.solicitante ? `${r.solicitante.nombre} ${r.solicitante.apellido}` : "—",
+          subtotal: verInfoSensible ? detIgv.subtotal : undefined,
+          tratamiento_igv: rqTratamientoIgvLabel(r),
+          igv_monto: verInfoSensible ? detIgv.igv : undefined,
+          monto_total: verInfoSensible ? detIgv.total : undefined,
         }
       })
-    } else if (moduloActivo === "caja_chica") {
-      let q = supabase.from("caja_chica").select("*, proyecto:proyectos(nombre, codigo, deleted_at), solicitante:perfiles!solicitado_por(nombre, apellido)")
-      if (filtros.estado) q = q.eq("estado", filtros.estado)
+    } else if (modulo === "caja_chica") {
+      let q = supabase.from("caja_chica_movimientos").select("*, responsable:perfiles!responsable_id(nombre,apellido)").order("fecha", { ascending: false })
       if (filtros.fechaDesde) q = q.gte("fecha", filtros.fechaDesde)
       if (filtros.fechaHasta) q = q.lte("fecha", filtros.fechaHasta)
-      const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).filter((c: any) => !rowBelongsToDeletedProject(c)).map(c => ({
-        ...c,
-        proyecto: c.proyecto ? c.proyecto.codigo + " — " + c.proyecto.nombre : "—",
-        solicitante: c.solicitante ? c.solicitante.nombre + " " + c.solicitante.apellido : "—",
+      const { data } = await q
+      res = (data || []).map(m => ({
+        ...m,
+        responsable: m.responsable ? `${m.responsable.nombre} ${m.responsable.apellido}` : "—",
+        monto: verInfoSensible ? m.monto : undefined,
       }))
-    } else if (moduloActivo === "gastos_oficina") {
-      let q = supabase.from("gastos_oficina").select("*, proveedor:proveedores(nombre)")
-      if (filtros.estado) q = q.eq("estado_pago", filtros.estado)
-      if (filtros.fechaDesde) q = q.gte("fecha", filtros.fechaDesde)
-      if (filtros.fechaHasta) q = q.lte("fecha", filtros.fechaHasta)
-      const { data: r } = await q.order("fecha", { ascending: false })
-      data = (r || []).map(g => ({ ...g, proveedor: g.proveedor?.nombre || g.proveedor_nombre || "—", recurrente: g.recurrente ? "Sí" : "No" }))
-    } else if (moduloActivo === "prestamos") {
-      let q = supabase.from("prestamos").select("*, empleado:rrhh_trabajadores(nombre, apellido)")
+    } else if (modulo === "gastos_oficina") {
+      let q = supabase.from("gastos_oficina").select("*, proveedor:proveedores(razon_social)").order("fecha_emision", { ascending: false })
       if (filtros.estado) q = q.eq("estado", filtros.estado)
-      if (filtros.fechaDesde) q = q.gte("fecha_inicio", filtros.fechaDesde)
-      if (filtros.fechaHasta) q = q.lte("fecha_inicio", filtros.fechaHasta)
-      const { data: r } = await q.order("created_at", { ascending: false })
-      data = (r || []).map(p => ({ ...p, empleado: p.empleado ? p.empleado.nombre + " " + p.empleado.apellido : "—" }))
-    } else if (moduloActivo === "rrhh") {
-      let q = supabase.from("rrhh_trabajadores").select("*")
-      if (filtros.fechaDesde) q = q.gte("fecha_ingreso", filtros.fechaDesde)
-      if (filtros.fechaHasta) q = q.lte("fecha_ingreso", filtros.fechaHasta)
-      const { data: r } = await q.order("apellido")
-      data = (r || []).map(t => ({ ...t, activo: t.activo ? "Sí" : "No" }))
-    } else if (moduloActivo === "inventario") {
-      const { data: r } = await supabase.from("inventario_items").select("*, almacen:inventario_almacenes(nombre)").order("nombre")
-      data = (r || []).map(i => ({ ...i, almacen: i.almacen?.nombre || "—" }))
+      if (filtros.fechaDesde) q = q.gte("fecha_emision", filtros.fechaDesde)
+      if (filtros.fechaHasta) q = q.lte("fecha_emision", filtros.fechaHasta)
+      const { data } = await q
+      res = (data || []).map(g => ({
+        ...g,
+        proveedor: g.proveedor?.razon_social || "—",
+        monto: verInfoSensible ? g.monto : undefined,
+      }))
+    } else if (modulo === "prestamos") {
+      const { data } = await supabase.from("prestamos").select("*").order("fecha", { ascending: false })
+      res = (data || []).map(p => ({
+        ...p,
+        monto: verInfoSensible ? p.monto : undefined,
+        monto_devuelto: verInfoSensible ? p.monto_devuelto : undefined,
+        saldo_pendiente: verInfoSensible ? (p.monto - (p.monto_devuelto || 0)) : undefined,
+      }))
+    } else if (modulo === "rrhh") {
+      const { data } = await supabase.from("rrhh_trabajadores").select("*").eq("activo", true).order("apellido")
+      res = (data || []).map(t => ({
+        ...t,
+        nombre_completo: `${t.apellido}, ${t.nombre}`,
+        sueldo_base: verInfoSensible ? t.sueldo_base : undefined,
+      }))
+    } else if (modulo === "inventario") {
+      const { data } = await supabase.from("inventario_items").select("*, cliente:clientes(razon_social), inventario_stock_sin_variante(cantidad)").eq("activo", true).order("nombre")
+      res = (data || []).map(item => ({
+        ...item,
+        cliente: item.cliente?.razon_social || "Propio Izango",
+        stock_total: item.inventario_stock_sin_variante?.reduce((s: number, x: any) => s + (x.cantidad || 0), 0) || 0,
+      }))
     }
 
-    // Filtro por búsqueda texto
-    if (filtros.busqueda) {
-      const b = filtros.busqueda.toLowerCase()
-      data = data.filter(row =>
-        Object.values(row).some(v => String(v || "").toLowerCase().includes(b))
-      )
-    }
-
-    setDatos(data)
-    setGenerado(true)
+    setDatos(res)
     setLoading(false)
   }
 
-  function toggleCampo(key: string) {
-    setCamposSeleccionados(prev =>
-      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-    )
-  }
-
-  function seleccionarTodos() {
-    setCamposSeleccionados(CAMPOS[moduloActivo].map(c => c.key))
-  }
-
-  function deseleccionarTodos() {
-    setCamposSeleccionados([])
-  }
-
   function exportarCSV() {
-    const campos = CAMPOS[moduloActivo].filter(c => camposSeleccionados.includes(c.key))
-    const headers = campos.map(c => c.label).join(",")
-    const rows = datos.map(row =>
-      campos.map(c => {
-        const val = row[c.key]
-        const str = val === null || val === undefined ? "" : String(val)
-        return `"${str.replace(/"/g, '""')}"`
-      }).join(",")
-    ).join("\n")
-    const csv = headers + "\n" + rows
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
+    if (datos.length === 0) return
+    const caps = (CAMPOS[modulo] || []).filter(c => columnasSel.includes(c.key))
+    const headers = caps.map(c => c.label)
+    const rows = datos.map(row => caps.map(c => {
+      const val = row[c.key]
+      if (val === null || val === undefined) return ""
+      return String(val).replace(/"/g, '""')
+    }))
+    const csvContent = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(",")).join("\n")
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `reporte_${moduloActivo}_${new Date().toISOString().split("T")[0]}.csv`
+    a.download = `reporte-${modulo}-${new Date().toISOString().slice(0,10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  const camposActivos = CAMPOS[moduloActivo].filter(c => camposSeleccionados.includes(c.key))
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none" }
+  const capsDef = CAMPOS[modulo] || []
+  const camposActivos = capsDef.filter(c => columnasSel.includes(c.key))
 
-  // Calcular totales de columnas numéricas
-  const totales: Record<string, number> = {}
-  camposActivos.forEach(c => {
-    if (c.tipo === "monto") {
-      totales[c.key] = datos.reduce((s, row) => s + (Number(row[c.key]) || 0), 0)
-    }
-  })
-  const hayTotales = Object.keys(totales).length > 0
+  const fmt = (val: number) => "S/ " + val.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const inp: any = { padding: "8px 12px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius)", fontSize: 13, fontFamily: "inherit", background: "var(--v2-surface)", color: "var(--v2-text)", width: "100%", outline: "none", boxSizing: "border-box" as const }
 
-  if (checkingAccess) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
-
-  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
+  const columns: V2TableColumn<any>[] = camposActivos.map(c => ({
+    key: c.key,
+    header: c.label,
+    align: c.tipo === "monto" ? "right" : "left",
+    render: (row) => {
+      const val = row[c.key]
+      if (c.tipo === "monto") {
+        return <span style={{ fontWeight: 600, fontSize: 13 }}>{fmt(Number(val) || 0)}</span>
+      }
+      return <span style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{val === null || val === undefined ? "—" : String(val)}</span>
+    },
+  }))
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Reportería</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Genera reportes personalizados de todos los módulos</p>
+    <V2ListPageTemplate
+      header={
+        <V2PageHeader
+          eyebrow="Analítica"
+          title="Centro de Reportería"
+          subtitle="Genera reportes dinámicos, aplica filtros por fecha/estado y exporta a CSV"
+          actions={
+            datos.length > 0 ? (
+              <V2Button variant="secondary" onClick={exportarCSV}>
+                Exportar CSV
+              </V2Button>
+            ) : undefined
+          }
+        />
+      }
+      summary={
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
+          {MODULOS.map(m => (
+            <button
+              key={m.key}
+              onClick={() => setModulo(m.key)}
+              style={{
+                padding: "10px 14px",
+                border: "1px solid var(--v2-border)",
+                borderRadius: "var(--v2-radius)",
+                background: modulo === m.key ? "var(--v2-primary)" : "var(--v2-surface)",
+                color: modulo === m.key ? "#fff" : "var(--v2-text)",
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: 13,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                justifyContent: "center",
+              }}
+            >
+              <span>{m.icon}</span>
+              <span>{m.label}</span>
+            </button>
+          ))}
         </div>
-        {generado && datos.length > 0 && (
-          <button onClick={exportarCSV}
-            style={{ padding: "8px 16px", background: "#0F6E56", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-            ⬇ Exportar CSV
-          </button>
-        )}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 20 }}>
-
-        {/* ── PANEL IZQUIERDO — configuración ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-          {/* Módulo */}
-          <div className="card" style={{ padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>Módulo</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {MODULOS.map(m => (
-                <button key={m.key} onClick={() => setModuloActivo(m.key)}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 7, border: "none", background: moduloActivo === m.key ? "#f0fdf4" : "transparent", color: moduloActivo === m.key ? "#0F6E56" : "#374151", fontWeight: moduloActivo === m.key ? 700 : 400, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
-                  <span>{m.icon}</span>{m.label}
-                </button>
-              ))}
+      }
+      toolbar={
+        <V2FilterBar
+          searchValue=""
+          onSearchChange={() => {}}
+          activeFiltersCount={(filtros.fechaDesde ? 1 : 0) + (filtros.fechaHasta ? 1 : 0) + (filtros.estado ? 1 : 0)}
+          hideDrawerButton
+          onToggleDrawer={() => {}}
+          quickFilters={
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ width: 140 }}>
+                <input
+                  type="date"
+                  style={inp}
+                  value={filtros.fechaDesde}
+                  onChange={(e) => setFiltros({ ...filtros, fechaDesde: e.target.value })}
+                />
+              </div>
+              <div style={{ width: 140 }}>
+                <input
+                  type="date"
+                  style={inp}
+                  value={filtros.fechaHasta}
+                  onChange={(e) => setFiltros({ ...filtros, fechaHasta: e.target.value })}
+                />
+              </div>
+              <div style={{ width: 150 }}>
+                <input
+                  style={inp}
+                  placeholder="Estado..."
+                  value={filtros.estado}
+                  onChange={(e) => setFiltros({ ...filtros, estado: e.target.value })}
+                />
+              </div>
+              <V2Button variant="primary" onClick={generarReporte} disabled={loading}>
+                {loading ? "Generando..." : "Generar reporte"}
+              </V2Button>
             </div>
-          </div>
-
-          {/* Filtros */}
-          <div className="card" style={{ padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>Filtros</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 4 }}>FECHA DESDE</label>
-                <input type="date" style={{ ...inp, width: "100%" }} value={filtros.fechaDesde} onChange={e => setFiltros({ ...filtros, fechaDesde: e.target.value })} />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 4 }}>FECHA HASTA</label>
-                <input type="date" style={{ ...inp, width: "100%" }} value={filtros.fechaHasta} onChange={e => setFiltros({ ...filtros, fechaHasta: e.target.value })} />
-              </div>
-              {ESTADO_FILTROS[moduloActivo] && (
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 4 }}>ESTADO</label>
-                  <select style={{ ...inp, width: "100%" }} value={filtros.estado} onChange={e => setFiltros({ ...filtros, estado: e.target.value })}>
-                    <option value="">Todos</option>
-                    {ESTADO_FILTROS[moduloActivo].map(e => <option key={e} value={e}>{e}</option>)}
-                  </select>
-                </div>
-              )}
-              {moduloActivo === "proyectos" && (
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 4 }}>CLIENTE</label>
-                  <select style={{ ...inp, width: "100%" }} value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}>
-                    <option value="">Todos</option>
-                    {clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 4 }}>BÚSQUEDA</label>
-                <input style={{ ...inp, width: "100%" }} placeholder="Buscar en resultados..." value={filtros.busqueda} onChange={e => setFiltros({ ...filtros, busqueda: e.target.value })} />
-              </div>
-            </div>
-          </div>
-
-          {/* Campos */}
-          <div className="card" style={{ padding: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>Columnas</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={seleccionarTodos} style={{ fontSize: 10, color: "#0F6E56", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Todos</button>
-                <button onClick={deseleccionarTodos} style={{ fontSize: 10, color: "#9ca3af", background: "none", border: "none", cursor: "pointer" }}>Ninguno</button>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {CAMPOS[moduloActivo].map(c => (
-                <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#374151" }}>
-                  <input type="checkbox" checked={camposSeleccionados.includes(c.key)} onChange={() => toggleCampo(c.key)} style={{ width: 13, height: 13 }} />
-                  {c.label}
-                  {c.tipo === "monto" && <span style={{ fontSize: 10, color: "#9ca3af" }}>S/</span>}
+          }
+          showClearButton={Boolean(filtros.fechaDesde || filtros.fechaHasta || filtros.estado)}
+          onClearFilters={() => setFiltros({ fechaDesde: "", fechaHasta: "", estado: "", clienteId: "", proyectoId: "" })}
+        />
+      }
+      table={
+        <div style={{ display: "grid", gap: 16 }}>
+          <V2SectionCard title="Columnas visibles">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              {capsDef.map(c => (
+                <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", background: columnasSel.includes(c.key) ? "var(--v2-surface-subtle)" : "var(--v2-surface)", padding: "4px 10px", borderRadius: 99, border: "1px solid var(--v2-border)" }}>
+                  <input type="checkbox" checked={columnasSel.includes(c.key)} onChange={() => toggleCol(c.key)} />
+                  <span>{c.label}</span>
                 </label>
               ))}
             </div>
-          </div>
+          </V2SectionCard>
 
-          <button onClick={generarReporte} disabled={loading || camposSeleccionados.length === 0}
-            style={{ padding: "10px", background: "#0F6E56", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 700 }}>
-            {loading ? "Generando..." : "🔍 Generar reporte"}
-          </button>
-        </div>
-
-        {/* ── PANEL DERECHO — resultados ── */}
-        <div>
           {!generado ? (
-            <div className="card" style={{ padding: "60px 20px", textAlign: "center" }}>
+            <div style={{ padding: 48, textAlign: "center", color: "var(--v2-muted)", background: "var(--v2-surface)", borderRadius: "var(--v2-radius)", border: "1px solid var(--v2-border)" }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Configura y genera tu reporte</div>
-              <div style={{ fontSize: 13, color: "#9ca3af" }}>Selecciona el módulo, aplica filtros y elige las columnas que necesitas</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--v2-text)", marginBottom: 6 }}>Configura y genera tu reporte</div>
+              <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>Selecciona el módulo, aplica filtros y genera tu reporte.</div>
             </div>
           ) : (
-            <div>
-              {/* Header resultados */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div style={{ fontSize: 13, color: "#6b7280" }}>
-                  <strong style={{ color: "#111827" }}>{datos.length}</strong> registros encontrados
-                  {filtros.fechaDesde && ` · Desde ${filtros.fechaDesde}`}
-                  {filtros.fechaHasta && ` · Hasta ${filtros.fechaHasta}`}
-                  {filtros.estado && ` · Estado: ${filtros.estado}`}
+            <V2DataTable
+              columns={columns}
+              rows={datos}
+              getRowKey={(r) => String(r.id || Math.random())}
+              empty={
+                <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
+                  No se encontraron registros con los filtros aplicados.
                 </div>
-                <button onClick={exportarCSV}
-                  style={{ fontSize: 12, padding: "5px 12px", background: "#fff", border: "1px solid #1D9E75", borderRadius: 6, color: "#0F6E56", cursor: "pointer", fontWeight: 600 }}>
-                  ⬇ Exportar CSV
-                </button>
-              </div>
-
-              {datos.length === 0 ? (
-                <div className="card" style={{ padding: "40px", textAlign: "center", color: "#9ca3af" }}>
-                  No se encontraron registros con los filtros aplicados
-                </div>
-              ) : (
-                <div className="card" style={{ padding: 0, overflow: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ background: "#f9fafb" }}>
-                        {camposActivos.map(c => (
-                          <th key={c.key} style={{ textAlign: c.tipo === "monto" ? "right" : "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280", whiteSpace: "nowrap" }}>
-                            {c.label.toUpperCase()}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {datos.map((row, idx) => (
-                        <tr key={idx} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                          {camposActivos.map(c => {
-                            const val = row[c.key]
-
-                              return (
-                              <td key={c.key} style={{ padding: "9px 12px", textAlign: c.tipo === "monto" ? "right" : "left", color: "#374151", whiteSpace: "nowrap" }}>
-                                {c.tipo === "monto"
-                                  ? <span style={{ fontWeight: 600 }}>{fmt(Number(val) || 0)}</span>
-                                  : val === null || val === undefined ? <span style={{ color: "#d1d5db" }}>—</span> : String(val)
-                                }
-                              </td>
-                            )
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                    {hayTotales && (
-                      <tfoot>
-                        <tr style={{ background: "#f0fdf4", borderTop: "2px solid #1D9E75" }}>
-                          {camposActivos.map((c, i) => (
-                            <td key={c.key} style={{ padding: "10px 12px", textAlign: c.tipo === "monto" ? "right" : "left", fontWeight: 700, fontSize: 12 }}>
-                              {i === 0 ? <span style={{ color: "#0F6E56" }}>TOTALES</span>
-                                : totales[c.key] !== undefined
-                                  ? <span style={{ color: "#0F6E56" }}>{fmt(totales[c.key])}</span>
-                                  : ""}
-                            </td>
-                          ))}
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                </div>
-              )}
-            </div>
+              }
+            />
           )}
         </div>
-      </div>
-    </div>
+      }
+    />
   )
 }
-
-
-
-

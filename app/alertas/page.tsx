@@ -1,16 +1,19 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { V2FullFormTemplate } from "@/components/v2/templates"
+import { V2Button, V2PageHeader, V2SectionCard } from "@/components/v2/system"
 
 const ALERTAS = [
   { key: "proyecto_creado", label: "Nuevo proyecto creado", desc: "Cuando se crea un nuevo proyecto en el sistema", icon: "📁" },
-  { key: "rq_pendiente", label: "RQ pendiente de aprobacion", desc: "Cuando un requerimiento de pago necesita tu aprobacion", icon: "💳" },
-  { key: "proyecto_facturacion", label: "Proyecto listo para facturar", desc: "Cuando un proyecto pasa a estado de facturacion", icon: "🧾" },
-  { key: "proyecto_liquidado", label: "Proyecto liquidado", desc: "Cuando una liquidacion es aprobada y cerrada", icon: "✅" },
-  { key: "cotizacion_aprobada", label: "Cotizacion aprobada por cliente", desc: "Cuando el cliente aprueba una cotización", icon: "🎯" },
+  { key: "rq_pendiente", label: "RQ pendiente de aprobación", desc: "Cuando un requerimiento de pago necesita tu aprobación", icon: "💳" },
+  { key: "proyecto_facturacion", label: "Proyecto listo para facturar", desc: "Cuando un proyecto pasa a estado de facturación", icon: "🧾" },
+  { key: "proyecto_liquidado", label: "Proyecto liquidado", desc: "Cuando una liquidación es aprobada y cerrada", icon: "✅" },
+  { key: "cotizacion_aprobada", label: "Cotización aprobada por cliente", desc: "Cuando el cliente aprueba una cotización", icon: "🎯" },
   { key: "tarea_nueva_email", label: "Nuevas tareas", desc: "Cuando alguien te asigna una tarea", icon: "📌" },
   { key: "tarea_comentario_email", label: "Comentarios en tareas", desc: "Cuando alguien comenta una tarea donde participas", icon: "💬" },
-  { key: "tarea_estado_email", label: "Cambios de estado de tareas", desc: "Cuando una tarea se envia a revision, se devuelve o se completa", icon: "🔁" },
+  { key: "tarea_estado_email", label: "Cambios de estado de tareas", desc: "Cuando una tarea se envía a revisión, se devuelve o se completa", icon: "🔁" },
   { key: "tarea_resumen_diario_email", label: "Resumen diario de tareas", desc: "Resumen diario a las 8:00 am cuando exista job programado", icon: "📬" },
 ]
 
@@ -22,8 +25,6 @@ export default function AlertasConfigPage() {
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
   const [perfil, setPerfil] = useState<any>(null)
-
-  useEffect(() => { load() }, [])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -50,6 +51,8 @@ export default function AlertasConfigPage() {
     }
     setLoading(false)
   }
+
+  useEffect(() => { load() }, [])
 
   async function guardar() {
     setSaving(true)
@@ -85,63 +88,122 @@ export default function AlertasConfigPage() {
 
   const toggle = (key: string) => setConfig((prev: any) => ({ ...prev, [key]: !prev[key] }))
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando configuración de alertas...
+      </div>
+    )
+  }
 
   return (
-    <div style={{ maxWidth: 700 }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Alertas por email</h1>
-        <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-          Configura qué notificaciones quieres recibir en tu correo
-        </p>
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 600, margin: "0 0 16px", color: "#374151" }}>Email de notificaciones</h2>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <input
-            style={{ padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", flex: 1, outline: "none" }}
-            type="email" value={email} placeholder="tu@email.com"
-            onChange={e => setEmail(e.target.value)} />
-          <button onClick={probarEmail}
-            style={{ padding: "8px 16px", border: "1px solid #1D9E75", borderRadius: 8, background: "#fff", color: "#0F6E56", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-            Enviar prueba
-          </button>
+    <V2FullFormTemplate
+      header={
+        <V2PageHeader
+          eyebrow="Configuración"
+          title="Alertas por email"
+          subtitle="Configura qué notificaciones deseas recibir en tu correo electrónico"
+        />
+      }
+      actions={
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <V2Button variant="primary" onClick={guardar} disabled={saving}>
+            {saving ? "Guardando..." : "Guardar configuración"}
+          </V2Button>
+          {saved && (
+            <span style={{ fontSize: 13, color: "var(--v2-success)", fontWeight: 600 }}>
+              ✓ Guardado correctamente
+            </span>
+          )}
         </div>
-        <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
-          Las alertas se enviarán a este correo. Puedes cambiarlo en cualquier momento.
-        </p>
-      </div>
+      }
+    >
+      <div style={{ display: "grid", gap: 20, maxWidth: 680 }}>
+        <V2SectionCard title="Email de notificaciones">
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12 }}>
+            <input
+              style={{
+                padding: "8px 12px",
+                border: "1px solid var(--v2-border)",
+                borderRadius: "var(--v2-radius)",
+                fontSize: 13,
+                fontFamily: "inherit",
+                background: "var(--v2-surface)",
+                color: "var(--v2-text)",
+                flex: 1,
+                outline: "none",
+              }}
+              type="email"
+              value={email}
+              placeholder="tu@email.com"
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <V2Button variant="secondary" onClick={probarEmail}>
+              Enviar prueba
+            </V2Button>
+          </div>
+          <p style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: 8, marginBottom: 0 }}>
+            Las alertas se enviarán a este correo. Puedes cambiarlo en cualquier momento.
+          </p>
+        </V2SectionCard>
 
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 600, margin: "0 0 4px", color: "#374151" }}>Tipos de alerta</h2>
-        <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 0, marginBottom: 16 }}>Activa las notificaciones que quieres recibir</p>
-        <div style={{ display: "grid", gap: 12 }}>
-          {ALERTAS.map(a => (
-            <div key={a.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: config?.[a.key] ? "#f0fdf4" : "#f9fafb", borderRadius: 10, border: "1px solid " + (config?.[a.key] ? "#bbf7d0" : "#e5e7eb"), cursor: "pointer", transition: "all 0.15s" }}
-              onClick={() => toggle(a.key)}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 22 }}>{a.icon}</span>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{a.label}</div>
-                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{a.desc}</div>
+        <V2SectionCard title="Tipos de alerta">
+          <p style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: -4, marginBottom: 16 }}>
+            Activa las notificaciones que deseas recibir automáticamente
+          </p>
+          <div style={{ display: "grid", gap: 10 }}>
+            {ALERTAS.map((a) => (
+              <div
+                key={a.key}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "14px 16px",
+                  background: config?.[a.key] ? "var(--v2-success-subtle, #f0fdf4)" : "var(--v2-surface-subtle, #f9fafb)",
+                  borderRadius: "var(--v2-radius)",
+                  border: `1px solid ${config?.[a.key] ? "var(--v2-success-border, #bbf7d0)" : "var(--v2-border)"}`,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+                onClick={() => toggle(a.key)}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ fontSize: 22 }}>{a.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--v2-text)" }}>{a.label}</div>
+                    <div style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: 2 }}>{a.desc}</div>
+                  </div>
+                </div>
+                <div style={{ position: "relative", width: 44, height: 24, flexShrink: 0 }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 24,
+                      borderRadius: 99,
+                      background: config?.[a.key] ? "var(--v2-brand, #0F6E56)" : "#d1d5db",
+                      transition: "background 0.2s",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 2,
+                      left: config?.[a.key] ? 22 : 2,
+                      width: 20,
+                      height: 20,
+                      borderRadius: "50%",
+                      background: "#fff",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                      transition: "left 0.2s",
+                    }}
+                  />
                 </div>
               </div>
-              <div style={{ position: "relative", width: 44, height: 24, flexShrink: 0 }}>
-                <div style={{ width: 44, height: 24, borderRadius: 99, background: config?.[a.key] ? "#0F6E56" : "#d1d5db", transition: "background 0.2s" }} />
-                <div style={{ position: "absolute", top: 2, left: config?.[a.key] ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 0.2s" }} />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </V2SectionCard>
       </div>
-
-      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
-          {saving ? "Guardando..." : "Guardar configuracion"}
-        </button>
-        {saved && <span style={{ fontSize: 13, color: "#0F6E56", fontWeight: 600 }}>✓ Guardado correctamente</span>}
-      </div>
-    </div>
+    </V2FullFormTemplate>
   )
 }

@@ -1,6 +1,15 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2PageHeader,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import styles from "./Usuarios.module.css"
 
 const PERFILES = ["superadmin","gerente_general","administrador","controller","productor","logistica","practicante","comercial","gerente_produccion"]
 const PERFIL_LABEL: any = {
@@ -53,6 +62,7 @@ export default function AdminUsuariosPage() {
     setUsuarios(data || [])
     setLoading(false)
   }
+
   async function crearUsuario() {
     if (perfil?.perfil !== "superadmin") return
     if (!form.nombre || !form.apellido || !form.email || !form.password) { setError("Todos los campos son obligatorios"); return }
@@ -120,76 +130,179 @@ export default function AdminUsuariosPage() {
   const esAdmin = autorizado
   const puedeCambiarRoles = perfil?.perfil === "superadmin"
 
-  const inp: any = { padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none", boxSizing: "border-box" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }
+  const inp: any = { padding: "8px 12px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius)", fontSize: 13, fontFamily: "inherit", background: "var(--v2-surface)", width: "100%", outline: "none", boxSizing: "border-box" as const }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", marginBottom: 6, textTransform: "uppercase" as const }
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
-  if (!esAdmin) return <div style={{ color: "#dc2626", padding: 24 }}>Acceso no autorizado</div>
+  if (loading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <div style={{ color: "var(--v2-muted)", fontSize: 13, fontWeight: 600 }}>Cargando...</div>
+      </div>
+    )
+  }
+
+  if (!esAdmin) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--v2-text)", marginBottom: 6 }}>Acceso no autorizado</div>
+          <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>No tienes permisos para ver esta sección.</div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Table columns ──────────────────────────────────────────────────────────
+  const columns: V2TableColumn<any>[] = [
+    {
+      key: "usuario",
+      header: "Usuario",
+      render: (u) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--v2-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "var(--v2-accent-ink)", flexShrink: 0 }}>
+            {u.nombre?.[0]}{u.apellido?.[0]}
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13.5, color: "var(--v2-text)" }}>{u.nombre} {u.apellido}</div>
+            <div style={{ fontSize: 11, color: "var(--v2-subtle)" }}>{u.id.slice(0, 8)}...</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "perfil",
+      header: "Perfil",
+      render: (u) => (
+        <select
+          value={u.perfil}
+          disabled={!puedeCambiarRoles || saving}
+          onChange={e => cambiarPerfil(u.id, e.target.value)}
+          style={{ padding: "5px 8px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius-sm)", fontSize: 12, fontFamily: "inherit", background: "var(--v2-surface)", cursor: puedeCambiarRoles ? "pointer" : "default" }}
+        >
+          {PERFILES.map(p => <option key={p} value={p}>{PERFIL_LABEL[p]}</option>)}
+        </select>
+      ),
+    },
+    {
+      key: "entidad",
+      header: "Entidad",
+      render: (u) => (
+        <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>
+          {u.entidad === "peru" ? "Perú" : "Selva"}
+        </span>
+      ),
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (u) => (
+        <V2Button
+          variant="ghost"
+          size="compact"
+          onClick={() => { setShowPass(u); setNewPass(""); setMsg(""); setError("") }}
+        >
+          🔑 Contraseña
+        </V2Button>
+      ),
+    },
+  ]
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Gestión de Usuarios</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{usuarios.length} usuarios registrados</p>
-        </div>
-        <button onClick={() => { setShowForm(true); setMsg(""); setError("") }} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo usuario</button>
-      </div>
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            eyebrow="Administración"
+            title="Gestión de Usuarios"
+            subtitle={`${usuarios.length} usuarios registrados`}
+            actions={
+              <V2Button
+                variant="primary"
+                onClick={() => { setShowForm(true); setMsg(""); setError("") }}
+              >
+                + Nuevo usuario
+              </V2Button>
+            }
+          />
+        }
+        table={
+          <>
+            {msg && (
+              <div className={styles.successMsg}>{msg}</div>
+            )}
 
-      {msg && <div style={{ background: "#d1fae5", color: "#065f46", padding: "10px 16px", borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{msg}</div>}
+            {/* Desktop table */}
+            <div className={styles.tableContainer}>
+              <V2DataTable
+                columns={columns}
+                rows={usuarios}
+                getRowKey={(u) => u.id}
+                loading={false}
+                empty={
+                  <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+                    No hay usuarios registrados.
+                  </div>
+                }
+              />
+            </div>
 
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#f9fafb" }}>
-              <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>USUARIO</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PERFIL</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ENTIDAD</th>
-              <th style={{ padding: "10px 20px", width: 200 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {usuarios.map((u, idx) => (
-              <tr key={u.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                <td style={{ padding: "12px 20px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#03E373", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "#1D2040", flexShrink: 0 }}>
+            {/* Mobile cards */}
+            <div className={styles.cardsContainer}>
+              {usuarios.length === 0 ? (
+                <div style={{ textAlign: "center", color: "var(--v2-muted)", fontSize: 13, padding: "32px 0" }}>
+                  No hay usuarios registrados.
+                </div>
+              ) : usuarios.map(u => (
+                <div key={u.id} className={styles.card}>
+                  <div className={styles.cardHeader}>
+                    <div className={styles.avatar}>
                       {u.nombre?.[0]}{u.apellido?.[0]}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{u.nombre} {u.apellido}</div>
-                      <div style={{ fontSize: 11, color: "#9ca3af" }}>{u.id.slice(0,8)}...</div>
+                      <p className={styles.cardName}>{u.nombre} {u.apellido}</p>
+                      <p className={styles.cardId}>{u.id.slice(0, 8)}...</p>
                     </div>
                   </div>
-                </td>
-                <td style={{ padding: "12px" }}>
-                  <select value={u.perfil} disabled={!puedeCambiarRoles || saving} onChange={e => cambiarPerfil(u.id, e.target.value)}
-                    style={{ padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff", cursor: "pointer" }}>
-                    {PERFILES.map(p => <option key={p} value={p}>{PERFIL_LABEL[p]}</option>)}
-                  </select>
-                </td>
-                <td style={{ padding: "12px", fontSize: 13, color: "#6b7280" }}>{u.entidad === "peru" ? "Perú" : "Selva"}</td>
-                <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                    <button onClick={() => { setShowPass(u); setNewPass(""); setMsg(""); setError("") }}
-                      style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: "pointer" }}>
-                      🔑 Contraseña
-                    </button>
+                  <div className={styles.cardRow}>
+                    <span className={styles.cardLabel}>Perfil</span>
+                    <select
+                      value={u.perfil}
+                      disabled={!puedeCambiarRoles || saving}
+                      onChange={e => cambiarPerfil(u.id, e.target.value)}
+                      style={{ padding: "4px 8px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius-sm)", fontSize: 12, fontFamily: "inherit", background: "var(--v2-surface)" }}
+                    >
+                      {PERFILES.map(p => <option key={p} value={p}>{PERFIL_LABEL[p]}</option>)}
+                    </select>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  <div className={styles.cardRow}>
+                    <span className={styles.cardLabel}>Entidad</span>
+                    <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>{u.entidad === "peru" ? "Perú" : "Selva"}</span>
+                  </div>
+                  <div className={styles.cardActions}>
+                    <V2Button
+                      variant="ghost"
+                      size="compact"
+                      onClick={() => { setShowPass(u); setNewPass(""); setMsg(""); setError("") }}
+                    >
+                      🔑 Contraseña
+                    </V2Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        }
+      />
 
-      {/* Modal nuevo usuario */}
+      {/* ── Modal: Nuevo usuario ─────────────────────────────────────────── */}
       {showForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 500 }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 500, boxShadow: "var(--v2-shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Nuevo usuario</h2>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>×</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>Nuevo usuario</h2>
+              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--v2-subtle)" }}>×</button>
             </div>
             <div style={{ display: "grid", gap: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -214,42 +327,39 @@ export default function AdminUsuariosPage() {
                 </div>
               </div>
             </div>
-            {error && <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 8, fontSize: 13, marginTop: 12 }}>{error}</div>}
+            {error && <div style={{ background: "var(--v2-danger-bg)", color: "var(--v2-danger)", padding: "8px 12px", borderRadius: "var(--v2-radius)", fontSize: 13, marginTop: 12 }}>{error}</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={crearUsuario} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Creando..." : "Crear usuario"}</button>
+              <V2Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={crearUsuario} disabled={saving}>{saving ? "Creando..." : "Crear usuario"}</V2Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal cambiar contraseña */}
+      {/* ── Modal: Cambiar contraseña ─────────────────────────────────────── */}
       {showPass && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 400 }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 28, width: "100%", maxWidth: 400, boxShadow: "var(--v2-shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Cambiar contraseña</h2>
-              <button onClick={() => setShowPass(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#9ca3af" }}>×</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>Cambiar contraseña</h2>
+              <button onClick={() => setShowPass(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--v2-subtle)" }}>×</button>
             </div>
-            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
-              Usuario: <strong>{showPass.nombre} {showPass.apellido}</strong>
+            <div style={{ fontSize: 13, color: "var(--v2-muted)", marginBottom: 16 }}>
+              Usuario: <strong style={{ color: "var(--v2-text)" }}>{showPass.nombre} {showPass.apellido}</strong>
             </div>
             <div>
               <label style={lbl}>Nueva contraseña</label>
               <input style={inp} type="password" placeholder="Mínimo 6 caracteres" value={newPass} onChange={e => setNewPass(e.target.value)} />
             </div>
-            {error && <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 8, fontSize: 13, marginTop: 12 }}>{error}</div>}
-            {msg && <div style={{ background: "#d1fae5", color: "#065f46", padding: "8px 12px", borderRadius: 8, fontSize: 13, marginTop: 12 }}>{msg}</div>}
+            {error && <div style={{ background: "var(--v2-danger-bg)", color: "var(--v2-danger)", padding: "8px 12px", borderRadius: "var(--v2-radius)", fontSize: 13, marginTop: 12 }}>{error}</div>}
+            {msg && <div style={{ background: "var(--v2-success-bg)", color: "var(--v2-success)", padding: "8px 12px", borderRadius: "var(--v2-radius)", fontSize: 13, marginTop: 12 }}>{msg}</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-              <button onClick={() => setShowPass(null)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={cambiarPassword} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Actualizando..." : "Actualizar"}</button>
+              <V2Button variant="ghost" onClick={() => setShowPass(null)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={cambiarPassword} disabled={saving}>{saving ? "Actualizando..." : "Actualizar"}</V2Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
-
-
-

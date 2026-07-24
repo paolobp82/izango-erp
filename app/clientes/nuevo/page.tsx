@@ -1,8 +1,18 @@
 "use client"
-import { useEffect, useState } from "react"
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { registrarAccion } from "@/lib/trazabilidad"
+import { V2FullFormTemplate } from "@/components/v2/templates"
+import {
+  V2PageHeader,
+  V2SectionCard,
+  V2FormField,
+  V2Input,
+  V2Select,
+  V2Button,
+} from "@/components/v2/system"
 
 const BANCOS = ["BCP", "BBVA", "Interbank", "Scotiabank", "BanBif", "Pichincha", "Banco de la Nacion", "Otro"]
 const TIPOS_CUENTA = ["Ahorros", "Corriente"]
@@ -15,40 +25,62 @@ async function consultarRUC(ruc: string) {
     const data = await res.json()
     if (!data || data.error) return null
     return { razonSocial: data.nombre, direccion: data.direccion }
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
 export default function NuevoClientePage() {
   const supabase = createClient()
   const router = useRouter()
+
   const [saving, setSaving] = useState(false)
   const [buscandoRUC, setBuscandoRUC] = useState(false)
-  const [rucEstado, setRucEstado] = useState<"ok"|"error"|null>(null)
+  const [rucEstado, setRucEstado] = useState<"ok" | "error" | null>(null)
   const [esProveedor, setEsProveedor] = useState(false)
   const [contactosAdicionales, setContactosAdicionales] = useState<any[]>([])
+
   const [form, setForm] = useState({
-    razon_social: "", ruc: "", direccion: "",
-    nombre_contacto: "", email_contacto: "", telefono_contacto: "",
-    nombre_contacto_admin: "", email_contacto_admin: "", telefono_contacto_admin: "",
-    banco_1: "", tipo_cuenta_1: "", numero_cuenta_1: "", cci_1: "",
-    banco_2: "", tipo_cuenta_2: "", numero_cuenta_2: "", cci_2: "",
-    cuenta_detraccion: "", tipo_pago_transferencia: "Transferencia bancaria",
+    razon_social: "",
+    ruc: "",
+    direccion: "",
+    nombre_contacto: "",
+    email_contacto: "",
+    telefono_contacto: "",
+    nombre_contacto_admin: "",
+    email_contacto_admin: "",
+    telefono_contacto_admin: "",
+    banco_1: "",
+    tipo_cuenta_1: "",
+    numero_cuenta_1: "",
+    cci_1: "",
+    banco_2: "",
+    tipo_cuenta_2: "",
+    numero_cuenta_2: "",
+    cci_2: "",
+    cuenta_detraccion: "",
+    tipo_pago_transferencia: "Transferencia bancaria",
   })
 
   function agregarContacto() {
-    setContactosAdicionales(prev => [...prev, { nombre: "", email: "", telefono: "", cargo: "" }])
+    setContactosAdicionales((prev) => [...prev, { nombre: "", email: "", telefono: "", cargo: "" }])
   }
 
   function updateContacto(idx: number, field: string, value: string) {
-    setContactosAdicionales(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c))
+    setContactosAdicionales((prev) =>
+      prev.map((c, i) => (i === idx ? { ...c, [field]: value } : c))
+    )
   }
 
   function removeContacto(idx: number) {
-    setContactosAdicionales(prev => prev.filter((_, i) => i !== idx))
+    setContactosAdicionales((prev) => prev.filter((_, i) => i !== idx))
   }
 
   async function guardar() {
-    if (!form.razon_social) { alert("Razon social es obligatoria"); return }
+    if (!form.razon_social) {
+      alert("Razon social es obligatoria")
+      return
+    }
     setSaving(true)
 
     const payload: any = {
@@ -59,7 +91,11 @@ export default function NuevoClientePage() {
     }
 
     const { data: cliente, error } = await supabase.from("clientes").insert(payload).select().single()
-    if (error) { alert("Error: " + error.message); setSaving(false); return }
+    if (error) {
+      alert("Error: " + error.message)
+      setSaving(false)
+      return
+    }
 
     if (esProveedor && cliente) {
       await supabase.from("proveedores").insert({
@@ -90,240 +126,368 @@ export default function NuevoClientePage() {
     }
 
     setSaving(false)
-    await registrarAccion({ accion: "crear", modulo: "clientes", entidad_id: cliente?.id, entidad_tipo: "cliente", descripcion: "Cliente creado: " + form.razon_social })
+    await registrarAccion({
+      accion: "crear",
+      modulo: "clientes",
+      entidad_id: cliente?.id,
+      entidad_tipo: "cliente",
+      descripcion: "Cliente creado: " + form.razon_social,
+    })
     router.push("/clientes")
   }
 
-  const inp: any = { padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }
-  const section: any = { fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 16, marginTop: 0 }
-
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto" }}>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-          <a href="/clientes" style={{ color: "#9ca3af", fontSize: 12 }}>Clientes</a>
-          <span style={{ color: "#d1d5db" }}>/</span>
-          <span style={{ fontSize: 12, color: "#4b5563" }}>Nuevo cliente</span>
-        </div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Nuevo cliente</h1>
-      </div>
+    <V2FullFormTemplate
+        header={
+          <V2PageHeader
+            title="Nuevo cliente"
+            eyebrow="Clientes / Nuevo cliente"
+          />
+        }
+        actions={
+          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+            <V2Button
+              type="button"
+              variant="secondary"
+              onClick={() => router.push("/clientes")}
+            >
+              Cancelar
+            </V2Button>
+            <V2Button type="button" onClick={guardar} disabled={saving}>
+              {saving ? "Guardando..." : "Crear cliente"}
+            </V2Button>
+          </div>
+        }
+      >
+        <div style={{ display: "grid", gap: "16px", maxWidth: "900px", margin: "0 auto" }}>
+          {/* Seccion 1: Datos generales (Datos de la empresa) */}
+          <V2SectionCard title="Datos de la empresa">
+            <div style={{ display: "grid", gap: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <V2FormField label="Razon social" required>
+                  <V2Input
+                    value={form.razon_social}
+                    placeholder="Razon social"
+                    onChange={(e) => setForm({ ...form, razon_social: e.target.value })}
+                  />
+                </V2FormField>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={section}>Datos de la empresa</h2>
-        <div style={{ display: "grid", gap: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <div>
-              <label style={lbl}>Razon social *</label>
-              <input style={inp} value={form.razon_social} placeholder="Razon social"
-                onChange={e => setForm({ ...form, razon_social: e.target.value })} />
-            </div>
-            <div>
-              <label style={lbl}>RUC</label>
-              <div style={{ position: "relative" }}>
-                <input style={{ ...inp, paddingRight: 36 }} value={form.ruc} placeholder="20xxxxxxxxx"
-                  onChange={async e => {
-                    const val = e.target.value.replace(/\D/g, "").slice(0, 11);
-                    setForm(prev => ({ ...prev, ruc: val }));
-                    setRucEstado(null);
-                    if (val.length === 11) {
-                      setBuscandoRUC(true);
-                      const data = await consultarRUC(val);
-                      setBuscandoRUC(false);
-                      if (data && data.razonSocial) {
-                        setForm(prev => ({ ...prev, ruc: val, razon_social: data.razonSocial, direccion: data.direccion || prev.direccion }));
-                        setRucEstado("ok");
-                      } else { setRucEstado("error"); }
-                    }
-                  }} />
-                <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14 }}>
-                  {buscandoRUC ? "⏳" : rucEstado === "ok" ? "✅" : rucEstado === "error" ? "❌" : ""}
-                </span>
+                <V2FormField label="RUC" error={rucEstado === "error" ? "RUC no encontrado" : undefined}>
+                  <div style={{ position: "relative", width: "100%" }}>
+                    <V2Input
+                      value={form.ruc}
+                      placeholder="20xxxxxxxxx"
+                      style={{ paddingRight: "36px" }}
+                      onChange={async (e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 11)
+                        setForm((prev) => ({ ...prev, ruc: val }))
+                        setRucEstado(null)
+                        if (val.length === 11) {
+                          setBuscandoRUC(true)
+                          const data = await consultarRUC(val)
+                          setBuscandoRUC(false)
+                          if (data && data.razonSocial) {
+                            setForm((prev) => ({
+                              ...prev,
+                              ruc: val,
+                              razon_social: data.razonSocial,
+                              direccion: data.direccion || prev.direccion,
+                            }))
+                            setRucEstado("ok")
+                          } else {
+                            setRucEstado("error")
+                          }
+                        }
+                      }}
+                    />
+                    <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14 }}>
+                      {buscandoRUC ? "⏳" : rucEstado === "ok" ? "✅" : rucEstado === "error" ? "❌" : ""}
+                    </span>
+                  </div>
+                </V2FormField>
               </div>
-              {rucEstado === "ok" && <div style={{ fontSize: 11, color: "#16a34a", marginTop: 4 }}>RUC valido - datos autocompletos</div>}
-              {rucEstado === "error" && <div style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>RUC no encontrado</div>}
-            </div>
-          </div>
-          <div>
-            <label style={lbl}>Direccion</label>
-            <input style={inp} value={form.direccion} placeholder="Direccion de la empresa"
-              onChange={e => setForm({ ...form, direccion: e.target.value })} />
-          </div>
-          <div>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input type="checkbox" checked={esProveedor} onChange={e => setEsProveedor(e.target.checked)}
-                style={{ width: 16, height: 16, cursor: "pointer" }} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Tambien es proveedor</span>
-              <span style={{ fontSize: 11, color: "#9ca3af" }}>(se copiara automaticamente a la base de proveedores)</span>
-            </label>
-          </div>
-        </div>
-      </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={section}>Contacto comercial</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <div>
-            <label style={lbl}>Nombre</label>
-            <input style={inp} value={form.nombre_contacto} placeholder="Nombre completo"
-              onChange={e => setForm({ ...form, nombre_contacto: e.target.value })} />
-          </div>
-          <div>
-            <label style={lbl}>Email</label>
-            <input style={inp} type="email" value={form.email_contacto} placeholder="correo@empresa.com"
-              onChange={e => setForm({ ...form, email_contacto: e.target.value })} />
-          </div>
-          <div>
-            <label style={lbl}>Telefono</label>
-            <input style={inp} value={form.telefono_contacto} placeholder="9xxxxxxxx"
-              onChange={e => setForm({ ...form, telefono_contacto: e.target.value })} />
-          </div>
-        </div>
-      </div>
+              <V2FormField label="Direccion">
+                <V2Input
+                  value={form.direccion}
+                  placeholder="Direccion de la empresa"
+                  onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                />
+              </V2FormField>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={section}>Contacto administracion / pagos</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <div>
-            <label style={lbl}>Nombre</label>
-            <input style={inp} value={form.nombre_contacto_admin} placeholder="Nombre completo"
-              onChange={e => setForm({ ...form, nombre_contacto_admin: e.target.value })} />
-          </div>
-          <div>
-            <label style={lbl}>Email</label>
-            <input style={inp} type="email" value={form.email_contacto_admin} placeholder="admin@empresa.com"
-              onChange={e => setForm({ ...form, email_contacto_admin: e.target.value })} />
-          </div>
-          <div>
-            <label style={lbl}>Telefono</label>
-            <input style={inp} value={form.telefono_contacto_admin} placeholder="9xxxxxxxx"
-              onChange={e => setForm({ ...form, telefono_contacto_admin: e.target.value })} />
-          </div>
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h2 style={{ ...section, marginBottom: 0 }}>Contactos adicionales</h2>
-          <button onClick={agregarContacto}
-            style={{ fontSize: 12, color: "#0F6E56", background: "none", border: "1px dashed #1D9E75", borderRadius: 6, padding: "4px 12px", cursor: "pointer" }}>
-            + Agregar contacto
-          </button>
-        </div>
-        {contactosAdicionales.length === 0 ? (
-          <div style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "12px 0" }}>No hay contactos adicionales</div>
-        ) : (
-          <div style={{ display: "grid", gap: 12 }}>
-            {contactosAdicionales.map((c, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: 10, alignItems: "end" }}>
-                <div>
-                  <label style={lbl}>Nombre</label>
-                  <input style={inp} value={c.nombre} placeholder="Nombre" onChange={e => updateContacto(i, "nombre", e.target.value)} />
-                </div>
-                <div>
-                  <label style={lbl}>Cargo</label>
-                  <input style={inp} value={c.cargo} placeholder="Cargo" onChange={e => updateContacto(i, "cargo", e.target.value)} />
-                </div>
-                <div>
-                  <label style={lbl}>Email</label>
-                  <input style={inp} value={c.email} placeholder="Email" onChange={e => updateContacto(i, "email", e.target.value)} />
-                </div>
-                <div>
-                  <label style={lbl}>Telefono</label>
-                  <input style={inp} value={c.telefono} placeholder="Telefono" onChange={e => updateContacto(i, "telefono", e.target.value)} />
-                </div>
-                <button onClick={() => removeContacto(i)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 18, paddingBottom: 6 }}>×</button>
+              <div style={{ padding: "4px 0" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={esProveedor}
+                    onChange={(e) => setEsProveedor(e.target.checked)}
+                    style={{ width: 16, height: 16, cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--v2-text)" }}>También es proveedor</span>
+                  <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>
+                    (se copiará automáticamente a la base de proveedores)
+                  </span>
+                </label>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          </V2SectionCard>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={section}>Datos bancarios — Cuenta 1</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
-          <div>
-            <label style={lbl}>Banco</label>
-            <select style={inp} value={form.banco_1} onChange={e => setForm({ ...form, banco_1: e.target.value })}>
-              <option value="">Sin banco</option>
-              {BANCOS.map(b => <option key={b}>{b}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={lbl}>Tipo cuenta</label>
-            <select style={inp} value={form.tipo_cuenta_1} onChange={e => setForm({ ...form, tipo_cuenta_1: e.target.value })}>
-              <option value="">Seleccionar</option>
-              {TIPOS_CUENTA.map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={lbl}>N cuenta</label>
-            <input style={inp} value={form.numero_cuenta_1} placeholder="Numero de cuenta"
-              onChange={e => setForm({ ...form, numero_cuenta_1: e.target.value })} />
-          </div>
-          <div>
-            <label style={lbl}>CCI</label>
-            <input style={inp} value={form.cci_1} placeholder="Cuenta interbancaria"
-              onChange={e => setForm({ ...form, cci_1: e.target.value })} />
-          </div>
+          {/* Seccion 2: Contacto comercial */}
+          <V2SectionCard title="Contacto comercial">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+              <V2FormField label="Nombre">
+                <V2Input
+                  value={form.nombre_contacto}
+                  placeholder="Nombre completo"
+                  onChange={(e) => setForm({ ...form, nombre_contacto: e.target.value })}
+                />
+              </V2FormField>
+
+              <V2FormField label="Email">
+                <V2Input
+                  type="email"
+                  value={form.email_contacto}
+                  placeholder="correo@empresa.com"
+                  onChange={(e) => setForm({ ...form, email_contacto: e.target.value })}
+                />
+              </V2FormField>
+
+              <V2FormField label="Telefono">
+                <V2Input
+                  value={form.telefono_contacto}
+                  placeholder="9xxxxxxxx"
+                  onChange={(e) => setForm({ ...form, telefono_contacto: e.target.value })}
+                />
+              </V2FormField>
+            </div>
+          </V2SectionCard>
+
+          {/* Seccion 3: Contacto administrativo */}
+          <V2SectionCard title="Contacto administracion / pagos">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+              <V2FormField label="Nombre">
+                <V2Input
+                  value={form.nombre_contacto_admin}
+                  placeholder="Nombre completo"
+                  onChange={(e) => setForm({ ...form, nombre_contacto_admin: e.target.value })}
+                />
+              </V2FormField>
+
+              <V2FormField label="Email">
+                <V2Input
+                  type="email"
+                  value={form.email_contacto_admin}
+                  placeholder="admin@empresa.com"
+                  onChange={(e) => setForm({ ...form, email_contacto_admin: e.target.value })}
+                />
+              </V2FormField>
+
+              <V2FormField label="Telefono">
+                <V2Input
+                  value={form.telefono_contacto_admin}
+                  placeholder="9xxxxxxxx"
+                  onChange={(e) => setForm({ ...form, telefono_contacto_admin: e.target.value })}
+                />
+              </V2FormField>
+            </div>
+          </V2SectionCard>
+
+          {/* Seccion 4: Datos bancarios - Cuenta 1 */}
+          <V2SectionCard title="Datos bancarios — Cuenta 1">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
+              <V2FormField label="Banco">
+                <V2Select
+                  options={[
+                    { label: "Sin banco", value: "" },
+                    ...BANCOS.map((b) => ({ label: b, value: b })),
+                  ]}
+                  value={form.banco_1}
+                  onChange={(e) => setForm({ ...form, banco_1: e.target.value })}
+                />
+              </V2FormField>
+
+              <V2FormField label="Tipo cuenta">
+                <V2Select
+                  options={[
+                    { label: "Seleccionar", value: "" },
+                    ...TIPOS_CUENTA.map((t) => ({ label: t, value: t })),
+                  ]}
+                  value={form.tipo_cuenta_1}
+                  onChange={(e) => setForm({ ...form, tipo_cuenta_1: e.target.value })}
+                />
+              </V2FormField>
+
+              <V2FormField label="N cuenta">
+                <V2Input
+                  value={form.numero_cuenta_1}
+                  placeholder="Numero de cuenta"
+                  onChange={(e) => setForm({ ...form, numero_cuenta_1: e.target.value })}
+                />
+              </V2FormField>
+
+              <V2FormField label="CCI">
+                <V2Input
+                  value={form.cci_1}
+                  placeholder="Cuenta interbancaria"
+                  onChange={(e) => setForm({ ...form, cci_1: e.target.value })}
+                />
+              </V2FormField>
+            </div>
+          </V2SectionCard>
+
+          {/* Seccion 5: Datos bancarios - Cuenta 2 (opcional) */}
+          <V2SectionCard title="Datos bancarios — Cuenta 2 (opcional)">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
+              <V2FormField label="Banco">
+                <V2Select
+                  options={[
+                    { label: "Sin banco", value: "" },
+                    ...BANCOS.map((b) => ({ label: b, value: b })),
+                  ]}
+                  value={form.banco_2}
+                  onChange={(e) => setForm({ ...form, banco_2: e.target.value })}
+                />
+              </V2FormField>
+
+              <V2FormField label="Tipo cuenta">
+                <V2Select
+                  options={[
+                    { label: "Seleccionar", value: "" },
+                    ...TIPOS_CUENTA.map((t) => ({ label: t, value: t })),
+                  ]}
+                  value={form.tipo_cuenta_2}
+                  onChange={(e) => setForm({ ...form, tipo_cuenta_2: e.target.value })}
+                />
+              </V2FormField>
+
+              <V2FormField label="N cuenta">
+                <V2Input
+                  value={form.numero_cuenta_2}
+                  placeholder="Numero de cuenta"
+                  onChange={(e) => setForm({ ...form, numero_cuenta_2: e.target.value })}
+                />
+              </V2FormField>
+
+              <V2FormField label="CCI">
+                <V2Input
+                  value={form.cci_2}
+                  placeholder="Cuenta interbancaria"
+                  onChange={(e) => setForm({ ...form, cci_2: e.target.value })}
+                />
+              </V2FormField>
+            </div>
+          </V2SectionCard>
+
+          {/* Seccion 6: Detraccion y tipo de transferencia */}
+          <V2SectionCard title="Detraccion y tipo de transferencia">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+              <V2FormField label="Cuenta detraccion (Banco de la Nacion)">
+                <V2Input
+                  value={form.cuenta_detraccion}
+                  placeholder="N cuenta detraccion"
+                  onChange={(e) => setForm({ ...form, cuenta_detraccion: e.target.value })}
+                />
+              </V2FormField>
+
+              <V2FormField label="Tipo transferencia preferido">
+                <V2Select
+                  options={TIPOS_TRANSFERENCIA.map((t) => ({ label: t, value: t }))}
+                  value={form.tipo_pago_transferencia}
+                  onChange={(e) => setForm({ ...form, tipo_pago_transferencia: e.target.value })}
+                />
+              </V2FormField>
+            </div>
+          </V2SectionCard>
+
+          {/* Seccion 7: Contactos adicionales */}
+          <V2SectionCard
+            title="Contactos adicionales"
+            action={
+              <V2Button
+                type="button"
+                variant="secondary"
+                size="compact"
+                onClick={agregarContacto}
+                style={{ borderStyle: "dashed" }}
+              >
+                + Agregar contacto
+              </V2Button>
+            }
+          >
+            {contactosAdicionales.length === 0 ? (
+              <div style={{ fontSize: 13, color: "var(--v2-muted)", textAlign: "center", padding: "12px 0" }}>
+                No hay contactos adicionales
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 12 }}>
+                {contactosAdicionales.map((c, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr)) auto",
+                      gap: 12,
+                      alignItems: "end",
+                      padding: "12px",
+                      background: "var(--v2-surface-soft)",
+                      border: "1px solid var(--v2-border-soft)",
+                      borderRadius: "var(--v2-radius)",
+                    }}
+                  >
+                    <V2FormField label="Nombre">
+                      <V2Input
+                        value={c.nombre}
+                        placeholder="Nombre"
+                        onChange={(e) => updateContacto(i, "nombre", e.target.value)}
+                      />
+                    </V2FormField>
+
+                    <V2FormField label="Cargo">
+                      <V2Input
+                        value={c.cargo}
+                        placeholder="Cargo"
+                        onChange={(e) => updateContacto(i, "cargo", e.target.value)}
+                      />
+                    </V2FormField>
+
+                    <V2FormField label="Email">
+                      <V2Input
+                        value={c.email}
+                        placeholder="Email"
+                        onChange={(e) => updateContacto(i, "email", e.target.value)}
+                      />
+                    </V2FormField>
+
+                    <V2FormField label="Telefono">
+                      <V2Input
+                        value={c.telefono}
+                        placeholder="Telefono"
+                        onChange={(e) => updateContacto(i, "telefono", e.target.value)}
+                      />
+                    </V2FormField>
+
+                    <button
+                      type="button"
+                      onClick={() => removeContacto(i)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "var(--v2-danger)",
+                        fontSize: 20,
+                        paddingBottom: 6,
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </V2SectionCard>
+
         </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={section}>Datos bancarios — Cuenta 2 (opcional)</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
-          <div>
-            <label style={lbl}>Banco</label>
-            <select style={inp} value={form.banco_2} onChange={e => setForm({ ...form, banco_2: e.target.value })}>
-              <option value="">Sin banco</option>
-              {BANCOS.map(b => <option key={b}>{b}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={lbl}>Tipo cuenta</label>
-            <select style={inp} value={form.tipo_cuenta_2} onChange={e => setForm({ ...form, tipo_cuenta_2: e.target.value })}>
-              <option value="">Seleccionar</option>
-              {TIPOS_CUENTA.map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={lbl}>N cuenta</label>
-            <input style={inp} value={form.numero_cuenta_2} placeholder="Numero de cuenta"
-              onChange={e => setForm({ ...form, numero_cuenta_2: e.target.value })} />
-          </div>
-          <div>
-            <label style={lbl}>CCI</label>
-            <input style={inp} value={form.cci_2} placeholder="Cuenta interbancaria"
-              onChange={e => setForm({ ...form, cci_2: e.target.value })} />
-          </div>
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h2 style={section}>Detraccion y tipo de transferencia</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div>
-            <label style={lbl}>Cuenta detraccion (Banco de la Nacion)</label>
-            <input style={inp} value={form.cuenta_detraccion} placeholder="N cuenta detraccion"
-              onChange={e => setForm({ ...form, cuenta_detraccion: e.target.value })} />
-          </div>
-          <div>
-            <label style={lbl}>Tipo transferencia preferido</label>
-            <select style={inp} value={form.tipo_pago_transferencia} onChange={e => setForm({ ...form, tipo_pago_transferencia: e.target.value })}>
-              {TIPOS_TRANSFERENCIA.map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-        <button onClick={() => router.push("/clientes")} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-        <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
-          {saving ? "Guardando..." : "Crear cliente"}
-        </button>
-      </div>
-    </div>
+      </V2FullFormTemplate>
   )
-
 }

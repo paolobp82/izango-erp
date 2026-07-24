@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation"
 
 import { rowBelongsToDeletedProject } from "@/lib/projects"
 import { ArrowUpDown, CalendarDays, Check, ClipboardCheck, Eye, Grid2X2, MoreVertical, Play, Plus, User, Users } from "lucide-react"
+import { TaskForm } from "./components/TaskForm"
+import { agregarEventoFeedTarea, guardarParticipantesTarea, guardarTareaService, notificarTarea } from "@/lib/services/tareas"
 
 const ESTADOS: Record<string, any> = {
   pendiente:    { label: "Pendiente",    bg: "#fef9c3", color: "#92400e" },
@@ -72,7 +74,6 @@ export default function TareasPage() {
   const [responsableId, setResponsableId] = useState("")
   const [ordenCampo, setOrdenCampo] = useState("fecha_limite")
   const [ordenDir, setOrdenDir] = useState("asc")
-  const [participanteSearch, setParticipanteSearch] = useState("")
 
   useEffect(() => { load() }, [])
 
@@ -166,18 +167,9 @@ export default function TareasPage() {
     await loadComentarios(t.id)
   }
 
-  async function notificarTarea(tareaId: string, evento: string, extra: any = {}) {
-    try {
-      const res = await fetch("/api/tareas/notificar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tarea_id: tareaId, evento, ...extra }),
-      })
-      if (!res.ok) console.warn("No se pudo enviar notificacion de tarea", await res.text())
-    } catch (error) {
-      console.warn("No se pudo enviar notificacion de tarea", error)
-    }
-  }
+  // notificarTarea/guardarParticipantes/agregarEventoFeed se movieron a
+  // lib/services/tareas/tareas.guardar.ts (importadas arriba) para que guardar() y
+  // generarSiguienteOcurrencia() usen la misma implementacion, sin duplicarla.
 
   function esGerencia() {
     return rolesGerenciales.includes(perfil?.perfil)
@@ -266,12 +258,6 @@ export default function TareasPage() {
     return nextText
   }
 
-  async function guardarParticipantes(tareaId: string, ids: string[]) {
-    await supabase.from("tarea_participantes").delete().eq("tarea_id", tareaId)
-    const rows = Array.from(new Set(ids.filter(Boolean))).map(usuario_id => ({ tarea_id: tareaId, usuario_id }))
-    if (rows.length > 0) await supabase.from("tarea_participantes").insert(rows)
-  }
-
   async function generarSiguienteOcurrencia(t: any) {
     const fecha = siguienteFecha(t)
     if (!fecha) return null
@@ -299,66 +285,20 @@ export default function TareasPage() {
     }
     const { data: nueva } = await supabase.from("tareas").insert(payload).select("id").single()
     if (nueva?.id) {
-      await guardarParticipantes(nueva.id, participantesIds(t))
-      await agregarEventoFeed(nueva.id, "cambio_estado", `Ocurrencia generada desde la tarea anterior con fecha límite ${t.fecha_limite || "sin fecha"}.`)
+      await guardarParticipantesTarea(supabase, nueva.id, participantesIds(t))
+      await agregarEventoFeedTarea(supabase, perfil?.id, nueva.id, "cambio_estado", `Ocurrencia generada desde la tarea anterior con fecha límite ${t.fecha_limite || "sin fecha"}.`)
       if (payload.recibir_correos_automaticos) await notificarTarea(nueva.id, "creada")
     }
     return nueva?.id || null
   }
 
-  async function agregarEventoFeed(tareaId: string, tipo: string, comentario: string, linkUrl = "") {
-    await supabase.from("tarea_comentarios").insert({
-      tarea_id: tareaId,
-      usuario_id: perfil?.id,
-      comentario,
-      tipo,
-      link_url: linkUrl || null,
-    })
-  }
-
   async function guardar() {
-    if (!form.titulo) { alert("El título es obligatorio"); return }
-    if (!editando && !form.asignado_a) { alert("Selecciona un responsable para delegar el trabajo."); return }
     setSaving(true)
-    const payload: any = {
-      titulo: form.titulo,
-      descripcion: form.descripcion || null,
-      estado: form.estado,
-      prioridad: form.prioridad,
-      proyecto_id: form.proyecto_id || null,
-      cliente_id: form.cliente_id || null,
-      asignado_a: form.asignado_a || null,
-      fecha_limite: form.fecha_limite || null,
-      hora_inicio: form.hora_inicio || null,
-      hora_fin: form.hora_fin || null,
-      fecha_completada: form.estado === "completada" ? new Date().toISOString() : null,
-      frecuencia: form.frecuencia,
-      recurrencia_intervalo: Number(form.recurrencia_intervalo || 1),
-      recurrencia_fecha_fin: form.recurrencia_fecha_fin || null,
-      recurrencia_max_repeticiones: form.recurrencia_max_repeticiones ? Number(form.recurrencia_max_repeticiones) : null,
-      notificar_participantes: form.notificar_participantes,
-      mostrar_participantes_mi_trabajo: form.mostrar_participantes_mi_trabajo,
-      permitir_comentarios: form.permitir_comentarios,
-      recibir_correos_automaticos: form.recibir_correos_automaticos,
-    }
-    if (editando) {
-      await supabase.from("tareas").update(payload).eq("id", editando.id)
-      await guardarParticipantes(editando.id, form.participante_ids)
-      await registrarAccion({ accion: "editar", modulo: "tareas", entidad_tipo: "tarea", descripcion: "Tarea editada: " + form.titulo })
-    } else {
-      payload.creado_por = perfil?.id || null
-      payload.recurrencia_grupo_id = undefined
-      const { data: nueva } = await supabase.from("tareas").insert(payload).select("id").single()
-      await registrarAccion({ accion: "crear", modulo: "tareas", entidad_tipo: "tarea", descripcion: "Tarea creada: " + form.titulo })
-      if (nueva?.id) {
-        await supabase.from("tareas").update({ recurrencia_grupo_id: nueva.id }).eq("id", nueva.id)
-        await guardarParticipantes(nueva.id, form.participante_ids)
-        await agregarEventoFeed(nueva.id, "cambio_estado", "Tarea creada y delegada.")
-        if (form.link_inicial?.trim()) {
-          await agregarEventoFeed(nueva.id, "adjunto", "Referencia inicial adjunta.", form.link_inicial.trim())
-        }
-        if (form.recibir_correos_automaticos) await notificarTarea(nueva.id, "creada")
-      }
+    const resultado = await guardarTareaService({ supabase, form, editando, perfil })
+    if (!resultado.ok) {
+      alert(resultado.error)
+      setSaving(false)
+      return
     }
     setSaving(false)
     setShowForm(false)
@@ -376,7 +316,7 @@ export default function TareasPage() {
     await supabase.from("tareas").update(payload).eq("id", id)
     const estadoAnterior = tareaActual?.estado || ""
     const textoFeed = comentario || `Estado cambiado: ${ESTADOS[estadoAnterior]?.label || estadoAnterior} → ${ESTADOS[estado]?.label || estado}`
-    await agregarEventoFeed(id, estado === "en_progreso" && estadoAnterior === "en_revision" ? "devolucion" : "cambio_estado", textoFeed)
+    await agregarEventoFeedTarea(supabase, perfil?.id, id, estado === "en_progreso" && estadoAnterior === "en_revision" ? "devolucion" : "cambio_estado", textoFeed)
     await notificarTarea(id, estado === "completada" ? "completada" : estado === "en_progreso" && estadoAnterior === "en_revision" ? "devuelta" : "estado", {
       comentario: textoFeed,
       estado_anterior: ESTADOS[estadoAnterior]?.label || estadoAnterior,
@@ -387,7 +327,7 @@ export default function TareasPage() {
       const siguienteId = await generarSiguienteOcurrencia(tareaActual)
       if (siguienteId) {
         generoSiguiente = true
-        await agregarEventoFeed(id, "cambio_estado", "Se generó automáticamente la siguiente ocurrencia recurrente.")
+        await agregarEventoFeedTarea(supabase, perfil?.id, id, "cambio_estado", "Se generó automáticamente la siguiente ocurrencia recurrente.")
       }
     }
     setTareas(prev => prev.map(t => t.id === id ? { ...t, ...payload } : t))
@@ -517,13 +457,6 @@ export default function TareasPage() {
 
     window.open(url, "_blank", "noopener,noreferrer")
   }
-  function toggleParticipante(id: string) {
-    setForm(prev => {
-      const exists = prev.participante_ids.includes(id)
-      return { ...prev, participante_ids: exists ? prev.participante_ids.filter(pid => pid !== id) : [...prev.participante_ids, id] }
-    })
-  }
-
   const hoy = new Date().toISOString().split("T")[0]
   const estaVencida = (t: any) => t.fecha_limite && t.fecha_limite < hoy && t.estado !== "completada" && t.estado !== "cancelada"
   const enProximaSemana = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
@@ -531,14 +464,6 @@ export default function TareasPage() {
   const tareasDelegadas = perfil?.id ? tareas.filter(t => t.creado_por === perfil.id && t.asignado_a !== perfil.id) : []
   const tareasParticipa = perfil?.id ? tareas.filter(esParticipante) : []
   const tareasRelacionadas = puedeVerEquipo ? tareas : tareas.filter(esTareaRelacionada)
-  const participantesSeleccionados = usuarios.filter(u => form.participante_ids.includes(u.id))
-  const participantesDisponibles = usuarios
-    .filter(u => u.id !== form.asignado_a)
-    .filter(u => {
-      const q = participanteSearch.trim().toLowerCase()
-      if (!q) return true
-      return `${u.nombre || ""} ${u.apellido || ""} ${u.perfil || ""} ${u.email || ""}`.toLowerCase().includes(q)
-    })
   const responsableSeleccionado = usuarios.find(u => u.id === responsableId)
   const nombreResponsable = responsableSeleccionado ? `${responsableSeleccionado.nombre} ${responsableSeleccionado.apellido}` : "responsable"
   const subtituloTrabajo =
@@ -1079,180 +1004,14 @@ export default function TareasPage() {
               <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
             </div>
 
-            <div style={{ display: "grid", gap: 14 }}>
-              {!editando && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, padding: 12, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10 }}>
-                  {[
-                    { label: "1. Pendiente", active: true },
-                    { label: "2. En progreso", active: false },
-                    { label: "3. En revisión", active: false },
-                    { label: "4. Cierre", active: false },
-                  ].map(paso => (
-                    <div key={paso.label} style={{ padding: "8px 10px", borderRadius: 8, background: paso.active ? "#fef9c3" : "#fff", border: "1px solid " + (paso.active ? "#fde68a" : "#e5e7eb"), color: paso.active ? "#92400e" : "#6b7280", fontSize: 11, fontWeight: 700, textAlign: "center" }}>
-                      {paso.label}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div>
-                <label style={lbl}>TÍTULO *</label>
-                <input style={inp} value={form.titulo} placeholder="Título de la tarea" onChange={e => setForm({ ...form, titulo: e.target.value })} />
-              </div>
-              <div>
-                <label style={lbl}>DESCRIPCIÓN</label>
-                <textarea style={{ ...inp, minHeight: 80, resize: "vertical" }} value={form.descripcion} placeholder="Detalle de la tarea..." onChange={e => setForm({ ...form, descripcion: e.target.value })} />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                {editando ? (
-                  <div>
-                    <label style={lbl}>ESTADO</label>
-                    <select style={inp} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
-                      {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                    </select>
-                  </div>
-                ) : (
-                  <div>
-                    <label style={lbl}>ESTADO INICIAL</label>
-                    <div style={{ padding: "9px 10px", border: "1px solid #fde68a", borderRadius: 7, background: "#fef9c3", color: "#92400e", fontSize: 13, fontWeight: 700 }}>
-                      Pendiente
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <label style={lbl}>PRIORIDAD</label>
-                  <select style={inp} value={form.prioridad} onChange={e => setForm({ ...form, prioridad: e.target.value })}>
-                    {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={lbl}>RESPONSABLE PRINCIPAL *</label>
-                <select style={inp} value={form.asignado_a} onChange={e => setForm({ ...form, asignado_a: e.target.value, participante_ids: form.participante_ids.filter(id => id !== e.target.value) })}>
-                  <option value="">Sin asignar</option>
-                  {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido} — {u.perfil}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lbl}>PARTICIPANTES / SEGUIDORES</label>
-                <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", padding: 10 }}>
-                  {participantesSeleccionados.length > 0 && (
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                      {participantesSeleccionados.map(u => (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onClick={() => toggleParticipante(u.id)}
-                          style={{ border: "1px solid #dbeafe", background: "#eff6ff", color: "#1e40af", borderRadius: 99, padding: "4px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                        >
-                          {nombreUsuario(u)} ×
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <input
-                    style={{ ...inp, border: "1px solid #f3f4f6", marginBottom: 8 }}
-                    value={participanteSearch}
-                    placeholder="Buscar usuarios para agregar..."
-                    onChange={e => setParticipanteSearch(e.target.value)}
-                  />
-                  <div style={{ maxHeight: 170, overflowY: "auto", display: "grid", gap: 4 }}>
-                    {participantesDisponibles.length === 0 ? (
-                      <div style={{ padding: 10, color: "#9ca3af", fontSize: 12 }}>No hay usuarios con esa búsqueda</div>
-                    ) : participantesDisponibles.map(u => {
-                      const checked = form.participante_ids.includes(u.id)
-                      return (
-                        <label key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", borderRadius: 7, background: checked ? "#f0fdf4" : "#fff", border: `1px solid ${checked ? "#bbf7d0" : "#f3f4f6"}`, cursor: "pointer" }}>
-                          <input type="checkbox" checked={checked} onChange={() => toggleParticipante(u.id)} />
-                          <span style={{ width: 26, height: 26, borderRadius: 99, background: "#eef2ff", color: "#3730a3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{inicialesUsuario(u)}</span>
-                          <span style={{ minWidth: 0 }}>
-                            <span style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#374151" }}>{nombreUsuario(u)} <span style={{ fontWeight: 600, color: "#9ca3af" }}>— {u.perfil || "Sin rol"}</span></span>
-                            {u.email && <span style={{ display: "block", fontSize: 11, color: "#9ca3af" }}>{u.email}</span>}
-                          </span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>PROYECTO (opcional)</label>
-                  <select style={inp} value={form.proyecto_id} onChange={e => setForm({ ...form, proyecto_id: e.target.value })}>
-                    <option value="">Sin proyecto</option>
-                    {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} — {p.nombre}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>CLIENTE (opcional)</label>
-                  <select style={inp} value={form.cliente_id} onChange={e => setForm({ ...form, cliente_id: e.target.value })}>
-                    <option value="">Sin cliente</option>
-                    {clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={lbl}>FECHA LÍMITE</label>
-                <input type="date" style={inp} value={form.fecha_limite} onChange={e => setForm({ ...form, fecha_limite: e.target.value })} />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>HORA INICIO</label>
-                  <input type="time" style={inp} value={form.hora_inicio || ""} onChange={e => setForm({ ...form, hora_inicio: e.target.value })} />
-                </div>
-                <div>
-                  <label style={lbl}>HORA FIN</label>
-                  <input type="time" style={inp} value={form.hora_fin || ""} onChange={e => setForm({ ...form, hora_fin: e.target.value })} />
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>FRECUENCIA</label>
-                  <select style={inp} value={form.frecuencia} onChange={e => setForm({ ...form, frecuencia: e.target.value })}>
-                    {Object.entries(FRECUENCIAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </div>
-                {form.frecuencia.startsWith("personalizado") && (
-                  <div>
-                    <label style={lbl}>CADA</label>
-                    <input type="number" min={1} style={inp} value={form.recurrencia_intervalo} onChange={e => setForm({ ...form, recurrencia_intervalo: Number(e.target.value) })} />
-                  </div>
-                )}
-              </div>
-              {form.frecuencia !== "no_repite" && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <label style={lbl}>FECHA FIN</label>
-                    <input type="date" style={inp} value={form.recurrencia_fecha_fin} onChange={e => setForm({ ...form, recurrencia_fecha_fin: e.target.value })} />
-                  </div>
-                  <div>
-                    <label style={lbl}>MÁXIMO DE REPETICIONES</label>
-                    <input type="number" min={1} style={inp} value={form.recurrencia_max_repeticiones} onChange={e => setForm({ ...form, recurrencia_max_repeticiones: e.target.value })} />
-                  </div>
-                </div>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {[
-                  { key: "notificar_participantes" as const, label: "Notificar participantes" },
-                  { key: "mostrar_participantes_mi_trabajo" as const, label: "Mostrar en Mi Trabajo" },
-                  { key: "permitir_comentarios" as const, label: "Permitir comentarios" },
-                  { key: "recibir_correos_automaticos" as const, label: "Correos automáticos" },
-                ].map(option => (
-                  <label key={option.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: 10, border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, color: "#374151", fontWeight: 600 }}>
-                    <input type="checkbox" checked={form[option.key]} onChange={e => setForm({ ...form, [option.key]: e.target.checked })} />
-                    {option.label}
-                  </label>
-                ))}
-              </div>
-              {!editando && (
-                <>
-                  <div>
-                    <label style={lbl}>LINK O REFERENCIA INICIAL</label>
-                    <input style={inp} value={form.link_inicial} placeholder="https://drive.google.com/..." onChange={e => setForm({ ...form, link_inicial: e.target.value })} />
-                  </div>
-                </>
-              )}
-            </div>
+            <TaskForm
+              clientes={clientes}
+              editando={Boolean(editando)}
+              form={form}
+              onChange={setForm}
+              proyectos={proyectos}
+              usuarios={usuarios}
+            />
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
               <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>

@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { isInvalidRefreshTokenError, isSupabaseSessionCookie } from "@/lib/supabase-session"
 
 const PUBLIC_ROUTES = new Set(["/login", "/reset-password", "/auth/callback"])
 const LEGACY_PUBLIC_REDIRECTS: Record<string, string> = {
@@ -15,6 +16,22 @@ function isPublicAsset(pathname: string) {
     pathname === "/sw.js" ||
     /\.[a-zA-Z0-9]+$/.test(pathname)
   )
+}
+
+function redirectToLogin(request: NextRequest, clearSession: boolean) {
+  const loginUrl = new URL("/login", request.url)
+  loginUrl.searchParams.set("next", request.nextUrl.pathname)
+
+  const redirect = NextResponse.redirect(loginUrl)
+  if (clearSession) {
+    request.cookies.getAll()
+      .filter(cookie => isSupabaseSessionCookie(cookie.name))
+      .forEach(cookie => {
+        redirect.cookies.set(cookie.name, "", { maxAge: 0, path: "/" })
+      })
+  }
+
+  return redirect
 }
 
 export async function middleware(request: NextRequest) {
@@ -49,14 +66,22 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const authResult = await supabase.auth.getUser()
+    if (authResult.error && isInvalidRefreshTokenError(authResult.error)) {
+      return redirectToLogin(request, true)
+    }
+    user = authResult.data.user
+  } catch (error) {
+    if (isInvalidRefreshTokenError(error)) {
+      return redirectToLogin(request, true)
+    }
+    return redirectToLogin(request, false)
+  }
 
   if (!user) {
-    const loginUrl = new URL("/login", request.url)
-    loginUrl.searchParams.set("next", pathname)
-    return NextResponse.redirect(loginUrl)
+    return redirectToLogin(request, false)
   }
 
   if (pathname === "/finanzas" || pathname.startsWith("/finanzas/")) {

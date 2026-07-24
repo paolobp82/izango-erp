@@ -1,19 +1,28 @@
 "use client"
-
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { CSSProperties } from "react"
 import { createClient } from "@/lib/supabase"
 import { registrarAccion } from "@/lib/trazabilidad"
 import { rowBelongsToDeletedProject } from "@/lib/projects"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2PageHeader,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 const TIPOS = [
-  { value: "presentacion_comercial", label: "Presentacion comercial" },
-  { value: "presentacion_institucional", label: "Presentacion institucional" },
+  { value: "presentacion_comercial", label: "Presentación comercial" },
+  { value: "presentacion_institucional", label: "Presentación institucional" },
   { value: "video", label: "Video" },
   { value: "foto", label: "Foto" },
-  { value: "diseno", label: "Diseno" },
+  { value: "diseno", label: "Diseño" },
   { value: "3d", label: "3D" },
-  { value: "caso_exito", label: "Caso de exito" },
+  { value: "caso_exito", label: "Caso de éxito" },
   { value: "otro", label: "Otro" },
 ]
 
@@ -58,116 +67,122 @@ type RecursoMedio = {
   archivo_url: string | null
   fecha: string | null
   responsable_id: string | null
-  tags: string[]
-  estado: "activo" | "archivado"
-  cliente?: { razon_social: string | null } | null
-  proyecto?: { nombre: string | null; codigo: string | null; deleted_at?: string | null } | null
-  responsable?: { nombre: string | null; apellido: string | null } | null
+  tags: string[] | null
+  estado: string
+  created_at: string
+  cliente?: Cliente | null
+  proyecto?: Proyecto | null
+  responsable?: Responsable | null
 }
 
-type FormState = typeof emptyForm
-type ArchivoSubido = { url: string | null; path: string | null }
-
 export default function BibliotecaMediosPage() {
-  const supabase = useMemo(() => createClient(), [])
+  const supabase = createClient()
   const [recursos, setRecursos] = useState<RecursoMedio[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
   const [responsables, setResponsables] = useState<Responsable[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState<RecursoMedio | null>(null)
-  const [form, setForm] = useState<FormState>(emptyForm)
-  const [archivo, setArchivo] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
   const [busqueda, setBusqueda] = useState("")
   const [filtroTipo, setFiltroTipo] = useState("")
-  const [filtroEstado, setFiltroEstado] = useState("activo")
+  const [filtroEstado, setFiltroEstado] = useState("")
+  const [form, setForm] = useState(emptyForm)
+  const [archivo, setArchivo] = useState<File | null>(null)
 
   const load = useCallback(async () => {
-    setLoading(true)
-    const [recursosRes, clientesRes, proyectosRes, responsablesRes] = await Promise.all([
-      supabase
-        .from("biblioteca_medios")
-        .select("*, cliente:clientes(razon_social), proyecto:proyectos(nombre,codigo,deleted_at), responsable:perfiles!responsable_id(nombre,apellido)")
-        .order("created_at", { ascending: false }),
-      supabase.from("clientes").select("id, razon_social").order("razon_social"),
-      supabase.from("proyectos").select("id, nombre, codigo, cliente_id").is("deleted_at", null).order("created_at", { ascending: false }).limit(300),
-      supabase.from("perfiles").select("id, nombre, apellido, perfil").eq("activo", true).order("nombre"),
-    ])
-    setRecursos(((recursosRes.data || []) as RecursoMedio[]).filter((recurso) => !rowBelongsToDeletedProject(recurso)))
-    setClientes(clientesRes.data || [])
-    setProyectos(proyectosRes.data || [])
-    setResponsables(responsablesRes.data || [])
-    setLoading(false)
+    try {
+      const [{ data: recs }, { data: cls }, { data: pros }, { data: resps }] = await Promise.all([
+        supabase
+          .from("biblioteca_medios")
+          .select("*, cliente:clientes(id, razon_social), proyecto:proyectos(id, nombre, codigo, deleted_at), responsable:perfiles!responsable_id(id, nombre, apellido, perfil)")
+          .order("created_at", { ascending: false }),
+        supabase.from("clientes").select("id, razon_social").order("razon_social"),
+        supabase.from("proyectos").select("id, nombre, codigo, cliente_id, deleted_at").is("deleted_at", null).order("nombre"),
+        supabase.from("perfiles").select("id, nombre, apellido, perfil").eq("activo", true).order("nombre"),
+      ])
+
+      const recursosValidos = (recs || []).filter((recurso: RecursoMedio) => !rowBelongsToDeletedProject(recurso))
+      setRecursos(recursosValidos)
+      setClientes(cls || [])
+      setProyectos(pros || [])
+      setResponsables(resps || [])
+    } catch (error) {
+      console.error("Error cargando biblioteca de medios:", error)
+    } finally {
+      setLoading(false)
+    }
   }, [supabase])
 
-  // El ERP carga datos cliente-side en las pantallas CRUD existentes.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+  }, [load])
 
   function abrirNuevo() {
     setEditando(null)
-    setForm(emptyForm)
     setArchivo(null)
+    setForm(emptyForm)
     setShowForm(true)
   }
 
   function abrirEditar(recurso: RecursoMedio) {
     setEditando(recurso)
+    setArchivo(null)
     setForm({
-      titulo: recurso.titulo || "",
-      tipo: recurso.tipo || "otro",
+      titulo: recurso.titulo,
+      tipo: recurso.tipo || "presentacion_comercial",
       categoria: recurso.categoria || "",
       cliente_id: recurso.cliente_id || "",
       proyecto_id: recurso.proyecto_id || "",
       descripcion: recurso.descripcion || "",
       link_url: recurso.link_url || "",
       archivo_url: recurso.archivo_url || "",
-      fecha: recurso.fecha || "",
+      fecha: recurso.fecha || new Date().toISOString().slice(0, 10),
       responsable_id: recurso.responsable_id || "",
       tags: Array.isArray(recurso.tags) ? recurso.tags.join(", ") : "",
       estado: recurso.estado || "activo",
     })
-    setArchivo(null)
     setShowForm(true)
   }
 
-  async function subirArchivo(): Promise<ArchivoSubido> {
-    if (!archivo) return { url: form.archivo_url || null, path: null }
-    if (archivo.size > MAX_FILE_SIZE_BYTES) {
-      throw new Error("El archivo supera el limite permitido de 50 MB.")
+  async function subirArchivoAlBucket(file: File) {
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      throw new Error(`El archivo excede el tamaño máximo permitido de ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB.`)
     }
-    if (archivo.type && !MIME_PERMITIDOS.has(archivo.type)) {
-      throw new Error(`Formato no permitido: ${archivo.type}`)
+    if (file.type && !MIME_PERMITIDOS.has(file.type)) {
+      throw new Error("Tipo de archivo no permitido. Tipos válidos: PDF, JPG, PNG, WEBP, MP4, MOV.")
     }
-    const nombreSeguro = archivo.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "-")
-    const extension = nombreSeguro.includes(".") ? nombreSeguro.split(".").pop() : "bin"
-    const nombreBase = nombreSeguro.replace(/\.[^.]+$/, "").slice(0, 80) || "archivo"
-    const path = `biblioteca-medios/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${nombreBase}.${extension}`
-    const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, archivo, {
-      contentType: archivo.type || undefined,
-      upsert: false,
-    })
-    if (error) {
-      console.error("Error subiendo archivo de biblioteca de medios:", { bucket: MEDIA_BUCKET, path, error })
-      throw error
+
+    const ext = file.name.split(".").pop()?.toLowerCase() || "bin"
+    const path = `medios/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+
+    const { error: uploadError } = await supabase.storage.from(MEDIA_BUCKET).upload(path, file, { upsert: true })
+    if (uploadError) {
+      throw new Error(`Error al subir el archivo: ${uploadError.message}`)
     }
-    const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path)
-    return { url: data.publicUrl, path }
+
+    const { data: publicUrlData } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path)
+    return { path, publicUrl: publicUrlData.publicUrl }
   }
 
   async function guardar() {
-    if (!form.titulo.trim()) { alert("El titulo es obligatorio"); return }
-    if (!form.link_url.trim() && !form.archivo_url && !archivo) { alert("Agrega un link o un archivo"); return }
+    if (!form.titulo.trim()) {
+      alert("El título es obligatorio.")
+      return
+    }
+
     setSaving(true)
-    let archivoSubido: ArchivoSubido = { url: null, path: null }
+    let archivoSubido: { path?: string; publicUrl?: string } = {}
+
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      archivoSubido = await subirArchivo()
-      const tags = form.tags
+      if (archivo) {
+        archivoSubido = await subirArchivoAlBucket(archivo)
+      }
+
+      const tagsArray = form.tags
         .split(",")
-        .map((tag: string) => tag.trim())
+        .map(t => t.trim())
         .filter(Boolean)
 
       const payload = {
@@ -178,11 +193,11 @@ export default function BibliotecaMediosPage() {
         proyecto_id: form.proyecto_id || null,
         descripcion: form.descripcion.trim() || null,
         link_url: form.link_url.trim() || null,
-        archivo_url: archivoSubido.url,
+        archivo_url: archivoSubido.publicUrl || form.archivo_url || null,
         fecha: form.fecha || null,
         responsable_id: form.responsable_id || null,
-        tags,
-        estado: form.estado,
+        tags: tagsArray.length > 0 ? tagsArray : null,
+        estado: form.estado || "activo",
         updated_at: new Date().toISOString(),
       }
 
@@ -190,13 +205,13 @@ export default function BibliotecaMediosPage() {
         const { error } = await supabase.from("biblioteca_medios").update(payload).eq("id", editando.id)
         if (error) throw error
       } else {
-        const { error } = await supabase.from("biblioteca_medios").insert({ ...payload, creado_por: userData.user?.id || null })
+        const { error } = await supabase.from("biblioteca_medios").insert(payload)
         if (error) throw error
       }
 
       await registrarAccion({
-        accion: editando ? "editar" : "crear",
         modulo: "biblioteca_medios",
+        accion: editando ? "editar" : "crear",
         entidad_tipo: "recurso",
         descripcion: (editando ? "Recurso editado: " : "Recurso creado: ") + form.titulo,
       })
@@ -205,7 +220,7 @@ export default function BibliotecaMediosPage() {
     } catch (error: unknown) {
       if (archivoSubido.path) {
         const { error: removeError } = await supabase.storage.from(MEDIA_BUCKET).remove([archivoSubido.path])
-        if (removeError) console.error("No se pudo limpiar archivo huerfano de biblioteca de medios:", removeError)
+        if (removeError) console.error("No se pudo limpiar archivo huérfano de biblioteca de medios:", removeError)
       }
       console.error("No se pudo guardar biblioteca de medios:", error)
       alert("No se pudo guardar el recurso: " + (error instanceof Error ? error.message : "Error desconocido"))
@@ -223,15 +238,15 @@ export default function BibliotecaMediosPage() {
   }
 
   async function eliminar(recurso: RecursoMedio) {
-    if (!confirm(`Eliminar permanentemente ${recurso.titulo}?`)) return
+    if (!confirm(`¿Eliminar permanentemente ${recurso.titulo}?`)) return
     const { error } = await supabase.from("biblioteca_medios").delete().eq("id", recurso.id)
     if (error) { alert("No se pudo eliminar el recurso: " + error.message); return }
     await load()
   }
 
   const tipoLabel = (tipo: string) => TIPOS.find(t => t.value === tipo)?.label || tipo
-  const inputStyle: CSSProperties = { padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", width: "100%", background: "#fff" }
-  const labelStyle: CSSProperties = { display: "block", fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 5, textTransform: "uppercase" }
+  const inputStyle: CSSProperties = { padding: "8px 10px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius-sm)", fontSize: 13, fontFamily: "inherit", width: "100%", background: "var(--v2-surface)" }
+  const labelStyle: CSSProperties = { display: "block", fontSize: 11, fontWeight: 700, color: "var(--v2-muted)", marginBottom: 5, textTransform: "uppercase" }
 
   const filtrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase()
@@ -252,102 +267,172 @@ export default function BibliotecaMediosPage() {
     })
   }, [recursos, busqueda, filtroTipo, filtroEstado])
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando biblioteca de medios...</div>
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando biblioteca de medios...
+      </div>
+    )
+  }
+
+  const columns: V2TableColumn<RecursoMedio>[] = [
+    {
+      key: "recurso",
+      header: "Recurso",
+      render: (r) => (
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13.5, color: "var(--v2-text)" }}>{r.titulo}</div>
+          {r.descripcion && <div style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: 3, maxWidth: 360 }}>{r.descripcion}</div>}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+            {r.categoria && <span style={{ background: "#eef2ff", color: "#3730a3", padding: "2px 8px", borderRadius: 99, fontSize: 11 }}>{r.categoria}</span>}
+            {(r.tags || []).map((tag: string) => (
+              <span key={tag} style={{ background: "var(--v2-surface-subtle)", color: "var(--v2-muted)", padding: "2px 8px", borderRadius: 99, fontSize: 11 }}>{tag}</span>
+            ))}
+            {r.estado === "archivado" && <span style={{ background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: 99, fontSize: 11 }}>Archivado</span>}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "tipo",
+      header: "Tipo",
+      render: (r) => <span style={{ fontSize: 13, color: "var(--v2-text)" }}>{tipoLabel(r.tipo)}</span>,
+    },
+    {
+      key: "relacion",
+      header: "Relación",
+      render: (r) => (
+        <div>
+          <div style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{r.cliente?.razon_social || "Sin cliente"}</div>
+          <div style={{ fontSize: 11.5, color: "var(--v2-muted)", marginTop: 2 }}>{r.proyecto ? `${r.proyecto.codigo || ""} ${r.proyecto.nombre || ""}`.trim() : "Sin proyecto"}</div>
+        </div>
+      ),
+    },
+    {
+      key: "responsable",
+      header: "Responsable",
+      render: (r) => (
+        <span style={{ fontSize: 12.5, color: "var(--v2-text)" }}>
+          {r.responsable ? `${r.responsable.nombre || ""} ${r.responsable.apellido || ""}`.trim() : "Sin responsable"}
+        </span>
+      ),
+    },
+    {
+      key: "fecha",
+      header: "Fecha",
+      render: (r) => <span style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{r.fecha || "-"}</span>,
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (r) => {
+        const url = r.link_url || r.archivo_url
+        return (
+          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+            {url && (
+              <a href={url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+                <V2Button variant="secondary" size="compact">Abrir</V2Button>
+              </a>
+            )}
+            <V2Button variant="ghost" size="compact" onClick={() => abrirEditar(r)}>
+              Editar
+            </V2Button>
+            <V2Button variant="ghost" size="compact" onClick={() => archivar(r)}>
+              {r.estado === "archivado" ? "Reactivar" : "Archivar"}
+            </V2Button>
+            <V2Button variant="destructive" size="compact" onClick={() => eliminar(r)}>
+              ×
+            </V2Button>
+          </div>
+        )
+      },
+    },
+  ]
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Biblioteca de Medios Izango</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{recursos.length} recursos registrados</p>
-        </div>
-        <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo recurso</button>
-      </div>
-
-      <div className="card" style={{ padding: 14, marginBottom: 16 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: 10, alignItems: "center" }}>
-          <input style={inputStyle} placeholder="Buscar por titulo, tags, cliente o proyecto..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-          <select style={inputStyle} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
-            <option value="">Todos los tipos</option>
-            {TIPOS.map(tipo => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
-          </select>
-          <select style={inputStyle} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
-            <option value="">Todos los estados</option>
-            <option value="activo">Activos</option>
-            <option value="archivado">Archivados</option>
-          </select>
-          <span style={{ fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>{filtrados.length} visibles</span>
-        </div>
-      </div>
-
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {filtrados.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay recursos para los filtros actuales.</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb" }}>
-                <th style={{ textAlign: "left", padding: "10px 18px", fontSize: 11, color: "#6b7280" }}>RECURSO</th>
-                <th style={{ textAlign: "left", padding: 10, fontSize: 11, color: "#6b7280" }}>TIPO</th>
-                <th style={{ textAlign: "left", padding: 10, fontSize: 11, color: "#6b7280" }}>RELACION</th>
-                <th style={{ textAlign: "left", padding: 10, fontSize: 11, color: "#6b7280" }}>RESPONSABLE</th>
-                <th style={{ textAlign: "left", padding: 10, fontSize: 11, color: "#6b7280" }}>FECHA</th>
-                <th style={{ textAlign: "right", padding: "10px 18px", fontSize: 11, color: "#6b7280" }}>ACCIONES</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtrados.map((recurso, idx) => {
-                const url = recurso.link_url || recurso.archivo_url
-                return (
-                  <tr key={recurso.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                    <td style={{ padding: "14px 18px", verticalAlign: "top" }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: "#111827" }}>{recurso.titulo}</div>
-                      {recurso.descripcion && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3, maxWidth: 360 }}>{recurso.descripcion}</div>}
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                        {recurso.categoria && <span style={{ background: "#eef2ff", color: "#3730a3", padding: "2px 8px", borderRadius: 99, fontSize: 11 }}>{recurso.categoria}</span>}
-                        {(recurso.tags || []).map((tag: string) => (
-                          <span key={tag} style={{ background: "#f3f4f6", color: "#4b5563", padding: "2px 8px", borderRadius: 99, fontSize: 11 }}>{tag}</span>
-                        ))}
-                        {recurso.estado === "archivado" && <span style={{ background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: 99, fontSize: 11 }}>Archivado</span>}
-                      </div>
-                    </td>
-                    <td style={{ padding: 10, fontSize: 13, color: "#374151", verticalAlign: "top" }}>{tipoLabel(recurso.tipo)}</td>
-                    <td style={{ padding: 10, fontSize: 12, color: "#374151", verticalAlign: "top" }}>
-                      <div>{recurso.cliente?.razon_social || "Sin cliente"}</div>
-                      <div style={{ color: "#6b7280", marginTop: 2 }}>{recurso.proyecto ? `${recurso.proyecto.codigo || ""} ${recurso.proyecto.nombre || ""}`.trim() : "Sin proyecto"}</div>
-                    </td>
-                    <td style={{ padding: 10, fontSize: 12, color: "#374151", verticalAlign: "top" }}>
-                      {recurso.responsable ? `${recurso.responsable.nombre || ""} ${recurso.responsable.apellido || ""}`.trim() : "Sin responsable"}
-                    </td>
-                    <td style={{ padding: 10, fontSize: 12, color: "#374151", verticalAlign: "top" }}>{recurso.fecha || "-"}</td>
-                    <td style={{ padding: "12px 18px", textAlign: "right", verticalAlign: "top" }}>
-                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                        {url && <a href={url} target="_blank" rel="noreferrer" className="btn-secondary" style={{ fontSize: 12, textDecoration: "none" }}>Abrir</a>}
-                        <button onClick={() => abrirEditar(recurso)} className="btn-secondary" style={{ fontSize: 12 }}>Editar</button>
-                        <button onClick={() => archivar(recurso)} className="btn-secondary" style={{ fontSize: 12 }}>{recurso.estado === "archivado" ? "Reactivar" : "Archivar"}</button>
-                        <button onClick={() => eliminar(recurso)} style={{ fontSize: 12, padding: "5px 10px", border: "1px solid #fee2e2", borderRadius: 6, color: "#dc2626", background: "#fff", cursor: "pointer" }}>Eliminar</button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            eyebrow="Comercial"
+            title="Biblioteca de Medios"
+            subtitle={`${filtrados.length} de ${recursos.length} recursos disponibles`}
+            actions={
+              <V2Button variant="primary" onClick={abrirNuevo}>
+                + Nuevo recurso
+              </V2Button>
+            }
+          />
+        }
+        toolbar={
+          <V2FilterBar
+            searchValue={busqueda}
+            onSearchChange={setBusqueda}
+            activeFiltersCount={(filtroTipo ? 1 : 0) + (filtroEstado ? 1 : 0)}
+            hideDrawerButton
+            onToggleDrawer={() => {}}
+            quickFilters={
+              <>
+                <div style={{ width: 200 }}>
+                  <V2Select
+                    compact
+                    value={filtroTipo}
+                    onChange={(e) => setFiltroTipo(e.target.value)}
+                    options={[
+                      { label: "Todos los tipos", value: "" },
+                      ...TIPOS.map((t) => ({ label: t.label, value: t.value })),
+                    ]}
+                  />
+                </div>
+                <div style={{ width: 160 }}>
+                  <V2Select
+                    compact
+                    value={filtroEstado}
+                    onChange={(e) => setFiltroEstado(e.target.value)}
+                    options={[
+                      { label: "Todos los estados", value: "" },
+                      { label: "Activos", value: "activo" },
+                      { label: "Archivados", value: "archivado" },
+                    ]}
+                  />
+                </div>
+              </>
+            }
+            showClearButton={Boolean(filtroTipo || filtroEstado || busqueda)}
+            onClearFilters={() => {
+              setBusqueda("")
+              setFiltroTipo("")
+              setFiltroEstado("")
+            }}
+          />
+        }
+        table={
+          <V2DataTable
+            columns={columns}
+            rows={filtrados}
+            getRowKey={(r) => r.id}
+            empty={
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
+                No hay recursos para los filtros actuales.
+              </div>
+            }
+          />
+        }
+      />
 
       {showForm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 10, width: "100%", maxWidth: 820, maxHeight: "92vh", overflowY: "auto", padding: 26 }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", width: "100%", maxWidth: 760, maxHeight: "92vh", overflowY: "auto", padding: 28, boxShadow: "var(--v2-shadow-lg)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{editando ? "Editar recurso" : "Nuevo recurso"}</h2>
-              <button onClick={() => setShowForm(false)} style={{ border: "none", background: "none", fontSize: 22, color: "#9ca3af", cursor: "pointer" }}>x</button>
+              <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--v2-text)" }}>{editando ? "Editar recurso" : "Nuevo recurso"}</h2>
+              <button onClick={() => setShowForm(false)} style={{ border: "none", background: "none", fontSize: 22, color: "var(--v2-subtle)", cursor: "pointer" }}>×</button>
             </div>
 
             <div style={{ display: "grid", gap: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
                 <div>
-                  <label style={labelStyle}>Titulo *</label>
+                  <label style={labelStyle}>Título *</label>
                   <input style={inputStyle} value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} placeholder="Nombre del recurso" />
                 </div>
                 <div>
@@ -360,7 +445,7 @@ export default function BibliotecaMediosPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div>
-                  <label style={labelStyle}>Categoria</label>
+                  <label style={labelStyle}>Categoría</label>
                   <input style={inputStyle} value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })} placeholder="BTL, retail, institucional..." />
                 </div>
                 <div>
@@ -380,7 +465,7 @@ export default function BibliotecaMediosPage() {
               </div>
 
               <div>
-                <label style={labelStyle}>Descripcion</label>
+                <label style={labelStyle}>Descripción</label>
                 <textarea style={{ ...inputStyle, minHeight: 90, resize: "vertical" }} value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} placeholder="Contexto, uso sugerido, detalles del material..." />
               </div>
 
@@ -392,7 +477,7 @@ export default function BibliotecaMediosPage() {
                 <div>
                   <label style={labelStyle}>Adjuntar archivo</label>
                   <input type="file" style={inputStyle} onChange={e => setArchivo(e.target.files?.[0] || null)} />
-                  {form.archivo_url && <a href={form.archivo_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 5, fontSize: 12, color: "#0F6E56" }}>Ver archivo actual</a>}
+                  {form.archivo_url && <a href={form.archivo_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 5, fontSize: 12, color: "var(--v2-brand)" }}>Ver archivo actual</a>}
                 </div>
               </div>
 
@@ -422,17 +507,17 @@ export default function BibliotecaMediosPage() {
               <div>
                 <label style={labelStyle}>Tags</label>
                 <input style={inputStyle} value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="video, retail, demo, institucional" />
-                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>Separar tags con comas.</div>
+                <div style={{ fontSize: 11, color: "var(--v2-subtle)", marginTop: 4 }}>Separar tags con comas.</div>
               </div>
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>{saving ? "Guardando..." : editando ? "Actualizar recurso" : "Crear recurso"}</button>
+              <V2Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={guardar} disabled={saving}>{saving ? "Guardando..." : editando ? "Actualizar recurso" : "Crear recurso"}</V2Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

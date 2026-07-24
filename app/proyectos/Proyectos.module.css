@@ -1,0 +1,286 @@
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 1024px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .kpiGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.eliminadosToggleRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.eliminadosPanel {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--v2-radius-lg);
+  background: var(--v2-surface);
+  box-shadow: var(--v2-shadow-sm);
+}
+
+.eliminadosRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--v2-border-soft);
+}
+
+.eliminadosRow:last-child {
+  border-bottom: 0;
+}
+
+.eliminadosNombre {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--v2-text);
+}
+
+.eliminadosMeta {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--v2-muted);
+}
+
+.eliminadosExpira {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--v2-danger);
+  font-weight: 700;
+}
+
+.estadoChecklist {
+  display: grid;
+  gap: 8px;
+}
+
+.estadoCheckboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-text);
+  cursor: pointer;
+}
+
+.estadoCheckboxRow input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* Header Column Filter Controls */
+.headerFilterBox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.columnFilterInput,
+.columnFilterSelect {
+  width: 100%;
+  height: 26px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--v2-radius-sm);
+  border: none;
+  background: var(--v2-surface);
+  color: var(--v2-text);
+  box-shadow: var(--v2-shadow-sm);
+  outline: none;
+}
+
+.columnFilterInput:focus,
+.columnFilterSelect:focus {
+  box-shadow: 0 0 0 1.5px var(--v2-accent);
+}
+
+/* MultiSelect Component */
+.multiSelectWrapper {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.multiSelectTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface);
+  color: var(--v2-text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--v2-shadow-sm);
+  text-align: left;
+}
+
+.multiSelectTriggerCompact {
+  height: 26px;
+  padding: 0 6px;
+  font-size: 11px;
+  border-radius: var(--v2-radius-sm);
+}
+
+.multiSelectDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 120;
+  min-width: 210px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: none;
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface);
+  box-shadow: var(--v2-shadow-md);
+  padding: 8px;
+}
+
+.multiSelectHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--v2-border-soft);
+}
+
+.multiSelectActionBtn {
+  background: none;
+  border: none;
+  color: var(--v2-accent);
+  font-size: 10.5px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+}
+
+.multiSelectActionBtn:hover {
+  text-decoration: underline;
+}
+
+.multiSelectList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.multiSelectItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--v2-text);
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 4px;
+}
+
+.multiSelectItem:hover {
+  background: var(--v2-surface-muted);
+}
+
+.multiSelectItem input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--v2-accent);
+  cursor: pointer;
+}
+
+.tableContainer {
+  display: block;
+}
+
+.cardsContainer {
+  display: none;
+}
+
+.card {
+  background: var(--v2-surface);
+  border: none;
+  border-radius: var(--v2-radius-lg);
+  box-shadow: var(--v2-shadow-sm);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cardTitle {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--v2-text);
+  margin: 0;
+}
+
+.cardContent {
+  display: grid;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--v2-muted);
+}
+
+.cardLabel {
+  font-weight: 700;
+  color: var(--v2-subtle);
+  margin-right: 4px;
+}
+
+.cardActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--v2-border-soft);
+  padding-top: 8px;
+  margin-top: 4px;
+  justify-content: flex-end;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .tableContainer {
+    display: none;
+  }
+
+  .cardsContainer {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+}

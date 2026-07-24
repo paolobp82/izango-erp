@@ -1,5 +1,9 @@
 "use client"
-import { useEffect, useState } from "react"
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
+import { ChevronDown, CircleDollarSign, Clock3, Copy, Eye, FolderKanban, Trash2, Zap } from "lucide-react"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
 import { useRouter } from "next/navigation"
@@ -7,25 +11,162 @@ import { softDeleteProject } from "@/lib/projects"
 import { filtrarPorAlcance, puedeEjecutarAccion, puedeVerModulo } from "@/lib/permisos"
 import { getProyectoEstadosVisuales } from "@/lib/core/configuration"
 
-const ESTADO_LABEL = Object.fromEntries(Object.entries(getProyectoEstadosVisuales()).map(([k,v])=>[k,v.label]))
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2FormField,
+  V2IconButton,
+  V2Input,
+  V2KpiCard,
+  V2PageHeader,
+  V2Pagination,
+  V2Select,
+  V2StatusBadge,
+  V2Tooltip,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar, V2FilterDrawer } from "@/components/v2/filters"
+import filterStyles from "@/components/v2/filters/V2Filters.module.css"
+import styles from "./Proyectos.module.css"
 
-const ENTIDAD_LABEL: Record<string, string> = {
-  peru: "Izango Peru",
-  selva: "Izango Selva",
+const ESTADO_LABEL = Object.fromEntries(
+  Object.entries(getProyectoEstadosVisuales()).map(([k, v]) => [k, v.label])
+)
+
+// Tono visual por estado real (getProyectoEstadosVisuales). No representa ni modifica
+// las reglas de transicion de negocio, solo la categoria cromatica del badge.
+const ESTADO_TONE: Record<string, "info" | "success" | "warning" | "danger" | "neutral"> = {
+  pendiente_aprobacion: "warning",
+  aprobado_produccion: "warning",
+  aprobado_gerencia: "warning",
+  aprobado: "info",
+  aprobado_cliente: "info",
+  en_curso: "success",
+  terminado: "warning",
+  liquidado: "info",
+  cerrado_financiero: "neutral",
+  rechazado: "danger",
+  cancelado: "danger",
 }
 
-const EC: Record<string, any> = {
-  pendiente_aprobacion: { bg: "#fef9c3", color: "#92400e" },
-  aprobado_produccion:  { bg: "#fed7aa", color: "#9a3412" },
-  aprobado:             { bg: "#dbeafe", color: "#1e40af" },
-  aprobado_gerencia:    { bg: "#e0e7ff", color: "#3730a3" },
-  aprobado_cliente:     { bg: "#dcfce7", color: "#15803d" },
-  en_curso:             { bg: "#dcfce7", color: "#15803d" },
-  terminado:            { bg: "#f3f4f6", color: "#6b7280" },
-  liquidado:            { bg: "#f5f3ff", color: "#6d28d9" },
-  facturado:            { bg: "#f0fdf4", color: "#166534" },
-  cancelado:            { bg: "#f0fdf4", color: "#166534" },
-  rechazado:            { bg: "#fde8d8", color: "#c2410c" },
+function estadoTone(estado?: string | null): "info" | "success" | "warning" | "danger" | "neutral" {
+  return ESTADO_TONE[estado || ""] || "neutral"
+}
+
+// Labels/tonos reales de estado de cotizacion (mismos valores que /proyectos/[id]), usados
+// unicamente para mostrar el fallback de Subtotal (ultima cotizacion no aprobada por cliente).
+const COTIZACION_ESTADO_LABEL: Record<string, string> = {
+  borrador: "Borrador",
+  enviada_cliente: "Enviada cliente",
+  aprobada_cliente: "Aprobada cliente",
+  rechazada: "Rechazada",
+}
+
+const COTIZACION_ESTADO_TONE: Record<string, "info" | "success" | "warning" | "danger" | "neutral"> = {
+  borrador: "warning",
+  enviada_cliente: "info",
+  aprobada_cliente: "success",
+  rechazada: "danger",
+}
+
+function productorInitials(productor?: { nombre?: string | null; apellido?: string | null } | null) {
+  if (!productor) return "—"
+  return `${productor.nombre?.[0] || ""}${productor.apellido?.[0] || ""}`.toUpperCase() || "—"
+}
+
+function EstadoMultiSelect({
+  selected,
+  onChange,
+  compact = false,
+}: {
+  selected: string[]
+  onChange: (selected: string[]) => void
+  compact?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const allKeys = Object.keys(ESTADO_LABEL)
+
+  const toggleAll = () => {
+    if (selected.length === allKeys.length) {
+      onChange([])
+    } else {
+      onChange(allKeys)
+    }
+  }
+
+  const toggleItem = (key: string) => {
+    if (selected.includes(key)) {
+      onChange(selected.filter((k) => k !== key))
+    } else {
+      onChange([...selected, key])
+    }
+  }
+
+  const buttonLabel =
+    selected.length === 0
+      ? "Todos los estados"
+      : selected.length === 1
+      ? ESTADO_LABEL[selected[0]] || selected[0]
+      : `${selected.length} estados sel.`
+
+  return (
+    <div className={styles.multiSelectWrapper} ref={containerRef}>
+      <button
+        type="button"
+        className={`${styles.multiSelectTrigger} ${compact ? styles.multiSelectTriggerCompact : ""}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((prev) => !prev)
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{buttonLabel}</span>
+        <ChevronDown size={12} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }} />
+      </button>
+
+      {open && (
+        <div className={styles.multiSelectDropdown} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.multiSelectHeader}>
+            <button type="button" className={styles.multiSelectActionBtn} onClick={toggleAll}>
+              {selected.length === allKeys.length ? "Desmarcar todos" : "Seleccionar todos"}
+            </button>
+            {selected.length > 0 && (
+              <button type="button" className={styles.multiSelectActionBtn} onClick={() => onChange([])}>
+                Limpiar ({selected.length})
+              </button>
+            )}
+          </div>
+          <div className={styles.multiSelectList}>
+            {Object.entries(ESTADO_LABEL).map(([key, label]) => {
+              const checked = selected.includes(key)
+              return (
+                <label key={key} className={styles.multiSelectItem}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleItem(key)}
+                  />
+                  <span>{label}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 const POR_PAGINA = 50
@@ -33,29 +174,51 @@ const POR_PAGINA = 50
 export default function ProyectosPage() {
   const [proyectos, setProyectos] = useState<any[]>([])
   const [eliminados, setEliminados] = useState<any[]>([])
+  const [mostrarEliminados, setMostrarEliminados] = useState(false)
   const [loading, setLoading] = useState(true)
   const [eliminando, setEliminando] = useState<string | null>(null)
-  const [showEliminados, setShowEliminados] = useState(false)
+
+  // Filtros rapidos (aplican en vivo, igual que antes)
   const [filtrosEstado, setFiltrosEstado] = useState<string[]>([])
-  const [filtroEntidad, setFiltroEntidad] = useState("")
-  const [filtroProductor, setFiltroProductor] = useState("")
   const [filtroCliente, setFiltroCliente] = useState("")
+  const [busqueda, setBusqueda] = useState("")
   const [pagina, setPagina] = useState(1)
+
+  // Filtros por columna de tabla
+  const [filtroCodigo, setFiltroCodigo] = useState("")
+  const [filtroProyecto, setFiltroProyecto] = useState("")
+  const [filtroSubtotal, setFiltroSubtotal] = useState("")
+  const [filtroFecha, setFiltroFecha] = useState("")
+
+  // Filtros avanzados (se editan en el drawer y se aplican al confirmar)
+  const [filtroProductor, setFiltroProductor] = useState("")
+  const [filtroEntidad, setFiltroEntidad] = useState("")
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [tempCodigo, setTempCodigo] = useState("")
+  const [tempProyecto, setTempProyecto] = useState("")
+  const [tempCliente, setTempCliente] = useState("")
+  const [tempProductor, setTempProductor] = useState("")
+  const [tempEntidad, setTempEntidad] = useState("")
+  const [tempSubtotal, setTempSubtotal] = useState("")
+  const [tempFecha, setTempFecha] = useState("")
+  const [tempEstados, setTempEstados] = useState<string[]>([])
+
   const [perfil, setPerfil] = useState<any>(null)
   const [accesoRestringido, setAccesoRestringido] = useState(false)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
-  useEffect(() => {
-    load()
-  }, [])
-
-  async function load() {
+  const load = useCallback(async () => {
+    await Promise.resolve()
     const clienteIdParam = new URLSearchParams(window.location.search).get("cliente_id") || ""
     setFiltroCliente(clienteIdParam)
+
     const { data: { user } } = await supabase.auth.getUser()
-    const { data: perfilActual } = user ? await supabase.from("perfiles").select("*").eq("id", user.id).single() : { data: null }
+    const { data: perfilActual } = user
+      ? await supabase.from("perfiles").select("*").eq("id", user.id).single()
+      : { data: null }
     setPerfil(perfilActual)
+
     if (!puedeVerModulo(perfilActual, "proyectos")) {
       setAccesoRestringido(true)
       setProyectos([])
@@ -63,26 +226,19 @@ export default function ProyectosPage() {
       setLoading(false)
       return
     }
+
     setAccesoRestringido(false)
     const { data } = await supabase
       .from("proyectos")
-      .select("*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente)")
+      .select(
+        "*, cliente:clientes(razon_social), productor:perfiles!productor_id(nombre, apellido), cotizacion_aprobada:cotizaciones!cotizacion_aprobada_id(version, total_cliente), cotizaciones_proyecto:cotizaciones!cotizaciones_proyecto_id_fkey(id, version, estado, total_cliente, deleted_at)"
+      )
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
+
     const proyectosData = filtrarPorAlcance(data || [], perfilActual, "proyectos", { usuarioId: user?.id })
-    const proyectoIds = proyectosData.map((p: any) => p.id)
-    if (proyectoIds.length > 0) {
-      const { data: cots } = await supabase.from("cotizaciones").select("proyecto_id, total_cliente, version").is("deleted_at", null).in("proyecto_id", proyectoIds).order("version", { ascending: false })
-      const montosPorProyecto: Record<string, number> = {}
-      for (const cot of (cots || [])) {
-        if (!montosPorProyecto[cot.proyecto_id] && cot.total_cliente > 0) {
-          montosPorProyecto[cot.proyecto_id] = cot.total_cliente
-        }
-      }
-      setProyectos(proyectosData.map((p: any) => ({ ...p, _subtotal: montosPorProyecto[p.id] || 0 })))
-    } else {
-      setProyectos(proyectosData)
-    }
+    setProyectos(proyectosData)
+
     const hace2dias = new Date()
     hace2dias.setDate(hace2dias.getDate() - 2)
     const { data: elim } = await supabase
@@ -91,9 +247,22 @@ export default function ProyectosPage() {
       .not("deleted_at", "is", null)
       .gte("deleted_at", hace2dias.toISOString())
       .order("deleted_at", { ascending: false })
+
     setEliminados(filtrarPorAlcance(elim || [], perfilActual, "proyectos", { usuarioId: user?.id }))
     setLoading(false)
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    let active = true
+    Promise.resolve().then(() => {
+      if (active) {
+        load()
+      }
+    })
+    return () => {
+      active = false
+    }
+  }, [load])
 
   async function eliminar(id: string, nombre: string) {
     const proyecto = proyectos.find((p: any) => p.id === id) || eliminados.find((p: any) => p.id === id)
@@ -121,6 +290,7 @@ export default function ProyectosPage() {
       return num > max ? num : max
     }, 26000)
     const nuevoCodigo = `IZ-${maxNum + 1}`
+
     const { data: nuevo } = await supabase.from("proyectos").insert({
       codigo: nuevoCodigo,
       nombre: p.nombre + " (copia)",
@@ -132,7 +302,9 @@ export default function ProyectosPage() {
       presupuesto_referencial: p.presupuesto_referencial || null,
       estado: "pendiente_aprobacion",
     }).select().single()
+
     if (!nuevo) return
+
     const { data: cots } = await supabase.from("cotizaciones").select("*").eq("proyecto_id", p.id).is("deleted_at", null)
     for (const cot of (cots || [])) {
       const { data: nuevaCot } = await supabase.from("cotizaciones").insert({
@@ -141,11 +313,18 @@ export default function ProyectosPage() {
         fee_agencia_pct: cot.fee_agencia_pct, fee_activo: cot.fee_activo,
         igv_pct: cot.igv_pct, descuento_pct: cot.descuento_pct || 0,
       }).select().single()
+
       if (!nuevaCot) continue
       const { data: items } = await supabase.from("cotizacion_items").select("*").eq("cotizacion_id", cot.id)
       if (items && items.length > 0) {
         await supabase.from("cotizacion_items").insert(
-          items.map(({ id: _id, cotizacion_id: _cid, ...rest }: any) => ({ ...rest, cotizacion_id: nuevaCot.id }))
+          items.map((item: any) => {
+            const newItem = { ...item }
+            delete newItem.id
+            delete newItem.cotizacion_id
+            newItem.cotizacion_id = nuevaCot.id
+            return newItem
+          })
         )
       }
     }
@@ -165,236 +344,786 @@ export default function ProyectosPage() {
 
   const fmt = (n: number) => "S/ " + Number(n || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-  const filtrados = proyectos.filter(p =>
-    (filtrosEstado.length === 0 || filtrosEstado.includes(p.estado)) &&
-    (!filtroEntidad || p.entidad === filtroEntidad) &&
-    (!filtroProductor || p.productor_id === filtroProductor) &&
-    (!filtroCliente || p.cliente_id === filtroCliente)
+  // Fallback de Subtotal: si el proyecto no tiene cotizacion_aprobada_id (nunca aprobado por
+  // cliente), se muestra la cotizacion de mayor version no eliminada como referencia, dejando
+  // claro con su estado real que no es un monto aprobado. La cotizacion aprobada (cuando existe)
+  // siempre tiene prioridad, sin importar si hay versiones posteriores sin aprobar.
+  function getMontoProyecto(p: any): { total: number | null; version: number | string | null; estado: string | null; esAprobada: boolean } {
+    if (p.cotizacion_aprobada) {
+      return { total: p.cotizacion_aprobada.total_cliente, version: p.cotizacion_aprobada.version, estado: "aprobada_cliente", esAprobada: true }
+    }
+    const candidatas = (p.cotizaciones_proyecto || []).filter((c: any) => !c.deleted_at)
+    if (candidatas.length === 0) return { total: null, version: null, estado: null, esAprobada: false }
+    const ultima = candidatas.reduce((max: any, c: any) => (c.version > max.version ? c : max), candidatas[0])
+    return { total: ultima.total_cliente, version: ultima.version, estado: ultima.estado, esAprobada: false }
+  }
+
+  // Helper para calcular horas restantes (fuera de render para evitar impure function)
+  const getHorasRestantes = (deletedAt: string): number => {
+    const eliminadoMs = new Date(deletedAt).getTime()
+    const ahora = new Date().getTime()
+    const horasTranscurridas = Math.floor((ahora - eliminadoMs) / (1000 * 60 * 60))
+    return 48 - horasTranscurridas
+  }
+
+  // Proyectos eliminados con horas restantes precalculadas
+  const eliminadosConHoras = useMemo(
+    () =>
+      eliminados.map((p) => ({
+        ...p,
+        horasRestantes: getHorasRestantes(p.deleted_at),
+      })),
+    [eliminados]
   )
-  const clienteFiltrado = filtroCliente ? proyectos.find(p => p.cliente_id === filtroCliente)?.cliente?.razon_social : ""
+
+  // Filters logic - combinacion simultanea de todos los filtros por columna y globales (AND)
+  const filtrados = proyectos.filter((p) => {
+    if (filtroCodigo && !p.codigo?.toLowerCase().includes(filtroCodigo.toLowerCase())) return false
+    if (filtroProyecto) {
+      const pr = filtroProyecto.toLowerCase()
+      const matchName = p.nombre?.toLowerCase().includes(pr)
+      const matchEntidad = (p.entidad === "selva" ? "selva" : "peru").includes(pr)
+      if (!matchName && !matchEntidad) return false
+    }
+    if (filtroCliente) {
+      const cl = filtroCliente.toLowerCase()
+      const matchId = p.cliente_id === filtroCliente
+      const matchName = p.cliente?.razon_social?.toLowerCase().includes(cl)
+      if (!matchId && !matchName) return false
+    }
+    if (filtroProductor) {
+      const prod = filtroProductor.toLowerCase()
+      const matchId = p.productor_id === filtroProductor
+      const fullName = `${p.productor?.nombre || ""} ${p.productor?.apellido || ""}`.toLowerCase()
+      if (!matchId && !fullName.includes(prod)) return false
+    }
+    if (filtroEntidad && p.entidad !== filtroEntidad) return false
+    if (filtrosEstado.length > 0 && !filtrosEstado.includes(p.estado)) return false
+    if (filtroSubtotal) {
+      const sub = filtroSubtotal.toLowerCase()
+      const rawTotal = p.cotizacion_aprobada?.total_cliente != null ? String(p.cotizacion_aprobada.total_cliente) : ""
+      const fmtTotal = p.cotizacion_aprobada?.total_cliente != null ? fmt(p.cotizacion_aprobada.total_cliente).toLowerCase() : ""
+      if (!rawTotal.includes(sub) && !fmtTotal.includes(sub)) return false
+    }
+    if (filtroFecha) {
+      const f = filtroFecha.toLowerCase()
+      const fechaFormatted = p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE").toLowerCase() : ""
+      const rawFecha = p.fecha_inicio?.toLowerCase() || ""
+      if (!fechaFormatted.includes(f) && !rawFecha.includes(f)) return false
+    }
+    if (busqueda) {
+      const b = busqueda.toLowerCase()
+      const match =
+        p.codigo?.toLowerCase().includes(b) ||
+        p.nombre?.toLowerCase().includes(b) ||
+        p.cliente?.razon_social?.toLowerCase().includes(b) ||
+        `${p.productor?.nombre || ""} ${p.productor?.apellido || ""}`.toLowerCase().includes(b)
+      if (!match) return false
+    }
+    return true
+  })
+
   const totalPaginas = Math.ceil(filtrados.length / POR_PAGINA)
   const paginados = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+
   const puedeCrearProyecto = puedeEjecutarAccion(perfil, "proyectos", "crear", { usuarioId: perfil?.id, registro: { productor_id: perfil?.id, created_by: perfil?.id } })
   const puedeExportarProyectos = puedeEjecutarAccion(perfil, "proyectos", "exportar", { usuarioId: perfil?.id, registro: { productor_id: perfil?.id, created_by: perfil?.id } })
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
-  if (accesoRestringido) return <div style={{ color: "#6b7280", padding: 24 }}>Acceso restringido</div>
+  // KPIs universales sobre el alcance visible del usuario
+  const kpis = {
+    enCurso: proyectos.filter(p => p.estado === "en_curso").length,
+    pndLiquidacion: proyectos.filter(p => p.estado === "terminado").length,
+  }
 
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>Proyectos</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-            {filtrados.length} de {proyectos.length} proyectos
-            {eliminados.length > 0 && (
-              <button onClick={() => setShowEliminados(!showEliminados)}
-                style={{ marginLeft: 12, fontSize: 12, color: "#dc2626", background: "#fee2e2", border: "none", borderRadius: 99, padding: "2px 8px", cursor: "pointer" }}>
-                🗑 {eliminados.length} eliminado{eliminados.length > 1 ? "s" : ""} (recuperables)
-              </button>
-            )}
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {(puedeExportarProyectos || puedeCrearProyecto) && (
-            <ImportExport modulo="proyectos" campos={[{key:"nombre",label:"Nombre",requerido:true},{key:"descripcion_requerimiento",label:"Descripcion"},{key:"presupuesto_referencial",label:"Presupuesto"},{key:"fecha_inicio",label:"Fecha ejecucion"},{key:"fecha_fin_estimada",label:"Fecha fin estimada"}]} datos={proyectos} onImportar={async (registros) => { if (!puedeCrearProyecto) return { exitosos: 0, errores: ["No tienes permiso para realizar esta acción."] }; let exitosos=0; const errores:string[]=[]; for(const r of registros){const{error}=await supabase.from("proyectos").insert({...r,entidad:"peru",estado:"pendiente_aprobacion"}); if(error)errores.push(r.nombre+": "+error.message); else exitosos++;} load(); return{exitosos,errores}; }} />
-          )}
-          {puedeCrearProyecto && (
-            <button onClick={() => router.push("/proyectos/nuevo")} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo proyecto</button>
-          )}
-        </div>
-      </div>
+  // "Monto aprobado" solo debe reflejar proyectos vigentes: cotizacion_aprobada_id apunta a la
+  // version aprobada por el cliente, pero rechazar/cancelar un proyecto no limpia ese FK — sin este
+  // filtro, proyectos ya rechazados/cancelados seguian sumando su cotizacion aprobada historica.
+  const ESTADOS_EXCLUIDOS_MONTO_APROBADO = ["rechazado", "cancelado"]
+  const montoAprobadoTotal = proyectos
+    .filter((p: any) => !ESTADOS_EXCLUIDOS_MONTO_APROBADO.includes(p.estado))
+    .reduce((sum, p: any) => sum + Number(p?.cotizacion_aprobada?.total_cliente || 0), 0)
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-        {filtroCliente && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", border: "1px solid #bbf7d0", borderRadius: 8, background: "#f0fdf4", fontSize: 12, color: "#166534", fontWeight: 600 }}>
-            Cliente: {clienteFiltrado || "seleccionado"}
-            <button onClick={() => { setFiltroCliente(""); router.push("/proyectos") }}
-              style={{ background: "none", border: "none", color: "#15803d", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>
-              ×
-            </button>
+  // Unique clients and producers for filter dropdowns
+  const clientesUnicos = Array.from(
+    new Map(proyectos.filter((p: any) => p.cliente).map((p: any) => [p.cliente_id, p.cliente])).values()
+  )
+  const productoresUnicos = Array.from(
+    new Map(proyectos.filter((p: any) => p.productor).map((p: any) => [p.productor_id, p.productor])).values()
+  )
+
+  function abrirFiltrosAvanzados() {
+    setTempCodigo(filtroCodigo)
+    setTempProyecto(filtroProyecto)
+    setTempCliente(filtroCliente)
+    setTempProductor(filtroProductor)
+    setTempEntidad(filtroEntidad)
+    setTempSubtotal(filtroSubtotal)
+    setTempFecha(filtroFecha)
+    setTempEstados(filtrosEstado)
+    setDrawerOpen(true)
+  }
+
+  function aplicarFiltrosAvanzados() {
+    setFiltroCodigo(tempCodigo)
+    setFiltroProyecto(tempProyecto)
+    setFiltroCliente(tempCliente)
+    setFiltroProductor(tempProductor)
+    setFiltroEntidad(tempEntidad)
+    setFiltroSubtotal(tempSubtotal)
+    setFiltroFecha(tempFecha)
+    setFiltrosEstado(tempEstados)
+    setPagina(1)
+    setDrawerOpen(false)
+  }
+
+  function limpiarFiltrosAvanzados() {
+    setFiltroCodigo("")
+    setFiltroProyecto("")
+    setFiltroCliente("")
+    setFiltroProductor("")
+    setFiltroEntidad("")
+    setFiltroSubtotal("")
+    setFiltroFecha("")
+    setFiltrosEstado([])
+    setTempCodigo("")
+    setTempProyecto("")
+    setTempCliente("")
+    setTempProductor("")
+    setTempEntidad("")
+    setTempSubtotal("")
+    setTempFecha("")
+    setTempEstados([])
+    setPagina(1)
+    setDrawerOpen(false)
+  }
+
+  function quitarFiltroAvanzado(chipId: string) {
+    if (chipId === "codigo") setFiltroCodigo("")
+    else if (chipId === "proyecto") setFiltroProyecto("")
+    else if (chipId === "cliente") setFiltroCliente("")
+    else if (chipId === "productor") setFiltroProductor("")
+    else if (chipId === "entidad") setFiltroEntidad("")
+    else if (chipId === "subtotal") setFiltroSubtotal("")
+    else if (chipId === "fecha") setFiltroFecha("")
+    else if (chipId.startsWith("estado:")) {
+      const estado = chipId.slice("estado:".length)
+      setFiltrosEstado((prev) => prev.filter((e) => e !== estado))
+    }
+    setPagina(1)
+  }
+
+  const activeChips = useMemo(() => {
+    const chips: { id: string; label: string; valueLabel: string }[] = []
+    if (filtroCodigo) {
+      chips.push({ id: "codigo", label: "Código", valueLabel: filtroCodigo })
+    }
+    if (filtroProyecto) {
+      chips.push({ id: "proyecto", label: "Proyecto", valueLabel: filtroProyecto })
+    }
+    if (filtroCliente) {
+      const cl = clientesUnicos.find((c: any) => c.id === filtroCliente) as any
+      chips.push({ id: "cliente", label: "Cliente", valueLabel: cl ? cl.razon_social : "Seleccionado" })
+    }
+    if (filtroProductor) {
+      const prod = productoresUnicos.find((p: any) => p.id === filtroProductor) as any
+      chips.push({ id: "productor", label: "Productor", valueLabel: prod ? `${prod.nombre} ${prod.apellido}` : "Asignado" })
+    }
+    if (filtroEntidad) {
+      chips.push({ id: "entidad", label: "Entidad", valueLabel: filtroEntidad === "selva" ? "Izango Selva" : "Izango Perú" })
+    }
+    filtrosEstado.forEach((estado) => {
+      chips.push({ id: `estado:${estado}`, label: "Estado", valueLabel: ESTADO_LABEL[estado] || estado })
+    })
+    if (filtroSubtotal) {
+      chips.push({ id: "subtotal", label: "Subtotal", valueLabel: filtroSubtotal })
+    }
+    if (filtroFecha) {
+      chips.push({ id: "fecha", label: "Fecha", valueLabel: filtroFecha })
+    }
+    return chips
+  }, [filtroCodigo, filtroProyecto, filtroCliente, filtroProductor, filtroEntidad, filtrosEstado, filtroSubtotal, filtroFecha, clientesUnicos, productoresUnicos])
+
+  const totalFiltrosActivos =
+    activeChips.length + (busqueda ? 1 : 0)
+
+  // V2 Table columns definition - Fila única de encabezados limpios
+  const tableColumns: V2TableColumn<any>[] = [
+    {
+      key: "codigo",
+      header: "CÓDIGO",
+      render: (p) => <span style={{ fontWeight: 800, color: "var(--v2-accent)", fontSize: "12px" }}>{p.codigo}</span>,
+    },
+    {
+      key: "proyecto",
+      header: "PROYECTO",
+      minWidth: 220,
+      render: (p) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+          <span style={{ fontWeight: 800, color: "var(--v2-text)", fontSize: "13.5px" }}>{p.nombre}</span>
+          <div style={{ display: "flex", gap: "4px" }}>
+            <span
+              style={{
+                fontSize: "10px",
+                background: p.entidad === "selva" ? "rgba(245, 158, 11, 0.08)" : "rgba(59, 130, 246, 0.08)",
+                color: p.entidad === "selva" ? "rgb(245, 158, 11)" : "rgb(59, 130, 246)",
+                padding: "1px 6px",
+                borderRadius: "99px",
+                fontWeight: 800,
+                textTransform: "uppercase",
+              }}
+            >
+              {p.entidad === "selva" ? "Selva" : "Perú"}
+            </span>
           </div>
-        )}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          {Object.entries(ESTADO_LABEL).map(([key, label]) => {
-            const activo = filtrosEstado.includes(key)
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => {
-                  setFiltrosEstado(prev =>
-                    prev.includes(key)
-                      ? prev.filter(e => e !== key)
-                      : [...prev, key]
-                  )
-                  setPagina(1)
-                }}
+        </div>
+      ),
+    },
+    {
+      key: "cliente",
+      header: "CLIENTE",
+      render: (p) => p.cliente?.razon_social || "—",
+    },
+    {
+      key: "productor",
+      header: "PRODUCTOR",
+      render: (p) =>
+        p.productor ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span
+              aria-hidden="true"
+              style={{
+                display: "grid",
+                placeItems: "center",
+                width: "24px",
+                height: "24px",
+                flexShrink: 0,
+                borderRadius: "999px",
+                background: "var(--v2-surface-muted)",
+                color: "var(--v2-text)",
+                fontSize: "10px",
+                fontWeight: 900,
+              }}
+            >
+              {productorInitials(p.productor)}
+            </span>
+            <span>{p.productor.nombre} {p.productor.apellido}</span>
+          </div>
+        ) : (
+          <span style={{ color: "var(--v2-muted)" }}>—</span>
+        ),
+    },
+    {
+      key: "estado",
+      header: "ESTADO",
+      render: (p) => <V2StatusBadge tone={estadoTone(p.estado)}>{ESTADO_LABEL[p.estado] || p.estado || "—"}</V2StatusBadge>,
+    },
+    {
+      key: "subtotal",
+      header: "SUBTOTAL",
+      align: "right",
+      render: (p) => {
+        const monto = getMontoProyecto(p)
+        if (monto.total == null) {
+          return <span style={{ color: "var(--v2-muted)" }}>—</span>
+        }
+        if (monto.esAprobada) {
+          return (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+              <span
                 style={{
-                  padding: "7px 10px",
-                  border: activo ? "1px solid #0F6E56" : "1px solid #e5e7eb",
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: activo ? 800 : 600,
-                  fontFamily: "inherit",
-                  background: activo ? "#F0FDF4" : "#fff",
-                  color: activo ? "#0F6E56" : "#374151",
-                  cursor: "pointer",
+                  fontSize: "10.5px",
+                  fontWeight: 800,
+                  color: "var(--v2-brand-primary)",
+                  background: "var(--v2-brand-primary-light)",
+                  padding: "1px 6px",
+                  borderRadius: "99px",
+                  width: "fit-content",
                 }}
               >
-                {label}
-              </button>
-            )
-          })}
-        </div>        <select value={filtroCliente} onChange={e => { setFiltroCliente(e.target.value); setPagina(1) }}
-          style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
-          <option value="">Todos los clientes</option>
-          {[...new Map(proyectos.filter((p: any) => p.cliente).map((p: any) => [p.cliente_id, p.cliente])).entries()].map(([cid, cliente]: any) => (
-            <option key={cid} value={cid}>{cliente.razon_social}</option>
-          ))}
-        </select>
-        <select value={filtroEntidad} onChange={e => { setFiltroEntidad(e.target.value); setPagina(1) }}
-          style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
-          <option value="">Todas las entidades</option>
-          <option value="peru">Izango Peru (IZ)</option>
-          <option value="selva">Izango Selva (SEL)</option>
-        </select>
-        <select value={filtroProductor} onChange={e => { setFiltroProductor(e.target.value); setPagina(1) }}
-          style={{ padding: "7px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" }}>
-          <option value="">Todos los productores</option>
-          {[...new Map(proyectos.filter((p: any) => p.productor).map((p: any) => [p.productor_id, p.productor])).entries()].map(([pid, prod]: any) => (
-            <option key={pid} value={pid}>{prod.nombre} {prod.apellido}</option>
-          ))}
-        </select>
-        {(filtrosEstado.length > 0 || filtroEntidad || filtroProductor || filtroCliente) && (
-          <button onClick={() => { setFiltrosEstado([]); setFiltroEntidad(""); setFiltroProductor(""); setFiltroCliente(""); setPagina(1); router.push("/proyectos") }}
-            style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>
-            Limpiar filtros
-          </button>
-        )}
-      </div>
-
-      {showEliminados && eliminados.length > 0 && (
-        <div style={{ marginBottom: 20, background: "#fff8f8", border: "1px solid #fecaca", borderRadius: 10, padding: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#dc2626", marginBottom: 12 }}>🗑 Proyectos eliminados — recuperables por 2 días</div>
-          {eliminados.map(p => {
-            const eliminadoHace = Math.floor((Date.now() - new Date(p.deleted_at).getTime()) / (1000 * 60 * 60))
-            const horasRestantes = 48 - eliminadoHace
-            return (
-              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #fee2e2" }}>
-                <div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{p.nombre}</span>
-                  <span style={{ fontSize: 11, color: "#9ca3af", marginLeft: 8 }}>{p.cliente?.razon_social}</span>
-                  <span style={{ fontSize: 11, color: "#dc2626", marginLeft: 8 }}>Expira en {horasRestantes}h</span>
-                </div>
-                <button onClick={() => recuperar(p.id)}
-                  style={{ fontSize: 12, padding: "4px 12px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer", fontWeight: 600 }}>
-                  Recuperar
-                </button>
-              </div>
-            )
-          })}
+                V{monto.version}
+              </span>
+              <span style={{ fontWeight: 800, color: "var(--v2-text)", fontSize: "13px", marginTop: "2px" }}>
+                {fmt(monto.total)}
+              </span>
+            </div>
+          )
+        }
+        return (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px" }}>
+            <span style={{ fontWeight: 800, color: "var(--v2-text)", fontSize: "13px" }}>
+              {fmt(monto.total)}
+            </span>
+            <V2StatusBadge size="sm" tone={COTIZACION_ESTADO_TONE[monto.estado || ""] || "neutral"}>
+              V{monto.version} · {COTIZACION_ESTADO_LABEL[monto.estado || ""] || monto.estado}
+            </V2StatusBadge>
+          </div>
+        )
+      },
+    },
+    {
+      key: "fecha",
+      header: "FECHA",
+      render: (p) => (p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE") : "—"),
+    },
+    {
+      key: "acciones",
+      header: "ACCIONES",
+      align: "right",
+      render: (p) => (
+        <div style={{ display: "flex", gap: "4px", justifyContent: "flex-end" }}>
+          <V2Tooltip content="Ver detalle">
+            <V2IconButton label="Ver detalle" size="sm" onClick={() => router.push("/proyectos/" + p.id)}>
+              <Eye size={14} />
+            </V2IconButton>
+          </V2Tooltip>
+          {puedeEjecutarAccion(perfil, "proyectos", "duplicar", { usuarioId: perfil?.id, registro: p }) && (
+            <V2Tooltip content="Copiar proyecto">
+              <V2IconButton label="Copiar proyecto" size="sm" onClick={() => copiarProyecto(p)}>
+                <Copy size={14} />
+              </V2IconButton>
+            </V2Tooltip>
+          )}
+          {puedeEjecutarAccion(perfil, "proyectos", "eliminar", { usuarioId: perfil?.id, registro: p }) && (
+            <V2Tooltip content="Eliminar proyecto">
+              <V2IconButton
+                label="Eliminar proyecto"
+                size="sm"
+                variant="danger"
+                disabled={eliminando === p.id}
+                onClick={() => eliminar(p.id, p.nombre)}
+              >
+                <Trash2 size={14} />
+              </V2IconButton>
+            </V2Tooltip>
+          )}
         </div>
-      )}
+      ),
+    },
+  ]
 
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {proyectos.length === 0 ? (
-          <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No hay proyectos aún</div>
-        ) : (
-          <>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "#f9fafb" }}>
-                  <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CÓDIGO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CLIENTE</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PROYECTO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280", whiteSpace: "nowrap" }}>ENTIDAD</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>PRODUCTOR</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>V. APROBADA</th>
-                  <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280", whiteSpace: "nowrap" }}>SUBTOTAL</th>
-                  <th style={{ padding: "10px 20px", width: 150 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginados.map((p, idx) => {
-                  const e = EC[p.estado] || { bg: "#f3f4f6", color: "#6b7280" }
-                  const prod = p.productor ? p.productor.nombre + " " + p.productor.apellido : "—"
-                  return (
-                    <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                      <td style={{ padding: "12px 20px", fontSize: 12, fontWeight: 600, color: "#6b7280" }}>{p.codigo}</td>
-                      <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{p.cliente?.razon_social || "—"}</td>
-                      <td style={{ padding: "12px" }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>{p.nombre}</div>
-                      </td>
-                      <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
-                        <span style={{ fontSize: 11, background: p.entidad === "selva" ? "#fef9c3" : "#dbeafe", color: p.entidad === "selva" ? "#92400e" : "#1e40af", padding: "2px 8px", borderRadius: 99, fontWeight: 600 }}>
-                          {ENTIDAD_LABEL[p.entidad] || p.entidad || "—"}
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{prod}</td>
-                      <td style={{ padding: "12px", whiteSpace: "nowrap" }}>
-                        <span style={{ background: e.bg, color: e.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
-                          {ESTADO_LABEL[p.estado] || p.estado || "—"}
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        {p.cotizacion_aprobada ? (
-                          <div>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "2px 8px", borderRadius: 99 }}>✓ V{p.cotizacion_aprobada.version}</span>
-                            {p.cotizacion_aprobada.total_cliente > 0 && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{fmt(p.cotizacion_aprobada.total_cliente)}</div>}
-                          </div>
-                        ) : <span style={{ fontSize: 11, color: "#d1d5db" }}>—</span>}
-                      </td>
-                      <td style={{ padding: "12px", textAlign: "right", fontSize: 13, fontWeight: 700, color: "#0F6E56", whiteSpace: "nowrap" }}>
-                        {p._subtotal > 0 ? fmt(p._subtotal) : "—"}
-                      </td>
-                      <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                          {puedeEjecutarAccion(perfil, "proyectos", "duplicar", { usuarioId: perfil?.id, registro: p }) && (
-                            <button onClick={() => copiarProyecto(p)} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #1D9E75", borderRadius: 6, background: "#fff", color: "#0F6E56", cursor: "pointer" }}>Copiar</button>
-                          )}
-                          <button onClick={() => router.push("/proyectos/" + p.id)} className="btn-secondary" style={{ fontSize: 12 }}>Ver</button>
-                          {puedeEjecutarAccion(perfil, "proyectos", "eliminar", { usuarioId: perfil?.id, registro: p }) && (
-                            <button onClick={() => eliminar(p.id, p.nombre)} disabled={eliminando === p.id}
-                              style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
-                              {eliminando === p.id ? "..." : "Eliminar"}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            {totalPaginas > 1 && (
-              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "16px 20px", borderTop: "1px solid #f3f4f6" }}>
-                <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
-                  style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === 1 ? "not-allowed" : "pointer", color: pagina === 1 ? "#d1d5db" : "#374151", fontSize: 13 }}>
-                  Anterior
-                </button>
-                {Array.from({ length: totalPaginas }, (_, i) => i + 1).map(n => (
-                  <button key={n} onClick={() => setPagina(n)}
-                    style={{ padding: "5px 10px", border: "1px solid " + (n === pagina ? "#0F6E56" : "#e5e7eb"), borderRadius: 6, background: n === pagina ? "#0F6E56" : "#fff", color: n === pagina ? "#fff" : "#374151", cursor: "pointer", fontSize: 13, fontWeight: n === pagina ? 700 : 400 }}>
-                    {n}
-                  </button>
-                ))}
-                <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
-                  style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === totalPaginas ? "not-allowed" : "pointer", color: pagina === totalPaginas ? "#d1d5db" : "#374151", fontSize: 13 }}>
-                  Siguiente
-                </button>
-                <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>{filtrados.length} proyectos · Pág. {pagina}/{totalPaginas}</span>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+  if (loading) return <div style={{ padding: 24, color: "var(--v2-muted)" }}>Cargando proyectos...</div>
+  if (accesoRestringido) return <div style={{ padding: 24, color: "var(--v2-muted)" }}>Acceso restringido</div>
+
+  const rangoInicio = filtrados.length === 0 ? 0 : (pagina - 1) * POR_PAGINA + 1
+  const rangoFin = Math.min(pagina * POR_PAGINA, filtrados.length)
+
+  const kpiSection = (
+    <div className={styles.kpiGrid}>
+      <V2KpiCard
+        icon={<FolderKanban size={16} />}
+        label="Total Proyectos"
+        value={String(proyectos.length)}
+        description="En el alcance de tu perfil"
+      />
+      <V2KpiCard
+        icon={<Zap size={16} />}
+        label="En Ejecución"
+        value={String(kpis.enCurso)}
+        description="Proyectos en curso"
+      />
+      <V2KpiCard
+        icon={<Clock3 size={16} />}
+        label="Liq. Pendientes"
+        value={String(kpis.pndLiquidacion)}
+        description="Proyectos terminados sin liquidar"
+      />
+      <V2KpiCard
+        icon={<CircleDollarSign size={16} />}
+        label="Monto Aprobado"
+        value={fmt(montoAprobadoTotal)}
+        description="Suma de cotizaciones aprobadas"
+      />
     </div>
   )
+
+  return (
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            title="Gestión de Proyectos"
+            subtitle="Supervisión integral de operaciones y control financiero de la organización."
+            actions={
+              puedeCrearProyecto ? (
+                <V2Button icon={<FolderKanban size={14} />} onClick={() => router.push("/proyectos/nuevo")}>
+                  Nuevo Proyecto
+                </V2Button>
+              ) : undefined
+            }
+          />
+        }
+        summary={kpiSection}
+        toolbar={
+          <V2FilterBar
+            searchValue={busqueda}
+            onSearchChange={(val) => {
+              setBusqueda(val)
+              setPagina(1)
+            }}
+            activeFiltersCount={totalFiltrosActivos}
+            onToggleDrawer={abrirFiltrosAvanzados}
+            quickFilters={
+              <>
+                <div className={filterStyles.clienteWrapper}>
+                  <V2Select
+                    options={[
+                      { label: "Todos los clientes", value: "" },
+                      ...clientesUnicos.map((c: any) => ({
+                        label: c.razon_social,
+                        value: c.id || "",
+                      })),
+                    ]}
+                    value={filtroCliente}
+                    onChange={(e) => {
+                      setFiltroCliente(e.target.value)
+                      setPagina(1)
+                    }}
+                    compact
+                  />
+                </div>
+
+                <div className={filterStyles.estadoWrapper} style={{ minWidth: 160 }}>
+                  <EstadoMultiSelect
+                    compact
+                    onChange={(est) => {
+                      setFiltrosEstado(est)
+                      setPagina(1)
+                    }}
+                    selected={filtrosEstado}
+                  />
+                </div>
+
+                {(puedeExportarProyectos || puedeCrearProyecto) && (
+                  <ImportExport
+                    variant="v2"
+                    modulo="proyectos"
+                    campos={[
+                      { key: "nombre", label: "Nombre", requerido: true },
+                      { key: "descripcion_requerimiento", label: "Descripcion" },
+                      { key: "presupuesto_referencial", label: "Presupuesto" },
+                      { key: "fecha_inicio", label: "Fecha ejecucion" },
+                      { key: "fecha_fin_estimada", label: "Fecha fin estimada" },
+                    ]}
+                    datos={proyectos}
+                    onImportar={async (registros) => {
+                      if (!puedeCrearProyecto)
+                        return { exitosos: 0, errores: ["No tienes permiso para realizar esta acción."] }
+                      let exitosos = 0
+                      const errores: string[] = []
+                      for (const r of registros) {
+                        const { error } = await supabase.from("proyectos").insert({
+                          ...r,
+                          entidad: "peru",
+                          estado: "pendiente_aprobacion",
+                        })
+                        if (error) errores.push(r.nombre + ": " + error.message)
+                        else exitosos++
+                      }
+                      load()
+                      return { exitosos, errores }
+                    }}
+                  />
+                )}
+              </>
+            }
+            showClearButton={!!(busqueda || filtroCodigo || filtroProyecto || filtroCliente || filtroProductor || filtroEntidad || filtroSubtotal || filtroFecha || filtrosEstado.length)}
+            onClearFilters={() => {
+              setBusqueda("")
+              setFiltroCodigo("")
+              setFiltroProyecto("")
+              setFiltroCliente("")
+              setFiltroProductor("")
+              setFiltroEntidad("")
+              setFiltroSubtotal("")
+              setFiltroFecha("")
+              setFiltrosEstado([])
+              setTempProductor("")
+              setTempEntidad("")
+              setTempEstados([])
+              setPagina(1)
+              router.push("/proyectos")
+            }}
+          />
+        }
+        table={
+          <>
+            {/* Contador de eliminados recuperables: visible pero con menor protagonismo visual */}
+            {eliminados.length > 0 && (
+              <div className={styles.eliminadosToggleRow}>
+                <V2Button
+                  variant="ghost"
+                  size="compact"
+                  onClick={() => setMostrarEliminados((v) => !v)}
+                >
+                  🗑 {eliminados.length} eliminado{eliminados.length > 1 ? "s" : ""} recuperable{eliminados.length > 1 ? "s" : ""}
+                  {mostrarEliminados ? " · ocultar" : " · ver"}
+                </V2Button>
+              </div>
+            )}
+
+            {mostrarEliminados && eliminados.length > 0 && (
+              <div className={styles.eliminadosPanel}>
+                {eliminadosConHoras.map((p: any) => (
+                  <div key={p.id} className={styles.eliminadosRow}>
+                    <div>
+                      <span className={styles.eliminadosNombre}>{p.nombre}</span>
+                      <span className={styles.eliminadosMeta}>{p.cliente?.razon_social}</span>
+                      <span className={styles.eliminadosExpira}>Expira en {p.horasRestantes}h</span>
+                    </div>
+                    <V2Button variant="secondary" size="compact" onClick={() => recuperar(p.id)}>
+                      Recuperar
+                    </V2Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Active/Filtered projects section */}
+            {proyectos.length === 0 ? (
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+                No hay proyectos{" "}
+                {puedeCrearProyecto && (
+                  <Link href="/proyectos/nuevo" style={{ color: "var(--v2-brand-primary)", fontWeight: "bold" }}>
+                    Agrega el primero
+                  </Link>
+                )}
+              </div>
+            ) : filtrados.length === 0 ? (
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+                No hay proyectos que coincidan con los filtros.{" "}
+                <button
+                  onClick={() => {
+                    setBusqueda("")
+                    setFiltroCliente("")
+                    setFiltroProductor("")
+                    setFiltroEntidad("")
+                    setFiltrosEstado([])
+                    setPagina(1)
+                    router.push("/proyectos")
+                  }}
+                  style={{
+                    color: "var(--v2-brand-primary)",
+                    fontWeight: "bold",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Limpiar filtros
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Desktop Table View */}
+                <div className={styles.tableContainer}>
+                  <V2DataTable columns={tableColumns} rows={paginados} getRowKey={(p) => p.id} stickyHeader />
+                </div>
+
+                {/* Mobile Card View */}
+                <div className={styles.cardsContainer}>
+                  {paginados.map((p) => (
+                    <div key={p.id} className={styles.card}>
+                      <div className={styles.cardHeader}>
+                        <div>
+                          <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--v2-muted)", textTransform: "uppercase" }}>
+                            {p.codigo}
+                          </span>
+                          <h4 className={styles.cardTitle}>{p.nombre}</h4>
+                        </div>
+                        <V2StatusBadge tone={estadoTone(p.estado)}>{ESTADO_LABEL[p.estado] || p.estado || "—"}</V2StatusBadge>
+                      </div>
+
+                      <div className={styles.cardContent}>
+                        <div>
+                          <span className={styles.cardLabel}>Cliente:</span>
+                          {p.cliente?.razon_social || "—"}
+                        </div>
+                        <div>
+                          <span className={styles.cardLabel}>Productor:</span>
+                          {p.productor ? `${p.productor.nombre} ${p.productor.apellido}` : "—"}
+                        </div>
+                        <div>
+                          <span className={styles.cardLabel}>Fecha:</span>
+                          {p.fecha_inicio ? new Date(p.fecha_inicio).toLocaleDateString("es-PE") : "—"}
+                        </div>
+                        <div>
+                          <span className={styles.cardLabel}>Subtotal:</span>
+                          {(() => {
+                            const monto = getMontoProyecto(p)
+                            if (monto.total == null) return "—"
+                            const etiqueta = monto.esAprobada
+                              ? `V${monto.version}`
+                              : `V${monto.version} · ${COTIZACION_ESTADO_LABEL[monto.estado || ""] || monto.estado}`
+                            return `${fmt(monto.total)} (${etiqueta})`
+                          })()}
+                        </div>
+                      </div>
+
+                      <div className={styles.cardActions}>
+                        {puedeEjecutarAccion(perfil, "proyectos", "duplicar", { usuarioId: perfil?.id, registro: p }) && (
+                          <V2Button variant="secondary" size="compact" onClick={() => copiarProyecto(p)}>
+                            Copiar
+                          </V2Button>
+                        )}
+                        <V2Button variant="primary" size="compact" onClick={() => router.push("/proyectos/" + p.id)}>
+                          Ver Detalle
+                        </V2Button>
+                        {puedeEjecutarAccion(perfil, "proyectos", "eliminar", { usuarioId: perfil?.id, registro: p }) && (
+                          <V2Button
+                            variant="destructive"
+                            size="compact"
+                            onClick={() => eliminar(p.id, p.nombre)}
+                            disabled={eliminando === p.id}
+                          >
+                            {eliminando === p.id ? "..." : "Eliminar"}
+                          </V2Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {totalPaginas > 1 && (
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
+                    <V2Pagination
+                      page={pagina}
+                      pageCount={totalPaginas}
+                      onPageChange={setPagina}
+                      summary={`Mostrando ${rangoInicio}-${rangoFin} de ${filtrados.length} proyectos registrados`}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        }
+      />
+
+      <V2FilterDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        activeChips={activeChips}
+        onRemoveChip={quitarFiltroAvanzado}
+        onApply={aplicarFiltrosAvanzados}
+        onClearAll={limpiarFiltrosAvanzados}
+      >
+        <div style={{ display: "grid", gap: "16px" }}>
+          <V2FormField label="Código">
+            <V2Input
+              placeholder="Ej: IZ-26001..."
+              value={tempCodigo}
+              onChange={(e) => setTempCodigo(e.target.value)}
+            />
+          </V2FormField>
+
+          <V2FormField label="Proyecto">
+            <V2Input
+              placeholder="Nombre del proyecto..."
+              value={tempProyecto}
+              onChange={(e) => setTempProyecto(e.target.value)}
+            />
+          </V2FormField>
+
+          <V2FormField label="Cliente">
+            <V2Select
+              options={[
+                { label: "Todos los clientes", value: "" },
+                ...clientesUnicos.map((c: any) => ({
+                  label: c.razon_social,
+                  value: c.id || "",
+                })),
+              ]}
+              value={tempCliente}
+              onChange={(e) => setTempCliente(e.target.value)}
+            />
+          </V2FormField>
+
+          <V2FormField label="Productor">
+            <V2Select
+              options={[
+                { label: "Todos los responsables", value: "" },
+                ...productoresUnicos.map((p: any) => ({
+                  label: `${p.nombre} ${p.apellido}`,
+                  value: p.id || "",
+                })),
+              ]}
+              value={tempProductor}
+              onChange={(e) => setTempProductor(e.target.value)}
+            />
+          </V2FormField>
+
+          <V2FormField label="Entidad">
+            <V2Select
+              options={[
+                { label: "Todas las entidades", value: "" },
+                { label: "Izango Perú", value: "peru" },
+                { label: "Izango Selva", value: "selva" },
+              ]}
+              value={tempEntidad}
+              onChange={(e) => setTempEntidad(e.target.value)}
+            />
+          </V2FormField>
+
+          <V2FormField label="Subtotal">
+            <V2Input
+              placeholder="Ej: 5000..."
+              value={tempSubtotal}
+              onChange={(e) => setTempSubtotal(e.target.value)}
+            />
+          </V2FormField>
+
+          <V2FormField label="Fecha">
+            <V2Input
+              placeholder="Ej: 2026-05..."
+              value={tempFecha}
+              onChange={(e) => setTempFecha(e.target.value)}
+            />
+          </V2FormField>
+
+          <V2FormField
+            label={`Estado (${tempEstados.length > 0 ? `${tempEstados.length} seleccionados` : "Todos"})`}
+            help="Selección múltiple de estados"
+          >
+            <div className={styles.estadoChecklist}>
+              <div style={{ display: "flex", gap: 12, marginBottom: 4 }}>
+                <button
+                  type="button"
+                  style={{ background: "none", border: "none", color: "var(--v2-accent)", fontSize: 11, fontWeight: 800, cursor: "pointer", padding: 0 }}
+                  onClick={() => {
+                    const allKeys = Object.keys(ESTADO_LABEL)
+                    setTempEstados(tempEstados.length === allKeys.length ? [] : allKeys)
+                  }}
+                >
+                  {tempEstados.length === Object.keys(ESTADO_LABEL).length ? "Desmarcar todos" : "Seleccionar todos"}
+                </button>
+                {tempEstados.length > 0 && (
+                  <button
+                    type="button"
+                    style={{ background: "none", border: "none", color: "var(--v2-accent)", fontSize: 11, fontWeight: 800, cursor: "pointer", padding: 0 }}
+                    onClick={() => setTempEstados([])}
+                  >
+                    Limpiar ({tempEstados.length})
+                  </button>
+                )}
+              </div>
+              {Object.entries(ESTADO_LABEL).map(([value, label]) => (
+                <label className={styles.estadoCheckboxRow} key={value}>
+                  <input
+                    checked={tempEstados.includes(value)}
+                    onChange={(e) =>
+                      setTempEstados((prev) => (e.target.checked ? [...prev, value] : prev.filter((v) => v !== value)))
+                    }
+                    type="checkbox"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </V2FormField>
+        </div>
+      </V2FilterDrawer>
+    </>
+  )
 }
-
-
-
-
-

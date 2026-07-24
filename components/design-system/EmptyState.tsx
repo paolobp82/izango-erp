@@ -14,9 +14,9 @@ export default function EmptyState({ title, description, action, icon }: EmptySt
     <div
       style={{
         minHeight: 180,
-        border: "1px dashed #CBD5E1",
-        borderRadius: 14,
-        background: "#FFFFFF",
+        border: "1px dashed var(--iz-color-border-strong)",
+        borderRadius: "var(--iz-radius-lg)",
+        background: "var(--iz-color-surface)",
         display: "grid",
         placeItems: "center",
         padding: 28,
@@ -29,9 +29,9 @@ export default function EmptyState({ title, description, action, icon }: EmptySt
             style={{
               width: 52,
               height: 52,
-              borderRadius: 16,
-              background: "#ECFDF5",
-              color: "#0F6E56",
+              borderRadius: "var(--iz-radius-lg)",
+              background: "var(--iz-color-brand-50)",
+              color: "var(--iz-color-brand-700)",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
@@ -41,9 +41,9 @@ export default function EmptyState({ title, description, action, icon }: EmptySt
             {icon}
           </div>
         )}
-        <h3 style={{ margin: 0, color: "#0F172A", fontSize: 16, fontWeight: 900 }}>{title}</h3>
+        <h3 style={{ margin: 0, color: "var(--iz-color-text)", fontSize: 16, fontWeight: 900 }}>{title}</h3>
         {description && (
-          <p style={{ margin: "8px 0 0", color: "#64748B", fontSize: 13, lineHeight: 1.45 }}>
+          <p style={{ margin: "8px 0 0", color: "var(--iz-color-text-muted)", fontSize: 13, lineHeight: 1.45 }}>
             {description}
           </p>
         )}

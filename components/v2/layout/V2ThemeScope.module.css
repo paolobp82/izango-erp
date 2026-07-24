@@ -1,0 +1,1297 @@
+.themeScope {
+  color-scheme: dark;
+  /* Normative Surfaces */
+  --v2-background: #051424;
+  --v2-surface-container-lowest: #010f1f;
+  --v2-surface-container-low: #0d1c2d;
+  --v2-surface-container: #122131;
+  --v2-surface-container-high: #1c2b3c;
+  --v2-surface-container-highest: #273647;
+
+  /* Aliases de Superficies */
+  --v2-canvas: var(--v2-background);
+  --v2-surface: var(--v2-surface-container);
+  --v2-surface-muted: var(--v2-surface-container-high);
+  --v2-surface-soft: var(--v2-surface-container-highest);
+  --v2-sidebar-bg: var(--v2-surface-container-lowest);
+  --v2-sidebar-panel: var(--v2-surface-container-low);
+  --v2-sidebar-border: var(--v2-outline-variant);
+  --v2-sidebar-muted: var(--v2-on-surface-variant);
+  --v2-topbar: var(--v2-background);
+  --v2-topbar-border: var(--v2-outline-variant);
+
+  /* Normative Primary & Brand */
+  --v2-primary: #75ff9e;
+  --v2-primary-container: #00e676;
+  --v2-on-primary: #000000;
+  --v2-accent: var(--v2-primary);
+  --v2-accent-hover: #5aff89;
+  --v2-accent-ink: var(--v2-on-primary);
+  --v2-brand-primary: var(--v2-primary-container);
+
+  /* Normative Text */
+  --v2-on-surface: #d4e4fa;
+  --v2-on-surface-variant: #bacbb9;
+  --v2-text: var(--v2-on-surface);
+  --v2-muted: var(--v2-on-surface-variant);
+  --v2-subtle: #859585;
+
+  /* Normative Outlines & Borders */
+  --v2-outline: #859585;
+  --v2-outline-variant: #3b4a3d;
+  --v2-border: var(--v2-outline);
+  --v2-border-soft: var(--v2-outline-variant);
+  --v2-focus-ring: rgba(117, 255, 158, 0.25);
+
+  /* Normative Semantic States */
+  --v2-success: #00e676;
+  --v2-on-success: #000000;
+  --v2-warning: #f59e0b;
+  --v2-error: #ffb4ab;
+  --v2-danger: #ffb4ab;
+  --v2-information: #2563eb;
+  --v2-info: #2563eb;
+  /* --v2-indigo estaba referenciado en ~10 consumidores (KPI trend dot, alert card
+     action text, admin/design-system-v2, badge-purple, "Adicional" en RQ) pero nunca
+     definido dentro de .themeScope: heredaba por cascada el --v2-indigo de
+     components/design-system/theme/theme.css (:root), que por error usa un verde de
+     marca (#0F6E56/#71F1B3) en vez de un indigo real. Se define aqui la familia
+     correcta, distinguible de --v2-info (azul) y de success/brand (verde). */
+  --v2-indigo: #818cf8;
+  --v2-indigo-bg: rgba(129, 140, 248, 0.18);
+  --v2-success-bg: rgba(0, 230, 118, 0.14);
+  --v2-warning-bg: rgba(245, 158, 11, 0.14);
+  --v2-danger-bg: rgba(255, 180, 171, 0.14);
+  --v2-info-bg: rgba(37, 99, 235, 0.14);
+  --v2-neutral-bg: rgba(133, 149, 133, 0.14);
+
+  /* Normative Typography */
+  --v2-font-family: "Hanken Grotesk", sans-serif;
+  --v2-font: var(--v2-font-family);
+
+  /* Normative Layout Dimensions */
+  --v2-sidebar-expanded: 260px;
+  --v2-sidebar-collapsed: 64px;
+  --v2-sidebar-width: var(--v2-sidebar-expanded);
+  --v2-sidebar-collapsed-width: var(--v2-sidebar-collapsed);
+  --v2-topbar-height: 64px;
+  --v2-page-gutter-desktop: 24px;
+  --v2-page-gutter-mobile: 16px;
+
+  /* Normative Radii */
+  --v2-radius: 4px;
+  --v2-radius-sm: 4px;
+  --v2-radius-lg: 4px;
+  --v2-radius-pill: 9999px;
+
+  /* Spacing */
+  --v2-space-1: 4px;
+  --v2-space-2: 8px;
+  --v2-space-3: 12px;
+  --v2-space-4: 16px;
+  --v2-space-5: 20px;
+  --v2-space-6: 24px;
+
+  /* Controls & Rows */
+  --v2-control-sm: 32px;
+  --v2-control: 36px;
+  --v2-control-lg: 40px;
+  --v2-row-compact: 40px;
+  --v2-row: 44px;
+
+  /* Discrete Shadows & Elevacion */
+  --v2-shadow-sm: 0 4px 12px rgba(1, 15, 31, 0.2);
+  --v2-shadow-md: 0 8px 24px rgba(1, 15, 31, 0.3);
+  --v2-shadow-lg: 0 16px 40px rgba(1, 15, 31, 0.4);
+  --v2-shadow: var(--v2-shadow-md);
+
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--v2-canvas);
+  color: var(--v2-text);
+  font-family: var(--v2-font);
+  letter-spacing: 0;
+}
+
+.themeScope[data-v2-theme="dark"] {
+  color-scheme: dark;
+  background: var(--v2-canvas);
+  color: var(--v2-text);
+}
+
+.themeScope[data-v2-theme="light"] {
+  color-scheme: light;
+  background: var(--v2-canvas);
+  color: var(--v2-text);
+}
+
+/* El colapso del sidebar se controla desde V2Sidebar.tsx mediante un atributo
+   en el contenedor raiz .izango-v2 (mismo div que .themeScope). Al cambiar
+   --v2-sidebar-width aqui, el sidebar, la topbar y el contenido (que ya
+   dependen de esta variable) se reajustan juntos sin tocar esos componentes. */
+:global(.izango-v2[data-sidebar-collapsed="true"]) {
+  --v2-sidebar-width: var(--v2-sidebar-collapsed);
+}
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 3;
+  display: flex;
+  width: var(--v2-sidebar-width);
+  height: 100vh;
+  flex-direction: column;
+  border-right: none;
+  background: var(--v2-sidebar-bg);
+  transition: width 0.2s ease;
+}
+
+.sidebarInner {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px;
+  min-height: 0;
+}
+
+.sidebarCollapsed .sidebarInner {
+  padding: 20px 10px;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+.sidebarCollapsed .brandRow {
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.brandMark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: var(--v2-radius);
+  background: var(--v2-accent);
+  color: var(--v2-accent-ink);
+}
+
+.brandTitle {
+  margin: 0;
+  color: var(--v2-accent);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.brandSubtitle {
+  margin: 3px 0 0;
+  color: var(--v2-sidebar-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.collapseToggle {
+  display: grid;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--v2-sidebar-border);
+  border-radius: var(--v2-radius);
+  background: transparent;
+  color: var(--v2-sidebar-muted);
+  cursor: pointer;
+}
+
+.collapseToggle:hover {
+  background: var(--v2-sidebar-panel);
+  color: var(--v2-text);
+}
+
+.collapseToggle:focus-visible {
+  outline: 2px solid var(--v2-focus-ring);
+  outline-offset: 2px;
+}
+
+.primaryAction {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: var(--v2-radius);
+  background: var(--v2-accent);
+  color: var(--v2-accent-ink);
+  box-shadow: 0 10px 22px rgba(117, 255, 158, 0.1);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.primaryAction:hover {
+  background: var(--v2-accent-hover);
+}
+
+.primaryActionCollapsed {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  border: 0;
+  border-radius: var(--v2-radius);
+  background: var(--v2-accent);
+  color: var(--v2-accent-ink);
+  text-decoration: none;
+}
+
+.primaryActionCollapsed:hover {
+  background: var(--v2-accent-hover);
+}
+
+.nav {
+  display: flex;
+  max-height: calc(100vh - 340px);
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.nav::-webkit-scrollbar,
+.contentScroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.nav::-webkit-scrollbar-track,
+.contentScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nav::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background: #3b4a3d;
+}
+
+.contentScroll::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background: #cbd5e1;
+}
+
+.navSection {
+  margin-bottom: 10px;
+}
+
+.navSectionTitle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 6px;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--v2-sidebar-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.navSectionTitle:hover {
+  color: var(--v2-subtle);
+}
+
+.navSectionTitle:focus-visible {
+  outline: 2px solid var(--v2-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--v2-radius-sm);
+}
+
+.navSectionChevron {
+  flex-shrink: 0;
+  color: inherit;
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+
+.navSectionChevronOpen {
+  transform: rotate(0deg);
+}
+
+.navDivider {
+  height: 1px;
+  margin: 10px 4px;
+  background: var(--v2-sidebar-border);
+}
+
+.navItem {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 0;
+  border-left: 4px solid transparent;
+  border-radius: var(--v2-radius);
+  background: transparent;
+  color: var(--v2-subtle);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  text-align: left;
+  text-decoration: none;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.navItem:hover {
+  transform: translateX(4px);
+  background: var(--v2-sidebar-panel);
+  color: var(--v2-text);
+}
+
+.navItemActive {
+  border-left-color: var(--v2-accent);
+  background: rgba(79, 70, 229, 0.25);
+  color: var(--v2-accent);
+}
+
+.navIcon {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  place-items: center;
+}
+
+.sidebarCollapsed .navItem {
+  justify-content: center;
+  padding: 8px;
+}
+
+.sidebarCollapsed .navItem:hover {
+  transform: none;
+}
+
+.profileFooter {
+  border-top: 1px solid var(--v2-sidebar-border);
+  padding-top: 16px;
+}
+
+.sidebarCollapsed .profileFooter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.profilePill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  border-radius: var(--v2-radius);
+  background: rgba(30, 41, 59, 0.2);
+  padding: 6px 12px;
+}
+
+.avatar {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--v2-sidebar-panel);
+  color: var(--v2-text-secondary);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.avatarCollapsed {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--v2-sidebar-panel);
+  color: var(--v2-text-secondary);
+  font-size: 11px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.avatarCollapsed:hover {
+  background: var(--v2-accent);
+  color: var(--v2-accent-ink);
+}
+
+.profileName {
+  overflow: hidden;
+  color: var(--v2-text-secondary);
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profileRole {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--v2-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logoutButton {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: var(--v2-radius);
+  background: transparent;
+  color: var(--v2-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  text-align: left;
+}
+
+.logoutButton:hover {
+  color: var(--v2-text-secondary);
+}
+
+.logoutButton:focus-visible {
+  outline: 2px solid var(--v2-focus-ring);
+  outline-offset: 2px;
+}
+
+.sidebarCollapsed .logoutButton {
+  width: 32px;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebarCollapsed .logoutButton:hover {
+  background: var(--v2-sidebar-panel);
+}
+
+.topbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: var(--v2-sidebar-width);
+  z-index: 2;
+  display: flex;
+  height: var(--v2-topbar-height);
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: none;
+  background: var(--v2-topbar);
+  padding: 0 24px;
+  transition: left 0.2s ease;
+}
+
+.topbarLeft,
+.topbarRight,
+.tabs {
+  display: flex;
+  align-items: center;
+}
+
+.topbarLeft {
+  gap: 24px;
+  min-width: 0;
+}
+
+.topbarRight {
+  gap: 12px;
+}
+
+.searchBox {
+  width: 320px;
+  min-width: 280px;
+}
+
+.searchBox :global(input) {
+  background: var(--v2-surface-muted) !important;
+  border: 0 !important;
+  color: var(--v2-text) !important;
+  border-radius: var(--v2-radius) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.shortcutsBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.shortcutsScroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.shortcutsScroll::-webkit-scrollbar {
+  display: none;
+}
+
+.shortcutAddWrap {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.shortcutChip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  border-radius: var(--v2-radius-pill);
+  background: var(--v2-surface-muted);
+}
+
+.shortcutChipLink {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 6px 0 10px;
+  color: var(--v2-subtle);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.shortcutChip:hover .shortcutChipLink {
+  color: var(--v2-text);
+}
+
+.shortcutChipActive .shortcutChipLink {
+  color: var(--v2-accent);
+}
+
+.shortcutChipRemove {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.shortcutChipRemove:hover {
+  opacity: 1;
+  background: var(--v2-surface-soft);
+}
+
+.shortcutPanel {
+  display: grid;
+  gap: var(--v2-space-2);
+  width: 340px;
+  max-width: calc(100vw - 48px);
+}
+
+.shortcutSearchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.shortcutSearchIcon {
+  position: absolute;
+  left: 9px;
+  color: var(--v2-subtle);
+  pointer-events: none;
+}
+
+.shortcutSearchInput {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px 0 30px;
+  border: 1px solid var(--v2-border-soft);
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface-muted);
+  color: var(--v2-text);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.shortcutSearchInput:focus {
+  outline: 2px solid var(--v2-focus-ring);
+  outline-offset: 1px;
+}
+
+.shortcutSectionList {
+  display: grid;
+  gap: var(--v2-space-3);
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.shortcutSectionGroup {
+  display: grid;
+  gap: 1px;
+}
+
+.shortcutSectionTitle {
+  margin: 0;
+  padding: 4px 6px 6px;
+  color: var(--v2-muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.shortcutOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--v2-radius);
+  background: transparent;
+  color: var(--v2-text);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shortcutOption:hover {
+  background: var(--v2-surface-muted);
+}
+
+.shortcutOptionActive {
+  color: var(--v2-accent);
+}
+
+.shortcutOptionLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.shortcutEmpty {
+  margin: 0;
+  padding: 8px 6px;
+  color: var(--v2-subtle);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.iconButton {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--v2-radius);
+  background: transparent;
+  color: var(--v2-subtle);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--v2-surface-muted);
+  color: var(--v2-text);
+}
+
+.notificationWrap :global(button) {
+  color: var(--v2-subtle) !important;
+}
+
+.notificationWrap :global(button:hover) {
+  background: var(--v2-surface-muted) !important;
+}
+
+.main {
+  margin-left: var(--v2-sidebar-width);
+  padding-top: var(--v2-topbar-height);
+  min-height: 100vh;
+  width: calc(100% - var(--v2-sidebar-width));
+  background: var(--v2-canvas);
+  transition: margin-left 0.2s ease, width 0.2s ease;
+}
+
+.contentScroll {
+  height: calc(100vh - var(--v2-topbar-height));
+  overflow: auto;
+}
+
+.contentShell {
+  display: grid;
+  gap: 18px;
+  padding: var(--v2-page-gutter-desktop, 24px);
+}
+
+@media (max-width: 768px) {
+  .contentShell {
+    padding: var(--v2-page-gutter-mobile, 16px);
+  }
+}
+
+.breadcrumbBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: none;
+  background: var(--v2-surface);
+  padding: 14px var(--v2-page-gutter-desktop, 24px);
+}
+
+@media (max-width: 768px) {
+  .breadcrumbBar {
+    padding: 12px var(--v2-page-gutter-mobile, 16px);
+  }
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--v2-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.breadcrumb strong {
+  color: var(--v2-text);
+}
+
+.demoTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(117, 255, 158, 0.24);
+  border-radius: var(--v2-radius-sm);
+  background: rgba(117, 255, 158, 0.12);
+  color: var(--v2-accent);
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--v2-accent);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  color: var(--v2-text);
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.description {
+  max-width: 680px;
+  margin: 8px 0 0;
+  color: var(--v2-muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.headerActions,
+.toolbar,
+.toolbarGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.buttonPrimary,
+.buttonSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  border-radius: var(--v2-radius);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.buttonPrimary {
+  border: 0;
+  background: var(--v2-accent);
+  color: var(--v2-accent-ink);
+}
+
+.buttonSecondary {
+  border: 1px solid var(--v2-border);
+  background: var(--v2-surface);
+  color: var(--v2-text);
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.kpiCard,
+.panel {
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-lg);
+  background: var(--v2-surface);
+  box-shadow: var(--v2-shadow);
+}
+
+.kpiCard {
+  padding: 16px;
+}
+
+.kpiHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.kpiLabel,
+.tableHead,
+.fieldLabel {
+  color: var(--v2-subtle);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.kpiIcon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: var(--v2-radius);
+  background: rgba(79, 70, 229, 0.14);
+  color: var(--v2-accent);
+}
+
+.kpiValue {
+  margin: 0;
+  color: var(--v2-text);
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.kpiMeta {
+  margin-top: 6px;
+  color: var(--v2-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.toolbar {
+  justify-content: space-between;
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-lg);
+  background: var(--v2-surface);
+  padding: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 5px;
+}
+
+.input,
+.select {
+  height: 34px;
+  min-width: 180px;
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface-muted);
+  color: var(--v2-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  outline: none;
+  padding: 0 10px;
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--v2-accent);
+  box-shadow: 0 0 0 2px rgba(117, 255, 158, 0.16);
+}
+
+.panel {
+  overflow: hidden;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--v2-border);
+  padding: 16px 18px;
+}
+
+.panelTitle {
+  margin: 0;
+  color: var(--v2-text);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.panelSubtitle {
+  margin: 4px 0 0;
+  color: var(--v2-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 880px;
+  border-collapse: collapse;
+}
+
+.table th {
+  border-bottom: 1px solid var(--v2-border);
+  background: var(--v2-surface-muted);
+  padding: 12px 18px;
+  text-align: left;
+}
+
+.table td {
+  border-bottom: 1px solid var(--v2-border-soft);
+  color: var(--v2-muted);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 14px 18px;
+}
+
+.table tr:hover td {
+  background: var(--v2-surface-muted);
+}
+
+.strongCell {
+  color: var(--v2-text);
+  font-weight: 900;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.badgeSuccess {
+  background: rgba(22, 163, 74, 0.14);
+  color: var(--v2-success);
+}
+
+.badgeWarning {
+  background: rgba(217, 119, 6, 0.14);
+  color: var(--v2-warning);
+}
+
+.badgeInfo {
+  background: rgba(37, 99, 235, 0.14);
+  color: var(--v2-info);
+}
+
+.badgeNeutral {
+  background: rgba(100, 116, 139, 0.14);
+  color: var(--v2-muted);
+}
+
+/* ======================================================
+   LIGHT THEME OVERRIDE
+   Se activa cuando el <html> tiene data-theme="light".
+   Sobreescribe los tokens oscuros definidos en .themeScope.
+   ====================================================== */
+:global([data-theme="light"]) .themeScope {
+  color-scheme: light;
+
+  /* Superficies */
+  --v2-background:                  #F6F8FB;
+  --v2-surface-container-lowest:    #FFFFFF;
+  --v2-surface-container-low:       #F2F4F8;
+  --v2-surface-container:           #FFFFFF;
+  --v2-surface-container-high:      #EEF1F5;
+  --v2-surface-container-highest:   #E5E9EF;
+
+  /* Aliases de Superficies */
+  --v2-canvas:           #F6F8FB;
+  --v2-surface:          #FFFFFF;
+  --v2-surface-muted:    #F2F4F8;
+  --v2-surface-soft:     #EEF1F5;
+  --v2-sidebar-bg:       #FFFFFF;
+  --v2-sidebar-panel:    #F2F4F8;
+  --v2-sidebar-border:   #E5E7EB;
+  --v2-sidebar-muted:    #64748B;
+  --v2-topbar:           #FFFFFF;
+  --v2-topbar-border:    #E5E7EB;
+
+  /* Brand & Primary. #0F6E56 es el "Verde Principal (Brand)" institucional
+     documentado en AGENTS.md — #03E373 es el "Verde Acento (Highlight)", no el
+     color de acciones primarias. Las acciones primarias en Light usan el verde
+     oscuro institucional; #03E373 sigue disponible para acentos puntuales. */
+  --v2-primary:           #0F6E56;
+  --v2-primary-container: #0C5A46;
+  --v2-on-primary:        #FFFFFF;
+  --v2-accent:            #0F6E56;
+  --v2-accent-hover:      #0C5A46;
+  --v2-accent-ink:        #FFFFFF;
+  --v2-brand-primary:     #0F6E56;
+
+  /* Text */
+  --v2-on-surface:         #0F172A;
+  --v2-on-surface-variant: #64748B;
+  --v2-text:               #0F172A;
+  --v2-text-primary:       #0F172A;
+  --v2-text-secondary:     #475569;
+  --v2-muted:              #64748B;
+  --v2-subtle:             #94A3B8;
+
+  /* Borders & Outlines */
+  --v2-outline:         #CBD5E1;
+  --v2-outline-variant: #E5E7EB;
+  --v2-border:          #E5E7EB;
+  --v2-border-soft:     #F1F5F9;
+  --v2-focus-ring:      rgba(15, 110, 86, 0.2);
+
+  /* Semantic States */
+  --v2-success:    #168A4A;
+  --v2-on-success: #FFFFFF;
+  --v2-warning:    #B77905;
+  --v2-error:      #DC2626;
+  --v2-danger:     #DC2626;
+  --v2-info:       #2563EB;
+  --v2-information:#2563EB;
+  /* Ver nota en el bloque Dark: --v2-indigo no estaba definido aqui y heredaba por
+     cascada un verde de marca desde theme.css (:root). Se corrige con un indigo real. */
+  --v2-indigo:     #6366F1;
+  --v2-indigo-bg:  rgba(99, 102, 241, 0.10);
+  --v2-success-bg: rgba(22, 138, 74, 0.08);
+  --v2-warning-bg: rgba(183, 121, 5, 0.08);
+  --v2-danger-bg:  rgba(220, 38, 38, 0.08);
+  --v2-info-bg:    rgba(37, 99, 235, 0.08);
+  --v2-neutral-bg: rgba(100, 116, 139, 0.08);
+
+  /* Shadows */
+  --v2-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --v2-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --v2-shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.12);
+  --v2-shadow:    var(--v2-shadow-md);
+}
+
+/* Logo en modo Light: contenedor blanco limpio con borde sutil, sin fondo verde */
+:global([data-theme="light"]) .brandMark {
+  background: var(--v2-surface);
+  border: 1px solid var(--v2-border);
+  color: var(--v2-text);
+}
+
+:global([data-theme="light"]) .brandTitle {
+  color: #0F6E56;
+}
+
+/* Scrollbar claro para contenido en modo light */
+:global([data-theme="light"]) .nav::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+}
+
+:global([data-theme="light"]) .contentScroll::-webkit-scrollbar-thumb {
+  background: #94A3B8;
+}
+
+/* Sidebar item activo en light: fondo sutil verde, no indigo */
+:global([data-theme="light"]) .navItemActive {
+  border-left-color: var(--v2-accent);
+  background: rgba(3, 227, 115, 0.10);
+  color: var(--v2-accent);
+}
+
+/* Section title del sidebar en light */
+:global([data-theme="light"]) .navSectionTitle {
+  color: var(--v2-subtle);
+}
+
+/* Profile footer en light */
+:global([data-theme="light"]) .profilePill {
+  background: #F2F4F8;
+}
+
+:global([data-theme="light"]) .avatar,
+:global([data-theme="light"]) .avatarCollapsed {
+  background: #E5E9EF;
+  color: var(--v2-text-secondary);
+}
+
+:global([data-theme="light"]) .profileName {
+  color: var(--v2-text);
+}
+
+:global([data-theme="light"]) .profileRole {
+  color: var(--v2-muted);
+}
+
+:global([data-theme="light"]) .logoutButton {
+  color: var(--v2-subtle);
+}
+
+:global([data-theme="light"]) .logoutButton:hover {
+  color: var(--v2-text-secondary);
+}
+
+/* NavItem hover en light: fondo claro, texto oscuro */
+:global([data-theme="light"]) .navItem {
+  color: var(--v2-muted);
+}
+
+:global([data-theme="light"]) .navItem:hover {
+  background: #F2F4F8;
+  color: var(--v2-text);
+}
+
+/* Badge colors en modo light con mejor contraste */
+:global([data-theme="light"]) .badgeSuccess {
+  background: rgba(22, 138, 74, 0.10);
+  color: var(--v2-success);
+}
+
+:global([data-theme="light"]) .badgeWarning {
+  background: rgba(183, 121, 5, 0.10);
+  color: var(--v2-warning);
+}
+
+:global([data-theme="light"]) .badgeInfo {
+  background: rgba(37, 99, 235, 0.10);
+  color: var(--v2-info);
+}
+
+:global([data-theme="light"]) .badgeNeutral {
+  background: rgba(100, 116, 139, 0.10);
+  color: var(--v2-muted);
+}
+
+/* demoTag en light */
+:global([data-theme="light"]) .demoTag {
+  border-color: rgba(15, 110, 86, 0.24);
+  background: rgba(15, 110, 86, 0.08);
+  color: var(--v2-accent);
+}
+
+@media (max-width: 1180px) {
+  .shortcutsBar {
+    display: none;
+  }
+
+  .searchBox {
+    width: 280px;
+  }
+
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .themeScope {
+    --v2-sidebar-width: 220px;
+  }
+
+  .contentShell {
+    padding: 16px 20px 28px;
+  }
+
+  .pageHeader,
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbarGroup {
+    flex-wrap: wrap;
+  }
+}

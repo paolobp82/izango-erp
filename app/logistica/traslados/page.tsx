@@ -1,7 +1,17 @@
 "use client"
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { puedeAccederRuta } from "@/lib/permissions"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2PageHeader,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
 
 const ESTADOS: Record<string, any> = {
   pendiente: { label: "Pendiente", bg: "#fef9c3", color: "#92400e" },
@@ -35,10 +45,8 @@ export default function TrasladosPage() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [autorizado, setAutorizado] = useState(false)
-  const [perfil, setPerfil] = useState<any>(null)
   const [traslados, setTraslados] = useState<any[]>([])
   const [proyectos, setProyectos] = useState<any[]>([])
-  const [usuarios, setUsuarios] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -58,7 +66,6 @@ export default function TrasladosPage() {
     }
 
     const { data: p } = await supabase.from("perfiles").select("*").eq("id", user.id).single()
-    setPerfil(p)
 
     const puedeVer = puedeAccederRuta(p?.perfil, "/logistica/traslados")
     setAutorizado(puedeVer)
@@ -68,18 +75,16 @@ export default function TrasladosPage() {
       return
     }
 
-    const [{ data: trs }, { data: pros }, { data: us }] = await Promise.all([
+    const [{ data: trs }, { data: pros }] = await Promise.all([
       supabase
         .from("logistica_traslados")
         .select("*, proyecto:proyectos(nombre,codigo), responsable:perfiles!responsable_id(nombre,apellido), solicitante:perfiles!solicitado_por(nombre,apellido), logistica_traslado_items(*)")
         .order("created_at", { ascending: false }),
       supabase.from("proyectos").select("id,nombre,codigo").is("deleted_at", null).order("nombre"),
-      supabase.from("perfiles").select("id,nombre,apellido,perfil").eq("activo", true).order("apellido"),
     ])
 
     setTraslados(trs || [])
     setProyectos(pros || [])
-    setUsuarios(us || [])
     setLoading(false)
   }
 
@@ -289,72 +294,171 @@ export default function TrasladosPage() {
   }
 
   const filtrados = traslados.filter(t => !filtroEstado || t.estado === filtroEstado)
-  const inp: any = { padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, width: "100%", boxSizing: "border-box" }
-  const lbl: any = { fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 4, display: "block" }
+  const inp: any = { padding: "8px 12px", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius)", fontSize: 13, fontFamily: "inherit", background: "var(--v2-surface)", width: "100%", outline: "none", boxSizing: "border-box" as const }
+  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "var(--v2-muted)", marginBottom: 6, textTransform: "uppercase" as const }
 
-  if (loading) return <div style={{ padding: 24, color: "#6b7280" }}>Cargando...</div>
-  if (!autorizado) return <div style={{ padding: 24, color: "#991b1b", fontWeight: 700 }}>Acceso no autorizado</div>
+  if (loading) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-muted)", fontSize: 13 }}>
+        Cargando traslados...
+      </div>
+    )
+  }
+  if (!autorizado) {
+    return (
+      <div style={{ padding: 32, color: "var(--v2-danger)", fontWeight: 700, fontSize: 13 }}>
+        Acceso no autorizado
+      </div>
+    )
+  }
+
+  const columns: V2TableColumn<any>[] = [
+    {
+      key: "codigo",
+      header: "Código",
+      render: (t) => <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>{t.codigo}</span>,
+    },
+    {
+      key: "titulo",
+      header: "Título",
+      render: (t) => (
+        <button
+          type="button"
+          onClick={() => setSelected(t)}
+          style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer", font: "inherit", fontWeight: 700, fontSize: 13.5, color: "var(--v2-text)", textAlign: "left" }}
+        >
+          {t.titulo}
+        </button>
+      ),
+    },
+    {
+      key: "punto_recojo",
+      header: "Recojo",
+      render: (t) => <span style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{t.punto_recojo}</span>,
+    },
+    {
+      key: "punto_entrega",
+      header: "Entrega",
+      render: (t) => <span style={{ fontSize: 12.5, color: "var(--v2-text)" }}>{t.punto_entrega}</span>,
+    },
+    {
+      key: "estado",
+      header: "Estado",
+      render: (t) => {
+        const e = ESTADOS[t.estado] || ESTADOS.pendiente
+        return (
+          <select
+            value={t.estado}
+            onClick={(ev) => ev.stopPropagation()}
+            onChange={(ev) => cambiarEstado(t.id, ev.target.value)}
+            style={{
+              padding: "4px 8px",
+              borderRadius: "var(--v2-radius-sm)",
+              border: "1px solid var(--v2-border)",
+              background: e.bg,
+              color: e.color,
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            {Object.entries(ESTADOS).map(([k, v]: any) => (
+              <option key={k} value={k}>
+                {v.label}
+              </option>
+            ))}
+          </select>
+        )
+      },
+    },
+    {
+      key: "acciones",
+      header: "",
+      align: "right",
+      render: (t) => (
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          <V2Button
+            variant="ghost"
+            size="compact"
+            onClick={(ev) => {
+              ev.stopPropagation()
+              imprimirCargo(t)
+            }}
+          >
+            PDF / Imprimir
+          </V2Button>
+          {["programado", "en_proceso", "en_transito", "entregado"].includes(t.estado) && (
+            <V2Button
+              variant="secondary"
+              size="compact"
+              onClick={(ev) => {
+                ev.stopPropagation()
+                registrarEntregaTraslado(t)
+              }}
+            >
+              Entrega
+            </V2Button>
+          )}
+        </div>
+      ),
+    },
+  ]
 
   return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Traslados y Movimientos</h1>
-          <p style={{ fontSize: 13, color:"#64748b", marginTop: 4 }}>Movimientos menores con cargo imprimible y evidencia de entrega.</p>
-        </div>
-        <button onClick={abrirNuevo} className="btn-primary" style={{ fontSize: 13 }}>+ Nuevo traslado</button>
-      </div>
-
-      <div style={{ marginBottom: 16 }}>
-        <select style={{ ...inp, maxWidth: 220 }} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
-          <option value="">Todos los estados</option>
-          {Object.entries(ESTADOS).map(([k, v]: any) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-      </div>
-
-      <div style={{ background:"#fff", border:"1px solid #e5e7eb", borderRadius: 14, overflow:"hidden" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse" }}>
-          <thead>
-            <tr style={{ background:"#f8fafc" }}>
-              <th style={{ padding: "10px 12px", textAlign:"left", fontSize: 11 }}>CÓDIGO</th>
-              <th style={{ padding: "10px 12px", textAlign:"left", fontSize: 11 }}>TÍTULO</th>
-              <th style={{ padding: "10px 12px", textAlign:"left", fontSize: 11 }}>RECOJO</th>
-              <th style={{ padding: "10px 12px", textAlign:"left", fontSize: 11 }}>ENTREGA</th>
-              <th style={{ padding: "10px 12px", textAlign:"left", fontSize: 11 }}>ESTADO</th>
-              <th style={{ padding: "10px 12px", textAlign:"right", fontSize: 11 }}>ACCIONES</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtrados.map(t => {
-              const e = ESTADOS[t.estado] || ESTADOS.pendiente
-              return (
-                <tr key={t.id} onClick={() => setSelected(t)} style={{ borderTop:"1px solid #f1f5f9", cursor:"pointer" }}>
-                  <td style={{ padding:"12px", fontSize:12, color:"#64748b" }}>{t.codigo}</td>
-                  <td style={{ padding:"12px", fontSize:13, fontWeight:700 }}>{t.titulo}</td>
-                  <td style={{ padding:"12px", fontSize:12 }}>{t.punto_recojo}</td>
-                  <td style={{ padding:"12px", fontSize:12 }}>{t.punto_entrega}</td>
-                  <td style={{ padding:"12px" }}>
-                    <select value={t.estado} onClick={e => e.stopPropagation()} onChange={e => cambiarEstado(t.id, e.target.value)} style={{ padding:"4px 8px", borderRadius:8, border:"1px solid #e5e7eb", background:e.bg, color:e.color, fontSize:12, fontWeight:700 }}>
-                      {Object.entries(ESTADOS).map(([k,v]: any) => <option key={k} value={k}>{v.label}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ padding:"12px", textAlign:"right" }}>
-                                        <button onClick={ev => { ev.stopPropagation(); imprimirCargo(t) }} className="btn-secondary" style={{ fontSize:12 }}>PDF / Imprimir</button>
-                    {["programado", "en_proceso", "en_transito", "entregado"].includes(t.estado) && (
-                      <button onClick={ev => { ev.stopPropagation(); registrarEntregaTraslado(t) }} className="btn-secondary" style={{ fontSize:12, marginLeft:6 }}>Entrega</button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-            {filtrados.length === 0 && <tr><td colSpan={6} style={{ padding:30, textAlign:"center", color:"#94a3b8" }}>Sin traslados registrados</td></tr>}
-          </tbody>
-        </table>
-      </div>
+    <>
+      <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            eyebrow="Logística"
+            title="Traslados y Movimientos"
+            subtitle={`${filtrados.length} movimientos menores con cargo imprimible y evidencia`}
+            actions={
+              <V2Button variant="primary" onClick={abrirNuevo}>
+                + Nuevo traslado
+              </V2Button>
+            }
+          />
+        }
+        toolbar={
+          <V2FilterBar
+            searchValue=""
+            onSearchChange={() => {}}
+            activeFiltersCount={0}
+            hideDrawerButton
+            onToggleDrawer={() => {}}
+            quickFilters={
+              <div style={{ width: 200 }}>
+                <V2Select
+                  compact
+                  value={filtroEstado}
+                  onChange={(e) => setFiltroEstado(e.target.value)}
+                  options={[
+                    { label: "Todos los estados", value: "" },
+                    ...Object.entries(ESTADOS).map(([k, v]: any) => ({ label: v.label, value: k })),
+                  ]}
+                />
+              </div>
+            }
+            showClearButton={Boolean(filtroEstado)}
+            onClearFilters={() => setFiltroEstado("")}
+          />
+        }
+        table={
+          <V2DataTable
+            columns={columns}
+            rows={filtrados}
+            getRowKey={(t) => t.id}
+            empty={
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)", fontSize: 13 }}>
+                Sin traslados registrados.
+              </div>
+            }
+          />
+        }
+      />
 
       {selected && (
-        <div style={{ marginTop: 18, background:"#fff", border:"1px solid #e5e7eb", borderRadius:14, padding:18 }}>
-          <h2 style={{ fontSize:16, marginTop:0 }}>{selected.codigo} — {selected.titulo}</h2>
+        <div style={{ marginTop: 18, background: "var(--v2-surface)", border: "1px solid var(--v2-border)", borderRadius: "var(--v2-radius-lg)", padding: 20, boxShadow: "var(--v2-shadow-sm)" }}>
+          <h2 style={{ fontSize: 16, marginTop: 0, color: "var(--v2-text)" }}>{selected.codigo} — {selected.titulo}</h2>
           <p><b>Recojo:</b> {selected.punto_recojo}</p>
           <p><b>Entrega:</b> {selected.punto_entrega}</p>
           <p><b>Receptor:</b> {selected.contacto_receptor || "—"} / {selected.dni_receptor || "—"} / {selected.telefono_receptor || "—"}</p>
@@ -362,102 +466,100 @@ export default function TrasladosPage() {
           <p><b>Costo estimado:</b> S/ {Number(selected.costo_estimado || 0).toFixed(2)}</p>
           <p><b>Costo real:</b> S/ {Number(selected.costo_real || 0).toFixed(2)}</p>
           <p><b>Afecta rentabilidad:</b> {selected.afecta_rentabilidad ? "Sí" : "No"}</p>
-                    <p><b>Fecha real entrega:</b> {selected.fecha_entrega_real || "—"}</p>
+          <p><b>Fecha real entrega:</b> {selected.fecha_entrega_real || "—"}</p>
           <p><b>Recibido por:</b> {selected.recibido_por || "—"}</p>
-          <p><b>Cargo firmado:</b> {selected.cargo_firmado_url ? <a href={selected.cargo_firmado_url} target="_blank">Ver archivo</a> : "Pendiente"}</p>
-          <p><b>Evidencia:</b> {selected.evidencia_url ? <a href={selected.evidencia_url} target="_blank">Ver archivo</a> : "Pendiente"}</p>
+          <p><b>Cargo firmado:</b> {selected.cargo_firmado_url ? <a href={selected.cargo_firmado_url} target="_blank" rel="noreferrer">Ver archivo</a> : "Pendiente"}</p>
+          <p><b>Evidencia:</b> {selected.evidencia_url ? <a href={selected.evidencia_url} target="_blank" rel="noreferrer">Ver archivo</a> : "Pendiente"}</p>
         </div>
       )}
 
       {showForm && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.45)", zIndex:1000, display:"flex", justifyContent:"center", alignItems:"center", padding:20 }}>
-          <div style={{ background:"#fff", borderRadius:16, padding:24, width:"100%", maxWidth:760, maxHeight:"92vh", overflowY:"auto" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
-              <h2 style={{ margin:0, fontSize:18 }}>Nuevo traslado / movimiento</h2>
-              <button onClick={() => setShowForm(false)} style={{ border:0, background:"transparent", fontSize:22, cursor:"pointer" }}>×</button>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: 20 }}>
+          <div style={{ background: "var(--v2-surface)", borderRadius: "var(--v2-radius-lg)", padding: 24, width: "100%", maxWidth: 760, maxHeight: "92vh", overflowY: "auto", boxShadow: "var(--v2-shadow-lg)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <h2 style={{ margin: 0, fontSize: 18, color: "var(--v2-text)" }}>Nuevo traslado / movimiento</h2>
+              <button onClick={() => setShowForm(false)} style={{ border: 0, background: "transparent", fontSize: 22, cursor: "pointer", color: "var(--v2-subtle)" }}>×</button>
             </div>
 
-            <div style={{ display:"grid", gap:12 }}>
+            <div style={{ display: "grid", gap: 12 }}>
               <div>
                 <label style={lbl}>TÍTULO *</label>
-                <input style={inp} value={form.titulo} onChange={e => setForm({ ...form, titulo:e.target.value })} />
+                <input style={inp} value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })} />
               </div>
 
               <div>
                 <label style={lbl}>PROYECTO OPCIONAL</label>
-                <select style={inp} value={form.proyecto_id} onChange={e => setForm({ ...form, proyecto_id:e.target.value })}>
+                <select style={inp} value={form.proyecto_id} onChange={e => setForm({ ...form, proyecto_id: e.target.value })}>
                   <option value="">Sin proyecto</option>
                   {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} — {p.nombre}</option>)}
                 </select>
               </div>
 
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>COSTO ESTIMADO (S/)</label>
-                  <input type="number" step="0.01" style={inp} value={form.costo_estimado} onChange={e => setForm({ ...form, costo_estimado:e.target.value })} />
+                  <input type="number" step="0.01" style={inp} value={form.costo_estimado} onChange={e => setForm({ ...form, costo_estimado: e.target.value })} />
                 </div>
                 <div>
                   <label style={lbl}>COSTO REAL (S/)</label>
-                  <input type="number" step="0.01" style={inp} value={form.costo_real} onChange={e => setForm({ ...form, costo_real:e.target.value })} />
+                  <input type="number" step="0.01" style={inp} value={form.costo_real} onChange={e => setForm({ ...form, costo_real: e.target.value })} />
                 </div>
               </div>
 
               <div>
-                <label style={{ display:"flex", gap:8, alignItems:"center", fontSize:13 }}>
-                  <input type="checkbox" checked={form.afecta_rentabilidad !== false} onChange={e => setForm({ ...form, afecta_rentabilidad:e.target.checked })} />
+                <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
+                  <input type="checkbox" checked={form.afecta_rentabilidad !== false} onChange={e => setForm({ ...form, afecta_rentabilidad: e.target.checked })} />
                   Afecta rentabilidad del proyecto
                 </label>
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <label style={lbl}>PUNTO DE RECOJO *</label>
-                  <input style={inp} value={form.punto_recojo} onChange={e => setForm({ ...form, punto_recojo:e.target.value })} />
+                  <input style={inp} value={form.punto_recojo} onChange={e => setForm({ ...form, punto_recojo: e.target.value })} />
                 </div>
                 <div>
                   <label style={lbl}>PUNTO DE ENTREGA *</label>
-                  <input style={inp} value={form.punto_entrega} onChange={e => setForm({ ...form, punto_entrega:e.target.value })} />
+                  <input style={inp} value={form.punto_entrega} onChange={e => setForm({ ...form, punto_entrega: e.target.value })} />
                 </div>
               </div>
 
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
-                <div><label style={lbl}>CONTACTO RECEPTOR</label><input style={inp} value={form.contacto_receptor} onChange={e => setForm({ ...form, contacto_receptor:e.target.value })} /></div>
-                <div><label style={lbl}>DNI</label><input style={inp} value={form.dni_receptor} onChange={e => setForm({ ...form, dni_receptor:e.target.value })} /></div>
-                <div><label style={lbl}>TELÉFONO</label><input style={inp} value={form.telefono_receptor} onChange={e => setForm({ ...form, telefono_receptor:e.target.value })} /></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div><label style={lbl}>CONTACTO RECEPTOR</label><input style={inp} value={form.contacto_receptor} onChange={e => setForm({ ...form, contacto_receptor: e.target.value })} /></div>
+                <div><label style={lbl}>DNI</label><input style={inp} value={form.dni_receptor} onChange={e => setForm({ ...form, dni_receptor: e.target.value })} /></div>
+                <div><label style={lbl}>TELÉFONO</label><input style={inp} value={form.telefono_receptor} onChange={e => setForm({ ...form, telefono_receptor: e.target.value })} /></div>
               </div>
 
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                <div><label style={lbl}>FECHA SALIDA</label><input type="date" style={inp} value={form.fecha_salida} onChange={e => setForm({ ...form, fecha_salida:e.target.value })} /></div>
-                <div><label style={lbl}>FECHA ENTREGA</label><input type="date" style={inp} value={form.fecha_entrega} onChange={e => setForm({ ...form, fecha_entrega:e.target.value })} /></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><label style={lbl}>FECHA SALIDA</label><input type="date" style={inp} value={form.fecha_salida} onChange={e => setForm({ ...form, fecha_salida: e.target.value })} /></div>
+                <div><label style={lbl}>FECHA ENTREGA</label><input type="date" style={inp} value={form.fecha_entrega} onChange={e => setForm({ ...form, fecha_entrega: e.target.value })} /></div>
               </div>
 
               <div>
                 <label style={lbl}>MATERIALES</label>
                 {items.map((it, idx) => (
-                  <div key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 100px 1fr 32px", gap:8, marginBottom:8 }}>
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr 32px", gap: 8, marginBottom: 8 }}>
                     <input style={inp} placeholder="Descripción" value={it.descripcion} onChange={e => updateItem(idx, "descripcion", e.target.value)} />
                     <input type="number" style={inp} value={it.cantidad} onChange={e => updateItem(idx, "cantidad", e.target.value)} />
                     <input style={inp} placeholder="Notas" value={it.notas} onChange={e => updateItem(idx, "notas", e.target.value)} />
-                    <button onClick={() => removeItem(idx)} className="btn-secondary">×</button>
+                    <button onClick={() => removeItem(idx)} style={{ border: "1px solid var(--v2-border)", background: "var(--v2-surface)", borderRadius: 6, cursor: "pointer" }}>×</button>
                   </div>
                 ))}
-                <button onClick={agregarItem} className="btn-secondary" style={{ fontSize:12 }}>+ Agregar material</button>
+                <V2Button variant="ghost" size="compact" onClick={agregarItem}>+ Agregar material</V2Button>
               </div>
 
               <div>
                 <label style={lbl}>NOTAS</label>
-                <textarea style={{ ...inp, minHeight:80 }} value={form.notas} onChange={e => setForm({ ...form, notas:e.target.value })} />
+                <textarea style={{ ...inp, minHeight: 80 }} value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} />
               </div>
             </div>
 
-            <div style={{ display:"flex", justifyContent:"flex-end", gap:10, marginTop:20 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary">{saving ? "Guardando..." : "Crear traslado"}</button>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+              <V2Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</V2Button>
+              <V2Button variant="primary" onClick={guardar} disabled={saving}>{saving ? "Guardando..." : "Crear traslado"}</V2Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
-
-

@@ -1,20 +1,53 @@
-﻿"use client"
-import { useEffect, useState } from "react"
+"use client"
+import { useEffect, useState, useMemo } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase"
 import ImportExport from "@/components/ImportExport"
-import { useRouter } from "next/navigation"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Button,
+  V2DataTable,
+  V2KpiCard,
+  V2PageHeader,
+  V2Pagination,
+  V2StatusBadge,
+  V2Select,
+  type V2TableColumn,
+} from "@/components/v2/system"
+import { V2FilterBar } from "@/components/v2/filters"
+import styles from "./Clientes.module.css"
 
 const POR_PAGINA = 50
+
+type Cliente = {
+  id: string
+  razon_social?: string
+  ruc?: string
+  nombre_contacto?: string
+  email_contacto?: string
+  telefono_contacto?: string
+  activo?: boolean
+  es_proveedor?: boolean
+}
 
 export default function ClientesPage() {
   const supabase = createClient()
   const router = useRouter()
-  const [clientes, setClientes] = useState<any[]>([])
+  const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
   const [pagina, setPagina] = useState(1)
   const [eliminando, setEliminando] = useState<string | null>(null)
 
-  useEffect(() => { load() }, [])
+  // Filters state
+  const [search, setSearch] = useState("")
+  const [filtroEstado, setFiltroEstado] = useState("todos")
+  const [filtroProveedor, setFiltroProveedor] = useState("todos")
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function load() {
     const { data } = await supabase.from("clientes").select("*").order("razon_social")
@@ -37,7 +70,7 @@ export default function ClientesPage() {
     { key: "cci_1", label: "CCI 1" },
   ]
 
-  async function importarClientes(registros: any[]) {
+  async function importarClientes(registros: Array<Record<string, unknown>>) {
     let exitosos = 0
     const errores: string[] = []
     for (const r of registros) {
@@ -45,8 +78,8 @@ export default function ClientesPage() {
         const { error } = await supabase.from("clientes").insert({ ...r, entidad: "peru" })
         if (error) errores.push(r.razon_social + ": " + error.message)
         else exitosos++
-      } catch (e: any) {
-        errores.push(r.razon_social + ": " + e.message)
+      } catch (e: unknown) {
+        errores.push(String(r.razon_social || "Cliente") + ": " + (e instanceof Error ? e.message : "Error desconocido"))
       }
     }
     load()
@@ -65,90 +98,326 @@ export default function ClientesPage() {
     setEliminando(null)
   }
 
-  const totalPaginas = Math.ceil(clientes.length / POR_PAGINA)
-  const paginados = clientes.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+  // Filtered clients logic
+  const filtrados = useMemo(() => {
+    return clientes.filter((cliente) => {
+      // 1. Search text
+      if (search.trim()) {
+        const query = search.toLowerCase()
+        const matchRazon = (cliente.razon_social || "").toLowerCase().includes(query)
+        const matchRuc = (cliente.ruc || "").toLowerCase().includes(query)
+        const matchContacto = (cliente.nombre_contacto || "").toLowerCase().includes(query)
+        if (!matchRazon && !matchRuc && !matchContacto) return false
+      }
 
-  if (loading) return <div style={{ color: "#6b7280", fontSize: 13 }}>Cargando...</div>
+      // 2. Estado filter
+      if (filtroEstado === "activos") {
+        if (cliente.activo === false) return false
+      } else if (filtroEstado === "inactivos") {
+        if (cliente.activo !== false) return false
+      }
+
+      // 3. Proveedor filter
+      if (filtroProveedor === "proveedores") {
+        if (!cliente.es_proveedor) return false
+      } else if (filtroProveedor === "clientes") {
+        if (cliente.es_proveedor) return false
+      }
+
+      return true
+    })
+  }, [clientes, search, filtroEstado, filtroProveedor])
+
+  // Pagination calculations
+  const totalPaginas = Math.ceil(filtrados.length / POR_PAGINA)
+  const paginados = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+
+  // KPIs calculations
+  const activos = clientes.filter((c) => c.activo !== false).length
+  const inactivos = clientes.length - activos
+
+  const columns: V2TableColumn<Cliente>[] = [
+    {
+      key: "razon_social",
+      header: "Razón social",
+      render: (cliente) => <strong style={{ color: "var(--v2-text)", fontWeight: 800 }}>{cliente.razon_social || "—"}</strong>,
+    },
+    { key: "ruc", header: "RUC", render: (cliente) => <span className="iz-mono" style={{ color: "var(--v2-muted)" }}>{cliente.ruc || "—"}</span> },
+    { key: "nombre_contacto", header: "Contacto Comercial", render: (cliente) => cliente.nombre_contacto || "—" },
+    { key: "telefono_contacto", header: "Teléfono", render: (cliente) => cliente.telefono_contacto || "—" },
+    {
+      key: "activo",
+      header: "Estado",
+      render: (cliente) => (
+        <V2StatusBadge tone={cliente.activo !== false ? "success" : "neutral"}>
+          {cliente.activo !== false ? "Activo" : "Inactivo"}
+        </V2StatusBadge>
+      ),
+    },
+    {
+      key: "acciones",
+      header: "Acciones",
+      align: "right",
+      render: (cliente) => (
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
+          <V2Button
+            type="button"
+            size="compact"
+            variant="secondary"
+            onClick={() => router.push(`/clientes/${cliente.id}`)}
+          >
+            Editar
+          </V2Button>
+          <V2Button
+            type="button"
+            size="compact"
+            variant="secondary"
+            onClick={() => router.push(`/proyectos?cliente_id=${cliente.id}`)}
+          >
+            Proyectos
+          </V2Button>
+
+          {/* Más acciones select dropdown */}
+          <select
+            value=""
+            disabled={eliminando === cliente.id}
+            onChange={(e) => {
+              const val = e.target.value
+              if (val === "nuevo_proyecto") {
+                router.push(`/proyectos/nuevo?cliente_id=${cliente.id}`)
+              } else if (val === "eliminar") {
+                eliminar(cliente.id, cliente.razon_social || "cliente")
+              }
+              e.target.value = ""
+            }}
+            style={{
+              padding: "0 8px",
+              border: "1px solid var(--v2-border)",
+              borderRadius: "var(--v2-radius-sm)",
+              background: "var(--v2-surface)",
+              color: "var(--v2-muted)",
+              fontSize: "11px",
+              fontWeight: 800,
+              cursor: "pointer",
+              height: "28px",
+              boxSizing: "border-box",
+              outline: "none",
+            }}
+          >
+            <option value="" disabled>
+              {eliminando === cliente.id ? "..." : "Más"}
+            </option>
+            <option value="nuevo_proyecto">Crear proyecto</option>
+            <option value="eliminar">Eliminar</option>
+          </select>
+        </div>
+      ),
+    },
+  ]
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Clientes</h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>{clientes.length} clientes registrados</p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <ImportExport modulo="clientes" campos={CAMPOS} datos={clientes} onImportar={importarClientes} />
-          <a href="/clientes/nuevo" className="btn-primary">+ Nuevo cliente</a>
-        </div>
-      </div>
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#f9fafb" }}>
-              <th style={{ textAlign: "left", padding: "10px 20px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RAZON SOCIAL</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>RUC</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>CONTACTO</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>EMAIL</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600, color: "#6b7280" }}>ESTADO</th>
-              <th style={{ padding: "10px 20px", width: 300 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {clientes.length > 0 ? paginados.map((c: any, idx: number) => (
-              <tr key={c.id} style={{ borderTop: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                <td style={{ padding: "12px 20px" }}>
-                  <div style={{ fontWeight: 500, color: "#111827" }}>{c.razon_social}</div>
-                </td>
-                <td style={{ padding: "12px", color: "#9ca3af", fontFamily: "monospace", fontSize: 12 }}>{c.ruc || "—"}</td>
-                <td style={{ padding: "12px", fontSize: 13, color: "#374151" }}>{c.nombre_contacto || "—"}</td>
-                <td style={{ padding: "12px", color: "#9ca3af", fontSize: 12 }}>{c.email_contacto || "—"}</td>
-                <td style={{ padding: "12px" }}>
-                  <span style={{ background: c.activo ? "#dcfce7" : "#f3f4f6", color: c.activo ? "#15803d" : "#6b7280", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>
-                    {c.activo !== false ? "Activo" : "Inactivo"}
-                  </span>
-                </td>
-                <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                    <button onClick={() => router.push(`/clientes/${c.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Ver / Editar</button>
-                    <button onClick={() => router.push(`/proyectos?cliente_id=${c.id}`)} className="btn-secondary" style={{ fontSize: 12 }}>Proyectos</button>
-                    <button onClick={() => router.push(`/proyectos/nuevo?cliente_id=${c.id}`)} className="btn-primary" style={{ fontSize: 12 }}>+ Proyecto</button>
-                    <button onClick={() => eliminar(c.id, c.razon_social)} disabled={eliminando === c.id}
-                      style={{ fontSize: 12, padding: "4px 10px", border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>
-                      {eliminando === c.id ? "..." : "Eliminar"}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            )) : (
-              <tr>
-                <td colSpan={6} style={{ textAlign: "center", color: "#9ca3af", padding: "40px 20px", fontSize: 14 }}>
-                  No hay clientes. <a href="/clientes/nuevo" style={{ color: "#0F6E56" }}>Agrega el primero</a>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        {totalPaginas > 1 && (
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "16px 20px", borderTop: "1px solid #f3f4f6" }}>
-            <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
-              style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: pagina === 1 ? "not-allowed" : "pointer", color: pagina === 1 ? "#d1d5db" : "#374151", fontSize: 13 }}>
-              Anterior
-            </button>
-            {Array.from({ length: totalPaginas }, (_, i) => i + 1).map(n => (
-              <button key={n} onClick={() => setPagina(n)}
-                style={{ padding: "5px 10px", border: "1px solid " + (n === pagina ? "#0F6E56" : "#e5e7eb"), borderRadius: 6, background: n === pagina ? "#0F6E56" : "#fff", color: n === pagina ? "#fff" : "#374151", cursor: "pointer", fontSize: 13, fontWeight: n === pagina ? 700 : 400 }}>
-                {n}
-              </button>
-            ))}
-            <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
-              style={{ padding: "5px 12px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 13 }}>
-              Siguiente
-            </button>
-            <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>{clientes.length} clientes · Pág. {pagina}/{totalPaginas}</span>
+    <V2ListPageTemplate
+        header={
+          <V2PageHeader
+            title="Clientes"
+            subtitle={`${clientes.length} clientes registrados`}
+            actions={
+              <V2Button onClick={() => router.push("/clientes/nuevo")} size="compact">
+                + Nuevo cliente
+              </V2Button>
+            }
+          />
+        }
+        summary={
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+            <V2KpiCard label="Total clientes" value={String(clientes.length)} density="compact" />
+            <V2KpiCard label="Clientes Activos" value={String(activos)} density="compact" />
+            <V2KpiCard label="Clientes Inactivos" value={String(inactivos)} density="compact" />
           </div>
-        )}
-      </div>
-    </div>
+        }
+        toolbar={
+          <V2FilterBar
+            searchValue={search}
+            onSearchChange={(val) => {
+              setSearch(val)
+              setPagina(1)
+            }}
+            activeFiltersCount={(filtroEstado !== "todos" ? 1 : 0) + (filtroProveedor !== "todos" ? 1 : 0)}
+            onToggleDrawer={() => {}} // No drawer required in this module
+            quickFilters={
+              <>
+                <div style={{ width: "120px", flexShrink: 0 }}>
+                  <V2Select
+                    options={[
+                      { label: "Todos los estados", value: "todos" },
+                      { label: "Activos", value: "activos" },
+                      { label: "Inactivos", value: "inactivos" },
+                    ]}
+                    value={filtroEstado}
+                    onChange={(e) => {
+                      setFiltroEstado(e.target.value)
+                      setPagina(1)
+                    }}
+                    compact
+                  />
+                </div>
+                <div style={{ width: "150px", flexShrink: 0 }}>
+                  <V2Select
+                    options={[
+                      { label: "Todos (tipo)", value: "todos" },
+                      { label: "Solo proveedores", value: "proveedores" },
+                      { label: "Solo clientes", value: "clientes" },
+                    ]}
+                    value={filtroProveedor}
+                    onChange={(e) => {
+                      setFiltroProveedor(e.target.value)
+                      setPagina(1)
+                    }}
+                    compact
+                  />
+                </div>
+              </>
+            }
+            showClearButton={filtroEstado !== "todos" || filtroProveedor !== "todos" || search !== ""}
+            onClearFilters={() => {
+              setSearch("")
+              setFiltroEstado("todos")
+              setFiltroProveedor("todos")
+              setPagina(1)
+            }}
+          />
+        }
+        table={
+          loading ? (
+            <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+              Cargando clientes...
+            </div>
+          ) : (
+            <>
+              {/* Desktop Table View */}
+              <div className={styles.tableContainer}>
+                <V2DataTable
+                  columns={columns}
+                  rows={paginados}
+                  getRowKey={(c) => c.id}
+                  stickyHeader
+                  empty={
+                    <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+                      No hay clientes. <Link href="/clientes/nuevo" style={{ color: "var(--v2-brand-primary)", fontWeight: "bold" }}>Agrega el primero</Link>
+                    </div>
+                  }
+                />
+              </div>
+
+              {/* Mobile Card View */}
+              <div className={styles.cardsContainer}>
+                {paginados.length === 0 ? (
+                  <div style={{ padding: "40px", textAlign: "center", color: "var(--v2-muted)" }}>
+                    No hay clientes. <Link href="/clientes/nuevo" style={{ color: "var(--v2-brand-primary)", fontWeight: "bold" }}>Agrega el primero</Link>
+                  </div>
+                ) : (
+                  paginados.map((cliente) => (
+                    <div key={cliente.id} className={styles.card}>
+                      <div className={styles.cardHeader}>
+                        <h4 className={styles.cardTitle}>{cliente.razon_social}</h4>
+                        <V2StatusBadge tone={cliente.activo !== false ? "success" : "neutral"}>
+                          {cliente.activo !== false ? "Activo" : "Inactivo"}
+                        </V2StatusBadge>
+                      </div>
+
+                      <div className={styles.cardContent}>
+                        <div>
+                          <span className={styles.cardLabel}>RUC:</span>
+                          {cliente.ruc || "—"}
+                        </div>
+                        <div>
+                          <span className={styles.cardLabel}>Contacto:</span>
+                          {cliente.nombre_contacto || "—"}
+                        </div>
+                        <div>
+                          <span className={styles.cardLabel}>Teléfono:</span>
+                          {cliente.telefono_contacto || "—"}
+                        </div>
+                      </div>
+
+                      <div className={styles.cardActions}>
+                        <V2Button
+                          type="button"
+                          size="compact"
+                          variant="secondary"
+                          onClick={() => router.push(`/clientes/${cliente.id}`)}
+                        >
+                          Editar
+                        </V2Button>
+                        <V2Button
+                          type="button"
+                          size="compact"
+                          variant="secondary"
+                          onClick={() => router.push(`/proyectos?cliente_id=${cliente.id}`)}
+                        >
+                          Proyectos
+                        </V2Button>
+
+                        <select
+                          value=""
+                          disabled={eliminando === cliente.id}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            if (val === "nuevo_proyecto") {
+                              router.push(`/proyectos/nuevo?cliente_id=${cliente.id}`)
+                            } else if (val === "eliminar") {
+                              eliminar(cliente.id, cliente.razon_social || "cliente")
+                            }
+                            e.target.value = ""
+                          }}
+                          style={{
+                            padding: "0 8px",
+                            border: "1px solid var(--v2-border)",
+                            borderRadius: "var(--v2-radius-sm)",
+                            background: "var(--v2-surface)",
+                            color: "var(--v2-muted)",
+                            fontSize: "11px",
+                            fontWeight: 800,
+                            cursor: "pointer",
+                            height: "28px",
+                            boxSizing: "border-box",
+                            outline: "none",
+                          }}
+                        >
+                          <option value="" disabled>
+                            {eliminando === cliente.id ? "..." : "Más"}
+                          </option>
+                          <option value="nuevo_proyecto">Crear proyecto</option>
+                          <option value="eliminar">Eliminar</option>
+                        </select>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Toolbar with ImportExport */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
+                <ImportExport
+                  modulo="clientes"
+                  campos={CAMPOS}
+                  datos={clientes}
+                  onImportar={importarClientes}
+                  variant="v2"
+                />
+
+                {totalPaginas > 1 && (
+                  <V2Pagination
+                    page={pagina}
+                    pageCount={totalPaginas}
+                    onPageChange={setPagina}
+                    summary={`${filtrados.length} clientes · Pág. ${pagina}/${totalPaginas}`}
+                  />
+                )}
+              </div>
+            </>
+          )
+        }
+      />
   )
 }

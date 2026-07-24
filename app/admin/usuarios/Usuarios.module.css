@@ -1,0 +1,101 @@
+/* Responsive layout for admin/usuarios */
+
+.tableContainer {
+  display: block;
+}
+
+.cardsContainer {
+  display: none;
+}
+
+/* Card layout for mobile */
+.card {
+  background: var(--v2-surface);
+  border: 1px solid var(--v2-border-soft);
+  border-radius: var(--v2-radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--v2-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--v2-accent-ink);
+  flex-shrink: 0;
+}
+
+.cardName {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--v2-text);
+  margin: 0;
+}
+
+.cardId {
+  font-size: 11px;
+  color: var(--v2-subtle);
+}
+
+.cardRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--v2-muted);
+}
+
+.cardLabel {
+  font-weight: 700;
+  color: var(--v2-subtle);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cardActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--v2-border-soft);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+
+/* Alert messages */
+.successMsg {
+  background: var(--v2-success-bg);
+  color: var(--v2-success);
+  padding: 10px 16px;
+  border-radius: var(--v2-radius);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .tableContainer {
+    display: none;
+  }
+
+  .cardsContainer {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+}

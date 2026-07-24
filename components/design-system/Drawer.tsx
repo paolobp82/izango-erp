@@ -23,7 +23,7 @@ export default function Drawer({ open, title, subtitle, children, footer, onClos
         position: "fixed",
         inset: 0,
         zIndex: 60,
-        background: "rgba(15,23,42,0.34)",
+        background: "var(--iz-color-overlay)",
         display: "flex",
         justifyContent: "flex-end",
       }}
@@ -37,18 +37,18 @@ export default function Drawer({ open, title, subtitle, children, footer, onClos
           width: "100%",
           maxWidth: width,
           height: "100%",
-          background: "#FFFFFF",
-          boxShadow: "-20px 0 40px rgba(15,23,42,0.18)",
+          background: "var(--iz-color-surface)",
+          boxShadow: "var(--iz-shadow-lg)",
           display: "flex",
           flexDirection: "column",
         }}
       >
-        <header style={{ padding: "20px 22px", borderBottom: "1px solid #E2E8F0" }}>
+        <header style={{ padding: "20px 22px", borderBottom: "1px solid var(--iz-color-border)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#0F172A" }}>{title}</h2>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "var(--iz-color-text)" }}>{title}</h2>
               {subtitle && (
-                <p style={{ margin: "6px 0 0", color: "#64748B", fontSize: 13, lineHeight: 1.4 }}>
+                <p style={{ margin: "6px 0 0", color: "var(--iz-color-text-muted)", fontSize: 13, lineHeight: 1.4 }}>
                   {subtitle}
                 </p>
               )}
@@ -62,9 +62,9 @@ export default function Drawer({ open, title, subtitle, children, footer, onClos
                   width: 34,
                   height: 34,
                   borderRadius: 10,
-                  border: "1px solid #E2E8F0",
-                  background: "#FFFFFF",
-                  color: "#475569",
+                  border: "1px solid var(--iz-color-border)",
+                  background: "var(--iz-color-surface)",
+                  color: "var(--iz-color-text-muted)",
                   cursor: "pointer",
                   fontSize: 18,
                 }}
@@ -76,7 +76,7 @@ export default function Drawer({ open, title, subtitle, children, footer, onClos
         </header>
 
         <div style={{ flex: 1, overflow: "auto", padding: 22 }}>{children}</div>
-        {footer && <footer style={{ padding: 18, borderTop: "1px solid #E2E8F0" }}>{footer}</footer>}
+        {footer && <footer style={{ padding: 18, borderTop: "1px solid var(--iz-color-border)" }}>{footer}</footer>}
       </aside>
     </div>
   )
