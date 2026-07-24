@@ -265,6 +265,13 @@
 .modalBody {
   display: grid;
   gap: 16px;
+  min-height: 0;
+  max-height: calc(100dvh - 208px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-color: var(--v2-border) transparent;
+  scrollbar-width: thin;
 }
 
 .drawerTitle {
@@ -380,4 +387,8 @@
   }
 
   .pageSize { width: 100%; }
+
+  .modalBody {
+    max-height: calc(100dvh - 184px);
+  }
 }

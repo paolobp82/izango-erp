@@ -1,0 +1,273 @@
+.form {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.workflow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.workflowStep {
+  min-width: 0;
+  padding: 8px;
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface-muted);
+  color: var(--v2-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.workflowStepActive {
+  background: var(--v2-warning-bg);
+  color: var(--v2-warning);
+}
+
+.section {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.section + .section {
+  padding-top: 18px;
+  border-top: 1px solid var(--v2-border-soft);
+}
+
+.sectionHeading h3,
+.sectionHeading p {
+  margin: 0;
+}
+
+.sectionHeading h3 {
+  color: var(--v2-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sectionHeading p {
+  margin-top: 3px;
+  color: var(--v2-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.full {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--v2-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  outline: none;
+  background: var(--v2-surface);
+  color: var(--v2-text);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.textarea::placeholder {
+  color: var(--v2-subtle);
+}
+
+.textarea:focus-visible {
+  border-color: var(--v2-primary);
+  box-shadow: 0 0 0 2px var(--v2-success-bg);
+}
+
+.initialState {
+  min-height: var(--v2-control);
+  display: flex;
+  align-items: center;
+}
+
+.participants {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface-muted);
+}
+
+.selectedParticipants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.participantChip {
+  border: 0;
+  border-radius: 999px;
+  background: var(--v2-info-bg);
+  color: var(--v2-info);
+  cursor: pointer;
+  padding: 4px 9px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.participantChip:hover {
+  background: var(--v2-surface-soft);
+}
+
+.participantChip:focus-visible,
+.participantRow:focus-within,
+.option:focus-within {
+  outline: 2px solid var(--v2-primary);
+  outline-offset: 2px;
+}
+
+.participantList {
+  max-height: 150px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: grid;
+  gap: 4px;
+  padding-right: 3px;
+  scrollbar-color: var(--v2-border) transparent;
+  scrollbar-width: thin;
+}
+
+.participantRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface);
+  color: var(--v2-text);
+  cursor: pointer;
+}
+
+.participantRow:hover {
+  background: var(--v2-surface-soft);
+}
+
+.participantRowSelected {
+  background: var(--v2-success-bg);
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  accent-color: var(--v2-primary);
+}
+
+.avatar {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--v2-info-bg);
+  color: var(--v2-info);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.participantIdentity {
+  min-width: 0;
+}
+
+.participantName,
+.participantEmail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.participantName {
+  color: var(--v2-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.participantName span,
+.participantEmail,
+.noParticipants {
+  color: var(--v2-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.noParticipants {
+  padding: 10px;
+  text-align: center;
+}
+
+.scheduleFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface-muted);
+  color: var(--v2-text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.option:hover {
+  background: var(--v2-surface-soft);
+}
+
+@media (max-width: 640px) {
+  .workflow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fields,
+  .scheduleFields,
+  .options {
+    grid-template-columns: 1fr;
+  }
+
+  .full {
+    grid-column: auto;
+  }
+}
