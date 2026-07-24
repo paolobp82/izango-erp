@@ -1,29 +1,45 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
 import { createClient } from "@/lib/supabase"
-import KpiCard from "@/components/ui/KpiCard"
-import SectionCard from "@/components/ui/SectionCard"
-import { registrarAccion } from "@/lib/trazabilidad"
 import { useRouter } from "next/navigation"
 
 import { rowBelongsToDeletedProject } from "@/lib/projects"
-import { ArrowUpDown, CalendarDays, Check, ClipboardCheck, Eye, Grid2X2, MoreVertical, Play, Plus, User, Users } from "lucide-react"
+import { ArrowDown, ArrowUp, CalendarDays, Check, ClipboardCheck, Eye, Grid2X2, MoreVertical, Play, Plus, Trash2, User, Users } from "lucide-react"
 import { TaskForm } from "./components/TaskForm"
 import { agregarEventoFeedTarea, guardarParticipantesTarea, guardarTareaService, notificarTarea } from "@/lib/services/tareas"
+import { V2ListPageTemplate } from "@/components/v2/templates"
+import {
+  V2Badge,
+  V2Button,
+  V2DataTable,
+  V2Drawer,
+  V2EmptyState,
+  V2Input,
+  V2KpiCard,
+  V2Modal,
+  V2PageHeader,
+  V2Pagination,
+  V2SectionCard,
+  V2Select,
+  V2Tabs,
+  type V2DataTableColumn,
+} from "@/components/v2/system"
+import type { V2BadgeVariant } from "@/components/v2/system/V2Badge"
+import styles from "./MiTrabajoV2.module.css"
 
 const ESTADOS: Record<string, any> = {
-  pendiente:    { label: "Pendiente",    bg: "#fef9c3", color: "#92400e" },
-  en_progreso:  { label: "En progreso",  bg: "#dbeafe", color: "#1e40af" },
-  en_revision:  { label: "En revisión",  bg: "#f5f3ff", color: "#6d28d9" },
-  completada:   { label: "Completada",   bg: "#dcfce7", color: "#15803d" },
-  cancelada:    { label: "Cancelada",    bg: "#fee2e2", color: "#991b1b" },
+  pendiente:    { label: "Pendiente", variant: "warning" },
+  en_progreso:  { label: "En progreso", variant: "information" },
+  en_revision:  { label: "En revisión", variant: "primary" },
+  completada:   { label: "Completada", variant: "success" },
+  cancelada:    { label: "Cancelada", variant: "danger" },
 }
 
 const PRIORIDADES: Record<string, any> = {
-  baja:    { label: "Baja",    bg: "#f3f4f6", color: "#6b7280" },
-  media:   { label: "Media",   bg: "#fef9c3", color: "#92400e" },
-  alta:    { label: "Alta",    bg: "#fed7aa", color: "#9a3412" },
-  urgente: { label: "Urgente", bg: "#fee2e2", color: "#991b1b" },
+  baja:    { label: "Baja", variant: "neutral" },
+  media:   { label: "Media", variant: "warning" },
+  alta:    { label: "Alta", variant: "error" },
+  urgente: { label: "Urgente", variant: "danger" },
 }
 
 const FRECUENCIAS: Record<string, string> = {
@@ -394,8 +410,6 @@ export default function TareasPage() {
     return 0
   })
 
-  const inp: any = { padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, fontFamily: "inherit", background: "#fff", width: "100%", outline: "none" }
-  const lbl: any = { display: "block", fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 4 }
   const estadoKeys = ["pendiente", "en_progreso", "en_revision", "completada"]
 
   function nombreUsuario(u: any) {
@@ -541,488 +555,343 @@ export default function TareasPage() {
   const tareasPagina = tareasFiltradas.slice((pagina - 1) * porPagina, pagina * porPagina)
   const totalPaginas = Math.max(1, Math.ceil(tareasFiltradas.length / porPagina))
 
-  if (loading) return <div style={{ color: "#6b7280", padding: 24 }}>Cargando...</div>
+  const estadoVariant = (estado: string): V2BadgeVariant =>
+    (ESTADOS[estado]?.variant || "neutral") as V2BadgeVariant
+  const prioridadVariant = (prioridad: string): V2BadgeVariant =>
+    (PRIORIDADES[prioridad]?.variant || "neutral") as V2BadgeVariant
+
+  const columns: V2DataTableColumn<any>[] = [
+    {
+      id: "seleccion",
+      header: <input aria-label="Seleccionar todas las tareas" disabled type="checkbox" />,
+      width: 42,
+      cell: () => <input aria-label="Seleccionar tarea" onClick={(event) => event.stopPropagation()} type="checkbox" />,
+    },
+    {
+      id: "tarea",
+      header: "Tarea",
+      minWidth: 260,
+      cell: (t) => {
+        const vencida = estaVencida(t)
+        const participantes = participantesNombres(t)
+        const rolUsuario = rolUsuarioEnTarea(t)
+        return (
+          <div className={styles.taskCell} title={t.titulo}>
+            <div className={styles.taskTitle}>{t.titulo}</div>
+            <div className={styles.taskMeta}>{t.proyecto?.codigo || "Sin proyecto"} · Solicitante: {t.creador ? nombreUsuario(t.creador) : "—"}</div>
+            {participantes ? <div className={styles.taskMeta}>Participantes: {participantes}</div> : null}
+            <div className={styles.badges}>
+              {t.origen_label ? <V2Badge size="sm" variant="information">{t.origen_label}</V2Badge> : null}
+              {rolUsuario ? <V2Badge size="sm" variant="primary">Mi rol: {rolUsuario}</V2Badge> : null}
+              {vencida ? <V2Badge size="sm" variant="danger">Vencida</V2Badge> : null}
+              {t.frecuencia && t.frecuencia !== "no_repite" ? <V2Badge size="sm" variant="information">{FRECUENCIAS[t.frecuencia] || "Recurrente"}</V2Badge> : null}
+              {(t.participantes || []).length > 0 ? <V2Badge size="sm" variant="neutral">{(t.participantes || []).length} participante{(t.participantes || []).length !== 1 ? "s" : ""}</V2Badge> : null}
+            </div>
+          </div>
+        )
+      },
+    },
+    {
+      id: "proyecto",
+      header: "Proyecto",
+      width: 170,
+      minWidth: 150,
+      cell: (t) => (
+        <div className={styles.projectCell}>
+          <div className={styles.taskTitle}>{t.proyecto?.codigo || "—"}</div>
+          <div className={styles.projectName} title={t.proyecto?.nombre || t.cliente?.razon_social || "Sin proyecto"}>
+            {t.proyecto?.nombre || t.cliente?.razon_social || "Sin proyecto"}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "responsable",
+      header: "Responsable",
+      width: 180,
+      minWidth: 160,
+      cell: (t) => (
+        <div className={styles.personCell}>
+          <span className={styles.avatar}>{inicialesUsuario(t.asignado)}</span>
+          <span className={styles.personName}>{t.asignado ? nombreUsuario(t.asignado) : "Sin responsable"}</span>
+        </div>
+      ),
+    },
+    {
+      id: "estado",
+      header: "Estado",
+      align: "center",
+      width: 120,
+      cell: (t) => <V2Badge size="sm" variant={estadoVariant(t.estado)}>{ESTADOS[t.estado]?.label || t.estado}</V2Badge>,
+    },
+    {
+      id: "prioridad",
+      header: "Prioridad",
+      align: "center",
+      width: 100,
+      cell: (t) => <V2Badge size="sm" variant={prioridadVariant(t.prioridad)}>{PRIORIDADES[t.prioridad]?.label || t.prioridad}</V2Badge>,
+    },
+    {
+      id: "fecha",
+      header: "Fecha límite",
+      align: "center",
+      width: 140,
+      cell: (t) => {
+        const vencida = estaVencida(t)
+        return (
+          <div className={`${styles.dateCell} ${vencida ? styles.dateDanger : ""}`}>
+            <div>{formatFecha(t.fecha_limite)}</div>
+            <div className={styles.dateMeta}>{textoVencimiento(t)}</div>
+          </div>
+        )
+      },
+    },
+    {
+      id: "acciones",
+      header: "Acciones",
+      align: "right",
+      width: 110,
+      cell: (t) => (
+        <div className={styles.rowActions}>
+          <V2Button aria-label={`Editar ${t.titulo}`} onClick={(event) => { event.stopPropagation(); abrirEditar(t) }} size="compact" variant="ghost">
+            <MoreVertical size={16} />
+          </V2Button>
+          <V2Button aria-label={`Eliminar ${t.titulo}`} onClick={(event) => { event.stopPropagation(); eliminar(t.id) }} size="compact" variant="danger">
+            <Trash2 size={14} />
+          </V2Button>
+        </div>
+      ),
+    },
+  ]
+
+  const emptyState = (
+    <V2EmptyState
+      compact
+      description={filtroAsignado === "mias" && tareasDelegadas.length > 0
+        ? `No tienes tareas asignadas como responsable, pero sí ${tareasDelegadas.length} delegada${tareasDelegadas.length !== 1 ? "s" : ""} para seguimiento.`
+        : "Prueba otra vista o ajusta los filtros para revisar tareas relacionadas."}
+      icon={<ClipboardCheck size={24} />}
+      primaryAction={tareasDelegadas.length > 0
+        ? <V2Button onClick={() => { setFiltroAsignado("creadas"); setPagina(1) }} size="compact">Ver delegadas por mí ({tareasDelegadas.length})</V2Button>
+        : undefined}
+      secondaryAction={tareasRelacionadas.length > 0
+        ? <V2Button onClick={() => { setFiltroAsignado("todos"); setPagina(1) }} size="compact" variant="secondary">Ver todas ({tareasRelacionadas.length})</V2Button>
+        : undefined}
+      title="No hay tareas en esta vista"
+    />
+  )
 
   return (
-    <div style={{ display: "flex", gap: 20, height: "calc(100vh - 80px)" }}>
-
-      {/* ── PANEL IZQUIERDO ── */}
-      <div style={{ flex: 1, overflowY: "auto", paddingRight: 4 }}>
-
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "#111827" }}>Mi trabajo</h1>
-            <p style={{ fontSize: 13, color: "#475569", marginTop: 6 }}>Resumen de mis tareas y seguimiento</p>
+    <>
+      <V2ListPageTemplate
+        className={styles.page}
+        density="comfortable"
+        header={
+          <V2PageHeader
+            actions={
+              <div className={styles.headerActions}>
+                <V2Button leadingIcon={<ClipboardCheck size={16} />} onClick={() => router.push("/audiovisual/requerimientos")} variant="secondary">
+                  Req. audiovisual
+                </V2Button>
+                <V2Button leadingIcon={<Plus size={16} />} onClick={abrirNueva} variant="primary">
+                  Nueva tarea
+                </V2Button>
+              </div>
+            }
+            eyebrow="Operaciones"
+            subtitle="Resumen de mis tareas y seguimiento"
+            title="Mi trabajo"
+          />
+        }
+        state={loading ? "loading" : "ready"}
+        summary={
+          <div className={styles.kpiGrid}>
+            {tarjetasResumenActual.map((card) => {
+              const Icon = card.estado === "pendiente" ? ClipboardCheck : card.estado === "en_progreso" ? Play : card.estado === "en_revision" ? Eye : Check
+              const tone = card.estado === "completada" ? "success" : card.estado === "pendiente" ? "warning" : card.estado === "en_revision" ? "primary" : "neutral"
+              return <V2KpiCard density="compact" icon={<Icon size={18} />} key={card.estado} label={card.label} tone={tone} value={String(card.value)} />
+            })}
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={() => router.push("/audiovisual/requerimientos")} className="btn-secondary" style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8 }}><ClipboardCheck size={16} />Req. audiovisual</button>
-            <button onClick={abrirNueva} className="btn-primary" style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8 }}><Plus size={16} />Nueva tarea</button>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 18 }}>
-          {[
-            { title: tituloResumenActual, subtitle: subtituloResumenActual, cards: tarjetasResumenActual },
-          ].map(section => (
-            <div key={section.title} className="card" style={{ padding: 20, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 18, boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
-              <div style={{ marginBottom: 22 }}>
-                <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#111827", textTransform: "uppercase" }}>{section.title}</h2>
-                <p style={{ fontSize: 12, color: "#475569", margin: "10px 0 0" }}>{section.subtitle}</p>
+        }
+      >
+        <div className={styles.overviewGrid}>
+          <V2SectionCard description="Porcentaje promedio de las tareas que he delegado" title="Avance general de tareas delegadas">
+            <div className={styles.progressContent}>
+              <div className={styles.progressRing} style={{ "--progress": `${avanceDelegadas * 3.6}deg` } as CSSProperties}>
+                <div className={styles.progressRingInner}>{avanceDelegadas}%</div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
-                {section.cards.map((c, idx) => {
-                  const Icon = c.estado === "pendiente" ? ClipboardCheck : c.estado === "en_progreso" ? Play : c.estado === "en_revision" ? Eye : Check
-                  const tint = c.estado === "pendiente" ? "#fef3c7" : c.estado === "en_progreso" ? "#dbeafe" : c.estado === "en_revision" ? "#ede9fe" : "#dcfce7"
-                  return (
-                  <div key={c.estado} style={{ display: "flex", alignItems: "center", gap: 16, padding: "0 20px", borderLeft: idx === 0 ? "none" : "1px solid #e5e7eb" }}>
-                    <span style={{ width: 52, height: 52, borderRadius: 16, background: tint, color: c.color, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.55)" }}>
-                      <Icon size={24} />
-                    </span>
-                    <div>
-                      <div style={{ fontSize: 24, lineHeight: 1.1, color: "#0f172a", fontWeight: 900 }}>{c.value}</div>
-                      <div style={{ fontSize: 12, color: "#334155", marginTop: 6 }}>{c.label}</div>
-                    </div>
-                  </div>
-                )})}
+              <div className={styles.progressSummary}>
+                <p className={styles.progressLabel}>{delegadasCompletadas} de {tareasDelegadas.length} tareas completadas</p>
+                <div className={styles.progressTrack}><div className={styles.progressBar} style={{ width: `${avanceDelegadas}%` }} /></div>
               </div>
             </div>
-          ))}
-        </div>
-
-        <div className="card" style={{ marginBottom: 22, padding: 20, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 18, boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
-          <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: "#111827", textTransform: "uppercase" }}>Avance general de tareas delegadas</h2>
-          <p style={{ fontSize: 12, color: "#475569", margin: "10px 0 14px" }}>Porcentaje de avance promedio de las tareas que he delegado</p>
-          <div style={{ display: "grid", gridTemplateColumns: "150px 1fr 260px", gap: 24, alignItems: "center" }}>
-            <div style={{ width: 108, height: 108, borderRadius: "50%", background: `conic-gradient(#16a34a ${avanceDelegadas * 3.6}deg, #e5e7eb 0deg)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ width: 84, height: 84, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 900, color: "#334155" }}>{avanceDelegadas}%</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 12 }}>{delegadasCompletadas} de {tareasDelegadas.length} tareas completadas</div>
-              <div style={{ height: 7, background: "#e5e7eb", borderRadius: 99, overflow: "hidden" }}>
-                <div style={{ width: `${avanceDelegadas}%`, height: "100%", background: "#16a34a" }} />
-              </div>
-            </div>
-            <div style={{ display: "grid", gap: 14 }}>
+          </V2SectionCard>
+          <V2SectionCard description="Distribución de las tareas delegadas" title="Estado del avance">
+            <div className={styles.legend}>
               {[
-                { estado: "completada", label: "Completadas", color: "#16a34a" },
-                { estado: "en_progreso", label: "En progreso", color: "#3b82f6" },
-                { estado: "en_revision", label: "En revisión", color: "#8b5cf6" },
-                { estado: "pendiente", label: "Pendientes", color: "#f59e0b" },
-              ].map(item => (
-                <div key={item.estado} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#334155" }}>
-                  <span style={{ width: 12, height: 12, borderRadius: 99, background: item.color }} />
+                { estado: "completada", label: "Completadas", dot: styles.dotSuccess },
+                { estado: "en_progreso", label: "En progreso", dot: styles.dotInfo },
+                { estado: "en_revision", label: "En revisión", dot: styles.dotPrimary },
+                { estado: "pendiente", label: "Pendientes", dot: styles.dotWarning },
+              ].map((item) => (
+                <div className={styles.legendItem} key={item.estado}>
+                  <span className={`${styles.legendDot} ${item.dot}`} />
                   {contarPorEstado(tareasDelegadas, item.estado)} {item.label}
                 </div>
               ))}
             </div>
-          </div>
+          </V2SectionCard>
         </div>
 
-        <div className="card" style={{ padding: 0, overflow: "hidden", border: "1px solid #E2E8F0", borderRadius: 18, background: "#fff", boxShadow: "0 10px 24px rgba(15,23,42,0.06)" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0, borderBottom: "1px solid #E2E8F0", background: "#FFFFFF" }}>
-          {[
-            { key: "mias", label: "Asignadas a mí", value: misTareas.length },
-            { key: "creadas", label: "Delegadas por mí", value: tareasDelegadas.length },
-            { key: "participo", label: "Participo", value: tareasParticipa.length },
-            { key: "todos", label: "Todas relacionadas", value: tareasRelacionadas.length },
-          ].map((item, idx) => (
-            <button
-              key={item.key}
-              onClick={() => { setFiltroAsignado(item.key); setResponsableId(""); setPagina(1) }}
-              style={{ padding: "10px 14px", border: "none", borderLeft: idx === 0 ? "none" : "1px solid #e5e7eb", background: filtroAsignado === item.key ? "#F0FDF4" : "#FFFFFF", color: filtroAsignado === item.key ? "#0F6E56" : "#475569", cursor: "pointer", textAlign: "left" }}
-            >
-              <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>{item.label}</div>
-              <div style={{ fontSize: 20, fontWeight: 900, lineHeight: 1.1 }}>{item.value}</div>
-            </button>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 24, padding: "0 16px", borderBottom: "1px solid #e5e7eb", flexWrap: "wrap" }}>
-          {tabsTrabajo.map(tab => {
-            const active = filtroAsignado === tab.key
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.key}
-                onClick={() => { setFiltroAsignado(tab.key); setResponsableId("") }}
-                style={{ padding: "16px 0", border: "none", borderBottom: `2px solid ${active ? "#0F6E56" : "transparent"}`, background: "transparent", color: active ? "#0F6E56" : "#1f2937", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}
-              >
-                <Icon size={16} /> {tab.label} <span style={{ opacity: 0.6 }}>({tab.count})</span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Filtros */}
-        <div style={{ display: "grid", gridTemplateColumns: "220px 220px 220px 210px 1fr auto auto", gap: 12, padding: 16, borderBottom: "1px solid #e5e7eb", alignItems: "center" }}>
-          <select style={inp} value={filtroEstado} onChange={e => { setFiltroEstado(e.target.value); setPagina(1) }}>
-            <option value="todos">Todos los estados</option>
-            {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-          <select style={inp} value={filtroProyecto} onChange={e => { setFiltroProyecto(e.target.value); setPagina(1) }}>
-            <option value="">Todos los proyectos</option>
-            {proyectos.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}
-          </select>
-          <select style={inp} value={filtroPrioridad} onChange={e => { setFiltroPrioridad(e.target.value); setPagina(1) }}>
-            <option value="todos">Todas las prioridades</option>
-            {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-          <div style={{ position: "relative" }}>
-            <input style={{ ...inp, paddingRight: 34 }} type="date" value={filtroFecha} onChange={e => { setFiltroFecha(e.target.value); setPagina(1) }} />
-            <CalendarDays size={16} style={{ position: "absolute", right: 10, top: 9, color: "#64748b", pointerEvents: "none" }} />
-          </div>
-          {puedeVerEquipo && (
-            <select style={inp} value={responsableId} onChange={e => { setResponsableId(e.target.value); if (e.target.value) setFiltroAsignado("responsable"); setPagina(1) }}>
-              <option value="">Seleccionar responsable</option>
-              {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido}</option>)}
-            </select>
-          )}
-          {!puedeVerEquipo && <div />}
-          <div style={{ justifySelf: "end", fontSize: 12, color: "#334155" }}>Ordenar por</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <select style={{ ...inp, minWidth: 150 }} value={ordenCampo} onChange={e => setOrdenCampo(e.target.value)}>
-            <option value="fecha_limite">Ordenar: Fecha límite</option>
-            <option value="titulo">Ordenar: Título</option>
-            <option value="proyecto">Ordenar: Proyecto</option>
-            <option value="cliente">Ordenar: Cliente</option>
-            <option value="prioridad">Ordenar: Prioridad</option>
-            <option value="asignado">Ordenar: Asignado a</option>
-            <option value="estado">Ordenar: Estado</option>
-          </select>
-          <button onClick={() => setOrdenDir(ordenDir === "asc" ? "desc" : "asc")} title="Cambiar orden" style={{ width: 36, height: 36, border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: "pointer", color: "#334155" }}><ArrowUpDown size={15} /></button>
-          </div>
-        </div>
-        {/* Lista de tareas */}
-        <div style={{ padding: 0, overflow: "hidden" }}>
-          {tareasFiltradas.length === 0 ? (
-            <div style={{ padding: "38px 20px", textAlign: "center", color: "#64748b", fontSize: 14 }}>
-              <div style={{ fontWeight: 800, color: "#334155", marginBottom: 8 }}>No hay tareas en esta vista</div>
-              <div style={{ marginBottom: 16 }}>
-                {filtroAsignado === "mias" && tareasDelegadas.length > 0
-                  ? `No tienes tareas asignadas como responsable, pero sí tienes ${tareasDelegadas.length} tarea${tareasDelegadas.length !== 1 ? "s" : ""} delegada${tareasDelegadas.length !== 1 ? "s" : ""} para seguimiento.`
-                  : "Prueba otra vista o ajusta los filtros para revisar tareas relacionadas."}
-              </div>
-              <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                {tareasDelegadas.length > 0 && (
-                  <button onClick={() => { setFiltroAsignado("creadas"); setPagina(1) }} className="btn-primary" style={{ fontSize: 12 }}>
-                    Ver delegadas por mí ({tareasDelegadas.length})
-                  </button>
-                )}
-                {tareasParticipa.length > 0 && (
-                  <button onClick={() => { setFiltroAsignado("participo"); setPagina(1) }} className="btn-secondary" style={{ fontSize: 12 }}>
-                    Ver en las que participo ({tareasParticipa.length})
-                  </button>
-                )}
-                {tareasRelacionadas.length > 0 && (
-                  <button onClick={() => { setFiltroAsignado("todos"); setPagina(1) }} className="btn-secondary" style={{ fontSize: 12 }}>
-                    Ver todas ({tareasRelacionadas.length})
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  <th style={{ width: 42, padding: "10px 16px" }}><input type="checkbox" disabled /></th>
-                  <th style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 800, color: "#6b7280" }}>TAREA</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 150 }}>PROYECTO</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 170 }}>RESPONSABLE</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 110 }}>ESTADO</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 90 }}>PRIORIDAD</th>
-                  <th style={{ textAlign: "center", padding: "10px 12px", fontSize: 11, fontWeight: 800, color: "#6b7280", width: 130 }}>FECHA LÍMITE</th>
-                  <th style={{ width: 80 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {tareasPagina.map((t, idx) => {
-                  const es = ESTADOS[t.estado] || ESTADOS.pendiente
-                  const pr = PRIORIDADES[t.prioridad] || PRIORIDADES.media
-                  const vencida = estaVencida(t)
-                  const rolUsuario = rolUsuarioEnTarea(t)
-                  const participantes = participantesNombres(t)
-                  return (
-                    <tr
-                      key={t.id}
-                      onClick={() => {
-                        if (t.origen === "audiovisual" && t.origen_id) {
-                          router.push(`/audiovisual/requerimientos?requerimiento_id=${t.origen_id}`)
-                          return
-                        }
-                        abrirDetalle(t)
-                      }}
-                      style={{ borderTop: "1px solid #F1F5F9", background: selected?.id === t.id ? "#F0FDF4" : "#FFFFFF", cursor: "pointer" }}>
-                      <td style={{ padding: "10px 16px" }}><input type="checkbox" onClick={e => e.stopPropagation()} /></td>
-                      <td style={{ padding: "10px 16px" }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{t.titulo}</div>
-                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{t.proyecto?.codigo || "Sin proyecto"}</div>
-                        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Solicitante: {t.creador ? nombreUsuario(t.creador) : "—"}</div>
-                        {participantes && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>Participantes: {participantes}</div>}
-                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 4 }}>
-                          {t.origen_label && (
-                            <span style={{
-                              background: "#eff6ff",
-                              color: "#1d4ed8",
-                              fontSize: 10,
-                              fontWeight: 800,
-                              padding: "2px 7px",
-                              borderRadius: 99,
-                              textTransform: "uppercase"
-                            }}>
-                              {t.origen_label}
-                            </span>
-                          )}
-                          {rolUsuario && <span style={{ fontSize: 10, background: "#eff6ff", color: "#1d4ed8", padding: "1px 6px", borderRadius: 99, fontWeight: 800 }}>Mi rol: {rolUsuario}</span>}
-                          {vencida && <span style={{ fontSize: 10, background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>VENCIDA</span>}
-                          {t.frecuencia && t.frecuencia !== "no_repite" && <span style={{ fontSize: 10, background: "#ecfeff", color: "#155e75", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>{FRECUENCIAS[t.frecuencia] || "Recurrente"}</span>}
-                          {(t.participantes || []).length > 0 && <span style={{ fontSize: 10, background: "#f3f4f6", color: "#4b5563", padding: "1px 6px", borderRadius: 99, fontWeight: 700 }}>{(t.participantes || []).length} participante{(t.participantes || []).length !== 1 ? "s" : ""}</span>}
-                        </div>
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#6b7280" }}>
-                        <div style={{ fontWeight: 700, color: "#374151" }}>{t.proyecto?.codigo || "—"}</div>
-                        <div>{t.proyecto?.nombre || t.cliente?.razon_social || "Sin proyecto"}</div>
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#374151", whiteSpace: "nowrap" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ width: 28, height: 28, borderRadius: 99, background: "#eef2ff", color: "#3730a3", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{inicialesUsuario(t.asignado)}</span>
-                          <span>{t.asignado ? nombreUsuario(t.asignado) : "Sin responsable"}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                        <span style={{ background: es.bg, color: es.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>{es.label}</span>
-                      </td>
-                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                        <span style={{ background: pr.bg, color: pr.color, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>{pr.label}</span>
-                      </td>
-                      <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12, color: vencida ? "#991b1b" : "#6b7280", fontWeight: vencida ? 700 : 400, whiteSpace: "nowrap" }}>
-                        <div>{formatFecha(t.fecha_limite)}</div>
-                        <div style={{ fontSize: 10, color: vencida ? "#991b1b" : "#9ca3af", fontWeight: 600 }}>{textoVencimiento(t)}</div>
-                      </td>
-                      <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                          <button onClick={e => { e.stopPropagation(); abrirEditar(t) }}
-                            style={{ width: 30, height: 30, border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#334155" }}><MoreVertical size={16} /></button>
-                          <button onClick={e => { e.stopPropagation(); eliminar(t.id) }}
-                            style={{ width: 30, height: 30, border: "1px solid #fee2e2", borderRadius: 6, background: "#fff", color: "#dc2626", cursor: "pointer" }}>×</button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid #e5e7eb", background: "#fff" }}>
-          <div style={{ fontSize: 12, color: "#334155" }}>Mostrando {tareasFiltradas.length === 0 ? 0 : (pagina - 1) * porPagina + 1} de {tareasFiltradas.length} tarea{tareasFiltradas.length !== 1 ? "s" : ""}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 12, color: "#334155" }}>Filas por página:</span>
-            <select
-              style={{ ...inp, width: 84 }}
-              value={porPagina}
-              onChange={(e) => {
-                setPorPagina(Number(e.target.value))
-                setPagina(1)
-              }}
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-            <button disabled={pagina <= 1} onClick={() => setPagina(p => Math.max(1, p - 1))} style={{ width: 34, height: 34, border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: pagina <= 1 ? "not-allowed" : "pointer", color: "#334155" }}>‹</button>
-            <div style={{ minWidth: 34, height: 34, border: "1px solid #2563eb", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb", fontWeight: 800, fontSize: 13 }}>{pagina}</div>
-            <button disabled={pagina >= totalPaginas} onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} style={{ width: 34, height: 34, border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", cursor: pagina >= totalPaginas ? "not-allowed" : "pointer", color: "#334155" }}>›</button>
-          </div>
-        </div>
-        </div>
-        <div className="card" style={{ marginTop: 14, padding: 14, background: "#fff", border: "1px solid #e5e7eb" }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: "#6b7280", marginBottom: 10, textTransform: "uppercase" }}>Leyenda de estados</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        <V2SectionCard description={subtituloTrabajo} title="Resumen de categorías">
+          <div className={styles.summaryStrip}>
             {[
-              { estado: "pendiente", texto: "Tareas asignadas pero aún no iniciadas." },
-              { estado: "en_progreso", texto: "Tareas que están siendo trabajadas actualmente." },
-              { estado: "en_revision", texto: "Tareas completadas por el responsable y pendientes de validación." },
-              { estado: "completada", texto: "Tareas finalizadas y aprobadas." },
-            ].map(item => (
-              <div key={item.estado} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                <span style={{ width: 8, height: 8, borderRadius: 99, background: ESTADOS[item.estado].color, marginTop: 4, flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "#374151" }}>{ESTADOS[item.estado].label}</div>
-                  <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.4 }}>{item.texto}</div>
-                </div>
+              { key: "mias", label: "Asignadas a mí", value: misTareas.length },
+              { key: "creadas", label: "Delegadas por mí", value: tareasDelegadas.length },
+              { key: "participo", label: "Participo", value: tareasParticipa.length },
+              { key: "todos", label: "Todas relacionadas", value: tareasRelacionadas.length },
+            ].map((item) => (
+              <div className={`${styles.summaryItem} ${filtroAsignado === item.key ? styles.summaryItemActive : ""}`} key={item.key}>
+                <span className={styles.summaryLabel}>{item.label}</span>
+                <span className={styles.summaryValue}>{item.value}</span>
               </div>
             ))}
           </div>
+        </V2SectionCard>
+
+        <V2SectionCard description={subtituloResumenActual} title={tituloResumenActual}>
+          <div className={styles.tabsWrap}>
+            <V2Tabs
+              ariaLabel="Vistas de Mi trabajo"
+              items={tabsTrabajo.map((tab) => {
+                const Icon = tab.icon
+                return { id: tab.key, label: `${tab.label} (${tab.count})`, icon: <Icon size={15} /> }
+              })}
+              onValueChange={(value) => { setFiltroAsignado(value); setResponsableId(""); setPagina(1) }}
+              value={filtroAsignado}
+              variant="contained"
+            />
+          </div>
+        </V2SectionCard>
+
+        <V2SectionCard description="Acota el listado sin alterar la vista seleccionada" title="Filtros">
+          <div className={styles.filters}>
+            <div className={styles.filterControl}><V2Select compact label="Estado" onChange={(e) => { setFiltroEstado(e.target.value); setPagina(1) }} options={[{ label: "Todos los estados", value: "todos" }, ...Object.entries(ESTADOS).map(([value, item]) => ({ label: item.label, value }))]} value={filtroEstado} /></div>
+            <div className={styles.filterControl}><V2Select compact label="Proyecto" onChange={(e) => { setFiltroProyecto(e.target.value); setPagina(1) }} options={[{ label: "Todos los proyectos", value: "" }, ...proyectos.map((p) => ({ label: `${p.codigo} - ${p.nombre}`, value: p.id }))]} value={filtroProyecto} /></div>
+            <div className={styles.filterControl}><V2Select compact label="Prioridad" onChange={(e) => { setFiltroPrioridad(e.target.value); setPagina(1) }} options={[{ label: "Todas las prioridades", value: "todos" }, ...Object.entries(PRIORIDADES).map(([value, item]) => ({ label: item.label, value }))]} value={filtroPrioridad} /></div>
+            <div className={styles.filterControl}><V2Input compact label="Fecha límite" onChange={(e) => { setFiltroFecha(e.target.value); setPagina(1) }} type="date" value={filtroFecha} /></div>
+            {puedeVerEquipo ? <div className={styles.filterControl}><V2Select compact label="Responsable" onChange={(e) => { setResponsableId(e.target.value); if (e.target.value) setFiltroAsignado("responsable"); setPagina(1) }} options={[{ label: "Seleccionar responsable", value: "" }, ...usuarios.map((u) => ({ label: `${u.nombre} ${u.apellido}`, value: u.id }))]} value={responsableId} /></div> : null}
+            <div className={styles.filterControl}><V2Select compact label="Ordenar por" onChange={(e) => setOrdenCampo(e.target.value)} options={[
+              { label: "Fecha límite", value: "fecha_limite" }, { label: "Título", value: "titulo" }, { label: "Proyecto", value: "proyecto" },
+              { label: "Cliente", value: "cliente" }, { label: "Prioridad", value: "prioridad" }, { label: "Asignado a", value: "asignado" }, { label: "Estado", value: "estado" },
+            ]} value={ordenCampo} /></div>
+            <div className={styles.sortControl}>
+              <V2Button aria-label={ordenDir === "asc" ? "Orden ascendente; cambiar a descendente" : "Orden descendente; cambiar a ascendente"} onClick={() => setOrdenDir(ordenDir === "asc" ? "desc" : "asc")} size="compact" variant="secondary">
+                {ordenDir === "asc" ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
+              </V2Button>
+            </div>
+          </div>
+        </V2SectionCard>
+
+        <V2DataTable
+          columns={columns}
+          density="compact"
+          emptyState={emptyState}
+          getRowId={(t) => t.id}
+          onRowClick={(t) => {
+            if (t.origen === "audiovisual" && t.origen_id) router.push(`/audiovisual/requerimientos?requerimiento_id=${t.origen_id}`)
+            else abrirDetalle(t)
+          }}
+          rows={tareasPagina}
+          selectedRowId={selected?.id}
+          stickyHeader
+        />
+
+        <div className={styles.paginationBar}>
+          <div className={styles.pageSize}>
+            <V2Select compact label="Filas por página" onChange={(e) => { setPorPagina(Number(e.target.value)); setPagina(1) }} options={[10, 25, 50, 100].map((value) => ({ label: String(value), value: String(value) }))} value={String(porPagina)} />
+          </div>
+          <V2Pagination onPageChange={setPagina} page={pagina} pageCount={totalPaginas} pageSize={porPagina} totalItems={tareasFiltradas.length} />
         </div>
-      </div>
-      {selected && (
-        <div style={{ width: 380, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, overflowY: "auto", flexShrink: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "#111827", flex: 1, paddingRight: 8 }}>{selected.titulo}</h2>
-            <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 20 }}>×</button>
-          </div>
+      </V2ListPageTemplate>
 
-          {/* Estado y acciones */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6 }}>ESTADO Y ACCIONES</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ fontSize: 11, padding: "5px 10px", borderRadius: 99, background: ESTADOS[selected.estado]?.bg || "#f3f4f6", color: ESTADOS[selected.estado]?.color || "#6b7280", fontWeight: 700 }}>
-                {ESTADOS[selected.estado]?.label || selected.estado}
-              </span>
-              {puedeMoverEstado(selected, "en_progreso") && selected.estado === "pendiente" && (
-                <button onClick={() => cambiarEstado(selected.id, "en_progreso")} className="btn-secondary" style={{ fontSize: 12 }}>Iniciar</button>
-              )}
-              {puedeMoverEstado(selected, "en_revision") && selected.estado === "en_progreso" && (
-                <button onClick={() => cambiarEstado(selected.id, "en_revision")} className="btn-primary" style={{ fontSize: 12 }}>Enviar a revisión</button>
-              )}
-              {puedeMoverEstado(selected, "completada") && selected.estado === "en_revision" && (
-                <button onClick={() => cambiarEstado(selected.id, "completada")} className="btn-primary" style={{ fontSize: 12 }}>Aprobar / cerrar tarea</button>
-              )}
-              {puedeMoverEstado(selected, "en_progreso") && selected.estado === "en_revision" && (
-                <button onClick={() => {
-                  const obs = prompt("Observación para devolver la tarea:")
-                  if (obs?.trim()) cambiarEstado(selected.id, "en_progreso", obs.trim())
-                }} className="btn-secondary" style={{ fontSize: 12 }}>Devolver con observación</button>
-              )}
-            </div>
-          </div>
-          <div style={{ marginBottom: 14 }}>
-            <button
-              onClick={() => abrirGoogleCalendar(selected)}
-              className="btn-secondary"
-              style={{ width: "100%", fontSize: 13, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-            >
-              <CalendarDays size={16} />
-              Agendar en Google Calendar
-            </button>
-          </div>
-
-
-          {/* Info */}
-          <div style={{ display: "grid", gap: 10, marginBottom: 16 }}>
-            {[
-              { label: "Prioridad", value: PRIORIDADES[selected.prioridad]?.label || "—" },
-              { label: "Responsable", value: selected.asignado ? selected.asignado.nombre + " " + selected.asignado.apellido : "—" },
-              { label: "Solicitante", value: selected.creador ? selected.creador.nombre + " " + selected.creador.apellido : "—" },
-              { label: "Participantes", value: participantesNombres(selected) || "—" },
-              { label: "Mi rol", value: rolUsuarioEnTarea(selected) || "—" },
-              { label: "Frecuencia", value: FRECUENCIAS[selected.frecuencia] || "No se repite" },
-              { label: "Proyecto", value: selected.proyecto ? selected.proyecto.codigo + " — " + selected.proyecto.nombre : "—" },
-              { label: "Cliente", value: selected.cliente?.razon_social || "—" },
-              { label: "Fecha límite", value: selected.fecha_limite || "—" },
-              { label: "Completada", value: selected.fecha_completada ? new Date(selected.fecha_completada).toLocaleDateString("es-PE") : "—" },
-            ].map(r => (
-              <div key={r.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                <span style={{ color: "#9ca3af", fontWeight: 600 }}>{r.label}</span>
-                <span style={{ color: "#374151", textAlign: "right", maxWidth: 200 }}>{r.value}</span>
+      <V2Drawer
+        footer={<V2Button fullWidth leadingIcon={<CalendarDays size={16} />} onClick={() => abrirGoogleCalendar(selected)} variant="secondary">Agendar en Google Calendar</V2Button>}
+        onClose={() => setSelected(null)}
+        open={Boolean(selected)}
+        size="md"
+        title={selected?.titulo || "Detalle de tarea"}
+      >
+        {selected ? (
+          <div className={styles.drawerBody}>
+            <div>
+              <p className={styles.sectionLabel}>Estado y acciones</p>
+              <div className={styles.drawerActions}>
+                <V2Badge variant={estadoVariant(selected.estado)}>{ESTADOS[selected.estado]?.label || selected.estado}</V2Badge>
+                {puedeMoverEstado(selected, "en_progreso") && selected.estado === "pendiente" ? <V2Button onClick={() => cambiarEstado(selected.id, "en_progreso")} size="compact" variant="secondary">Iniciar</V2Button> : null}
+                {puedeMoverEstado(selected, "en_revision") && selected.estado === "en_progreso" ? <V2Button onClick={() => cambiarEstado(selected.id, "en_revision")} size="compact">Enviar a revisión</V2Button> : null}
+                {puedeMoverEstado(selected, "completada") && selected.estado === "en_revision" ? <V2Button onClick={() => cambiarEstado(selected.id, "completada")} size="compact">Aprobar / cerrar</V2Button> : null}
+                {puedeMoverEstado(selected, "en_progreso") && selected.estado === "en_revision" ? <V2Button onClick={() => { const obs = prompt("Observación para devolver la tarea:"); if (obs?.trim()) cambiarEstado(selected.id, "en_progreso", obs.trim()) }} size="compact" variant="secondary">Devolver con observación</V2Button> : null}
               </div>
-            ))}
-          </div>
-
-          {selected.descripcion && (
-            <div style={{ marginBottom: 16, padding: 12, background: "#f9fafb", borderRadius: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6 }}>DESCRIPCIÓN</div>
-              <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{selected.descripcion}</div>
             </div>
-          )}
-
-          {/* Comentarios */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid #f3f4f6" }}>
-              COMENTARIOS ({comentarios.length})
+            <div className={styles.facts}>
+              {[
+                { label: "Prioridad", value: PRIORIDADES[selected.prioridad]?.label || "—" },
+                { label: "Responsable", value: selected.asignado ? nombreUsuario(selected.asignado) : "—" },
+                { label: "Solicitante", value: selected.creador ? nombreUsuario(selected.creador) : "—" },
+                { label: "Participantes", value: participantesNombres(selected) || "—" },
+                { label: "Mi rol", value: rolUsuarioEnTarea(selected) || "—" },
+                { label: "Frecuencia", value: FRECUENCIAS[selected.frecuencia] || "No se repite" },
+                { label: "Proyecto", value: selected.proyecto ? `${selected.proyecto.codigo} — ${selected.proyecto.nombre}` : "—" },
+                { label: "Cliente", value: selected.cliente?.razon_social || "—" },
+                { label: "Fecha límite", value: selected.fecha_limite || "—" },
+                { label: "Completada", value: selected.fecha_completada ? new Date(selected.fecha_completada).toLocaleDateString("es-PE") : "—" },
+              ].map((item) => <div className={styles.fact} key={item.label}><span>{item.label}</span><span className={styles.factValue}>{item.value}</span></div>)}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-              {comentarios.length === 0 && <div style={{ fontSize: 12, color: "#9ca3af" }}>Sin comentarios aún</div>}
-              {comentarios.map(c => (
-                <div key={c.id} style={{ background: c.tipo === "devolucion" ? "#fef2f2" : c.tipo === "cambio_estado" ? "#f0fdf4" : "#f9fafb", borderRadius: 8, padding: "8px 10px", border: c.tipo === "devolucion" ? "1px solid #fecaca" : c.tipo === "cambio_estado" ? "1px solid #bbf7d0" : "1px solid transparent" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>
-                      {c.usuario?.nombre} {c.usuario?.apellido}
-                      {c.tipo && c.tipo !== "comentario" && (
-                        <span style={{ marginLeft: 6, fontSize: 10, color: c.tipo === "devolucion" ? "#991b1b" : "#0F6E56", fontWeight: 800, textTransform: "uppercase" }}>{c.tipo === "cambio_estado" ? "estado" : c.tipo}</span>
-                      )}
-                    </span>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <span style={{ fontSize: 10, color: "#9ca3af" }}>{new Date(c.created_at).toLocaleDateString("es-PE")}</span>
-                      {c.usuario_id === perfil?.id && (
-                        <button onClick={() => eliminarComentario(c.id)}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 12 }}>×</button>
-                      )}
+            {selected.descripcion ? <div><p className={styles.sectionLabel}>Descripción</p><div className={styles.description}>{selected.descripcion}</div></div> : null}
+            <div>
+              <p className={styles.sectionLabel}>Comentarios ({comentarios.length})</p>
+              <div className={styles.comments}>
+                {comentarios.length === 0 ? <span className={styles.commentMeta}>Sin comentarios aún</span> : null}
+                {comentarios.map((comment) => (
+                  <div className={styles.comment} key={comment.id}>
+                    <div className={styles.commentHeader}>
+                      <span>{comment.usuario?.nombre} {comment.usuario?.apellido}</span>
+                      <span className={styles.commentActions}>
+                        <span className={styles.commentMeta}>{new Date(comment.created_at).toLocaleDateString("es-PE")}</span>
+                        {comment.usuario_id === perfil?.id ? <V2Button aria-label="Eliminar comentario" onClick={() => eliminarComentario(comment.id)} size="compact" variant="ghost">×</V2Button> : null}
+                      </span>
                     </div>
+                    <div className={styles.commentText}>{comment.comentario}</div>
+                    {comment.link_url ? <a href={comment.link_url} rel="noreferrer" target="_blank">Abrir link / adjunto</a> : null}
                   </div>
-                  <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{c.comentario}</div>
-                  {c.link_url && (
-                    <a href={c.link_url} target="_blank" style={{ fontSize: 11, color: "#1e40af", display: "inline-block", marginTop: 5 }}>Abrir link / adjunto</a>
-                  )}
-                </div>
-              ))}
-            </div>
-            {selected.permitir_comentarios === false ? (
-              <div style={{ padding: 10, background: "#f9fafb", borderRadius: 8, color: "#6b7280", fontSize: 12 }}>
-                Los comentarios están desactivados para esta tarea.
-              </div>
-            ) : (
-            <div style={{ display: "grid", gap: 8 }}>
-              <textarea
-                style={{ ...inp, minHeight: 68, resize: "vertical" }}
-                placeholder="Escribe un comentario o actualización..."
-                value={nuevoComentario}
-                onChange={e => setNuevoComentario(e.target.value)}
-              />
-              <input
-                style={inp}
-                placeholder="Link de Drive o referencia (opcional)"
-                value={nuevoLink}
-                onChange={e => setNuevoLink(e.target.value)}
-              />
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button onClick={agregarComentario} disabled={savingCom || !nuevoComentario.trim()}
-                  style={{ padding: "7px 14px", background: "#0F6E56", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
-                  {savingCom ? "..." : "Comentar"}
-                </button>
+                ))}
               </div>
             </div>
+            {selected.permitir_comentarios === false ? <div className={styles.commentsDisabled}>Los comentarios están desactivados para esta tarea.</div> : (
+              <div className={styles.commentForm}>
+                <textarea className={styles.textarea} onChange={(e) => setNuevoComentario(e.target.value)} placeholder="Escribe un comentario o actualización..." value={nuevoComentario} />
+                <V2Input onChange={(e) => setNuevoLink(e.target.value)} placeholder="Link de Drive o referencia (opcional)" value={nuevoLink} />
+                <V2Button disabled={!nuevoComentario.trim()} loading={savingCom} onClick={agregarComentario}>Comentar</V2Button>
+              </div>
             )}
           </div>
+        ) : null}
+      </V2Drawer>
+
+      <V2Modal
+        description={editando ? undefined : `Solicitante: ${[perfil?.nombre, perfil?.apellido].filter(Boolean).join(" ") || "Usuario actual"}`}
+        footer={<><V2Button onClick={() => setShowForm(false)} variant="secondary">Cancelar</V2Button><V2Button loading={saving} onClick={guardar}>{editando ? "Actualizar" : "Delegar trabajo"}</V2Button></>}
+        onClose={() => setShowForm(false)}
+        open={showForm}
+        size="lg"
+        title={editando ? "Editar seguimiento" : "Delegar trabajo"}
+      >
+        <div className={styles.modalBody}>
+          <TaskForm clientes={clientes} editando={Boolean(editando)} form={form} onChange={setForm} proyectos={proyectos} usuarios={usuarios} />
         </div>
-      )}
-
-      {/* ── MODAL FORM ── */}
-      {showForm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 600, maxHeight: "92vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div>
-                <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "#111827" }}>{editando ? "Editar seguimiento" : "Delegar trabajo"}</h2>
-                {!editando && (
-                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                    Solicitante: {[perfil?.nombre, perfil?.apellido].filter(Boolean).join(" ") || "Usuario actual"}
-                  </div>
-                )}
-              </div>
-              <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 22 }}>×</button>
-            </div>
-
-            <TaskForm
-              clientes={clientes}
-              editando={Boolean(editando)}
-              form={form}
-              onChange={setForm}
-              proyectos={proyectos}
-              usuarios={usuarios}
-            />
-
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
-              <button onClick={() => setShowForm(false)} className="btn-secondary" style={{ fontSize: 13 }}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} className="btn-primary" style={{ fontSize: 13 }}>
-                {saving ? "Guardando..." : editando ? "Actualizar" : "Delegar trabajo"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </V2Modal>
+    </>
   )
 }
 
